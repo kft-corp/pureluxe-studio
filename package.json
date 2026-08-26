@@ -1,0 +1,17 @@
+{
+  "name": "pureluxe",
+  "description": "PureLuxe monorepo — Studio and shared packages for travel planning, bookings, and team operations.",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter @pureluxe/studio dev",
+    "dev:studio": "pnpm --filter @pureluxe/studio dev",
+    "build": "pnpm --filter @pureluxe/studio build",
+    "build:studio": "pnpm --filter @pureluxe/studio build",
+    "lint": "pnpm --filter @pureluxe/studio lint",
+    "start": "pnpm --filter @pureluxe/studio start"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@10.24.0"
+}

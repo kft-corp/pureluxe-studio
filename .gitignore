@@ -77,6 +77,11 @@ web_modules/
 # Next.js build output
 .next
 out
+.turbo
+
+# Local env (keep .env.example)
+.env.local
+.env*.local
 
 # Nuxt.js build / generate output
 .nuxt
