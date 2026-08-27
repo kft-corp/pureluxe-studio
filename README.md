@@ -75,7 +75,10 @@ pureluxe-studio/
 ├── apps/
 │   ├── studio/          # Studio app (building now)
 │   └── client/          # Client app (future — not created yet)
-├── packages/            # Shared code for Studio + Client (added as features land)
+├── packages/
+│   ├── shared/          # Messages, AppError (@pureluxe/shared)
+│   └── db/              # Supabase client + queries (@pureluxe/db)
+├── supabase/            # SQL migrations
 ├── docs/                # docs/studio · docs/client
 ├── .env.example         # Env var template (no secrets)
 ├── package.json         # Root scripts & workspace entry
@@ -106,6 +109,7 @@ pureluxe-studio/
 | [Studio build brief](./docs/studio/build-brief.md) | What to build for Studio core modules |
 | [Studio technical design](./docs/studio/technical-design.md) | Stack, APIs, schemas, build order |
 | [Studio structure](./docs/studio/structure.md) | `apps/studio` folder scaffold |
+| [Supabase setup](./supabase/README.md) | Migrations, tables, first admin |
 | [Client docs](./docs/client/README.md) | Placeholder until Client phase |
 
 ---
@@ -117,6 +121,7 @@ pureluxe-studio/
 | Monorepo (pnpm workspaces) | Ready |
 | Studio app (`apps/studio`) | Bootstrapped and runnable locally |
 | Client app (`apps/client`) | Not started — planned for a later phase |
-| Shared packages (`packages/`) | Placeholder — added as Studio features need them |
+| Shared packages (`packages/`) | `@pureluxe/shared` + `@pureluxe/db` started |
+| Database (Supabase) | Auth migration ready — apply SQL in dashboard (see `supabase/README.md`) |
 
 Next for Studio: sign-in, core modules, and shared packages. See the docs above for the full plan.

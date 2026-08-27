@@ -1,0 +1,22 @@
+{
+  "name": "@pureluxe/db",
+  "version": "0.1.0",
+  "description": "Supabase access for PureLuxe (server-side only).",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@pureluxe/shared": "workspace:*",
+    "@supabase/supabase-js": "^2.57.4",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5"
+  }
+}

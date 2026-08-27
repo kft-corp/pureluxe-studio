@@ -31,6 +31,9 @@ docs/
 
 App-local notes: [`apps/studio/README.md`](../apps/studio/README.md)
 
+Database: [`supabase/README.md`](../supabase/README.md) — `team_members` + `studio_invites` for Studio login
+
+
 ---
 
 ## Client

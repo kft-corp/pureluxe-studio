@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   // Shared packages under packages/* will be consumed here as @pureluxe/*
-  transpilePackages: [],
+  transpilePackages: ["@pureluxe/db", "@pureluxe/shared"],
   reactStrictMode: true,
 };
 

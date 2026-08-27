@@ -164,8 +164,7 @@ pureluxe/
 │   └── ui/                             # Optional shared primitives (Button, Input…)
 │
 ├── supabase/
-│   ├── migrations/                     # 001_….sql numbered migrations
-│   └── seed/                           # Optional demo data
+│   └── migrations/                     # Numbered SQL migrations
 │
 ├── docs/
 │   ├── studio/                         # Studio product + technical docs

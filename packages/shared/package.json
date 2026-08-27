@@ -1,0 +1,19 @@
+{
+  "name": "@pureluxe/shared",
+  "version": "0.1.0",
+  "description": "Shared messages, errors, and small utilities for PureLuxe apps.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "zod": "^3.24.2"
+  }
+}
