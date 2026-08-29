@@ -1,4 +1,4 @@
-import { createServiceClient } from "../client";
+import { getServiceClient } from "../client";
 import { dbQueryError } from "../errors";
 import type { StudioInvite } from "../schema";
 
@@ -6,7 +6,7 @@ import type { StudioInvite } from "../schema";
 export async function findPendingInviteByEmail(
   email: string,
 ): Promise<StudioInvite | null> {
-  const supabase = createServiceClient();
+  const supabase = getServiceClient();
   const normalized = email.trim().toLowerCase();
 
   const { data, error } = await supabase

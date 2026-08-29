@@ -6,7 +6,7 @@ Server-side Supabase access. Database only — no UI copy (use `@pureluxe/shared
 
 ```
 src/
-├── client/          # Supabase connection
+├── client/          # Supabase connection (singleton, server-only)
 ├── validation/      # Zod schemas (env, etc.)
 ├── schema/          # Table types (one file per table)
 ├── queries/         # Read/write functions (one file per table)

@@ -1,2 +1,8 @@
 export type { InviteStatus, StudioInvite } from "./studio-invites";
-export type { StudioRole, TeamMember } from "./team-members";
+export {
+  DEFAULT_STUDIO_ROLE_SLUGS,
+  type DefaultStudioRoleSlug,
+  type StudioRole,
+  type StudioRoleRecord,
+} from "./studio-roles";
+export type { TeamMember } from "./team-members";

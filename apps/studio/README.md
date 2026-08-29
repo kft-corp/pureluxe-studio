@@ -24,7 +24,7 @@ For monorepo overview, setup, and docs, see the [root README](../../README.md).
 | Framework | Next.js 16 (App Router) |
 | UI | React 19 · Tailwind CSS 4 |
 | Language | TypeScript |
-| Port | `3000` |
+| Port | `3002` |
 
 ---
 
@@ -44,7 +44,7 @@ pnpm install   # from repo root first if deps are missing
 pnpm dev
 ```
 
-Open **[http://localhost:3000](http://localhost:3000)**.
+Open **[http://localhost:3002](http://localhost:3002)**.
 
 Auth, database, and AI keys are not required for the current shell. When those features land, copy the root [`.env.example`](../../.env.example) to `.env.local` and fill in values (do not commit secrets).
 
@@ -54,7 +54,7 @@ Auth, database, and AI keys are not required for the current shell. When those f
 
 | Command | Description |
 |---|---|
-| `pnpm dev` | Development server on port 3000 |
+| `pnpm dev` | Development server on port 3002 |
 | `pnpm build` | Production build |
 | `pnpm start` | Serve the production build |
 | `pnpm lint` | Run ESLint |

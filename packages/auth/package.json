@@ -1,0 +1,25 @@
+{
+  "name": "@pureluxe/auth",
+  "version": "0.1.0",
+  "description": "Studio and guest auth — sessions, Google OAuth, sign-in gates.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./edge": "./src/edge/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@pureluxe/db": "workspace:*",
+    "@pureluxe/shared": "workspace:*",
+    "google-auth-library": "^10.3.0",
+    "iron-session": "^8.0.4",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5"
+  }
+}

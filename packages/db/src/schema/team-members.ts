@@ -1,5 +1,6 @@
-/** Studio role — must match DB CHECK on team_members.role. */
-export type StudioRole = "advisor" | "ops" | "finance" | "admin";
+import type { StudioRole } from "./studio-roles";
+
+export type { StudioRole } from "./studio-roles";
 
 /** Row from team_members — someone allowed in Studio. */
 export type TeamMember = {

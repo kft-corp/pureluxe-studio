@@ -4,17 +4,21 @@
   "description": "PureLuxe Studio — internal Next.js app for advisors, ops, and trip building.",
   "private": true,
   "scripts": {
-    "dev": "next dev --port 3000",
-    "build": "next build",
-    "start": "next start --port 3000",
+    "dev": "node --require ./scripts/load-root-env.cjs ./node_modules/next/dist/bin/next dev --port 3002",
+    "build": "node --require ./scripts/load-root-env.cjs ./node_modules/next/dist/bin/next build",
+    "start": "node --require ./scripts/load-root-env.cjs ./node_modules/next/dist/bin/next start --port 3002",
     "lint": "eslint ."
   },
   "dependencies": {
+    "@pureluxe/auth": "workspace:*",
     "@pureluxe/db": "workspace:*",
     "@pureluxe/shared": "workspace:*",
+    "iron-session": "^8.0.4",
     "next": "16.3.3",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "react-icons": "^5.7.0",
+    "sonner": "^2.0.8"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

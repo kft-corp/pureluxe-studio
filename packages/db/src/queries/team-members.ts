@@ -1,4 +1,4 @@
-import { createServiceClient } from "../client";
+import { getServiceClient } from "../client";
 import { dbQueryError } from "../errors";
 import type { TeamMember } from "../schema";
 
@@ -6,7 +6,7 @@ import type { TeamMember } from "../schema";
 export async function findTeamMemberByEmail(
   email: string,
 ): Promise<TeamMember | null> {
-  const supabase = createServiceClient();
+  const supabase = getServiceClient();
   const normalized = email.trim().toLowerCase();
 
   const { data, error } = await supabase
@@ -24,7 +24,7 @@ export async function findTeamMemberByEmail(
 
 /** Update last_login_at after a successful sign-in. */
 export async function touchTeamMemberLastLogin(memberId: string): Promise<void> {
-  const supabase = createServiceClient();
+  const supabase = getServiceClient();
 
   const { error } = await supabase
     .from("team_members")

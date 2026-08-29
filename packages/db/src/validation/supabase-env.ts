@@ -15,8 +15,15 @@ export const supabaseEnvSchema = z.object({
 
 export type SupabaseEnv = z.infer<typeof supabaseEnvSchema>;
 
+/** Validated env — cached after first read in this server process. */
+let cachedEnv: SupabaseEnv | null = null;
+
 /** Read and validate Supabase env from process.env. */
 export function getSupabaseEnv(): SupabaseEnv {
+  if (cachedEnv) {
+    return cachedEnv;
+  }
+
   const result = supabaseEnvSchema.safeParse({
     SUPABASE_URL: process.env.SUPABASE_URL,
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -26,5 +33,6 @@ export function getSupabaseEnv(): SupabaseEnv {
     throw dbConfigError(result.error);
   }
 
-  return result.data;
+  cachedEnv = result.data;
+  return cachedEnv;
 }

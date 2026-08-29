@@ -47,7 +47,7 @@ pnpm install
 pnpm dev
 ```
 
-Open **[http://localhost:3000](http://localhost:3000)** in your browser.
+Open **[http://localhost:3002](http://localhost:3002)** in your browser.
 
 That’s enough to run the current Studio shell. Auth, database, and AI keys are not required until those features are wired up.
 
@@ -97,7 +97,12 @@ pureluxe-studio/
 
 2. Fill in values in `.env.local` only (never commit real secrets).
 
-`.env.example` lists expected keys (Supabase, Google OAuth, session secret, Anthropic). Leave them empty until the related feature is in progress.
+   Required for Studio sign-in:
+   - `STUDIO_SESSION_SECRET` — random string, at least 32 characters
+   - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` — local dev URI is `http://localhost:3002/api/auth/callback` (must match Google Cloud Console)
+   - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` — see [supabase/README.md](./supabase/README.md)
+
+   The Studio app loads this file from the **repo root** via `apps/studio/scripts/load-root-env.cjs` (used by `pnpm dev` / `build` / `start`).
 
 ---
 
