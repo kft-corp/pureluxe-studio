@@ -9,6 +9,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { isPublicPath, requiresAuth, shouldBypassProxy } from "@/lib/auth/public-paths";
 import { pageRoutes } from "@/lib/routes";
 
+/** Edge auth gate — login required for protected routes. RBAC is enforced in Server Components. */
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 

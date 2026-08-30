@@ -1,6 +1,6 @@
-import { getServiceClient } from "../client";
-import { dbQueryError } from "../errors";
-import type { StudioInvite } from "../schema";
+import { getServiceClient } from "../../client";
+import { dbQueryError } from "../../errors";
+import type { StudioInvite } from "../../schema";
 
 /** Find pending invite by email. Returns null if none. */
 export async function findPendingInviteByEmail(

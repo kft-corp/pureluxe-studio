@@ -6,6 +6,7 @@ export {
   findPendingInviteByEmail,
   findTeamMemberByEmail,
   listActiveStudioRoles,
+  listPermissionSlugsByRole,
   touchTeamMemberLastLogin,
 } from "./queries";
 export {
@@ -13,7 +14,9 @@ export {
   type DefaultStudioRoleSlug,
   type InviteStatus,
   type StudioInvite,
+  type StudioPermissionRecord,
   type StudioRole,
+  type StudioRolePermissionRecord,
   type StudioRoleRecord,
   type TeamMember,
 } from "./schema";

@@ -6,9 +6,9 @@ export function LoginFormPanel() {
   return (
     <section
       aria-labelledby="login-heading"
-      className="relative flex min-h-screen w-full flex-1 flex-col bg-[#f9f8f6] lg:w-2/5"
+      className="relative flex min-h-screen w-full flex-1 flex-col bg-surface lg:w-2/5"
     >
-      <div className="flex flex-1 flex-col items-center justify-center px-6 py-10 sm:px-8 sm:py-12">
+      <div className="flex flex-1 flex-col items-center justify-center px-5 py-10 pt-[max(2.5rem,env(safe-area-inset-top))] sm:px-8 sm:py-12">
         <div
           className="flex w-full max-w-sm flex-col items-center text-center"
           role="region"
@@ -16,14 +16,14 @@ export function LoginFormPanel() {
         >
           <h1
             id="login-heading"
-            className="font-serif text-3xl font-normal tracking-tight text-[#141414] sm:text-4xl"
+            className="font-serif text-3xl font-normal tracking-tight text-ink sm:text-4xl"
           >
             PureLuxe Studio
           </h1>
 
           <p
             id="login-subtitle"
-            className="mt-3 max-w-xs text-sm leading-relaxed text-[#6b6b6b] sm:max-w-sm"
+            className="mt-3 max-w-xs text-sm leading-relaxed text-ink-muted sm:max-w-sm"
           >
             Invite-only · Sign in with your KFT Google account
           </p>
@@ -34,7 +34,7 @@ export function LoginFormPanel() {
         </div>
       </div>
 
-      <p className="pb-6 text-center text-xs text-[#b0b0b0] sm:pb-8">
+      <p className="pb-[max(1.5rem,env(safe-area-inset-bottom))] text-center text-xs text-ink-subtle sm:pb-8">
         No public registration
       </p>
     </section>

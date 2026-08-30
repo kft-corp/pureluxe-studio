@@ -1,7 +1,11 @@
-export { acceptInviteAndCreateMember } from "./accept-invite";
+export {
+  acceptInviteAndCreateMember,
+  findPendingInviteByEmail,
+  findTeamMemberByEmail,
+  touchTeamMemberLastLogin,
+} from "./auth";
 export {
   findActiveStudioRoleBySlug,
   listActiveStudioRoles,
-} from "./studio-roles";
-export { findPendingInviteByEmail } from "./studio-invites";
-export { findTeamMemberByEmail, touchTeamMemberLastLogin } from "./team-members";
+  listPermissionSlugsByRole,
+} from "./rbac";

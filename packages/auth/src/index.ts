@@ -1,4 +1,4 @@
-export { authorizeStudioSignIn } from "./authorize";
+export { authorizeStudioSignIn, type StudioSignInResult } from "./authorize";
 export {
   accessDeniedError,
   accountInactiveError,

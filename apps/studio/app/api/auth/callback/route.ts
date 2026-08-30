@@ -40,8 +40,8 @@ export async function GET(request: Request) {
 
   try {
     const profile = await getGoogleProfileFromCode(code);
-    const member = await authorizeStudioSignIn(profile);
-    setStudioSessionMember(session, member);
+    const { member, permissions } = await authorizeStudioSignIn(profile);
+    setStudioSessionMember(session, member, permissions);
     await session.save();
 
     return NextResponse.redirect(
@@ -54,9 +54,16 @@ export async function GET(request: Request) {
     );
   } catch (cause) {
     if (cause instanceof AppError) {
+      if (process.env.NODE_ENV === "development") {
+        console.error("[auth/callback]", cause.code, cause.userMessage, cause.cause);
+      }
       return NextResponse.redirect(
         buildLoginUrl(request.url, loginErrorToCode(cause)).toString(),
       );
+    }
+
+    if (process.env.NODE_ENV === "development") {
+      console.error("[auth/callback] sign-in failed:", cause);
     }
 
     return NextResponse.redirect(

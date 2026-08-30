@@ -1,1 +1,4 @@
-export { authorizeStudioSignIn } from "./studio-sign-in";
+export {
+  authorizeStudioSignIn,
+  type StudioSignInResult,
+} from "./studio-sign-in";

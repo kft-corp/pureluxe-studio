@@ -1,7 +1,7 @@
-import { getServiceClient } from "../client";
-import { dbQueryError } from "../errors";
-import type { StudioInvite } from "../schema";
-import type { TeamMember } from "../schema/team-members";
+import { getServiceClient } from "../../client";
+import { dbQueryError } from "../../errors";
+import type { StudioInvite } from "../../schema";
+import type { TeamMember } from "../../schema/team-members";
 
 type AcceptInviteInput = {
   invite: StudioInvite;

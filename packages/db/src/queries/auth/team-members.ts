@@ -1,6 +1,6 @@
-import { getServiceClient } from "../client";
-import { dbQueryError } from "../errors";
-import type { TeamMember } from "../schema";
+import { getServiceClient } from "../../client";
+import { dbQueryError } from "../../errors";
+import type { TeamMember } from "../../schema";
 
 /** Find team member by email. Returns null if not found. */
 export async function findTeamMemberByEmail(

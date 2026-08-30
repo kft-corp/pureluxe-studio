@@ -1,11 +1,49 @@
 @import "tailwindcss";
 
+/* PureLuxe Studio design tokens */
 :root {
-  --background: #0b0b0c;
-  --foreground: #f4f1ea;
+  --brand-dark: #0b0b0c;
+  /* Warm espresso sidebar — softer than flat black, matches cream brand tones */
+  --brand-sidebar: #1f1c18;
+  --brand-sidebar-deep: #161412;
+  --brand-light: #f4f1ea;
+  --surface: #f9f8f6;
+  --surface-raised: #ffffff;
+  --surface-hover: #f4f3f0;
+  --border: #e8e6e1;
+  --border-dark: #342f29;
+  --border-muted: #4a443c;
+  --ink: #141414;
+  --ink-muted: #6b6b6b;
+  --ink-subtle: #b0b0b0;
+  --on-dark: #f4f1ea;
+  --on-dark-muted: #d8d4cb;
+  --on-dark-subtle: #a39e93;
+  --on-dark-faint: #7a756c;
+
+  /* Root layout (login gate, etc.) */
+  --background: var(--brand-dark);
+  --foreground: var(--brand-light);
 }
 
 @theme inline {
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-sidebar: var(--brand-sidebar);
+  --color-brand-sidebar-deep: var(--brand-sidebar-deep);
+  --color-brand-light: var(--brand-light);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-hover: var(--surface-hover);
+  --color-border: var(--border);
+  --color-border-dark: var(--border-dark);
+  --color-border-muted: var(--border-muted);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-subtle: var(--ink-subtle);
+  --color-on-dark: var(--on-dark);
+  --color-on-dark-muted: var(--on-dark-muted);
+  --color-on-dark-subtle: var(--on-dark-subtle);
+  --color-on-dark-faint: var(--on-dark-faint);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
@@ -16,6 +54,29 @@
 body {
   background: var(--background);
   color: var(--foreground);
+}
+
+/* Sidebar — warm vertical depth, full column height */
+.studio-sidebar {
+  min-height: 100%;
+  background: linear-gradient(
+    180deg,
+    var(--brand-sidebar) 0%,
+    var(--brand-sidebar-deep) 100%
+  );
+}
+
+.studio-sidebar::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0.04;
+  background-image: radial-gradient(
+    ellipse 120% 80% at 50% -20%,
+    #f4f1ea 0%,
+    transparent 55%
+  );
 }
 
 /* Sonner — soft toast colors */
@@ -60,12 +121,12 @@ body {
 }
 
 [data-sonner-toast] [data-close-button] {
-  border-color: #e8e6e1 !important;
-  background-color: #ffffff !important;
-  color: #6b6b6b !important;
+  border-color: var(--border) !important;
+  background-color: var(--surface-raised) !important;
+  color: var(--ink-muted) !important;
 }
 
 [data-sonner-toast] [data-close-button]:hover {
-  background-color: #f4f3f0 !important;
-  color: #141414 !important;
+  background-color: var(--surface-hover) !important;
+  color: var(--ink) !important;
 }

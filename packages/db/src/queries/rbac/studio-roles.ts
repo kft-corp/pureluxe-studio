@@ -1,6 +1,6 @@
-import { getServiceClient } from "../client";
-import { dbQueryError } from "../errors";
-import type { StudioRoleRecord } from "../schema/studio-roles";
+import { getServiceClient } from "../../client";
+import { dbQueryError } from "../../errors";
+import type { StudioRoleRecord } from "../../schema/studio-roles";
 
 /** Active roles for invite UI and RBAC — ordered by sort_order. */
 export async function listActiveStudioRoles(): Promise<StudioRoleRecord[]> {

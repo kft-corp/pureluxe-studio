@@ -15,5 +15,7 @@ export const authMessages = {
       "Your account is inactive. Contact an admin if you need access.",
     signInFailed: "Sign-in didn't work. Please try again.",
     signInCancelled: "Sign-in was cancelled. You can try again when ready.",
+    dbUnavailable:
+      "Studio database setup is incomplete. Apply Supabase migration 002_studio_rbac.sql, then try again.",
   },
 } as const;

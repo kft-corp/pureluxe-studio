@@ -8,7 +8,8 @@ export type LoginErrorCode =
   | "inactive"
   | "sign_in_failed"
   | "sign_in_cancelled"
-  | "session_expired";
+  | "session_expired"
+  | "db_unavailable";
 
 export function loginErrorToCode(error: AppError): LoginErrorCode {
   switch (error.code) {
@@ -16,6 +17,9 @@ export function loginErrorToCode(error: AppError): LoginErrorCode {
       return "access_denied";
     case "auth.account_inactive":
       return "inactive";
+    case "db.query_failed":
+    case "db.config_invalid":
+      return "db_unavailable";
     default:
       return "sign_in_failed";
   }

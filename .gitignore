@@ -150,3 +150,6 @@ vite.config.ts.timestamp-*
 # Supabase CLI local state
 supabase/.temp/
 supabase/.branches/
+
+# Cursor files
+.cursor/

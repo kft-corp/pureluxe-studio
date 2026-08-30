@@ -15,3 +15,11 @@ export {
   type InviteMemberInput,
   type StudioRoleInput,
 } from "./validation";
+export {
+  hasModulePermission,
+  hasPermission,
+  moduleReadPermission,
+  type PermissionAction,
+  type PermissionSlug,
+  type StudioModule,
+} from "./rbac";

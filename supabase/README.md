@@ -22,9 +22,22 @@ Creates:
 | `team_members` | Who can log into Studio + their role |
 | `studio_invites` | Admin invites before first Google sign-in |
 
+Migration: `migrations/002_studio_rbac.sql`
+
+Creates:
+
+| Table | Purpose |
+|---|---|
+| `studio_permissions` | Permission catalog (`module.action`, e.g. `bookings.read`) |
+| `studio_role_permissions` | Role → permission grants for RBAC |
+
+Seeds default permissions and grants for `advisor`, `ops`, `finance`, and `admin`.
+
 `team_members.role` and `studio_invites.role` reference `studio_roles.slug` — add new roles by inserting into `studio_roles`, no migration required.
 
 Also adds reusable `set_updated_at()` trigger helper, enables RLS (server `service_role` only), and grants `service_role` table access (needed when auto-expose is off).
+
+Run **001** before **002**. Apply both in order (Dashboard paste or `npx supabase db push` from repo root).
 
 ### Option A — Supabase Dashboard (simplest)
 

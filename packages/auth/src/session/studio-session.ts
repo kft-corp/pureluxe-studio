@@ -39,12 +39,14 @@ export async function getStudioSession(cookieStore: unknown) {
 export function setStudioSessionMember(
   session: StudioSessionData,
   member: { id: string; email: string; name: string; role: StudioRole },
+  permissions: readonly string[],
 ): void {
   session.isLoggedIn = true;
   session.memberId = member.id;
   session.email = member.email;
   session.name = member.name;
   session.role = member.role;
+  session.permissions = [...permissions];
   delete session.oauthState;
 }
 
@@ -55,5 +57,6 @@ export function clearStudioSession(session: StudioSessionData): void {
   delete session.email;
   delete session.name;
   delete session.role;
+  delete session.permissions;
   delete session.oauthState;
 }

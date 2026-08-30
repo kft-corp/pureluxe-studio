@@ -2,6 +2,17 @@
 export const pageRoutes = {
   home: "/",
   login: "/login",
+  tripBuilder: "/trip-builder",
+  bookings: "/bookings",
+  clients: "/clients",
+  trips: "/trips",
+  trainer: "/trainer",
+  tasks: "/tasks",
+  commissions: "/commissions",
+  payments: "/payments",
+  account: "/account",
+  team: "/team",
+  settings: "/settings",
 } as const;
 
 // Path with query string, e.g. "/?auth=signed_in".

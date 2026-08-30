@@ -8,6 +8,7 @@ const LOGIN_ERROR_MESSAGES: Record<LoginErrorCode, string> = {
   sign_in_failed: authMessages.error.signInFailed,
   sign_in_cancelled: authMessages.error.signInCancelled,
   session_expired: authMessages.warn.sessionExpired,
+  db_unavailable: authMessages.error.dbUnavailable,
 };
 
 export function resolveLoginErrorMessage(error?: string): string | null {
