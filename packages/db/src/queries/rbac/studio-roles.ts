@@ -1,4 +1,4 @@
-import { getServiceClient } from "../../client";
+import { getServiceClient, runSupabaseQuery } from "../../client";
 import { dbQueryError } from "../../errors";
 import type { StudioRoleRecord } from "../../schema/studio-roles";
 
@@ -6,11 +6,13 @@ import type { StudioRoleRecord } from "../../schema/studio-roles";
 export async function listActiveStudioRoles(): Promise<StudioRoleRecord[]> {
   const supabase = getServiceClient();
 
-  const { data, error } = await supabase
-    .from("studio_roles")
-    .select("*")
-    .eq("active", true)
-    .order("sort_order", { ascending: true });
+  const { data, error } = await runSupabaseQuery(() =>
+    supabase
+      .from("studio_roles")
+      .select("*")
+      .eq("active", true)
+      .order("sort_order", { ascending: true }),
+  );
 
   if (error) {
     throw dbQueryError(error);
@@ -26,12 +28,14 @@ export async function findActiveStudioRoleBySlug(
   const supabase = getServiceClient();
   const normalized = slug.trim().toLowerCase();
 
-  const { data, error } = await supabase
-    .from("studio_roles")
-    .select("*")
-    .eq("slug", normalized)
-    .eq("active", true)
-    .maybeSingle();
+  const { data, error } = await runSupabaseQuery(() =>
+    supabase
+      .from("studio_roles")
+      .select("*")
+      .eq("slug", normalized)
+      .eq("active", true)
+      .maybeSingle(),
+  );
 
   if (error) {
     throw dbQueryError(error);

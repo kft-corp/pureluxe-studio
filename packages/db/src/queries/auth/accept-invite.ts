@@ -1,4 +1,4 @@
-import { getServiceClient } from "../../client";
+import { getServiceClient, runSupabaseQuery } from "../../client";
 import { dbQueryError } from "../../errors";
 import type { StudioInvite } from "../../schema";
 import type { TeamMember } from "../../schema/team-members";
@@ -18,29 +18,33 @@ export async function acceptInviteAndCreateMember(
   const email = input.invite.email.trim().toLowerCase();
   const name = input.name.trim() || email.split("@")[0] || "Team member";
 
-  const { data: member, error: memberError } = await supabase
-    .from("team_members")
-    .insert({
-      name,
-      email,
-      role: input.invite.role,
-      active: true,
-    })
-    .select("*")
-    .single();
+  const { data: member, error: memberError } = await runSupabaseQuery(() =>
+    supabase
+      .from("team_members")
+      .insert({
+        name,
+        email,
+        role: input.invite.role,
+        active: true,
+      })
+      .select("*")
+      .single(),
+  );
 
   if (memberError) {
     throw dbQueryError(memberError);
   }
 
-  const { error: inviteError } = await supabase
-    .from("studio_invites")
-    .update({
-      status: "accepted",
-      accepted_at: new Date().toISOString(),
-    })
-    .eq("id", input.invite.id)
-    .eq("status", "pending");
+  const { error: inviteError } = await runSupabaseQuery(() =>
+    supabase
+      .from("studio_invites")
+      .update({
+        status: "accepted",
+        accepted_at: new Date().toISOString(),
+      })
+      .eq("id", input.invite.id)
+      .eq("status", "pending"),
+  );
 
   if (inviteError) {
     throw dbQueryError(inviteError);

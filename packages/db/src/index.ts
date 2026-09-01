@@ -2,12 +2,19 @@ export { createServiceClient, getServiceClient } from "./client";
 export { dbConfigError, dbQueryError } from "./errors";
 export {
   acceptInviteAndCreateMember,
+  createStudioInvite,
   findActiveStudioRoleBySlug,
   findPendingInviteByEmail,
   findTeamMemberByEmail,
+  findTeamMemberById,
   listActiveStudioRoles,
+  listPendingInvites,
   listPermissionSlugsByRole,
+  listTeamMembers,
+  revokeStudioInvite,
+  touchStudioInvite,
   touchTeamMemberLastLogin,
+  updateTeamMember,
 } from "./queries";
 export {
   DEFAULT_STUDIO_ROLE_SLUGS,

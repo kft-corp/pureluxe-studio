@@ -1,4 +1,4 @@
-import { getServiceClient } from "../../client";
+import { getServiceClient, runSupabaseQuery } from "../../client";
 import { dbQueryError } from "../../errors";
 
 /** Active permission slugs granted to a role — used at login and session hydration. */
@@ -8,10 +8,13 @@ export async function listPermissionSlugsByRole(
   const supabase = getServiceClient();
   const normalized = roleSlug.trim().toLowerCase();
 
-  const { data: rolePermissions, error: roleError } = await supabase
-    .from("studio_role_permissions")
-    .select("permission_slug")
-    .eq("role_slug", normalized);
+  const { data: rolePermissions, error: roleError } = await runSupabaseQuery(
+    () =>
+      supabase
+        .from("studio_role_permissions")
+        .select("permission_slug")
+        .eq("role_slug", normalized),
+  );
 
   if (roleError) {
     throw dbQueryError(roleError);
@@ -22,11 +25,14 @@ export async function listPermissionSlugsByRole(
     return [];
   }
 
-  const { data: permissions, error: permissionError } = await supabase
-    .from("studio_permissions")
-    .select("slug")
-    .in("slug", slugs)
-    .eq("active", true);
+  const { data: permissions, error: permissionError } = await runSupabaseQuery(
+    () =>
+      supabase
+        .from("studio_permissions")
+        .select("slug")
+        .in("slug", slugs)
+        .eq("active", true),
+  );
 
   if (permissionError) {
     throw dbQueryError(permissionError);

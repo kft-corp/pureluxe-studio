@@ -20,12 +20,19 @@ const cormorant = Cormorant_Garamond({
   weight: ["400", "500", "600"],
 });
 
+const studioLogoPath = "/images/pureluxe-studio-logo.png";
+
 export const metadata: Metadata = {
   title: {
     default: "PureLuxe Studio",
     template: "%s · PureLuxe Studio",
   },
   description: "Internal team platform for PureLuxe travel planning and operations.",
+  icons: {
+    icon: [{ url: studioLogoPath, type: "image/png" }],
+    apple: studioLogoPath,
+    shortcut: studioLogoPath,
+  },
   robots: {
     index: false,
     follow: false,

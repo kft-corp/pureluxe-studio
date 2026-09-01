@@ -1,4 +1,4 @@
-import { getServiceClient } from "../../client";
+import { getServiceClient, runSupabaseQuery } from "../../client";
 import { dbQueryError } from "../../errors";
 import type { StudioInvite } from "../../schema";
 
@@ -9,12 +9,14 @@ export async function findPendingInviteByEmail(
   const supabase = getServiceClient();
   const normalized = email.trim().toLowerCase();
 
-  const { data, error } = await supabase
-    .from("studio_invites")
-    .select("*")
-    .eq("status", "pending")
-    .eq("email", normalized)
-    .maybeSingle();
+  const { data, error } = await runSupabaseQuery(() =>
+    supabase
+      .from("studio_invites")
+      .select("*")
+      .eq("status", "pending")
+      .eq("email", normalized)
+      .maybeSingle(),
+  );
 
   if (error) {
     throw dbQueryError(error);

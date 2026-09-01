@@ -27,3 +27,17 @@ export const inviteMemberSchema = z.object({
 });
 
 export type InviteMemberInput = z.infer<typeof inviteMemberSchema>;
+
+/** Update an existing member role. */
+export const updateMemberRoleSchema = z.object({
+  role: studioRoleSlugSchema,
+});
+
+export type UpdateMemberRoleInput = z.infer<typeof updateMemberRoleSchema>;
+
+/** Deactivate or reactivate a member. */
+export const updateMemberStatusSchema = z.object({
+  active: z.boolean(),
+});
+
+export type UpdateMemberStatusInput = z.infer<typeof updateMemberStatusSchema>;
