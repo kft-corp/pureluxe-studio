@@ -10,14 +10,17 @@ export { AppError, toAppError } from "./errors";
 export { authMessages, commonMessages, dbMessages, messages, teamMessages } from "./messages";
 export {
   inviteMemberSchema,
+  permissionSlugSchema,
   studioRoleSchema,
   studioRoleSlugSchema,
   updateMemberRoleSchema,
   updateMemberStatusSchema,
+  updateRolePermissionsSchema,
   type InviteMemberInput,
   type StudioRoleInput,
   type UpdateMemberRoleInput,
   type UpdateMemberStatusInput,
+  type UpdateRolePermissionsInput,
 } from "./validation";
 export {
   hasModulePermission,

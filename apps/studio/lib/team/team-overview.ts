@@ -95,7 +95,7 @@ export async function assertActiveRole(role: string): Promise<void> {
 
   if (!record) {
     throw new AppError({
-      userMessage: "That role is not available.",
+      userMessage: teamMessages.error.roleNotFound,
       code: "team.role_not_found",
       status: 400,
     });

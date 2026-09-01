@@ -20,7 +20,7 @@ const cormorant = Cormorant_Garamond({
   weight: ["400", "500", "600"],
 });
 
-const studioLogoPath = "/images/pureluxe-studio-logo.png";
+const studioLogoPath = "/images/pureluxe-studio-logo.svg";
 
 export const metadata: Metadata = {
   title: {
