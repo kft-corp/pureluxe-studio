@@ -52,25 +52,20 @@ export function TeamPageContent({
               <LuUserPlus className="h-4 w-4" aria-hidden />
               Invite member
             </button>
-          ) : (
-            <span className="hidden min-h-10 shrink-0 lg:block lg:min-w-[9.5rem]" aria-hidden />
-          )}
+          ) : null}
         </div>
 
-        <div
-          className={!isMembersTab ? "invisible pointer-events-none" : undefined}
-          aria-hidden={!isMembersTab}
-        >
+        {isMembersTab ? (
           <MemberFilters
             value={team.filter}
             onChange={team.setFilter}
             counts={team.filterCounts}
           />
-        </div>
+        ) : null}
       </PageToolbar>
 
       {activeTab === "roles" ? (
-        <RolePermissionsTab canManage={team.data.canManage} />
+        <RolePermissionsTab active />
       ) : (
         <MembersTab
           data={team.data}

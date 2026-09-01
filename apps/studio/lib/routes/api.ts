@@ -15,5 +15,7 @@ export const apiRoutes = {
     invites: "/api/team/invites",
     invite: (inviteId: string) => `/api/team/invites/${inviteId}`,
     inviteResend: (inviteId: string) => `/api/team/invites/${inviteId}/resend`,
+    roles: "/api/team/roles",
+    role: (roleSlug: string) => `/api/team/roles/${roleSlug}`,
   },
 } as const;

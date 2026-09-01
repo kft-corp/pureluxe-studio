@@ -13,6 +13,9 @@ export {
 } from "./auth";
 export {
   findActiveStudioRoleBySlug,
+  listActiveStudioPermissions,
   listActiveStudioRoles,
   listPermissionSlugsByRole,
+  listStudioRolePermissionGrants,
+  replaceRolePermissions,
 } from "./rbac";
