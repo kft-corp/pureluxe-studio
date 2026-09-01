@@ -2,6 +2,8 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import { getSupabaseEnv } from "../validation";
 
+import { fetchWithPgrst303Retry } from "./fetch-with-retry";
+
 /** Reused for the lifetime of this server process (singleton). */
 let serviceClient: SupabaseClient | null = null;
 
@@ -17,6 +19,9 @@ export function getServiceClient(): SupabaseClient {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
+    },
+    global: {
+      fetch: fetchWithPgrst303Retry,
     },
   });
 

@@ -37,6 +37,12 @@ export function showSuccessToast(message: string, options?: ToastOptions) {
   showToast("success", message, options);
 }
 
+export function showOptionalSuccessToast(message?: string, options?: ToastOptions) {
+  if (message) {
+    showSuccessToast(message, options);
+  }
+}
+
 export function showErrorToast(message: string, options?: ToastOptions) {
   showToast("error", message, options);
 }

@@ -99,7 +99,7 @@ export function AppShell({ user, children }: AppShellProps) {
           </div>
         </header>
 
-        <main className="min-h-0 w-full flex-1 overflow-x-hidden overflow-y-auto">
+        <main className="min-h-0 w-full flex-1 overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable]">
           {children}
         </main>
       </div>
