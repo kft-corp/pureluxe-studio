@@ -21,7 +21,7 @@ export function ActionButton({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors",
+        "inline-flex min-h-8 items-center rounded-lg px-2.5 text-xs font-medium transition-colors",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-dark/15",
         "disabled:cursor-not-allowed disabled:opacity-40",
         variant === "default" &&

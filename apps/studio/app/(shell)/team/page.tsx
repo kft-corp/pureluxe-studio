@@ -14,7 +14,7 @@ export default async function TeamPage() {
     <ShellModulePage
       module="team"
       title="Team & Roles"
-      description="Invite KFT team · set role · Google sign-in only · no public registration."
+      description="Invite teammates, manage access, and set what each role can do."
     >
       <TeamPageContent
         initialData={overview}

@@ -1,5 +1,36 @@
-export { getAccountProfile, type AccountProfileData } from "./account";
+export { getAccountProfile, updateAccountProfile, type AccountProfileData } from "./account";
 export { logout } from "./auth";
+export {
+  approveClient,
+  confirmClientDocumentUpload,
+  createClient,
+  createClientDocument,
+  createClientPreference,
+  createClientRelationship,
+  deactivateClient,
+  deleteClientDocument,
+  deleteClientRelationship,
+  getClientDirectoryFilters,
+  getClientDocumentFileUrl,
+  getClientProfile,
+  leaveClientFamily,
+  listClients,
+  removeClientFamilyMember,
+  searchClients,
+  searchFamilies,
+  updateClient,
+  updateClientDocument,
+  updateClientFamily,
+  updateClientPreference,
+  uploadClientDocumentFile,
+  upsertClientFamily,
+  upsertClientHealth,
+  type ClientDirectoryData,
+  type ClientDirectoryItem,
+  type ClientSearchHit,
+  type CreateClientDocumentResponse,
+  type FamilySearchHit,
+} from "./clients";
 export { ApiRequestError, fetchApi } from "./client";
 export { apiError, apiFromError, apiSuccess } from "./responses";
 export {

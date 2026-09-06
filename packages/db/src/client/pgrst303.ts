@@ -21,6 +21,7 @@ export function isPgrst303Error(error: unknown): boolean {
 type SupabaseResult<T> = {
   data: T;
   error: PostgrestError | null;
+  count?: number | null;
 };
 
 /** Retry transient PGRST303 failures from Supabase gateway clock skew. */

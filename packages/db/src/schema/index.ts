@@ -10,3 +10,23 @@ export {
   type StudioRoleRecord,
 } from "./studio-roles";
 export type { TeamMember } from "./team-members";
+export type {
+  Client,
+  ClientAuditAction,
+  ClientAuditLog,
+  ClientDocument,
+  ClientHealthProfile,
+  ClientImportantDate,
+  ClientMergeCandidate,
+  ClientPreference,
+  ClientRelationship,
+  ClientReviewStatus,
+  ClientSource,
+  ClientTier,
+  ClientTierSummary,
+  FamilyMemberRole,
+  FamilyMembership,
+  GuestUser,
+  PreferredContactMethod,
+  SimilarClientMatch,
+} from "./clients";

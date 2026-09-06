@@ -19,8 +19,11 @@ import {
 } from "@/lib/feedback/toast";
 import type { TeamConfirmState } from "@/lib/team/confirm-dialog-config";
 import {
+  filterInvitesByQuery,
+  filterMembersByQuery,
   getFilterCounts,
   getMembersForPrimarySection,
+  getMembersSectionDescription,
   getMembersSectionTitle,
   partitionMembers,
   shouldShowInactiveSection,
@@ -32,6 +35,7 @@ import {
 export function useTeamPage(initialData: TeamOverviewData) {
   const [data, setData] = useState(initialData);
   const [filter, setFilter] = useState<MemberFilter>("all");
+  const [search, setSearch] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
   const [changeRoleMember, setChangeRoleMember] =
     useState<TeamMemberListItem | null>(null);
@@ -49,26 +53,52 @@ export function useTeamPage(initialData: TeamOverviewData) {
     [data.members],
   );
 
+  const filteredActive = useMemo(
+    () => filterMembersByQuery(activeMembers, search),
+    [activeMembers, search],
+  );
+
+  const filteredInactive = useMemo(
+    () => filterMembersByQuery(inactiveMembers, search),
+    [inactiveMembers, search],
+  );
+
+  const filteredPendingInvites = useMemo(
+    () => filterInvitesByQuery(data.pendingInvites, search),
+    [data.pendingInvites, search],
+  );
+
   const filterCounts = useMemo(
     () =>
       getFilterCounts({
-        active: activeMembers,
-        inactive: inactiveMembers,
-        pendingInvites: data.pendingInvites,
+        active: filteredActive,
+        inactive: filteredInactive,
+        pendingInvites: filteredPendingInvites,
       }),
-    [activeMembers, inactiveMembers, data.pendingInvites],
+    [filteredActive, filteredInactive, filteredPendingInvites],
   );
 
   const primaryMembers = useMemo(
     () =>
       getMembersForPrimarySection(filter, {
-        active: activeMembers,
-        inactive: inactiveMembers,
+        active: filteredActive,
+        inactive: filteredInactive,
       }),
-    [filter, activeMembers, inactiveMembers],
+    [filter, filteredActive, filteredInactive],
   );
 
+  const hasActiveFilters = Boolean(search.trim()) || filter !== "all";
+
   const membersSectionTitle = getMembersSectionTitle(filter);
+  const membersSectionDescription = getMembersSectionDescription(
+    filter,
+    Boolean(search.trim()),
+  );
+
+  function clearSearchAndFilters() {
+    setSearch("");
+    setFilter("all");
+  }
 
   async function handleConfirm() {
     if (!confirmState) {
@@ -116,6 +146,10 @@ export function useTeamPage(initialData: TeamOverviewData) {
     data,
     filter,
     setFilter,
+    search,
+    setSearch,
+    hasActiveFilters,
+    clearSearchAndFilters,
     filterCounts,
     inviteOpen,
     setInviteOpen,
@@ -128,12 +162,17 @@ export function useTeamPage(initialData: TeamOverviewData) {
     refresh,
     handleConfirm,
     handleResend,
-    activeMembers,
-    inactiveMembers,
+    activeMembers: filteredActive,
+    inactiveMembers: filteredInactive,
+    pendingInvites: filteredPendingInvites,
     primaryMembers,
     membersSectionTitle,
+    membersSectionDescription,
     showMembersSection: shouldShowMembersSection(filter),
-    showInactiveSection: shouldShowInactiveSection(filter, inactiveMembers.length),
+    showInactiveSection: shouldShowInactiveSection(
+      filter,
+      filteredInactive.length,
+    ),
     showPendingSection: shouldShowPendingSection(filter),
   };
 }

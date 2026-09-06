@@ -3,7 +3,7 @@ import type { IconType } from "react-icons";
 import { cn } from "@/lib/utils/cn";
 
 type StatusBadgeProps = {
-  status: "active" | "inactive" | "pending";
+  status: "active" | "inactive" | "pending" | "approved";
   className?: string;
 };
 
@@ -11,12 +11,14 @@ const STATUS_STYLES = {
   active: "bg-emerald-50 text-emerald-800 ring-emerald-600/10",
   inactive: "bg-stone-100 text-stone-600 ring-stone-500/10",
   pending: "bg-amber-50 text-amber-800 ring-amber-600/10",
+  approved: "bg-emerald-50 text-emerald-800 ring-emerald-600/10",
 } as const;
 
 const STATUS_LABELS = {
   active: "Active",
   inactive: "Inactive",
   pending: "Pending",
+  approved: "Approved",
 } as const;
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {
@@ -34,6 +36,7 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
           status === "active" && "bg-emerald-500",
           status === "inactive" && "bg-stone-400",
           status === "pending" && "bg-amber-500",
+          status === "approved" && "bg-emerald-500",
         )}
         aria-hidden
       />

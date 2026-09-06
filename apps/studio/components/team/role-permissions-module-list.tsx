@@ -1,7 +1,8 @@
 "use client";
 
-import { LuChevronDown, LuSearch } from "react-icons/lu";
+import { LuChevronDown, LuSearch, LuX } from "react-icons/lu";
 
+import { studioButtonClass, studioControl } from "@/components/ui";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils/cn";
 
@@ -52,10 +53,9 @@ export function RolePermissionsModuleList({
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center">
-        <label className="relative block min-w-0 flex-1">
-          <span className="sr-only">Search modules or actions</span>
+        <div className="relative min-w-0 flex-1">
           <LuSearch
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted"
+            className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-ink-muted"
             aria-hidden
           />
           <input
@@ -63,15 +63,30 @@ export function RolePermissionsModuleList({
             value={moduleSearch}
             onChange={(event) => onModuleSearchChange(event.target.value)}
             placeholder="Search modules or actions…"
-            className="w-full rounded-xl border border-border bg-surface py-2 pl-9 pr-3 text-sm text-ink outline-none transition placeholder:text-ink-subtle focus:border-brand-dark/40 focus:ring-2 focus:ring-brand-dark/10"
+            aria-label="Search modules or actions"
+            className={cn(
+              studioControl.field,
+              "pr-9 pl-9",
+              "[&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden",
+            )}
           />
-        </label>
+          {moduleSearch ? (
+            <button
+              type="button"
+              onClick={() => onModuleSearchChange("")}
+              className="absolute top-1/2 right-2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-ink-muted transition hover:bg-surface-hover hover:text-ink"
+              aria-label="Clear search"
+            >
+              <LuX className="h-4 w-4" aria-hidden />
+            </button>
+          ) : null}
+        </div>
 
-        <div className="flex gap-1 self-end sm:self-auto">
+        <div className="flex gap-1.5 self-end sm:self-auto">
           <button
             type="button"
             onClick={onExpandAll}
-            className="inline-flex min-h-9 items-center rounded-lg px-2.5 text-xs font-medium text-ink-muted transition hover:bg-surface-hover hover:text-ink sm:px-3 sm:text-sm"
+            className={studioButtonClass("secondary", "sm")}
           >
             Expand all
           </button>
@@ -79,7 +94,7 @@ export function RolePermissionsModuleList({
             type="button"
             onClick={onCollapseAll}
             disabled={!hasExpanded}
-            className="inline-flex min-h-9 items-center rounded-lg px-2.5 text-xs font-medium text-ink-muted transition hover:bg-surface-hover hover:text-ink disabled:opacity-50 sm:px-3 sm:text-sm"
+            className={studioButtonClass("secondary", "sm")}
           >
             Collapse all
           </button>

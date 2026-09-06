@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { LuShield } from "react-icons/lu";
 
 import { PageLoader } from "@/components/feedback";
-import { ContentSection, EmptyState } from "@/components/ui";
+import { ContentSection, EmptyState, studioButtonClass } from "@/components/ui";
 import { cn } from "@/lib/utils/cn";
 
 import { RolePermissionsModuleList } from "./role-permissions-module-list";
@@ -62,8 +62,8 @@ export function RolePermissionsTab({ active }: RolePermissionsTabProps) {
   }
 
   const sectionDescription = state.data.canManage
-    ? `${state.enabledCount} of ${state.totalPermissions} permissions enabled.`
-    : `View only — ${state.enabledCount} of ${state.totalPermissions} permissions enabled.`;
+    ? "Choose a role, then turn permissions on or off. Save when you’re ready."
+    : "View what this role can do. You don’t have permission to change it.";
 
   return (
     <ContentSection
@@ -71,13 +71,19 @@ export function RolePermissionsTab({ active }: RolePermissionsTabProps) {
       title={`${state.selectedRole.label} permissions`}
       description={sectionDescription}
       count={state.enabledCount}
+      countLabel={`of ${state.totalPermissions} enabled`}
     >
       <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 py-4 sm:gap-5 sm:px-6 sm:py-5">
-        <RolePermissionsRolePicker
-          roles={state.data.roles}
-          selectedRoleSlug={state.selectedRoleSlug}
-          onSelectRole={state.selectRole}
-        />
+        <div>
+          <p className="mb-1.5 text-xs font-semibold tracking-wide text-ink uppercase">
+            Role
+          </p>
+          <RolePermissionsRolePicker
+            roles={state.data.roles}
+            selectedRoleSlug={state.selectedRoleSlug}
+            onSelectRole={state.selectRole}
+          />
+        </div>
 
         <RolePermissionsModuleList
           groups={moduleGroups}
@@ -99,7 +105,11 @@ export function RolePermissionsTab({ active }: RolePermissionsTabProps) {
             type="button"
             onClick={state.discardChanges}
             disabled={!state.isDirty || state.saving}
-            className="inline-flex min-h-10 w-full items-center justify-center rounded-xl border border-border bg-surface-raised px-4 text-sm font-medium text-ink transition hover:bg-surface-hover disabled:opacity-50 sm:w-auto"
+            className={studioButtonClass(
+              "secondary",
+              "md",
+              "w-full sm:w-auto",
+            )}
           >
             Discard
           </button>
@@ -107,7 +117,7 @@ export function RolePermissionsTab({ active }: RolePermissionsTabProps) {
             type="button"
             onClick={() => void state.saveRolePermissions()}
             disabled={!state.isDirty || state.saving}
-            className="inline-flex min-h-10 w-full items-center justify-center rounded-xl bg-brand-dark px-4 text-sm font-medium text-on-dark transition hover:bg-brand-dark/90 disabled:opacity-50 sm:w-auto"
+            className={studioButtonClass("primary", "md", "w-full sm:w-auto")}
           >
             {state.saving ? "Saving…" : "Save changes"}
           </button>
