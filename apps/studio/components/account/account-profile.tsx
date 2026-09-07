@@ -101,7 +101,7 @@ export function AccountProfile(props: AccountProfileProps) {
                 "w-full shrink-0 sm:w-auto sm:self-start",
               )}
             >
-              <LuPencil className="h-4 w-4" aria-hidden />
+              <LuPencil className="h-3.5 w-3.5" aria-hidden />
               Edit profile
             </button>
           </div>

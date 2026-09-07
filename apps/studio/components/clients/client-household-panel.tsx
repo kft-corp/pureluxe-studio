@@ -84,24 +84,26 @@ export function ClientHouseholdPanel({
             {client.relationships.map((rel) => (
               <li
                 key={rel.id}
-                className="flex items-start justify-between gap-3 px-5 py-3.5 sm:px-6"
+                className="flex flex-col gap-2 px-5 py-3.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3 sm:px-6"
               >
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-ink">
+                <div className="min-w-0 flex-1">
+                  <p className="wrap-break-word text-sm font-semibold text-ink">
                     {rel.related_display_name ?? "Linked client"}
                   </p>
-                  <p className="mt-0.5 text-xs text-ink-muted">
+                  <p className="mt-0.5 wrap-break-word text-xs text-ink-muted">
                     {formatRelationshipType(rel.relationship_type)}
                     {rel.notes?.trim() ? ` · ${rel.notes}` : ""}
                   </p>
                 </div>
                 {canWrite ? (
-                  <ActionButton
-                    disabled={relationshipBusyId === rel.id}
-                    onClick={() => onRemoveRelationship(rel.id)}
-                  >
-                    Remove
-                  </ActionButton>
+                  <div className="sm:shrink-0">
+                    <ActionButton
+                      disabled={relationshipBusyId === rel.id}
+                      onClick={() => onRemoveRelationship(rel.id)}
+                    >
+                      Remove
+                    </ActionButton>
+                  </div>
                 ) : null}
               </li>
             ))}

@@ -223,9 +223,9 @@ export function ClientDocumentDialog({
             required
           />
           {fileError ? (
-            <p className="mt-1.5 text-xs text-red-700">{fileError}</p>
+            <p className="mt-1.5 wrap-break-word text-xs text-red-700">{fileError}</p>
           ) : (
-            <p className="mt-1.5 text-xs text-ink-muted">
+            <p className="mt-1.5 wrap-break-word text-xs text-ink-muted">
               PDF or image · max 10 MB
               {file ? ` · ${file.name}` : ""}
             </p>

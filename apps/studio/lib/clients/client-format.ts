@@ -42,6 +42,84 @@ export const PREFERRED_CONTACT_OPTIONS = [
   { value: "whatsapp", label: "WhatsApp" },
 ] as const;
 
+/**
+ * Standard guest honorifics for name & identity.
+ * Values are stored without a trailing period (Mr, Ms).
+ */
+export const CLIENT_TITLE_OPTIONS = [
+  { value: "", label: "No title" },
+  { value: "Mr", label: "Mr" },
+  { value: "Mrs", label: "Mrs" },
+  { value: "Ms", label: "Ms" },
+  { value: "Miss", label: "Miss" },
+] as const;
+
+/**
+ * Standard important-date types — keeps labels consistent in the database.
+ */
+export const CLIENT_IMPORTANT_DATE_LABEL_OPTIONS = [
+  { value: "", label: "Choose a type" },
+  { value: "Birthday", label: "Birthday" },
+  { value: "Anniversary", label: "Anniversary" },
+  { value: "Wedding anniversary", label: "Wedding anniversary" },
+  { value: "Partner's birthday", label: "Partner's birthday" },
+  { value: "Child's birthday", label: "Child's birthday" },
+  { value: "Passport expiry", label: "Passport expiry" },
+  { value: "Visa expiry", label: "Visa expiry" },
+  { value: "Membership renewal", label: "Membership renewal" },
+] as const;
+
+/** Options for a date-label select, keeping any legacy free-text value visible. */
+export function importantDateLabelSelectOptions(
+  currentLabel: string | null | undefined,
+): Array<{ value: string; label: string }> {
+  const current = currentLabel?.trim() ?? "";
+  const options: Array<{ value: string; label: string }> = [
+    ...CLIENT_IMPORTANT_DATE_LABEL_OPTIONS,
+  ];
+  if (
+    current &&
+    !CLIENT_IMPORTANT_DATE_LABEL_OPTIONS.some(
+      (option) => option.value === current,
+    )
+  ) {
+    options.push({ value: current, label: current });
+  }
+  return options;
+}
+
+/** Options for the title select, keeping any legacy free-text value visible. */
+export function clientTitleSelectOptions(
+  currentTitle: string | null | undefined,
+): Array<{ value: string; label: string }> {
+  const current = normalizeClientTitle(currentTitle);
+  const options: Array<{ value: string; label: string }> = [
+    ...CLIENT_TITLE_OPTIONS,
+  ];
+  if (
+    current &&
+    !CLIENT_TITLE_OPTIONS.some((option) => option.value === current)
+  ) {
+    options.push({ value: current, label: current });
+  }
+  return options;
+}
+
+/** Map common variants (Mr. / MR) onto the standard stored value. */
+export function normalizeClientTitle(
+  raw: string | null | undefined,
+): string {
+  const trimmed = raw?.trim() ?? "";
+  if (!trimmed) return "";
+  const withoutDot = trimmed.replace(/\.$/, "");
+  const match = CLIENT_TITLE_OPTIONS.find(
+    (option) =>
+      option.value.length > 0 &&
+      option.value.toLowerCase() === withoutDot.toLowerCase(),
+  );
+  return match?.value ?? trimmed;
+}
+
 export function formatBookingDate(value: string | null | undefined): string {
   if (!value?.trim()) return "—";
   const date = new Date(value);
@@ -144,7 +222,12 @@ export function formatAddressLines(input: {
     .map((part) => part?.trim())
     .filter(Boolean)
     .join(", ");
-  const country = input.address_country?.trim();
+  const countryRaw = input.address_country?.trim();
+  const country = countryRaw
+    ? isValidCountryCode(countryRaw)
+      ? (getCountryName(countryRaw) ?? countryRaw)
+      : countryRaw
+    : null;
   const parts = [line1, line2, cityLine, country].filter(Boolean);
   return parts.length ? parts.join("\n") : "—";
 }

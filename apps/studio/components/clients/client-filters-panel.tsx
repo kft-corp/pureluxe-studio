@@ -94,7 +94,7 @@ function FiltersForm({
         </>
       }
     >
-      <div className="max-h-[min(52dvh,28rem)] space-y-4 overflow-y-auto overscroll-contain px-5 py-5 sm:max-h-[min(65vh,28rem)]">
+      <div className="space-y-4 px-5 py-5">
         <div>
           <FieldLabel htmlFor="filter-tier">Tier level</FieldLabel>
           <select
@@ -171,7 +171,7 @@ function FiltersForm({
             className={cn(modalFieldClassName)}
           >
             <option value="any">Anyone</option>
-            <option value="me">Me</option>
+            <option value="me">{options.me_label}</option>
             <option value="unassigned">Unassigned</option>
             {options.owners.map((member) => (
               <option key={member.id} value={member.id}>

@@ -3,10 +3,20 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 
 import { Modal, ModalButton, modalFieldClassName } from "@/components/ui/modal";
-import { CountryCombobox, PhoneInput } from "@/components/ui";
+import {
+  CountryCombobox,
+  LanguageCombobox,
+  PhoneInput,
+  TimezoneCombobox,
+} from "@/components/ui";
 import { updateClient, upsertClientHealth } from "@/lib/api/clients";
 import type { ClientProfile } from "@/lib/clients";
-import { PREFERRED_CONTACT_OPTIONS } from "@/lib/clients";
+import {
+  clientTitleSelectOptions,
+  importantDateLabelSelectOptions,
+  normalizeClientTitle,
+  PREFERRED_CONTACT_OPTIONS,
+} from "@/lib/clients";
 import { showApiError, showOptionalSuccessToast, showWarningToast } from "@/lib/feedback/toast";
 import { cn } from "@/lib/utils/cn";
 import {
@@ -15,14 +25,19 @@ import {
   isValidCountryCode,
   isValidLanguageCode,
   isValidTimezone,
-  listLanguageOptions,
-  listTimezoneOptions,
+  listCountryOptions,
   parsePhoneParts,
 } from "@pureluxe/shared";
 
-const LANGUAGE_OPTIONS = listLanguageOptions();
-const TIMEZONE_OPTIONS = listTimezoneOptions();
-
+function initialCountryCode(raw: string | null | undefined): string {
+  const value = raw?.trim() ?? "";
+  if (!value) return "";
+  if (isValidCountryCode(value)) return value.toUpperCase();
+  const byName = listCountryOptions().find(
+    (option) => option.name.toLowerCase() === value.toLowerCase(),
+  );
+  return byName?.code ?? "";
+}
 export function Field({
   label,
   htmlFor,
@@ -103,7 +118,7 @@ function SectionFormShell({
       <form
         id="client-section-form"
         onSubmit={onSubmit}
-        className="max-h-[min(52dvh,28rem)] space-y-4 overflow-y-auto overscroll-contain px-5 py-5 sm:max-h-[min(65vh,32rem)]"
+        className="min-w-0 space-y-4 overflow-x-hidden px-5 py-5"
       >
         {children}
       </form>
@@ -114,13 +129,14 @@ function SectionFormShell({
 export function IdentityForm({ profile, onClose, onSuccess }: SectionFormProps) {
   const client = profile.client;
   const [displayName, setDisplayName] = useState(client.display_name);
-  const [title, setTitle] = useState(client.title ?? "");
+  const [title, setTitle] = useState(() => normalizeClientTitle(client.title));
   const [firstName, setFirstName] = useState(client.first_name ?? "");
   const [lastName, setLastName] = useState(client.last_name ?? "");
   const [legalName, setLegalName] = useState(client.legal_name ?? "");
   const [company, setCompany] = useState(client.company ?? "");
   const [vipTier, setVipTier] = useState(client.tier.slug);
   const [loading, setLoading] = useState(false);
+  const titleOptions = clientTitleSelectOptions(client.title);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -177,12 +193,18 @@ export function IdentityForm({ profile, onClose, onSuccess }: SectionFormProps) 
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Title" htmlFor="edit-title">
-          <input
+          <select
             id="edit-title"
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             className={cn(modalFieldClassName)}
-          />
+          >
+            {titleOptions.map((option) => (
+              <option key={option.value || "none"} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </Field>
         <Field label="Guest tier" htmlFor="edit-vip">
           <select
@@ -327,6 +349,7 @@ export function ContactForm({ profile, onClose, onSuccess }: SectionFormProps) {
           id="edit-phone"
           value={phone}
           onChange={setPhone}
+          className="mt-1.5"
           defaultCountryHint={
             isValidCountryCode(client.nationality) ? client.nationality : null
           }
@@ -338,6 +361,7 @@ export function ContactForm({ profile, onClose, onSuccess }: SectionFormProps) {
           id="edit-whatsapp"
           value={whatsapp}
           onChange={setWhatsapp}
+          className="mt-1.5"
           defaultCountryHint={
             isValidCountryCode(client.nationality) ? client.nationality : null
           }
@@ -364,34 +388,20 @@ export function ContactForm({ profile, onClose, onSuccess }: SectionFormProps) {
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Language" htmlFor="edit-language">
-          <select
+          <LanguageCombobox
             id="edit-language"
             value={language}
-            onChange={(event) => setLanguage(event.target.value)}
-            className={cn(modalFieldClassName)}
-          >
-            <option value="">Not set</option>
-            {LANGUAGE_OPTIONS.map((option) => (
-              <option key={option.code} value={option.code}>
-                {option.name}
-              </option>
-            ))}
-          </select>
+            onChange={setLanguage}
+            placeholder="Search languages…"
+          />
         </Field>
         <Field label="Timezone" htmlFor="edit-timezone">
-          <select
+          <TimezoneCombobox
             id="edit-timezone"
             value={timezone}
-            onChange={(event) => setTimezone(event.target.value)}
-            className={cn(modalFieldClassName)}
-          >
-            <option value="">Not set</option>
-            {TIMEZONE_OPTIONS.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            onChange={setTimezone}
+            placeholder="Search timezones…"
+          />
         </Field>
       </div>
     </SectionFormShell>
@@ -400,10 +410,8 @@ export function ContactForm({ profile, onClose, onSuccess }: SectionFormProps) {
 
 export function LocationForm({ profile, onClose, onSuccess }: SectionFormProps) {
   const client = profile.client;
-  const [nationality, setNationality] = useState(
-    isValidCountryCode(client.nationality)
-      ? client.nationality!.toUpperCase()
-      : "",
+  const [nationality, setNationality] = useState(() =>
+    initialCountryCode(client.nationality),
   );
   const [cityOfResidence, setCityOfResidence] = useState(
     client.city_of_residence ?? "",
@@ -413,8 +421,8 @@ export function LocationForm({ profile, onClose, onSuccess }: SectionFormProps) 
   const [addressCity, setAddressCity] = useState(client.address_city ?? "");
   const [addressState, setAddressState] = useState(client.address_state ?? "");
   const [postalCode, setPostalCode] = useState(client.address_postal_code ?? "");
-  const [addressCountry, setAddressCountry] = useState(
-    client.address_country ?? "",
+  const [addressCountry, setAddressCountry] = useState(() =>
+    initialCountryCode(client.address_country),
   );
   const [loading, setLoading] = useState(false);
 
@@ -519,11 +527,11 @@ export function LocationForm({ profile, onClose, onSuccess }: SectionFormProps) 
           />
         </Field>
         <Field label="Country" htmlFor="edit-country">
-          <input
+          <CountryCombobox
             id="edit-country"
             value={addressCountry}
-            onChange={(event) => setAddressCountry(event.target.value)}
-            className={cn(modalFieldClassName)}
+            onChange={setAddressCountry}
+            placeholder="Search countries…"
           />
         </Field>
       </div>
@@ -657,18 +665,37 @@ export function DatesForm({ profile, onClose, onSuccess }: SectionFormProps) {
             key={`date-${index}`}
             className="space-y-3 rounded-xl border border-border/80 p-3"
           >
-            <Field label="Label" htmlFor={`date-label-${index}`}>
-              <input
+            <Field label="Type" htmlFor={`date-label-${index}`}>
+              <select
                 id={`date-label-${index}`}
                 value={row.label}
                 onChange={(event) => {
                   const next = [...dateRows];
-                  next[index] = { ...row, label: event.target.value };
+                  const label = event.target.value;
+                  const yearlyByDefault =
+                    label === "Birthday" ||
+                    label === "Anniversary" ||
+                    label === "Wedding anniversary" ||
+                    label === "Partner's birthday" ||
+                    label === "Child's birthday";
+                  next[index] = {
+                    ...row,
+                    label,
+                    recurring: yearlyByDefault ? true : row.recurring,
+                  };
                   setDateRows(next);
                 }}
                 className={cn(modalFieldClassName)}
-                placeholder="Birthday"
-              />
+              >
+                {importantDateLabelSelectOptions(row.label).map((option) => (
+                  <option
+                    key={option.value || "none"}
+                    value={option.value}
+                  >
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </Field>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Date" htmlFor={`date-value-${index}`}>
@@ -740,9 +767,12 @@ export function HealthForm({ profile, onClose, onSuccess }: SectionFormProps) {
   const [emergencyName, setEmergencyName] = useState(
     health?.emergency_contact_name ?? "",
   );
-  const [emergencyPhone, setEmergencyPhone] = useState(
-    health?.emergency_contact_phone ?? "",
-  );
+  const [emergencyPhone, setEmergencyPhone] = useState(() => {
+    const raw = health?.emergency_contact_phone?.trim() ?? "";
+    if (!raw) return "";
+    const parts = parsePhoneParts(raw);
+    return composeE164(parts.country, parts.national) ?? "";
+  });
   const [shareWithHotels, setShareWithHotels] = useState(
     health?.share_with_hotels ?? false,
   );
@@ -815,21 +845,25 @@ export function HealthForm({ profile, onClose, onSuccess }: SectionFormProps) {
           className={cn(modalFieldClassName, "resize-y")}
         />
       </Field>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="space-y-4">
         <Field label="Emergency contact name" htmlFor="edit-em-name">
           <input
             id="edit-em-name"
             value={emergencyName}
             onChange={(event) => setEmergencyName(event.target.value)}
             className={cn(modalFieldClassName)}
+            autoComplete="name"
           />
         </Field>
         <Field label="Emergency phone" htmlFor="edit-em-phone">
-          <input
+          <PhoneInput
             id="edit-em-phone"
             value={emergencyPhone}
-            onChange={(event) => setEmergencyPhone(event.target.value)}
-            className={cn(modalFieldClassName)}
+            onChange={setEmergencyPhone}
+            className="mt-1.5"
+            defaultCountryHint={
+              isValidCountryCode(client.nationality) ? client.nationality : null
+            }
           />
         </Field>
       </div>

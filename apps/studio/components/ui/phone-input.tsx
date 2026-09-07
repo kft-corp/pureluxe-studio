@@ -28,7 +28,7 @@ type PhoneInputProps = {
 
 /**
  * Country dial code + national number → stores E.164 (e.g. +15551234567).
- * Stacks on narrow widths so the number field stays fully visible.
+ * Uses container queries so dial + number stay fully visible in narrow fields.
  */
 export function PhoneInput({
   id,
@@ -77,54 +77,56 @@ export function PhoneInput({
   return (
     <div
       className={cn(
-        "flex flex-col gap-2 sm:flex-row sm:items-stretch",
+        "@container flex w-full min-w-0 flex-col gap-2",
         className,
       )}
     >
-      <label className="sr-only" htmlFor={id ? `${id}-country` : undefined}>
-        Country code
-      </label>
-      <select
-        id={id ? `${id}-country` : undefined}
-        value={country}
-        disabled={disabled}
-        onChange={(event) => {
-          const next = event.target.value as CountryCode;
-          setCountry(next);
-          emit(next, national);
-        }}
-        className={cn(
-          modalFieldClassName,
-          "mt-0 w-full shrink-0 sm:mt-0 sm:w-[9.5rem]",
-        )}
-        aria-label="Country calling code"
-      >
-        {DIAL_OPTIONS.map((option) => (
-          <option key={option.country} value={option.country}>
-            {option.country} +{option.dialCode}
-          </option>
-        ))}
-      </select>
-      <div className="relative min-w-0 flex-1">
-        <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm text-ink-muted tabular-nums">
-          +{dialLabel}
-        </span>
-        <input
-          id={id}
-          type="tel"
-          inputMode="tel"
-          autoComplete="tel-national"
+      <div className="flex w-full min-w-0 flex-col gap-2 @[18rem]:flex-row @[18rem]:items-stretch">
+        <label className="sr-only" htmlFor={id ? `${id}-country` : undefined}>
+          Country code
+        </label>
+        <select
+          id={id ? `${id}-country` : undefined}
+          value={country}
           disabled={disabled}
-          value={national}
-          placeholder={placeholder}
-          aria-required={ariaRequired}
           onChange={(event) => {
-            const next = event.target.value.replace(/[^\d\s()-]/g, "");
-            setNational(next);
-            emit(country, next);
+            const next = event.target.value as CountryCode;
+            setCountry(next);
+            emit(next, national);
           }}
-          className={cn(modalFieldClassName, "mt-0 w-full pl-12")}
-        />
+          className={cn(
+            modalFieldClassName,
+            "mt-0 w-full shrink-0 @[18rem]:w-38",
+          )}
+          aria-label="Country calling code"
+        >
+          {DIAL_OPTIONS.map((option) => (
+            <option key={option.country} value={option.country}>
+              {option.country} +{option.dialCode}
+            </option>
+          ))}
+        </select>
+        <div className="relative w-full min-w-0 flex-1">
+          <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm text-ink-muted tabular-nums">
+            +{dialLabel}
+          </span>
+          <input
+            id={id}
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel-national"
+            disabled={disabled}
+            value={national}
+            placeholder={placeholder}
+            aria-required={ariaRequired}
+            onChange={(event) => {
+              const next = event.target.value.replace(/[^\d\s()-]/g, "");
+              setNational(next);
+              emit(country, next);
+            }}
+            className={cn(modalFieldClassName, "mt-0 w-full min-w-0 pl-12")}
+          />
+        </div>
       </div>
     </div>
   );

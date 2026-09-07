@@ -44,7 +44,10 @@ export default async function ClientsPage() {
         offset: 0,
         actorMemberId: session.memberId,
       }),
-      getClientDirectoryFilters(),
+      getClientDirectoryFilters({
+        memberId: session.memberId,
+        name: session.name,
+      }),
     ]);
     initialDirectory = directory;
     filterOptions = filters;

@@ -37,7 +37,7 @@ export function PillTabs<T extends string>({
       <div
         role="tablist"
         aria-label={ariaLabel}
-        className="flex gap-1 overflow-x-auto overscroll-x-contain rounded-xl border border-border bg-surface p-1 scroll-smooth scrollbar-none [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        className="flex gap-1 overflow-x-auto overscroll-x-contain rounded-xl border border-border bg-surface p-1 scroll-smooth scroll-px-1 scrollbar-none [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
       >
         {items.map((item) => {
           const isActive = item.id === value;

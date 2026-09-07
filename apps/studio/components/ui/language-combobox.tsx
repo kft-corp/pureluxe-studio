@@ -2,9 +2,9 @@
 
 import { useMemo } from "react";
 import {
-  getCountryName,
-  isValidCountryCode,
-  listCountryOptions,
+  getLanguageName,
+  isValidLanguageCode,
+  listLanguageOptions,
 } from "@pureluxe/shared";
 
 import {
@@ -12,15 +12,15 @@ import {
   type SearchableComboboxOption,
 } from "./searchable-combobox";
 
-const COUNTRY_OPTIONS: SearchableComboboxOption[] = listCountryOptions().map(
+const LANGUAGE_OPTIONS: SearchableComboboxOption[] = listLanguageOptions().map(
   (option) => ({
     value: option.code,
     label: option.name,
-    meta: option.code,
+    meta: option.code.toUpperCase(),
   }),
 );
 
-type CountryComboboxProps = {
+type LanguageComboboxProps = {
   id?: string;
   value: string;
   onChange: (code: string) => void;
@@ -30,17 +30,17 @@ type CountryComboboxProps = {
 };
 
 /**
- * Searchable ISO country picker — stores alpha-2 codes (US, IN, …).
+ * Searchable ISO 639-1 language picker — stores codes (en, hi, fr, …).
  */
-export function CountryCombobox({
+export function LanguageCombobox({
   id,
   value,
   onChange,
-  placeholder = "Search countries…",
+  placeholder = "Search languages…",
   disabled,
   className,
-}: Readonly<CountryComboboxProps>) {
-  const options = useMemo(() => COUNTRY_OPTIONS, []);
+}: Readonly<LanguageComboboxProps>) {
+  const options = useMemo(() => LANGUAGE_OPTIONS, []);
 
   return (
     <SearchableCombobox
@@ -49,14 +49,14 @@ export function CountryCombobox({
       onChange={onChange}
       options={options}
       getLabel={(code) =>
-        isValidCountryCode(code) ? (getCountryName(code) ?? code) : null
+        isValidLanguageCode(code) ? (getLanguageName(code) ?? code) : null
       }
       placeholder={placeholder}
       disabled={disabled}
       className={className}
-      clearLabel="Clear country"
-      toggleLabel="Toggle country list"
-      emptyLabel={(query) => `No countries match “${query.trim()}”`}
+      clearLabel="Clear language"
+      toggleLabel="Toggle language list"
+      emptyLabel={(query) => `No languages match “${query.trim()}”`}
     />
   );
 }

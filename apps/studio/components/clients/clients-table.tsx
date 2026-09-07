@@ -62,7 +62,7 @@ function ContactCell({
   }
 
   return (
-    <div className="min-w-0 max-w-[16rem]">
+    <div className="min-w-0 max-w-full">
       {emailValue ? (
         <a
           href={`mailto:${emailValue}`}
@@ -149,20 +149,20 @@ export function ClientsTable({
         aria-label={`Open ${client.display_name}`}
       />
       <div className="pointer-events-none relative z-10 flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-3">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
           <UserAvatar
             name={client.display_name}
             email={client.email ?? undefined}
           />
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 flex-col gap-1.5">
               <p className="truncate font-medium text-ink">{client.display_name}</p>
               <ClientBadges client={client} />
             </div>
-            <div className="pointer-events-auto mt-1">
+            <div className="pointer-events-auto mt-1.5">
               <ContactCell email={client.email} phone={client.phone} />
             </div>
-            <p className="mt-1 text-xs text-ink-muted">
+            <p className="mt-1.5 text-xs text-ink-muted">
               Last booking: {lastBookingLabel(client.stats.last_booking_date)}
             </p>
           </div>

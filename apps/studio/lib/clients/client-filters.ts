@@ -18,11 +18,24 @@ export type ClientDirectoryFilters = {
   tiers: ClientFilterOption[];
   review_statuses: ClientFilterOption[];
   sources: ClientFilterOption[];
+  /** Active team members excluding the signed-in owner (shown as `me_label`). */
   owners: Array<{ id: string; name: string }>;
+  /** Relationship-owner shortcut, e.g. "Me (Vijay Jawalkar)". */
+  me_label: string;
   completeness: ClientFilterOption[];
   toggles: ClientFilterToggle[];
   created_date_range: { enabled: true };
 };
+
+type CurrentOwner = {
+  memberId: string;
+  name: string;
+};
+
+function meOwnerLabel(name: string | null | undefined): string {
+  const trimmed = name?.trim();
+  return trimmed ? `Me (${trimmed})` : "Me";
+}
 
 /** Applied advanced filters on the directory list. */
 export type ClientAdvancedFilters = {
@@ -67,6 +80,7 @@ export const EMPTY_CLIENT_DIRECTORY_FILTERS: ClientDirectoryFilters = {
   review_statuses: STATIC_REVIEW,
   sources: STATIC_SOURCES,
   owners: [],
+  me_label: "Me",
   completeness: STATIC_COMPLETENESS,
   toggles: STATIC_TOGGLES,
   created_date_range: { enabled: true },
@@ -98,11 +112,18 @@ export function countAdvancedFilters(filters: ClientAdvancedFilters): number {
 }
 
 /** Filter catalog for the directory dialog. */
-export async function getClientDirectoryFilters(): Promise<ClientDirectoryFilters> {
+export async function getClientDirectoryFilters(
+  currentOwner?: CurrentOwner | null,
+): Promise<ClientDirectoryFilters> {
   const [values, tiers] = await Promise.all([
     listClientDirectoryFilterValues(),
     getActiveClientTiers(),
   ]);
+
+  const currentMemberId = currentOwner?.memberId;
+  const owners = currentMemberId
+    ? values.owners.filter((member) => member.id !== currentMemberId)
+    : values.owners;
 
   return {
     tiers: tiers.map((tier) => ({
@@ -111,7 +132,8 @@ export async function getClientDirectoryFilters(): Promise<ClientDirectoryFilter
     })),
     review_statuses: STATIC_REVIEW,
     sources: STATIC_SOURCES,
-    owners: values.owners,
+    owners,
+    me_label: meOwnerLabel(currentOwner?.name),
     completeness: STATIC_COMPLETENESS,
     toggles: STATIC_TOGGLES,
     created_date_range: { enabled: true },

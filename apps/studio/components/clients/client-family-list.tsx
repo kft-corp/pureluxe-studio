@@ -80,7 +80,7 @@ export function ClientFamilyList({
         {otherMembers.map((member) => (
           <li
             key={member.client_id}
-            className="flex items-center gap-3 px-5 py-3.5 sm:px-6"
+            className="flex flex-col gap-2 px-5 py-3.5 sm:flex-row sm:items-center sm:gap-3 sm:px-6"
           >
             <Link
               href={pageRoutes.client(member.client_id)}
@@ -98,7 +98,7 @@ export function ClientFamilyList({
               </div>
             </Link>
             {canWrite ? (
-              <div className="flex shrink-0 items-center gap-1">
+              <div className="flex flex-wrap items-center gap-1 pl-14 sm:pl-0 sm:shrink-0">
                 {onEditMember ? (
                   <ActionButton onClick={() => onEditMember(member.client_id)}>
                     Edit

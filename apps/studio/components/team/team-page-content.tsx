@@ -50,7 +50,7 @@ export function TeamPageContent({
                 !isMembersTab && "pointer-events-none invisible",
               )}
             >
-              <LuUserPlus className="h-4 w-4" aria-hidden />
+              <LuUserPlus className="h-3.5 w-3.5" aria-hidden />
               Invite member
             </button>
           ) : null}

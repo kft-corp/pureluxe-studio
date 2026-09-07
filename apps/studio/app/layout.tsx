@@ -49,9 +49,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${cormorant.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${cormorant.variable} h-full overflow-hidden antialiased`}
     >
-      <body className="min-h-full flex flex-col font-sans">
+      <body className="h-full overflow-hidden font-sans">
         {children}
         <AppToaster />
       </body>

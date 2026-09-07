@@ -320,7 +320,7 @@ export function ClientHouseholdDialog({
       <form
         id="client-household-form"
         onSubmit={handleSubmit}
-        className="space-y-4 px-5 py-4"
+        className="min-w-0 space-y-4 px-5 py-4"
       >
         {mode === "create" || mode === "rename" ? (
           <label className="block">
@@ -413,10 +413,10 @@ export function ClientHouseholdDialog({
                       >
                         <SelectionCheck checked={checked} />
                         <span className="min-w-0 flex-1">
-                          <span className="block font-medium text-ink">
+                          <span className="block truncate font-medium text-ink">
                             {hit.family_name}
                           </span>
-                          <span className="block text-xs text-ink-muted">
+                          <span className="block truncate text-xs text-ink-muted">
                             {hit.member_count}{" "}
                             {hit.member_count === 1 ? "member" : "members"}
                           </span>
@@ -458,10 +458,10 @@ export function ClientHouseholdDialog({
                       >
                         <SelectionCheck checked={checked} />
                         <span className="min-w-0 flex-1">
-                          <span className="block font-medium text-ink">
+                          <span className="block truncate font-medium text-ink">
                             {hit.display_name}
                           </span>
-                          <span className="block text-xs text-ink-muted">
+                          <span className="block truncate text-xs text-ink-muted">
                             {hit.email || hit.phone || "No contact"}
                           </span>
                         </span>

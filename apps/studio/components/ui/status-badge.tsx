@@ -56,7 +56,7 @@ export function EmptyState({ icon: Icon, message }: EmptyStateProps) {
       <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-surface text-ink-muted">
         <Icon className="h-5 w-5" strokeWidth={1.75} aria-hidden />
       </span>
-      <p className="mt-4 max-w-xs text-sm leading-relaxed text-ink-muted">
+      <p className="mt-4 max-w-xs wrap-break-word text-pretty text-sm leading-relaxed text-ink-muted">
         {message}
       </p>
     </div>

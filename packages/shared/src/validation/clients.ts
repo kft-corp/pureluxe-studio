@@ -32,7 +32,7 @@ const optionalInternationalPhone = (tooLongMessage: string) =>
     .optional();
 
 /** Empty / omit → null; otherwise require ISO 3166-1 alpha-2. */
-const optionalNationality = z
+const optionalCountryCode = z
   .union([
     z.literal("").transform(() => null),
     z.null(),
@@ -41,7 +41,7 @@ const optionalNationality = z
       .trim()
       .transform((value) => value.toUpperCase())
       .refine((value) => isValidCountryCode(value), {
-        message: "Choose a nationality from the list",
+        message: "Choose a country from the list",
       })
       .transform((value) => normalizeCountryCode(value)),
   ])
@@ -314,7 +314,7 @@ const clientWritableObjectSchema = z.object({
   preferred_contact_method: preferredContactMethodSchema.nullable().optional(),
   preferred_language: optionalLanguage,
   timezone: optionalTimezone,
-  nationality: optionalNationality,
+  nationality: optionalCountryCode,
   city_of_residence: optionalText(120, "City is too long").nullable().optional(),
   company: optionalText(160, "Company is too long").nullable().optional(),
   address_line_1: optionalText(200, "Address is too long").nullable().optional(),
@@ -326,7 +326,7 @@ const clientWritableObjectSchema = z.object({
   address_postal_code: optionalText(32, "Postal code is too long")
     .nullable()
     .optional(),
-  address_country: optionalText(80, "Country is too long").nullable().optional(),
+  address_country: optionalCountryCode,
   relationship_owner_id: z
     .string()
     .uuid({ message: "Choose a valid team member" })
@@ -405,12 +405,9 @@ export const upsertClientHealthSchema = z.object({
   emergency_contact_name: optionalText(120, "Emergency contact name is too long")
     .nullable()
     .optional(),
-  emergency_contact_phone: optionalText(
-    40,
+  emergency_contact_phone: optionalInternationalPhone(
     "Emergency contact phone is too long",
-  )
-    .nullable()
-    .optional(),
+  ),
   share_with_hotels: z.boolean().optional().default(false),
   notes: optionalText(5000, "Health notes are too long").nullable().optional(),
 });
@@ -640,7 +637,7 @@ export const createClientDocumentSchema = z.object({
   document_number: optionalText(80, "Document number is too long")
     .nullable()
     .optional(),
-  issuing_country: optionalNationality,
+  issuing_country: optionalCountryCode,
   expiry_date: optionalIsoDate,
   date_of_birth: optionalIsoDate,
   file_name: z
@@ -679,7 +676,7 @@ export const updateClientDocumentSchema = z
     document_number: optionalText(80, "Document number is too long")
       .nullable()
       .optional(),
-    issuing_country: optionalNationality,
+    issuing_country: optionalCountryCode,
     expiry_date: optionalIsoDate,
     date_of_birth: optionalIsoDate,
     status: z

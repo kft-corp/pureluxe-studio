@@ -88,6 +88,11 @@ export {
   formatVipLabel,
   isDocumentExpiringSoon,
   PREFERRED_CONTACT_OPTIONS,
+  CLIENT_TITLE_OPTIONS,
+  CLIENT_IMPORTANT_DATE_LABEL_OPTIONS,
+  clientTitleSelectOptions,
+  importantDateLabelSelectOptions,
+  normalizeClientTitle,
   sortDocumentsByUrgency,
   titleCaseWords,
 } from "./client-format";

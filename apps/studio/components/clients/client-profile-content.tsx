@@ -70,11 +70,11 @@ function MoreMenu({ onDeactivate }: { onDeactivate: () => void }) {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-surface-raised text-ink-muted transition hover:bg-surface-hover hover:text-ink"
+        className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface-raised text-ink-muted transition hover:bg-surface-hover hover:text-ink"
         aria-label="More actions"
         aria-expanded={open}
       >
-        <LuEllipsis className="h-4 w-4" aria-hidden />
+        <LuEllipsis className="h-3.5 w-3.5" aria-hidden />
       </button>
       {open ? (
         <div className="absolute right-0 z-20 mt-2 w-44 overflow-hidden rounded-xl border border-border bg-surface-raised py-1 shadow-lg">
@@ -84,7 +84,7 @@ function MoreMenu({ onDeactivate }: { onDeactivate: () => void }) {
               setOpen(false);
               onDeactivate();
             }}
-            className="block min-h-11 w-full px-3 py-2.5 text-left text-sm text-red-700 transition hover:bg-red-50"
+            className="block min-h-9 w-full px-3 py-2 text-left text-xs text-red-700 transition hover:bg-red-50"
           >
             Deactivate client
           </button>
@@ -168,7 +168,7 @@ export function ClientProfileContent({
               />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="wrap-break-word font-serif text-2xl font-medium tracking-tight text-ink sm:text-3xl">
+                  <h2 className="max-w-full wrap-break-word font-serif text-xl font-medium tracking-tight text-ink sm:text-3xl">
                     {client.display_name}
                   </h2>
                   <ClientVipBadge tier={client.tier.slug} />
@@ -206,19 +206,15 @@ export function ClientProfileContent({
               </div>
             </div>
 
-            <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-end">
+            <div className="flex w-full flex-wrap items-center justify-end gap-1.5">
               {canWrite && client.review_status === "pending" ? (
                 <button
                   type="button"
                   onClick={() => void profilePage.handleApprove()}
                   disabled={profilePage.approveLoading}
-                  className={studioButtonClass(
-                    "primary",
-                    "md",
-                    "col-span-2 sm:col-auto sm:flex-none",
-                  )}
+                  className={studioButtonClass("success", "sm")}
                 >
-                  <LuCheck className="h-4 w-4" aria-hidden />
+                  <LuCheck className="h-3.5 w-3.5" aria-hidden />
                   {profilePage.approveLoading
                     ? "Approving…"
                     : "Approve client"}
@@ -228,9 +224,9 @@ export function ClientProfileContent({
                 <button
                   type="button"
                   onClick={() => profilePage.setEditSection("contact")}
-                  className={studioButtonClass("secondary", "md")}
+                  className={studioButtonClass("secondary", "sm")}
                 >
-                  <LuPencil className="h-4 w-4" aria-hidden />
+                  <LuPencil className="h-3.5 w-3.5" aria-hidden />
                   Edit contact
                 </button>
               ) : null}
@@ -240,18 +236,13 @@ export function ClientProfileContent({
                 title="Trip Builder coming soon — will open with this client ready to plan."
                 className={studioButtonClass(
                   client.review_status === "pending" ? "secondary" : "primary",
-                  "md",
-                  !canWrite ? "col-span-2" : undefined,
+                  "sm",
                 )}
               >
-                <LuSparkles className="h-4 w-4" aria-hidden />
+                <LuSparkles className="h-3.5 w-3.5" aria-hidden />
                 Start trip
               </button>
-              {canWrite ? (
-                <div className="col-span-2 flex justify-end sm:col-auto sm:contents">
-                  <MoreMenu onDeactivate={profilePage.requestDeactivate} />
-                </div>
-              ) : null}
+              {canWrite ? <MoreMenu onDeactivate={profilePage.requestDeactivate} /> : null}
             </div>
           </div>
 

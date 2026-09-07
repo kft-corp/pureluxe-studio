@@ -5,35 +5,41 @@ import { cn } from "@/lib/utils/cn";
  * Prefer these over one-off min-h / text / padding classes.
  */
 export const studioControl = {
-  /** Primary / secondary toolbar actions (Invite, New client, More filters). */
+  /** Toolbar / page CTAs (New client, More filters, Approve, Invite). */
   button:
-    "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg px-3 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-dark/15",
+    "inline-flex min-h-8 items-center justify-center gap-1 rounded-md px-2.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-dark/15",
   /** Compact row / pagination actions. */
   buttonSm:
-    "inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-dark/15",
+    "inline-flex min-h-7 items-center justify-center gap-1 rounded-md px-2 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-dark/15",
   /** Filter chips / pill toggles. */
-  chip: "inline-flex min-h-8 items-center rounded-full px-2.5 text-xs font-medium ring-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-dark/15",
-  /** Search / text inputs in toolbars. */
+  chip: "inline-flex min-h-7 items-center rounded-full px-2.5 text-xs font-medium ring-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-dark/15",
+  /** Search / text inputs in toolbars — matches toolbar button height. */
   field:
-    "h-9 w-full rounded-lg border border-border bg-surface-raised text-sm text-ink shadow-sm outline-none transition placeholder:text-ink-muted focus:border-brand-dark/35 focus:ring-2 focus:ring-brand-dark/10",
+    "h-8 w-full rounded-md border border-border bg-surface-raised text-xs text-ink shadow-sm outline-none transition placeholder:text-ink-muted focus:border-brand-dark/35 focus:ring-2 focus:ring-brand-dark/10",
 } as const;
 
 export const studioTone = {
   primary: "bg-brand-dark text-on-dark shadow-sm hover:bg-brand-dark/90",
   secondary:
     "border border-border bg-surface-raised text-ink shadow-sm hover:bg-surface-hover",
+  /** Quiet chrome (pagination, tertiary) — keeps size tokens, lighter than secondary. */
+  ghost:
+    "border border-border/70 bg-transparent text-ink-muted hover:border-border hover:bg-surface-raised hover:text-ink",
+  /** Affirmative actions (Approve) — aligns with approved/active status badges. */
+  success:
+    "bg-emerald-700 text-white shadow-sm hover:bg-emerald-800 focus-visible:ring-emerald-700/25",
   chipIdle: "bg-surface-raised text-ink ring-border hover:bg-surface-hover",
   chipActive: "bg-brand-dark text-on-dark ring-brand-dark",
 } as const;
 
 export function studioButtonClass(
-  variant: "primary" | "secondary" = "secondary",
+  variant: "primary" | "secondary" | "ghost" | "success" = "secondary",
   size: "md" | "sm" = "md",
   className?: string,
 ) {
   return cn(
     size === "md" ? studioControl.button : studioControl.buttonSm,
-    variant === "primary" ? studioTone.primary : studioTone.secondary,
+    studioTone[variant],
     className,
   );
 }

@@ -304,7 +304,7 @@ export function ClientOverviewPanel({
                       <LuCalendar className="h-4 w-4" aria-hidden />
                     </span>
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-ink">
+                      <p className="wrap-break-word text-sm font-semibold text-ink">
                         {item.label}
                       </p>
                       <p className="mt-0.5 text-xs text-ink-muted">

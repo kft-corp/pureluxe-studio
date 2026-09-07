@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { LuArrowLeft, LuLock, LuTriangleAlert } from "react-icons/lu";
+import { createClientSchema } from "@pureluxe/shared";
 
 import {
   ContentSection,
@@ -26,6 +27,33 @@ import { cn } from "@/lib/utils/cn";
 
 type ContactMethod = "email" | "phone" | "whatsapp" | "";
 
+type RegisterField =
+  | "display_name"
+  | "legal_name"
+  | "email"
+  | "phone"
+  | "whatsapp"
+  | "preferred_contact_method"
+  | "tier_id"
+  | "nationality"
+  | "city_of_residence"
+  | "internal_notes"
+  | "guest_notes";
+
+type FieldErrors = Partial<Record<RegisterField, string>>;
+
+function fieldErrorsFromIssues(
+  issues: ReadonlyArray<{ path: PropertyKey[]; message: string }>,
+): FieldErrors {
+  const next: FieldErrors = {};
+  for (const issue of issues) {
+    const key = issue.path[0];
+    if (typeof key !== "string" || key in next) continue;
+    next[key as RegisterField] = issue.message;
+  }
+  return next;
+}
+
 function RequiredMark() {
   return (
     <span className="ml-0.5 font-semibold text-red-600" aria-hidden>
@@ -39,14 +67,18 @@ function Field({
   htmlFor,
   hint,
   required,
+  error,
   children,
 }: Readonly<{
   label: string;
   htmlFor: string;
   hint?: string;
   required?: boolean;
+  error?: string;
   children: ReactNode;
 }>) {
+  const errorId = error ? `${htmlFor}-error` : undefined;
+
   return (
     <div className="space-y-1.5">
       <label htmlFor={htmlFor} className="block text-sm font-medium text-ink">
@@ -55,8 +87,21 @@ function Field({
         {required ? <span className="sr-only"> (required)</span> : null}
       </label>
       {children}
-      {hint ? <p className="text-xs leading-relaxed text-ink-muted">{hint}</p> : null}
+      {error ? (
+        <p id={errorId} className="text-xs text-red-700" role="alert">
+          {error}
+        </p>
+      ) : hint ? (
+        <p className="text-xs leading-relaxed text-ink-muted">{hint}</p>
+      ) : null}
     </div>
+  );
+}
+
+function fieldControlClass(invalid: boolean) {
+  return cn(
+    modalFieldClassName,
+    invalid && "border-red-400/70 ring-2 ring-red-400/40",
   );
 }
 
@@ -201,6 +246,7 @@ export function ClientRegisterForm({
   const [internalNotes, setInternalNotes] = useState("");
   const [guestNotes, setGuestNotes] = useState("");
   const [loading, setLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [similarClients, setSimilarClients] = useState<ClientSearchHit[]>([]);
   const [checkingSimilar, setCheckingSimilar] = useState(false);
   /** Search fingerprint the advisor acknowledged as “not a duplicate”. */
@@ -227,6 +273,27 @@ export function ClientRegisterForm({
     preferredContact === "whatsapp" ||
     Boolean(whatsapp.trim()) ||
     Boolean(trimmedPhone);
+
+  let contactHint: "missing" | "hint" | null = "hint";
+  if (fieldErrors.email || fieldErrors.phone) {
+    contactHint = null;
+  } else if (!hasContact && trimmedName.length > 0) {
+    contactHint = "missing";
+  }
+
+  function clearFieldError(...fields: RegisterField[]) {
+    setFieldErrors((current) => {
+      let changed = false;
+      const next = { ...current };
+      for (const field of fields) {
+        if (field in next) {
+          delete next[field];
+          changed = true;
+        }
+      }
+      return changed ? next : current;
+    });
+  }
 
   useEffect(() => {
     if (!queryReady) return;
@@ -256,28 +323,37 @@ export function ClientRegisterForm({
     event.preventDefault();
     if (!canSubmit) return;
 
+    const preferred =
+      preferredContact === "email" ||
+      preferredContact === "phone" ||
+      preferredContact === "whatsapp"
+        ? preferredContact
+        : null;
+
+    const payload = {
+      display_name: trimmedName,
+      legal_name: legalName.trim() || null,
+      email: trimmedEmail || null,
+      phone: trimmedPhone || null,
+      whatsapp: whatsapp.trim() || null,
+      preferred_contact_method: preferred,
+      ...(tierId ? { tier_id: tierId } : {}),
+      nationality: nationality.trim() || null,
+      city_of_residence: city.trim() || null,
+      internal_notes: internalNotes.trim() || null,
+      guest_notes: guestNotes.trim() || null,
+    };
+
+    const parsed = createClientSchema.safeParse(payload);
+    if (!parsed.success) {
+      setFieldErrors(fieldErrorsFromIssues(parsed.error.issues));
+      return;
+    }
+
+    setFieldErrors({});
     setLoading(true);
     try {
-      const preferred =
-        preferredContact === "email" ||
-        preferredContact === "phone" ||
-        preferredContact === "whatsapp"
-          ? preferredContact
-          : null;
-
-      const response = await createClient({
-        display_name: trimmedName,
-        legal_name: legalName.trim() || null,
-        email: trimmedEmail || null,
-        phone: trimmedPhone || null,
-        whatsapp: whatsapp.trim() || null,
-        preferred_contact_method: preferred,
-        ...(tierId ? { tier_id: tierId } : {}),
-        nationality: nationality.trim() || null,
-        city_of_residence: city.trim() || null,
-        internal_notes: internalNotes.trim() || null,
-        guest_notes: guestNotes.trim() || null,
-      });
+      const response = await createClient(parsed.data);
 
       showOptionalSuccessToast(response.message);
       router.push(pageRoutes.client(response.data.client.id));
@@ -318,16 +394,30 @@ export function ClientRegisterForm({
             title="Identity"
             description="How the team addresses this guest."
           >
-            <Field label="Preferred name" htmlFor="register-display-name" required>
+            <Field
+              label="Preferred name"
+              htmlFor="register-display-name"
+              required
+              error={fieldErrors.display_name}
+            >
               <input
                 id="register-display-name"
                 value={displayName}
-                onChange={(event) => setDisplayName(event.target.value)}
-                className={modalFieldClassName}
+                onChange={(event) => {
+                  setDisplayName(event.target.value);
+                  clearFieldError("display_name");
+                }}
+                className={fieldControlClass(Boolean(fieldErrors.display_name))}
                 autoComplete="name"
                 required
                 autoFocus
                 placeholder="Ada Chen"
+                aria-invalid={Boolean(fieldErrors.display_name)}
+                aria-describedby={
+                  fieldErrors.display_name
+                    ? "register-display-name-error"
+                    : undefined
+                }
               />
             </Field>
 
@@ -335,14 +425,24 @@ export function ClientRegisterForm({
               label="Legal name"
               htmlFor="register-legal-name"
               hint="Use only if passport or booking name differs."
+              error={fieldErrors.legal_name}
             >
               <input
                 id="register-legal-name"
                 value={legalName}
-                onChange={(event) => setLegalName(event.target.value)}
-                className={modalFieldClassName}
+                onChange={(event) => {
+                  setLegalName(event.target.value);
+                  clearFieldError("legal_name");
+                }}
+                className={fieldControlClass(Boolean(fieldErrors.legal_name))}
                 autoComplete="off"
                 placeholder="Same as preferred name if blank"
+                aria-invalid={Boolean(fieldErrors.legal_name)}
+                aria-describedby={
+                  fieldErrors.legal_name
+                    ? "register-legal-name-error"
+                    : undefined
+                }
               />
             </Field>
           </FormSection>
@@ -354,51 +454,85 @@ export function ClientRegisterForm({
             title="Contact"
             description="At least one of email or phone is required."
           >
-            <Field label="Email" htmlFor="register-email" required>
+            <Field
+              label="Email"
+              htmlFor="register-email"
+              required
+              error={fieldErrors.email}
+            >
               <input
                 id="register-email"
                 type="email"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                className={modalFieldClassName}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  clearFieldError("email");
+                }}
+                className={fieldControlClass(Boolean(fieldErrors.email))}
                 autoComplete="email"
                 placeholder="ada@example.com"
                 aria-required="true"
+                aria-invalid={Boolean(fieldErrors.email)}
+                aria-describedby={
+                  fieldErrors.email ? "register-email-error" : undefined
+                }
               />
             </Field>
 
-            <Field label="Phone" htmlFor="register-phone" required>
+            <Field
+              label="Phone"
+              htmlFor="register-phone"
+              required
+              error={fieldErrors.phone}
+            >
               <PhoneInput
                 id="register-phone"
                 value={phone}
-                onChange={setPhone}
+                onChange={(value) => {
+                  setPhone(value);
+                  clearFieldError("phone", "email");
+                }}
                 defaultCountryHint={nationality || null}
                 aria-required
+                className={cn(
+                  fieldErrors.phone && "[&_input]:border-red-400/70 [&_input]:ring-2 [&_input]:ring-red-400/40",
+                )}
               />
             </Field>
-            {!hasContact && trimmedName.length > 0 ? (
+            {contactHint === "missing" ? (
               <p className="text-xs text-red-600">
                 Add an email or phone number so we can reach them.
               </p>
-            ) : (
+            ) : null}
+            {contactHint === "hint" ? (
               <p className="text-xs text-ink-muted">
                 Fill email, phone, or both — one is enough.
               </p>
-            )}
+            ) : null}
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Field
                 label="Best way to reach them"
                 htmlFor="register-preferred"
                 hint="How the team should contact this guest first."
+                error={fieldErrors.preferred_contact_method}
               >
                 <select
                   id="register-preferred"
                   value={preferredContact}
-                  onChange={(event) =>
-                    setPreferredContact(event.target.value as ContactMethod)
+                  onChange={(event) => {
+                    setPreferredContact(event.target.value as ContactMethod);
+                    clearFieldError("preferred_contact_method");
+                  }}
+                  className={fieldControlClass(
+                    Boolean(fieldErrors.preferred_contact_method),
+                  )}
+                  aria-invalid={Boolean(fieldErrors.preferred_contact_method)}
+                  aria-describedby={
+                    fieldErrors.preferred_contact_method
+                      ? "register-preferred-error"
+                      : undefined
                   }
-                  className={modalFieldClassName}
                 >
                   {PREFERRED_CONTACT_OPTIONS.map((option) => (
                     <option key={option.label} value={option.value}>
@@ -412,12 +546,20 @@ export function ClientRegisterForm({
                   label="WhatsApp"
                   htmlFor="register-whatsapp"
                   hint="Leave blank if same as phone."
+                  error={fieldErrors.whatsapp}
                 >
                   <PhoneInput
                     id="register-whatsapp"
                     value={whatsapp}
-                    onChange={setWhatsapp}
+                    onChange={(value) => {
+                      setWhatsapp(value);
+                      clearFieldError("whatsapp");
+                    }}
                     defaultCountryHint={nationality || null}
+                    className={cn(
+                      fieldErrors.whatsapp &&
+                        "[&_input]:border-red-400/70 [&_input]:ring-2 [&_input]:ring-red-400/40",
+                    )}
                   />
                 </Field>
               ) : null}
@@ -466,21 +608,43 @@ export function ClientRegisterForm({
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Nationality" htmlFor="register-nationality">
+              <Field
+                label="Nationality"
+                htmlFor="register-nationality"
+                error={fieldErrors.nationality}
+              >
                 <CountryCombobox
                   id="register-nationality"
                   value={nationality}
-                  onChange={setNationality}
+                  onChange={(value) => {
+                    setNationality(value);
+                    clearFieldError("nationality");
+                  }}
                   placeholder="Search countries…"
                 />
               </Field>
-              <Field label="City of residence" htmlFor="register-city">
+              <Field
+                label="City of residence"
+                htmlFor="register-city"
+                error={fieldErrors.city_of_residence}
+              >
                 <input
                   id="register-city"
                   value={city}
-                  onChange={(event) => setCity(event.target.value)}
-                  className={modalFieldClassName}
+                  onChange={(event) => {
+                    setCity(event.target.value);
+                    clearFieldError("city_of_residence");
+                  }}
+                  className={fieldControlClass(
+                    Boolean(fieldErrors.city_of_residence),
+                  )}
                   placeholder="e.g. New York"
+                  aria-invalid={Boolean(fieldErrors.city_of_residence)}
+                  aria-describedby={
+                    fieldErrors.city_of_residence
+                      ? "register-city-error"
+                      : undefined
+                  }
                 />
               </Field>
             </div>
@@ -489,15 +653,28 @@ export function ClientRegisterForm({
               label="Team notes"
               htmlFor="register-internal-notes"
               hint="Private to Studio — never shared with the guest."
+              error={fieldErrors.internal_notes}
             >
               <div className="relative">
                 <textarea
                   id="register-internal-notes"
                   value={internalNotes}
-                  onChange={(event) => setInternalNotes(event.target.value)}
+                  onChange={(event) => {
+                    setInternalNotes(event.target.value);
+                    clearFieldError("internal_notes");
+                  }}
                   rows={3}
-                  className={cn(modalFieldClassName, "resize-y pr-9")}
+                  className={cn(
+                    fieldControlClass(Boolean(fieldErrors.internal_notes)),
+                    "resize-y pr-9",
+                  )}
                   placeholder="Referral, call preferences, private flags…"
+                  aria-invalid={Boolean(fieldErrors.internal_notes)}
+                  aria-describedby={
+                    fieldErrors.internal_notes
+                      ? "register-internal-notes-error"
+                      : undefined
+                  }
                 />
                 <LuLock
                   className="pointer-events-none absolute top-3 right-3 h-3.5 w-3.5 text-ink-muted"
@@ -510,14 +687,27 @@ export function ClientRegisterForm({
               label="Guest notes"
               htmlFor="register-guest-notes"
               hint="May inform guest experience — keep guest-safe."
+              error={fieldErrors.guest_notes}
             >
               <textarea
                 id="register-guest-notes"
                 value={guestNotes}
-                onChange={(event) => setGuestNotes(event.target.value)}
+                onChange={(event) => {
+                  setGuestNotes(event.target.value);
+                  clearFieldError("guest_notes");
+                }}
                 rows={2}
-                className={cn(modalFieldClassName, "resize-y")}
+                className={cn(
+                  fieldControlClass(Boolean(fieldErrors.guest_notes)),
+                  "resize-y",
+                )}
                 placeholder="Preferences safe to use with hotels or partners…"
+                aria-invalid={Boolean(fieldErrors.guest_notes)}
+                aria-describedby={
+                  fieldErrors.guest_notes
+                    ? "register-guest-notes-error"
+                    : undefined
+                }
               />
             </Field>
           </FormSection>

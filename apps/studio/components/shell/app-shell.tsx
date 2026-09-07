@@ -36,7 +36,7 @@ export function AppShell({ user, children }: AppShellProps) {
   }, [closeMobile, pathname]);
 
   return (
-    <div className="flex h-screen min-h-screen w-full overflow-hidden bg-surface">
+    <div className="flex h-full w-full overflow-hidden bg-surface">
       {mobileOpen ? (
         <button
           type="button"
@@ -76,7 +76,7 @@ export function AppShell({ user, children }: AppShellProps) {
         </div>
       </aside>
 
-      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col bg-surface">
         <header
           className={[
             "sticky top-0 z-30 flex w-full shrink-0 items-center gap-2 border-b border-border bg-surface-raised px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] md:hidden",
@@ -99,7 +99,7 @@ export function AppShell({ user, children }: AppShellProps) {
           </div>
         </header>
 
-        <main className="min-h-0 w-full flex-1 overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable]">
+        <main className="min-h-0 w-full flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain bg-surface scrollbar-gutter-stable">
           {children}
         </main>
       </div>

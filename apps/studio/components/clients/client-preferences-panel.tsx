@@ -87,7 +87,7 @@ export function ClientPreferencesPanel({
         </ContentSection>
       ) : (
         <>
-          <div className="flex justify-end">
+          <div className="flex justify-stretch sm:justify-end">
             {canWrite ? (
               <ActionButton onClick={onAddPreference}>
                 Add preference

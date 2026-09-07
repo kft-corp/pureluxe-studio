@@ -62,14 +62,14 @@ export function ClientsPageContent({
                   "w-full shrink-0 sm:w-auto sm:self-end",
                 )}
               >
-                <LuUserPlus className="h-4 w-4" aria-hidden />
+                <LuUserPlus className="h-3.5 w-3.5" aria-hidden />
                 New client
               </Link>
             ) : null}
           </div>
 
-          <div className="flex flex-col gap-3 border-t border-border/70 pt-4 sm:flex-row sm:items-end sm:justify-between">
-            <div className="min-w-0">
+      <div className="flex flex-col gap-3 border-t border-border/70 pt-4 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+            <div className="min-w-0 flex-1">
               <p className="mb-1.5 text-xs font-semibold tracking-wide text-ink uppercase">
                 Quick filters
               </p>
@@ -79,7 +79,7 @@ export function ClientsPageContent({
               />
             </div>
 
-            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+            <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
               {directory.hasActiveFilters ? (
                 <button
                   type="button"
@@ -102,10 +102,10 @@ export function ClientsPageContent({
                   "w-full sm:w-auto",
                 )}
               >
-                <LuListFilter className="h-4 w-4" aria-hidden />
+                <LuListFilter className="h-3.5 w-3.5" aria-hidden />
                 More filters
                 {directory.advancedCount > 0 ? (
-                  <span className="rounded-md bg-white/20 px-1.5 py-0.5 text-[11px] tabular-nums">
+                  <span className="rounded bg-white/20 px-1 py-0.5 text-[10px] tabular-nums">
                     {directory.advancedCount}
                   </span>
                 ) : null}

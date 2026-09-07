@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { composeE164, parsePhoneParts } from "@pureluxe/shared";
 
+import { PhoneInput } from "@/components/ui";
 import { Modal, ModalButton, modalFieldClassName } from "@/components/ui/modal";
 import {
   isProfileFormUnchanged,
@@ -41,7 +43,12 @@ function EditProfileForm({
 }: Omit<EditProfileDialogProps, "open">) {
   const [name, setName] = useState(profile.name);
   const [title, setTitle] = useState(profile.title ?? "");
-  const [phone, setPhone] = useState(profile.phone ?? "");
+  const [phone, setPhone] = useState(() => {
+    const raw = profile.phone?.trim() ?? "";
+    if (!raw) return "";
+    const parts = parsePhoneParts(raw);
+    return composeE164(parts.country, parts.national) ?? "";
+  });
   const [loading, setLoading] = useState(false);
 
   const trimmedName = name.trim();
@@ -121,15 +128,11 @@ function EditProfileForm({
         </ProfileField>
 
         <ProfileField label="Phone" htmlFor="profile-phone">
-          <input
+          <PhoneInput
             id="profile-phone"
-            type="tel"
-            autoComplete="tel"
-            inputMode="tel"
             value={phone}
-            onChange={(event) => setPhone(event.target.value)}
-            placeholder="Optional"
-            className={modalFieldClassName}
+            onChange={setPhone}
+            className="mt-1.5"
           />
         </ProfileField>
       </form>

@@ -43,7 +43,7 @@ export function ClientsPagination({
           disabled={!canPrev}
           onClick={() => onPageChange(page - 1)}
           aria-label="Previous page"
-          className={studioButtonClass("secondary", "sm", "justify-self-start")}
+          className={studioButtonClass("ghost", "sm", "justify-self-start")}
         >
           <LuChevronLeft className="h-4 w-4" aria-hidden />
           <span className="hidden sm:inline">Previous</span>
@@ -58,7 +58,7 @@ export function ClientsPagination({
           disabled={!canNext}
           onClick={() => onPageChange(page + 1)}
           aria-label="Next page"
-          className={studioButtonClass("secondary", "sm", "justify-self-end")}
+          className={studioButtonClass("ghost", "sm", "justify-self-end")}
         >
           <span className="hidden sm:inline">Next</span>
           <LuChevronRight className="h-4 w-4" aria-hidden />
