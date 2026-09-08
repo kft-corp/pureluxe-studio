@@ -77,7 +77,7 @@ There is no separate `clients.approve` / `clients.delete` / `clients.manage` —
   └── [ + New client ] → /clients/new
 
 /clients/[id]
-  ├── Hero: name, VIP badge, review badge, household line, completeness
+  ├── Hero: name, VIP badge, review badge, household line, account owner, completeness
   ├── Actions: Approve (if pending) · Edit contact · Start trip (disabled) · ⋯ Deactivate
   └── Tabs: Overview · Preferences · Documents · Health · Household · Activity · Trips
 ```
@@ -86,7 +86,7 @@ There is no separate `clients.approve` / `clients.delete` / `clients.manage` —
 
 | Tab | Contents |
 |---|---|
-| **Overview** | Contact, identity, location, notes, important dates; jump cards into other tabs |
+| **Overview** | Contact (incl. account owner), identity, location, notes, important dates; jump cards into other tabs |
 | **Preferences** | Add / edit / confirm / remove preferences by category |
 | **Documents** | Upload (PDF/JPEG/PNG/WebP ≤10MB), verify / reject / remove, open signed URL |
 | **Health** | Dietary, mobility, medication, emergency contact, share-with-hotels |
@@ -119,9 +119,10 @@ There is no separate `clients.approve` / `clients.delete` / `clients.manage` —
 
 1. **New client** → `/clients/new` (needs `clients.write`).
 2. Enter preferred name + email and/or phone (required contact).
-3. Optional: tier, nationality, notes, important dates.
-4. Save → client created with `source: studio`, `review_status: pending`, default tier **Standard**.
-5. Similar-name matches may be shown; land on profile.
+3. **Account owner** defaults to the signed-in advisor; change to assign another active team member, or leave unassigned.
+4. Optional: tier, nationality, notes, important dates.
+5. Save → client created with `source: studio`, `review_status: pending`, default tier **Standard**.
+6. Similar-name matches may be shown; land on profile.
 
 ### Journey C — Approve a pending client
 
@@ -138,8 +139,10 @@ There is no separate `clients.approve` / `clients.delete` / `clients.manage` —
 ### Journey E — Household and related people
 
 1. **Household** tab → create or join a household, add members, set roles / primary.
-2. Link non-household related people (assistant, travel companion, etc.).
-3. Leave household or remove a member when needed.
+2. **Add member** only lists clients who already exist and are not in another household. If someone is new, use **Create a new client** (link in the dialog), then add them.
+3. **Edit member** updates household role and primary-contact flag.
+4. Link non-household related people (assistant, travel companion, etc.).
+5. Leave household or remove a member when needed.
 
 ### Journey F — Deactivate
 
@@ -194,11 +197,12 @@ clients 1───* guest_users      (schema only; no Studio product UI yet)
 | `review_status` | `pending` \| `approved` |
 | `profile_completeness` | 0–100, recomputed on relevant writes |
 | `guest_notes` / `internal_notes` | Guest-safe vs Studio-only |
+| `relationship_owner_id` | FK → team member (account / relationship owner); shown as **Account owner** in UI |
 | `active` | Soft-delete flag |
 
 ### 6.4 Profile completeness
 
-Stored on `clients.profile_completeness`. Recomputed from core fields + signals (preference present, verified passport, family, health basics). Hints drive “Next: …” on the profile hero.
+Stored on `clients.profile_completeness`. Recomputed from core fields + signals (preference present, verified passport, family, health basics, **account owner assigned**). Assigning an account owner contributes **+10** to the score. The “Assign account owner” hint opens the **contact** edit section. Hints drive “Next: …” on the profile hero.
 
 ### 6.5 Storage
 
@@ -218,7 +222,7 @@ Business rules live in `apps/studio/lib/clients/` (same pattern as `lib/team`).
 | `create-client` | Studio create → pending + default tier + similar names + audit |
 | `approve-client` / `deactivate-client` | Lifecycle |
 | `update-client` | Whitelisted PATCH, conflict via `If-Unmodified-Since`, completeness |
-| `client-directory` / `client-filters` | List + filter catalog (`CLIENT_DIRECTORY_PAGE_SIZE = 10`) |
+| `client-directory` / `client-filters` | List + filter catalog (`CLIENT_DIRECTORY_PAGE_SIZE = 10`); `listRelationshipOwnerOptions` for account-owner selects |
 | `client-profile` | Aggregate profile (prefs, health, docs, family, relationships, audit) |
 | `client-preferences` / `upsert-client-health` / `client-documents` | Nested writes + completeness refresh |
 | `client-family` / `client-relationships` | Household + related people |
@@ -252,11 +256,13 @@ Stats columns (last booking / spend) are **stubbed zeros** until Bookings.
 - Requires email or phone
 - Always `review_status: pending` when created in Studio
 - Default tier = Standard (`client_tiers.is_default`)
+- **Account owner** select: defaults to signed-in member; options from active team (`listRelationshipOwnerOptions`); may be left unassigned
 
 ### 8.3 Profile overview — **shipped**
 
 - Section edit dialogs: identity, contact, location, notes, dates, health
-- Completeness meter + next hint
+- Contact section shows and edits **Account owner** (reassign among active team members, or unassign)
+- Completeness meter + next hint (account-owner hint → contact section)
 - Approve CTA when pending
 - Deactivate under more menu
 - **Start trip** button present but disabled
@@ -276,6 +282,9 @@ Upload, verify, reject, remove, signed view URL; sorted by expiry urgency in UI.
 ### 8.7 Household & relationships — **shipped**
 
 Create / join / rename household; add / edit / remove members; leave; link / unlink related people.
+
+- **Add member:** search existing clients not already in a household; dialog links to `/clients/new` when the person is not registered yet
+- **Edit member:** change role and primary-contact flag
 
 ### 8.8 Activity — **partial**
 
