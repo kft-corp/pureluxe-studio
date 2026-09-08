@@ -4,7 +4,7 @@ import { hasPermission } from "@pureluxe/shared";
 import { ClientProfileContent } from "@/components/clients";
 import { ShellModulePage } from "@/components/shell";
 import { requireActiveStudioSession } from "@/lib/auth/session-with-permissions";
-import { getClientProfile } from "@/lib/clients";
+import { getClientProfile, listRelationshipOwnerOptions } from "@/lib/clients";
 
 type ClientProfilePageProps = {
   params: Promise<{ id: string }>;
@@ -24,13 +24,21 @@ export default async function ClientProfilePage({
     notFound();
   }
 
+  const ownerOptions = canWrite
+    ? await listRelationshipOwnerOptions().catch(() => [])
+    : [];
+
   return (
     <ShellModulePage
       module="clients"
       title="Client profile"
       description="Everything your team needs to know about this guest before the next trip."
     >
-      <ClientProfileContent initialProfile={profile} canWrite={canWrite} />
+      <ClientProfileContent
+        initialProfile={profile}
+        canWrite={canWrite}
+        ownerOptions={ownerOptions}
+      />
     </ShellModulePage>
   );
 }

@@ -123,7 +123,7 @@ export function ClientFamilyList({
             <span>
               No other members yet. Use{" "}
               <strong className="font-semibold text-ink">Add member</strong> to
-              link an existing client.
+              link an existing client, or create one if they are new.
             </span>
           </li>
         ) : null}

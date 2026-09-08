@@ -16,11 +16,13 @@ export {
 } from "./client-directory";
 export {
   getClientDirectoryFilters,
+  listRelationshipOwnerOptions,
   EMPTY_CLIENT_DIRECTORY_FILTERS,
   type ClientDirectoryFilters,
   type ClientFilterOption,
   type ClientFilterToggle,
   type ClientAdvancedFilters,
+  type RelationshipOwnerOption,
   EMPTY_ADVANCED_FILTERS,
   countAdvancedFilters,
 } from "./client-filters";

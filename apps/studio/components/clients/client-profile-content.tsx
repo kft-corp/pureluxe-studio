@@ -12,7 +12,6 @@ import {
   UserAvatar,
   studioButtonClass,
 } from "@/components/ui";
-import type { ClientProfile } from "@/lib/clients";
 import {
   familySummaryLine,
   formatBookingDate,
@@ -20,6 +19,8 @@ import {
   formatFamilyRole,
   formatPhone,
   listCompletenessHints,
+  type ClientProfile,
+  type RelationshipOwnerOption,
 } from "@/lib/clients";
 import { pageRoutes } from "@/lib/routes";
 import { cn } from "@/lib/utils/cn";
@@ -46,6 +47,7 @@ import { useClientProfile } from "./use-client-profile";
 type ClientProfileContentProps = {
   initialProfile: ClientProfile;
   canWrite: boolean;
+  ownerOptions?: RelationshipOwnerOption[];
 };
 
 function MoreMenu({ onDeactivate }: { onDeactivate: () => void }) {
@@ -98,6 +100,7 @@ function MoreMenu({ onDeactivate }: { onDeactivate: () => void }) {
 export function ClientProfileContent({
   initialProfile,
   canWrite,
+  ownerOptions = [],
 }: ClientProfileContentProps) {
   const profilePage = useClientProfile({ initialProfile });
   const { client } = profilePage;
@@ -387,6 +390,7 @@ export function ClientProfileContent({
           open
           section={profilePage.editSection}
           profile={profilePage.profile}
+          ownerOptions={ownerOptions}
           onClose={() => profilePage.setEditSection(null)}
           onSuccess={profilePage.handleProfileSaved}
         />

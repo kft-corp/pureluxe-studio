@@ -20,7 +20,11 @@ import {
   searchClients,
   type ClientSearchHit,
 } from "@/lib/api/clients";
-import { PREFERRED_CONTACT_OPTIONS, type ClientTierOption } from "@/lib/clients";
+import {
+  PREFERRED_CONTACT_OPTIONS,
+  type ClientTierOption,
+  type RelationshipOwnerOption,
+} from "@/lib/clients";
 import { showApiError, showOptionalSuccessToast } from "@/lib/feedback/toast";
 import { pageRoutes } from "@/lib/routes";
 import { cn } from "@/lib/utils/cn";
@@ -38,7 +42,8 @@ type RegisterField =
   | "nationality"
   | "city_of_residence"
   | "internal_notes"
-  | "guest_notes";
+  | "guest_notes"
+  | "relationship_owner_id";
 
 type FieldErrors = Partial<Record<RegisterField, string>>;
 
@@ -229,9 +234,13 @@ function submitLabel(args: {
 export function ClientRegisterForm({
   tiers,
   defaultTierId,
+  ownerOptions = [],
+  defaultOwnerId = null,
 }: Readonly<{
   tiers: ClientTierOption[];
   defaultTierId: string | null;
+  ownerOptions?: RelationshipOwnerOption[];
+  defaultOwnerId?: string | null;
 }>) {
   const router = useRouter();
   const [displayName, setDisplayName] = useState("");
@@ -241,6 +250,9 @@ export function ClientRegisterForm({
   const [whatsapp, setWhatsapp] = useState("");
   const [preferredContact, setPreferredContact] = useState<ContactMethod>("");
   const [tierId, setTierId] = useState(defaultTierId ?? "");
+  const [relationshipOwnerId, setRelationshipOwnerId] = useState(
+    defaultOwnerId ?? "",
+  );
   const [nationality, setNationality] = useState("");
   const [city, setCity] = useState("");
   const [internalNotes, setInternalNotes] = useState("");
@@ -338,6 +350,7 @@ export function ClientRegisterForm({
       whatsapp: whatsapp.trim() || null,
       preferred_contact_method: preferred,
       ...(tierId ? { tier_id: tierId } : {}),
+      relationship_owner_id: relationshipOwnerId || null,
       nationality: nationality.trim() || null,
       city_of_residence: city.trim() || null,
       internal_notes: internalNotes.trim() || null,
@@ -606,6 +619,38 @@ export function ClientRegisterForm({
                 </p>
               )}
             </div>
+
+            <Field
+              label="Account owner"
+              htmlFor="register-account-owner"
+              hint="Defaults to you. Change to assign another advisor."
+              error={fieldErrors.relationship_owner_id}
+            >
+              <select
+                id="register-account-owner"
+                value={relationshipOwnerId}
+                onChange={(event) => {
+                  setRelationshipOwnerId(event.target.value);
+                  clearFieldError("relationship_owner_id");
+                }}
+                className={fieldControlClass(
+                  Boolean(fieldErrors.relationship_owner_id),
+                )}
+                aria-invalid={Boolean(fieldErrors.relationship_owner_id)}
+                aria-describedby={
+                  fieldErrors.relationship_owner_id
+                    ? "register-account-owner-error"
+                    : undefined
+                }
+              >
+                <option value="">Unassigned</option>
+                {ownerOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Field

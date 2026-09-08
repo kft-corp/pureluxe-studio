@@ -236,6 +236,11 @@ export function ClientOverviewPanel({
                 label="Timezone"
                 value={formatTimezone(client.timezone)}
               />
+              <DetailField
+                icon={LuUser}
+                label="Account owner"
+                value={displayOrDash(client.relationship_owner?.name)}
+              />
             </div>
           </ContentSection>
 

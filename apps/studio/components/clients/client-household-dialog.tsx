@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { LuCheck, LuX } from "react-icons/lu";
 import {
@@ -32,6 +33,7 @@ import {
   showOptionalSuccessToast,
   showWarningToast,
 } from "@/lib/feedback/toast";
+import { pageRoutes } from "@/lib/routes";
 import { cn } from "@/lib/utils/cn";
 
 type ProfileClient = ClientProfile["client"];
@@ -485,6 +487,20 @@ export function ClientHouseholdDialog({
                 ) : null}
               </ul>
             )}
+
+            {mode === "add_member" ? (
+              <p className="text-xs text-ink-muted">
+                Not a client yet?{" "}
+                <Link
+                  href={pageRoutes.clientNew}
+                  onClick={onClose}
+                  className="font-semibold text-brand-dark hover:underline"
+                >
+                  Create a new client
+                </Link>{" "}
+                first, then add them here.
+              </p>
+            ) : null}
           </div>
         ) : null}
 

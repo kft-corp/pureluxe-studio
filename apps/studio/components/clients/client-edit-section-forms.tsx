@@ -10,12 +10,13 @@ import {
   TimezoneCombobox,
 } from "@/components/ui";
 import { updateClient, upsertClientHealth } from "@/lib/api/clients";
-import type { ClientProfile } from "@/lib/clients";
 import {
   clientTitleSelectOptions,
   importantDateLabelSelectOptions,
   normalizeClientTitle,
   PREFERRED_CONTACT_OPTIONS,
+  type ClientProfile,
+  type RelationshipOwnerOption,
 } from "@/lib/clients";
 import { showApiError, showOptionalSuccessToast, showWarningToast } from "@/lib/feedback/toast";
 import { cn } from "@/lib/utils/cn";
@@ -64,6 +65,10 @@ type SectionFormProps = {
   profile: ClientProfile;
   onClose: () => void;
   onSuccess: (profile: ClientProfile) => void;
+};
+
+type ContactFormProps = SectionFormProps & {
+  ownerOptions?: RelationshipOwnerOption[];
 };
 
 type DateRow = {
@@ -123,6 +128,18 @@ function SectionFormShell({
         {children}
       </form>
     </Modal>
+  );
+}
+
+function ownerSelectOptions(
+  options: RelationshipOwnerOption[],
+  current: { id: string; name: string } | null | undefined,
+): RelationshipOwnerOption[] {
+  if (!current?.id || options.some((option) => option.id === current.id)) {
+    return options;
+  }
+  return [...options, { id: current.id, name: current.name }].sort((a, b) =>
+    a.name.localeCompare(b.name),
   );
 }
 
@@ -259,7 +276,12 @@ export function IdentityForm({ profile, onClose, onSuccess }: SectionFormProps) 
   );
 }
 
-export function ContactForm({ profile, onClose, onSuccess }: SectionFormProps) {
+export function ContactForm({
+  profile,
+  onClose,
+  onSuccess,
+  ownerOptions = [],
+}: ContactFormProps) {
   const client = profile.client;
   const [email, setEmail] = useState(client.email ?? "");
   const [phone, setPhone] = useState(() => {
@@ -283,7 +305,11 @@ export function ContactForm({ profile, onClose, onSuccess }: SectionFormProps) {
     const value = client.timezone?.trim() ?? "";
     return isValidTimezone(value) ? value : "";
   });
+  const [relationshipOwnerId, setRelationshipOwnerId] = useState(
+    client.relationship_owner_id ?? "",
+  );
   const [loading, setLoading] = useState(false);
+  const owners = ownerSelectOptions(ownerOptions, client.relationship_owner);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -310,6 +336,7 @@ export function ContactForm({ profile, onClose, onSuccess }: SectionFormProps) {
               : null,
           preferred_language: language.trim() || null,
           timezone: timezone.trim() || null,
+          relationship_owner_id: relationshipOwnerId || null,
         },
         {
           ifUnmodifiedSince: client.updated_at,
@@ -404,6 +431,26 @@ export function ContactForm({ profile, onClose, onSuccess }: SectionFormProps) {
           />
         </Field>
       </div>
+
+      <Field
+        label="Account owner"
+        htmlFor="edit-account-owner"
+        hint="Reassign to another team member anytime."
+      >
+        <select
+          id="edit-account-owner"
+          value={relationshipOwnerId}
+          onChange={(event) => setRelationshipOwnerId(event.target.value)}
+          className={cn(modalFieldClassName)}
+        >
+          <option value="">Unassigned</option>
+          {owners.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.name}
+            </option>
+          ))}
+        </select>
+      </Field>
     </SectionFormShell>
   );
 }

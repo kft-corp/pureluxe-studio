@@ -6,6 +6,7 @@ import { ShellModulePage } from "@/components/shell";
 import { requireActiveStudioSession } from "@/lib/auth/session-with-permissions";
 import {
   getActiveClientTiers,
+  listRelationshipOwnerOptions,
   pickDefaultClientTierId,
 } from "@/lib/clients";
 import { pageRoutes } from "@/lib/routes";
@@ -18,7 +19,10 @@ export default async function NewClientPage() {
     redirect(pageRoutes.clients);
   }
 
-  const tiers = await getActiveClientTiers();
+  const [tiers, ownerOptions] = await Promise.all([
+    getActiveClientTiers(),
+    listRelationshipOwnerOptions().catch(() => []),
+  ]);
   const defaultTierId = pickDefaultClientTierId(tiers);
 
   return (
@@ -27,7 +31,12 @@ export default async function NewClientPage() {
       title="New client"
       description="Who they are and how to reach them. New clients stay pending until approved."
     >
-      <ClientRegisterForm tiers={tiers} defaultTierId={defaultTierId} />
+      <ClientRegisterForm
+        tiers={tiers}
+        defaultTierId={defaultTierId}
+        ownerOptions={ownerOptions}
+        defaultOwnerId={session.memberId}
+      />
     </ShellModulePage>
   );
 }

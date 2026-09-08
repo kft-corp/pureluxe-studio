@@ -1,6 +1,6 @@
 "use client";
 
-import type { ClientProfile } from "@/lib/clients";
+import type { ClientProfile, RelationshipOwnerOption } from "@/lib/clients";
 
 import {
   ContactForm,
@@ -23,13 +23,13 @@ type ClientEditSectionDialogProps = {
   open: boolean;
   section: ClientEditSection;
   profile: ClientProfile;
+  ownerOptions?: RelationshipOwnerOption[];
   onClose: () => void;
   onSuccess: (profile: ClientProfile) => void;
 };
 
 const SECTION_FORMS = {
   identity: IdentityForm,
-  contact: ContactForm,
   location: LocationForm,
   notes: NotesForm,
   dates: DatesForm,
@@ -40,10 +40,23 @@ export function ClientEditSectionDialog({
   open,
   section,
   profile,
+  ownerOptions,
   onClose,
   onSuccess,
 }: ClientEditSectionDialogProps) {
   if (!open) return null;
+
+  if (section === "contact") {
+    return (
+      <ContactForm
+        key={`contact-${profile.client.id}-${profile.client.updated_at}`}
+        profile={profile}
+        ownerOptions={ownerOptions}
+        onClose={onClose}
+        onSuccess={onSuccess}
+      />
+    );
+  }
 
   const Form = SECTION_FORMS[section];
 

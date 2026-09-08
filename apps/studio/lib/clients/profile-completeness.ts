@@ -66,7 +66,7 @@ export function listCompletenessHints(
     hints.push({ label: "Add city", section: "location" });
   }
   if (!hasText(input.relationship_owner_id)) {
-    hints.push({ label: "Assign account owner", section: "identity" });
+    hints.push({ label: "Assign account owner", section: "contact" });
   }
   if (
     !Array.isArray(input.important_dates) ||

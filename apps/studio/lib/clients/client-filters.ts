@@ -111,6 +111,19 @@ export function countAdvancedFilters(filters: ClientAdvancedFilters): number {
   return count;
 }
 
+export type RelationshipOwnerOption = {
+  id: string;
+  name: string;
+};
+
+/** Active team members available as account / relationship owners. */
+export async function listRelationshipOwnerOptions(): Promise<
+  RelationshipOwnerOption[]
+> {
+  const values = await listClientDirectoryFilterValues();
+  return values.owners;
+}
+
 /** Filter catalog for the directory dialog. */
 export async function getClientDirectoryFilters(
   currentOwner?: CurrentOwner | null,
