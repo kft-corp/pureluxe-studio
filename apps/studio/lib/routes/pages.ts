@@ -7,6 +7,8 @@ export const pageRoutes = {
   tripBuilderWithClient: (clientId: string) =>
     pageRouteWithSearch("/trip-builder", { primary_client_id: clientId }),
   bookings: "/bookings",
+  booking: (bookingId: string) => `/bookings/${bookingId}`,
+  bookingNew: "/bookings/new",
   clients: "/clients",
   clientNew: "/clients/new",
   client: (clientId: string) => `/clients/${clientId}`,

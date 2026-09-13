@@ -7,6 +7,7 @@ import type {
 import { getServiceClient, runSupabaseQuery } from "../../client";
 import { dbQueryError } from "../../errors";
 import type { Client, ClientTierSummary } from "../../schema";
+import { escapeIlike } from "../../utils/ilike";
 import { findClientTierBySlug } from "./client-tiers";
 
 const CLIENT_COLUMNS =
@@ -68,12 +69,8 @@ export type UpdateClientRecord = UpdateClientInput & {
   updated_by_id: string;
 };
 
-function escapeIlike(value: string): string {
-  return value.replace(/[%_\\]/g, "\\$&");
-}
-
 function contactSearchFilter(q: string): string {
-  const pattern = `%${escapeIlike(q)}%`.replace(/"/g, '\\"');
+  const pattern = `%${escapeIlike(q)}%`.replaceAll('"', '\\"');
   return [
     `display_name.ilike."${pattern}"`,
     `email.ilike."${pattern}"`,
@@ -183,7 +180,34 @@ export async function findClientDisplayNamesByIds(
   );
 }
 
-  /** Directory list — search, chips + advanced filters, sort, paginate. */
+/** Active client ids whose display_name matches (directory search). */
+export async function findClientIdsByDisplayName(
+  q: string,
+  limit = 50,
+): Promise<string[]> {
+  const trimmed = q.trim();
+  if (!trimmed) return [];
+
+  const pattern = `%${escapeIlike(trimmed)}%`;
+  const supabase = getServiceClient();
+  const { data, error } = await runSupabaseQuery(() =>
+    supabase
+      .from("clients")
+      .select("id")
+      .eq("active", true)
+      .eq("is_demo", false)
+      .ilike("display_name", pattern)
+      .limit(limit),
+  );
+
+  if (error) {
+    throw dbQueryError(error);
+  }
+
+  return ((data as Array<{ id: string }> | null) ?? []).map((row) => row.id);
+}
+
+/** Directory list — search, chips + advanced filters, sort, paginate. */
 export async function listClients(
   query: ListClientsQuery & { actorMemberId?: string | null },
 ): Promise<ListClientsResult> {

@@ -13,10 +13,16 @@ export {
   updateTeamMember,
 } from "./auth";
 export {
+  listBookings,
+  type BookingDirectoryRow,
+  type ListBookingsResult,
+} from "./bookings";
+export {
   approveClientRecord,
   deactivateClient,
   findClientById,
   findClientDisplayNamesByIds,
+  findClientIdsByDisplayName,
   findClientDocumentById,
   findClientFamily,
   findClientHealth,

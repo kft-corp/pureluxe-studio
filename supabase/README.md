@@ -87,7 +87,51 @@ Directory/search indexes, `pending_upload` document status, `refresh_client_prof
 
 Adds indexes for household name search (`families.name` trigram) and related-people lookups (`client_relationships` from/to).
 
-Run **001 → … → 009** in order (Dashboard paste or `npx supabase db push` from repo root).
+Migration: `migrations/011_rate_layer.sql`
+
+Creates:
+
+| Object | Purpose |
+|---|---|
+| `company_settings` | Key/value company config (seeds `rate_sources`) |
+| `properties` | Hotel master + GDS/bedbank codes (**provisional** — see deferred doc) |
+| `offline_trip_types` | Path 1 — offline-only trip types |
+| `wholesaler_destinations` | Paths 2–4 — wholesale by destination |
+| `high_value_routing` | Path 5 — wholesale-first by dest XOR property |
+| Permissions | `rates.search`, `settings.rate_sources` |
+
+Open Rate Layer schema work (`properties` vs `curated_hotel_content`, generic supplier codes): [`docs/studio/rate-layer-deferred.md`](../docs/studio/rate-layer-deferred.md).
+
+Migration: `migrations/012_trips_kernel.sql`
+
+Creates the **seven-table trip kernel** (Trip Builder + Trips portfolio + Client App):
+
+| Table | Purpose |
+|---|---|
+| `trips` | Canonical journey record |
+| `trip_clients` | Primary + companions |
+| `trip_legs` | Ordered stops |
+| `trip_itinerary_days` | Day narrative + provenance |
+| `trip_line_items` | Rates/options incl. `pending_review` (no drafts table) |
+| `trip_documents` | Proposal PDFs + STALE |
+| `trip_chat_messages` | Advisor + guest chat (`channel`) |
+
+Also: `clients.is_demo`, storage bucket `trip-documents`, ops/finance Trip Builder grants.
+
+Migration: `migrations/013_bookings.sql`
+
+Creates:
+
+| Object | Purpose |
+|---|---|
+| `bookings` | Confirmed inventory ledger |
+| `booking_travellers` | Named people on a reservation |
+| `booking_audit_log` | Status / money / ref history |
+| `family_booking_members` FK | Deferred Client FK → `bookings` |
+| Storage | `booking-confirmations` bucket |
+| Permissions | Advisor `bookings.read` / `bookings.write` |
+
+Run **001 → … → 013** in order (Dashboard paste or `npx supabase db push` from repo root).
 
 ### Option A — Supabase Dashboard (simplest)
 

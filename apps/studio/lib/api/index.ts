@@ -1,6 +1,11 @@
 export { getAccountProfile, updateAccountProfile, type AccountProfileData } from "./account";
 export { logout } from "./auth";
 export {
+  listBookings,
+  type BookingDirectoryData,
+  type BookingDirectoryItem,
+} from "./bookings";
+export {
   approveClient,
   confirmClientDocumentUpload,
   createClient,

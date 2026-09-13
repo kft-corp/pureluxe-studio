@@ -1,5 +1,6 @@
 import { accountMessages } from "./account";
 import { authMessages } from "./auth";
+import { bookingMessages } from "./bookings";
 import { clientMessages } from "./clients";
 import { commonMessages } from "./common";
 import { dbMessages } from "./db";
@@ -10,12 +11,14 @@ export const messages = {
   success: {
     ...authMessages.success,
     ...accountMessages.success,
+    ...bookingMessages.success,
     ...clientMessages.success,
     ...teamMessages.success,
   },
   warn: authMessages.warn,
   error: {
     ...authMessages.error,
+    ...bookingMessages.error,
     ...clientMessages.error,
     ...dbMessages.error,
     ...commonMessages.error,
@@ -26,6 +29,7 @@ export const messages = {
 export {
   accountMessages,
   authMessages,
+  bookingMessages,
   clientMessages,
   commonMessages,
   dbMessages,

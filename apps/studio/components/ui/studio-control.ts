@@ -28,12 +28,24 @@ export const studioTone = {
   /** Affirmative actions (Approve) — aligns with approved/active status badges. */
   success:
     "bg-emerald-700 text-white shadow-sm hover:bg-emerald-800 focus-visible:ring-emerald-700/25",
+  /** Destructive / reset actions (Clear filters, remove). */
+  danger:
+    "bg-red-700 text-on-dark shadow-sm hover:bg-red-800 focus-visible:ring-red-700/25",
+  /** Softer reset (clear filters) — not as alarming as solid danger. */
+  dangerSoft:
+    "border border-red-200 bg-red-50 text-red-700 shadow-sm hover:border-red-300 hover:bg-red-100 focus-visible:ring-red-700/20",
   chipIdle: "bg-surface-raised text-ink ring-border hover:bg-surface-hover",
   chipActive: "bg-brand-dark text-on-dark ring-brand-dark",
 } as const;
 
 export function studioButtonClass(
-  variant: "primary" | "secondary" | "ghost" | "success" = "secondary",
+  variant:
+    | "primary"
+    | "secondary"
+    | "ghost"
+    | "success"
+    | "danger"
+    | "dangerSoft" = "secondary",
   size: "md" | "sm" = "md",
   className?: string,
 ) {

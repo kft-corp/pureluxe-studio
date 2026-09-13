@@ -23,6 +23,7 @@ export {
   deactivateClient,
   findClientById,
   findClientDisplayNamesByIds,
+  findClientIdsByDisplayName,
   insertClient,
   listClients,
   searchClients,

@@ -67,6 +67,7 @@ export type Client = {
   profile_completeness: number;
   avatar_url: string | null;
   active: boolean;
+  is_demo: boolean;
   merged_into_client_id: string | null;
   deactivated_at: string | null;
   deactivated_by_id: string | null;

@@ -32,6 +32,10 @@ export const apiRoutes = {
     relationship: (clientId: string, relationshipId: string) =>
       `/api/clients/${clientId}/relationships/${relationshipId}`,
   },
+  bookings: {
+    root: "/api/bookings",
+    byId: (bookingId: string) => `/api/bookings/${bookingId}`,
+  },
   families: {
     search: "/api/families/search",
   },

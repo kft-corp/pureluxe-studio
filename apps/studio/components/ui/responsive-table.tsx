@@ -1,10 +1,12 @@
 import { cn } from "@/lib/utils/cn";
 
+type ResponsiveTableBreakpoint = "md" | "lg";
+
 type ResponsiveTableProps = {
   columns: string[];
   showActions?: boolean;
   children: React.ReactNode;
-  /** Card layout below `md`. Ignored when `scrollOnNarrow` is true. */
+  /** Card layout below the desktop breakpoint. Ignored when `scrollOnNarrow` is true. */
   mobile?: React.ReactNode;
   /**
    * Always render the table and scroll horizontally when the viewport is narrow.
@@ -13,6 +15,11 @@ type ResponsiveTableProps = {
   scrollOnNarrow?: boolean;
   /** Minimum table width before horizontal scroll kicks in. */
   minWidthClassName?: string;
+  /**
+   * When to show the desktop table (cards below this).
+   * Use `lg` for wide directories (e.g. Bookings). Default `md`.
+   */
+  breakpoint?: ResponsiveTableBreakpoint;
 };
 
 function TableShell({
@@ -31,15 +38,19 @@ function TableShell({
       <table className={cn("w-full text-left text-sm", minWidthClassName)}>
         <thead>
           <tr className="border-b border-border/80 bg-surface/50">
-            {columns.map((column) => (
+            {columns.map((column, index) => (
               <th
-                key={column}
+                key={column || `col-${index}`}
                 className={cn(
                   "whitespace-nowrap px-4 py-3.5 text-[11px] font-semibold tracking-wide text-ink uppercase first:px-6",
-                  column === "Actions" && "px-6 text-right",
+                  (column === "Actions" || column === "") && "px-6 text-right",
                 )}
               >
-                {column}
+                {column === "" ? (
+                  <span className="sr-only">Actions</span>
+                ) : (
+                  column
+                )}
               </th>
             ))}
             {showActions && !columns.includes("Actions") ? (
@@ -62,6 +73,7 @@ export function ResponsiveTable({
   mobile,
   scrollOnNarrow = false,
   minWidthClassName = "min-w-[40rem]",
+  breakpoint = "md",
 }: ResponsiveTableProps) {
   if (scrollOnNarrow) {
     return (
@@ -75,9 +87,14 @@ export function ResponsiveTable({
     );
   }
 
+  const desktopClass =
+    breakpoint === "lg" ? "hidden lg:block" : "hidden md:block";
+  const mobileClass =
+    breakpoint === "lg" ? "divide-y divide-border/70 lg:hidden" : "divide-y divide-border/70 md:hidden";
+
   return (
     <>
-      <div className="hidden md:block">
+      <div className={desktopClass}>
         <TableShell
           columns={columns}
           showActions={showActions}
@@ -87,9 +104,7 @@ export function ResponsiveTable({
         </TableShell>
       </div>
 
-      {mobile ? (
-        <div className="divide-y divide-border/70 md:hidden">{mobile}</div>
-      ) : null}
+      {mobile ? <div className={mobileClass}>{mobile}</div> : null}
     </>
   );
 }
