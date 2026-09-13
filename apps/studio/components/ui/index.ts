@@ -22,7 +22,9 @@ export {
 } from "./studio-control";
 export { Switch } from "./switch";
 export { EmptyState, StatusBadge } from "./status-badge";
+export { SnapshotCard } from "./snapshot-card";
 export { UserAvatar } from "./user-avatar";
+
 export { CountryCombobox } from "./country-combobox";
 export { LanguageCombobox } from "./language-combobox";
 export { TimezoneCombobox } from "./timezone-combobox";

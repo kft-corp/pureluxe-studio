@@ -2,6 +2,7 @@ import type { ListBookingsQuery } from "@pureluxe/shared";
 
 import type { BookingDirectoryRow } from "@pureluxe/db";
 
+import type { BookingDetail } from "@/lib/bookings";
 import { apiRoutes } from "@/lib/routes";
 
 import { fetchApi } from "./client";
@@ -14,6 +15,8 @@ export type BookingDirectoryData = {
   limit: number;
   offset: number;
 };
+
+export type BookingDetailData = BookingDetail;
 
 const QUERY_DEFAULTS = new Set([
   "",
@@ -41,4 +44,11 @@ export function listBookings(params: Partial<ListBookingsQuery> = {}) {
     `${apiRoutes.bookings.root}${toQueryString(params)}`,
     { cache: "no-store" },
   );
+}
+
+/** Load one booking detail for Studio. */
+export function getBooking(bookingId: string) {
+  return fetchApi<BookingDetailData>(apiRoutes.bookings.byId(bookingId), {
+    cache: "no-store",
+  });
 }

@@ -7,12 +7,103 @@ import {
 
 import { getServiceClient, runSupabaseQuery } from "../../client";
 import { dbQueryError } from "../../errors";
-import type { Booking, BookingServiceType, BookingStatus } from "../../schema";
+import type {
+  Booking,
+  BookingAuditLog,
+  BookingServiceType,
+  BookingStatus,
+  BookingTraveller,
+} from "../../schema";
 import { escapeIlike } from "../../utils/ilike";
 import {
   findClientDisplayNamesByIds,
   findClientIdsByDisplayName,
 } from "../clients/clients";
+
+/** Full row columns for detail — no embeds (avoids ambiguous FK / schema-cache 503s). */
+const BOOKING_COLUMNS = [
+  "id",
+  "client_id",
+  "trip_id",
+  "trip_leg_id",
+  "trip_line_item_id",
+  "service_type",
+  "relationship_owner_id",
+  "booked_by_id",
+  "source",
+  "title",
+  "property_id",
+  "hotel_name",
+  "city",
+  "country",
+  "chain",
+  "start_date",
+  "end_date",
+  "nights",
+  "num_rooms",
+  "num_adults",
+  "num_children",
+  "supplier_name",
+  "supplier_ref",
+  "booking_channel",
+  "currency",
+  "cost_amount",
+  "sell_amount",
+  "commission_expected",
+  "status",
+  "confirmed_at",
+  "cancelled_at",
+  "cancellation_reason",
+  "cancellation_deadline",
+  "cancellation_policy",
+  "ticket_time_limit",
+  "amended_from_id",
+  "guest_visible",
+  "guest_notes",
+  "internal_notes",
+  "confirmation_file_path",
+  "service_details",
+  "vip_flag",
+  "special_occasion",
+  "is_demo",
+  "created_at",
+  "updated_at",
+].join(", ");
+
+const TRAVELLER_COLUMNS = [
+  "id",
+  "booking_id",
+  "client_id",
+  "title",
+  "full_name",
+  "gender",
+  "role",
+  "date_of_birth",
+  "passport_number",
+  "passport_nationality",
+  "passport_expiry",
+  "created_at",
+  "updated_at",
+].join(", ");
+
+const AUDIT_COLUMNS = [
+  "id",
+  "booking_id",
+  "action",
+  "field_name",
+  "old_value",
+  "new_value",
+  "performed_by",
+  "team_member_id",
+  "metadata",
+  "created_at",
+].join(", ");
+
+function toNullableNumber(value: unknown): number | null {
+  if (value == null || value === "") return null;
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
 
 /** Slim directory columns — no embeds (avoids ambiguous FK / schema-cache 503s). */
 const DIRECTORY_SELECT = [
@@ -133,6 +224,99 @@ function toBaseRow(
     ticket_time_limit: (row.ticket_time_limit as string | null) ?? null,
     vip_flag: Boolean(row.vip_flag),
   };
+}
+
+/** One non-demo booking by id, or null. */
+export async function findBookingById(
+  bookingId: string,
+): Promise<Booking | null> {
+  const supabase = getServiceClient();
+  const { data, error } = await runSupabaseQuery(() =>
+    supabase
+      .from("bookings")
+      .select(BOOKING_COLUMNS)
+      .eq("id", bookingId)
+      .eq("is_demo", false)
+      .maybeSingle(),
+  );
+
+  if (error) {
+    throw dbQueryError(error);
+  }
+
+  if (!data) return null;
+
+  const row = data as unknown as Booking & {
+    cost_amount?: number | string | null;
+    sell_amount?: number | string | null;
+    commission_expected?: number | string | null;
+  };
+
+  return {
+    ...row,
+    nights: toNullableNumber(row.nights),
+    num_rooms: toNullableNumber(row.num_rooms),
+    num_adults: toNullableNumber(row.num_adults),
+    num_children: toNullableNumber(row.num_children),
+    cost_amount: toNullableNumber(row.cost_amount),
+    sell_amount: toNullableNumber(row.sell_amount),
+    commission_expected: toNullableNumber(row.commission_expected),
+    service_details:
+      row.service_details && typeof row.service_details === "object"
+        ? row.service_details
+        : {},
+    vip_flag: Boolean(row.vip_flag),
+    guest_visible: Boolean(row.guest_visible),
+    is_demo: Boolean(row.is_demo),
+  };
+}
+
+/** Named travellers on a booking (passport fields for ops). */
+export async function listBookingTravellers(
+  bookingId: string,
+  limit = 50,
+): Promise<BookingTraveller[]> {
+  const supabase = getServiceClient();
+  const { data, error } = await runSupabaseQuery(() =>
+    supabase
+      .from("booking_travellers")
+      .select(TRAVELLER_COLUMNS)
+      .eq("booking_id", bookingId)
+      .order("created_at", { ascending: true })
+      .limit(limit),
+  );
+
+  if (error) {
+    throw dbQueryError(error);
+  }
+
+  return (data as unknown as BookingTraveller[] | null) ?? [];
+}
+
+/** Recent audit rows for a booking detail. */
+export async function listBookingAuditLogs(
+  bookingId: string,
+  limit = 10,
+): Promise<BookingAuditLog[]> {
+  const supabase = getServiceClient();
+  const { data, error } = await runSupabaseQuery(() =>
+    supabase
+      .from("booking_audit_log")
+      .select(AUDIT_COLUMNS)
+      .eq("booking_id", bookingId)
+      .order("created_at", { ascending: false })
+      .limit(limit),
+  );
+
+  if (error) {
+    throw dbQueryError(error);
+  }
+
+  return ((data as unknown as BookingAuditLog[] | null) ?? []).map((row) => ({
+    ...row,
+    metadata:
+      row.metadata && typeof row.metadata === "object" ? row.metadata : {},
+  }));
 }
 
 /** Directory list — search, Mine/All, type, work, status, ops filters, paginate. */

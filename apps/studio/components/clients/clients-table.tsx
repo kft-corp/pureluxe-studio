@@ -1,16 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { LuChevronRight, LuUsers } from "react-icons/lu";
 import { phoneDigitsForHref } from "@pureluxe/shared";
 
 import { PageLoader } from "@/components/feedback";
-import {
-  EmptyState,
-  StatusBadge,
-  UserAvatar,
-  studioButtonClass,
-} from "@/components/ui";
+import { EmptyState, StatusBadge, UserAvatar } from "@/components/ui";
 import {
   MobileCard,
   ResponsiveTable,
@@ -122,6 +118,71 @@ function emptyMessage(
   return "No clients yet. Add your first guest with New client.";
 }
 
+function ClientDirectoryRow({ client }: { client: ClientDirectoryItem }) {
+  const router = useRouter();
+
+  return (
+    <TableRow
+      onClick={() => {
+        router.push(pageRoutes.client(client.id));
+      }}
+    >
+      <TableCell>
+        <div className="flex min-w-0 max-w-[20rem] items-center gap-3">
+          <UserAvatar
+            name={client.display_name}
+            email={client.email ?? undefined}
+          />
+          <div className="min-w-0">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <p
+                className="truncate font-medium text-ink"
+                title={client.display_name}
+              >
+                {client.display_name}
+              </p>
+              <ClientBadges client={client} />
+            </div>
+            {client.family_name ? (
+              <p
+                className="mt-0.5 truncate text-sm text-ink-muted"
+                title={client.family_name}
+              >
+                Family: {client.family_name}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      </TableCell>
+      <TableCell>
+        <ContactCell email={client.email} phone={client.phone} />
+      </TableCell>
+      <TableCell
+        className={
+          client.stats.last_booking_date
+            ? "whitespace-nowrap text-sm text-ink"
+            : "whitespace-nowrap text-sm text-ink-muted"
+        }
+      >
+        {lastBookingLabel(client.stats.last_booking_date)}
+      </TableCell>
+      <TableCell className="whitespace-nowrap text-sm text-ink">
+        {client.profile_completeness}%
+      </TableCell>
+      <TableCell className="whitespace-nowrap text-right">
+        <Link
+          href={pageRoutes.client(client.id)}
+          onClick={(event) => event.stopPropagation()}
+          className="inline-flex text-ink-muted"
+          aria-label={`Open ${client.display_name}`}
+        >
+          <LuChevronRight className="h-4 w-4" aria-hidden />
+        </Link>
+      </TableCell>
+    </TableRow>
+  );
+}
+
 export function ClientsTable({
   clients,
   loading,
@@ -164,6 +225,8 @@ export function ClientsTable({
             </div>
             <p className="mt-1.5 text-xs text-ink-muted">
               Last booking: {lastBookingLabel(client.stats.last_booking_date)}
+              {" · "}
+              Profile {client.profile_completeness}%
             </p>
           </div>
         </div>
@@ -186,65 +249,12 @@ export function ClientsTable({
       aria-busy={loading}
     >
       <ResponsiveTable
-        minWidthClassName="min-w-[40rem]"
-        columns={["Client", "Contact", "Last booking", ""]}
+        minWidthClassName="min-w-[44rem]"
+        columns={["Client", "Contact", "Last booking", "Profile", ""]}
         mobile={mobileCards}
       >
         {clients.map((client) => (
-          <TableRow key={client.id}>
-            <TableCell>
-              <Link
-                href={pageRoutes.client(client.id)}
-                className="flex min-w-0 max-w-[20rem] items-center gap-3"
-              >
-                <UserAvatar
-                  name={client.display_name}
-                  email={client.email ?? undefined}
-                />
-                <div className="min-w-0">
-                  <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <p
-                      className="truncate font-medium text-ink"
-                      title={client.display_name}
-                    >
-                      {client.display_name}
-                    </p>
-                    <ClientBadges client={client} />
-                  </div>
-                  {client.family_name ? (
-                    <p
-                      className="mt-0.5 truncate text-sm text-ink-muted"
-                      title={client.family_name}
-                    >
-                      Family: {client.family_name}
-                    </p>
-                  ) : null}
-                </div>
-              </Link>
-            </TableCell>
-            <TableCell>
-              <ContactCell email={client.email} phone={client.phone} />
-            </TableCell>
-            <TableCell
-              className={
-                client.stats.last_booking_date
-                  ? "whitespace-nowrap text-sm text-ink"
-                  : "whitespace-nowrap text-sm text-ink-muted"
-              }
-            >
-              {lastBookingLabel(client.stats.last_booking_date)}
-            </TableCell>
-            <TableCell className="whitespace-nowrap text-right">
-              <Link
-                href={pageRoutes.client(client.id)}
-                className={studioButtonClass("secondary", "sm")}
-                aria-label={`Open ${client.display_name}`}
-              >
-                Open
-                <LuChevronRight className="h-3.5 w-3.5" aria-hidden />
-              </Link>
-            </TableCell>
-          </TableRow>
+          <ClientDirectoryRow key={client.id} client={client} />
         ))}
       </ResponsiveTable>
     </div>

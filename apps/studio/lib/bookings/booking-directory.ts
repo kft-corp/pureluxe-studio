@@ -1,7 +1,7 @@
 import { listBookings } from "@pureluxe/db";
 import type { ListBookingsQuery } from "@pureluxe/shared";
 
-export const BOOKING_DIRECTORY_PAGE_SIZE = 10;
+export { BOOKING_DIRECTORY_PAGE_SIZE } from "./booking-limits";
 
 type ListDirectoryOptions = ListBookingsQuery & {
   actorMemberId?: string | null;

@@ -1,36 +1,6 @@
 "use client";
 
-export function SnapshotCard({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-}) {
-  return (
-    <div className="min-w-0 rounded-xl border border-border/80 bg-surface px-4 py-3">
-      <p className="text-[11px] font-semibold tracking-wide text-ink-muted uppercase">
-        {label}
-      </p>
-      <p
-        className="mt-1 wrap-break-word text-sm font-semibold text-ink sm:truncate"
-        title={value}
-      >
-        {value}
-      </p>
-      {hint ? (
-        <p
-          className="mt-0.5 wrap-break-word text-xs text-ink-muted sm:truncate"
-          title={hint}
-        >
-          {hint}
-        </p>
-      ) : null}
-    </div>
-  );
-}
+export { SnapshotCard } from "@/components/ui";
 
 export function CompletenessMeter({
   value,

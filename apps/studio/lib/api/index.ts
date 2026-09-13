@@ -1,7 +1,9 @@
 export { getAccountProfile, updateAccountProfile, type AccountProfileData } from "./account";
 export { logout } from "./auth";
 export {
+  getBooking,
   listBookings,
+  type BookingDetailData,
   type BookingDirectoryData,
   type BookingDirectoryItem,
 } from "./bookings";

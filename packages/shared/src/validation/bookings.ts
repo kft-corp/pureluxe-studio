@@ -143,3 +143,165 @@ export const listBookingsQuerySchema = z
   );
 
 export type ListBookingsQuery = z.infer<typeof listBookingsQuerySchema>;
+
+export const bookingIdSchema = z
+  .string()
+  .uuid({ message: "That booking link looks invalid." });
+
+/** Local time of day (HH:mm) — hotel check-in/out style. */
+const optionalTimeOfDay = z.preprocess((value) => {
+  if (value == null || value === "") return undefined;
+  const raw = String(value).trim();
+  // Accept "15:00" or "15:00:00"
+  const match = /^([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/.exec(raw);
+  if (!match) return raw;
+  return `${match[1]}:${match[2]}`;
+}, z
+  .string()
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, {
+    message: "Use HH:mm for local times (e.g. 15:00).",
+  })
+  .optional());
+
+/** Date-time string for segments / pickup — ISO preferred, free text allowed. */
+const optionalDateTimeText = z.preprocess((value) => {
+  if (value == null || value === "") return undefined;
+  return String(value).trim() || undefined;
+}, z.string().min(1).max(64).optional());
+
+const optionalText = z.preprocess((value) => {
+  if (value == null || value === "") return undefined;
+  const trimmed = String(value).trim();
+  return trimmed || undefined;
+}, z.string().min(1).max(200).optional());
+
+/** Hotel / accommodation payload in bookings.service_details. */
+export const hotelServiceDetailsSchema = z
+  .object({
+    check_in_time: optionalTimeOfDay,
+    check_out_time: optionalTimeOfDay,
+    room_type: optionalText,
+    board_basis: optionalText,
+    rate_plan: optionalText,
+    special_requests: optionalText,
+  })
+  .passthrough();
+
+/** One flight segment inside service_details.segments. */
+export const flightSegmentSchema = z
+  .object({
+    airline: optionalText,
+    flight_number: optionalText,
+    from: optionalText,
+    to: optionalText,
+    depart_at: optionalDateTimeText,
+    arrive_at: optionalDateTimeText,
+    cabin: optionalText,
+    terminal: optionalText,
+  })
+  .passthrough();
+
+/** Flight payload in bookings.service_details. */
+export const flightServiceDetailsSchema = z
+  .object({
+    segments: z.array(flightSegmentSchema).optional().default([]),
+    ticket_number: optionalText,
+    booking_class: optionalText,
+  })
+  .passthrough();
+
+/** Transfer / ground transport payload. */
+export const transferServiceDetailsSchema = z
+  .object({
+    pickup_at: optionalDateTimeText,
+    dropoff_at: optionalDateTimeText,
+    pickup_location: optionalText,
+    dropoff_location: optionalText,
+    meeting_point: optionalText,
+    vehicle_type: optionalText,
+    driver_name: optionalText,
+    driver_phone: optionalText,
+  })
+  .passthrough();
+
+/** Activity / experience payload. */
+export const activityServiceDetailsSchema = z
+  .object({
+    start_at: optionalDateTimeText,
+    end_at: optionalDateTimeText,
+    meeting_point: optionalText,
+    duration_minutes: z.preprocess((value) => {
+      if (value == null || value === "") return undefined;
+      const n = typeof value === "number" ? value : Number(value);
+      return Number.isFinite(n) ? n : undefined;
+    }, z.number().int().positive().optional()),
+    provider_name: optionalText,
+    voucher_ref: optionalText,
+  })
+  .passthrough();
+
+export type HotelServiceDetails = z.infer<typeof hotelServiceDetailsSchema>;
+export type FlightSegment = z.infer<typeof flightSegmentSchema>;
+export type FlightServiceDetails = z.infer<typeof flightServiceDetailsSchema>;
+export type TransferServiceDetails = z.infer<
+  typeof transferServiceDetailsSchema
+>;
+export type ActivityServiceDetails = z.infer<
+  typeof activityServiceDetailsSchema
+>;
+
+export type ParsedBookingServiceDetails =
+  | { serviceType: "hotel"; details: HotelServiceDetails }
+  | { serviceType: "flight"; details: FlightServiceDetails }
+  | { serviceType: "transfer"; details: TransferServiceDetails }
+  | { serviceType: "activity"; details: ActivityServiceDetails }
+  | { serviceType: "unknown"; details: Record<string, unknown> };
+
+/**
+ * Soft-parse service_details for display / future writes.
+ * Unknown keys are kept (passthrough); invalid shapes fall back to raw object.
+ */
+export function parseBookingServiceDetails(
+  serviceType: string,
+  raw: unknown,
+): ParsedBookingServiceDetails {
+  const base =
+    raw && typeof raw === "object" && !Array.isArray(raw)
+      ? (raw as Record<string, unknown>)
+      : {};
+
+  if (serviceType === "hotel") {
+    const parsed = hotelServiceDetailsSchema.safeParse(base);
+    return {
+      serviceType: "hotel",
+      details: parsed.success ? parsed.data : (base as HotelServiceDetails),
+    };
+  }
+  if (serviceType === "flight") {
+    const parsed = flightServiceDetailsSchema.safeParse(base);
+    return {
+      serviceType: "flight",
+      details: parsed.success ? parsed.data : (base as FlightServiceDetails),
+    };
+  }
+  if (serviceType === "transfer") {
+    const parsed = transferServiceDetailsSchema.safeParse(base);
+    return {
+      serviceType: "transfer",
+      details: parsed.success
+        ? parsed.data
+        : (base as TransferServiceDetails),
+    };
+  }
+  if (serviceType === "activity") {
+    const parsed = activityServiceDetailsSchema.safeParse(base);
+    return {
+      serviceType: "activity",
+      details: parsed.success
+        ? parsed.data
+        : (base as ActivityServiceDetails),
+    };
+  }
+
+  return { serviceType: "unknown", details: base };
+}

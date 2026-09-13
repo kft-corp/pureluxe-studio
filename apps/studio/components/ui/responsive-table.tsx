@@ -112,16 +112,20 @@ export function ResponsiveTable({
 export function TableRow({
   children,
   className,
+  onClick,
 }: {
   children: React.ReactNode;
   className?: string;
+  onClick?: React.MouseEventHandler<HTMLTableRowElement>;
 }) {
   return (
     <tr
       className={cn(
         "transition-colors duration-150 hover:bg-brand-light",
+        onClick && "cursor-pointer",
         className,
       )}
+      onClick={onClick}
     >
       {children}
     </tr>

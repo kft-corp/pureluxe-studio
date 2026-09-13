@@ -13,6 +13,9 @@ export {
   updateTeamMember,
 } from "./auth";
 export {
+  findBookingById,
+  listBookingAuditLogs,
+  listBookingTravellers,
   listBookings,
   type BookingDirectoryRow,
   type ListBookingsResult,

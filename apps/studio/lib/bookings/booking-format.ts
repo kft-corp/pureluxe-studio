@@ -16,6 +16,38 @@ const STATUS_LABELS: Record<string, string> = {
   superseded: "Superseded",
 };
 
+const SOURCE_LABELS: Record<string, string> = {
+  trip_builder: "Trip Builder",
+  manual: "Manual",
+  client_app: "Client app",
+  import: "Import",
+};
+
+const TRAVELLER_ROLE_LABELS: Record<string, string> = {
+  lead: "Lead",
+  adult: "Adult",
+  child: "Child",
+  infant: "Infant",
+};
+
+const TRAVELLER_GENDER_LABELS: Record<string, string> = {
+  male: "Male",
+  female: "Female",
+  unspecified: "Unspecified",
+};
+
+function titleCaseWords(value: string): string {
+  return value
+    .replace(/[_-]+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+export function displayOrDash(value: string | null | undefined): string {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : "—";
+}
+
 export function formatBookingDate(value: string | null | undefined): string {
   if (!value?.trim()) return "—";
   const date = new Date(`${value.trim()}T00:00:00.000Z`);
@@ -34,6 +66,22 @@ export function formatBookingDate(value: string | null | undefined): string {
     month: "short",
     day: "numeric",
     timeZone: "UTC",
+  });
+}
+
+/** Timestamps (confirmed_at, audit, ticket limit) — fixed en-US for SSR parity. */
+export function formatBookingDateTime(
+  value: string | null | undefined,
+): string {
+  if (!value?.trim()) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
   });
 }
 
@@ -78,6 +126,11 @@ export function formatBookingNights(value: number | null | undefined): string {
   return `${value}N`;
 }
 
+export function formatBookingCount(value: number | null | undefined): string {
+  if (value == null) return "—";
+  return String(value);
+}
+
 export function formatBookingServiceType(value: string): string {
   return SERVICE_TYPE_LABELS[value] ?? value;
 }
@@ -86,6 +139,49 @@ export function formatBookingStatus(value: string): string {
   return STATUS_LABELS[value] ?? value;
 }
 
+export function formatBookingSource(value: string | null | undefined): string {
+  if (!value?.trim()) return "—";
+  return SOURCE_LABELS[value] ?? titleCaseWords(value);
+}
+
 export function formatTripLinked(tripId: string | null | undefined): string {
   return tripId ? "Linked" : "No trip";
+}
+
+export function formatBookingMoney(
+  amount: number | null | undefined,
+  currency: string | null | undefined,
+): string {
+  if (amount == null || Number.isNaN(amount)) return "—";
+  const code = currency?.trim().toUpperCase() || "USD";
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: code,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    return `${amount.toFixed(2)} ${code}`;
+  }
+}
+
+export function formatTravellerRole(value: string | null | undefined): string {
+  if (!value?.trim()) return "—";
+  return TRAVELLER_ROLE_LABELS[value] ?? titleCaseWords(value);
+}
+
+export function formatTravellerGender(
+  value: string | null | undefined,
+): string {
+  if (!value?.trim()) return "—";
+  return TRAVELLER_GENDER_LABELS[value] ?? titleCaseWords(value);
+}
+
+export function formatBookingAuditAction(
+  action: string,
+  fieldName?: string | null,
+): string {
+  const base = titleCaseWords(action);
+  if (!fieldName?.trim()) return base;
+  return `${base}: ${titleCaseWords(fieldName)}`;
 }

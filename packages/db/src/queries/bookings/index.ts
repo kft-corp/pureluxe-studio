@@ -7,6 +7,9 @@
  *   insert* / update* — writes (later)
  */
 export {
+  findBookingById,
+  listBookingAuditLogs,
+  listBookingTravellers,
   listBookings,
   type BookingDirectoryRow,
   type ListBookingsResult,
