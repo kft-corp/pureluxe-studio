@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import { LuChevronRight, LuLock } from "react-icons/lu";
 import type { IconType } from "react-icons";
 
-import { DETAIL_EMPTY_VALUE } from "@/components/ui";
+import { ActionButton, DETAIL_EMPTY_VALUE } from "@/components/ui";
 import type { BookingDetail } from "@/lib/bookings";
 import {
   formatBookingDate,
@@ -24,6 +24,17 @@ export const BOOKING_UI_LIST_SCROLL_CLASS =
 
 export const NOTE_PREVIEW_CHARS = 280;
 export const SERVICE_DETAIL_PREVIEW_COUNT = 8;
+
+export function SectionEditButton({
+  canWrite,
+  onClick,
+}: {
+  canWrite: boolean;
+  onClick: () => void;
+}) {
+  if (!canWrite) return null;
+  return <ActionButton onClick={onClick}>Edit</ActionButton>;
+}
 
 export function ListEmpty({ message }: { message: string }) {
   return (

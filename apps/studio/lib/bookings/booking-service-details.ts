@@ -288,8 +288,8 @@ export function listServiceDetailFields(
         d.check_out_time ? formatTimeOfDay(d.check_out_time) : null,
       ),
       field("room_type", "Room type", d.room_type),
-      field("board_basis", "Board basis", d.board_basis),
-      field("rate_plan", "Rate plan", d.rate_plan),
+      field("board_basis", "Meals included", d.board_basis),
+      field("rate_plan", "Booking rate", d.rate_plan),
       field("special_requests", "Special requests", d.special_requests),
     );
   }

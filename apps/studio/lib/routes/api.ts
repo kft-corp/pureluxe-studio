@@ -35,6 +35,14 @@ export const apiRoutes = {
   bookings: {
     root: "/api/bookings",
     byId: (bookingId: string) => `/api/bookings/${bookingId}`,
+    confirm: (bookingId: string) => `/api/bookings/${bookingId}/confirm`,
+    cancel: (bookingId: string) => `/api/bookings/${bookingId}/cancel`,
+    supersede: (bookingId: string) => `/api/bookings/${bookingId}/supersede`,
+    assign: (bookingId: string) => `/api/bookings/${bookingId}/assign`,
+    trip: (bookingId: string) => `/api/bookings/${bookingId}/trip`,
+    travellers: (bookingId: string) => `/api/bookings/${bookingId}/travellers`,
+    traveller: (bookingId: string, travellerId: string) =>
+      `/api/bookings/${bookingId}/travellers/${travellerId}`,
   },
   families: {
     search: "/api/families/search",

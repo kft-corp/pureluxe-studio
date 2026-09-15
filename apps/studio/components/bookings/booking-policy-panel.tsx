@@ -8,14 +8,25 @@ import {
   formatBookingStatus,
 } from "@/lib/bookings";
 
+import type { BookingEditSection } from "./booking-edit-section-dialog";
 import { bookingDetailIcons } from "./booking-detail-icons";
-import { DetailFieldGrid, type DetailBooking } from "./booking-detail-shared";
+import {
+  DetailFieldGrid,
+  SectionEditButton,
+  type DetailBooking,
+} from "./booking-detail-shared";
 
 type BookingPolicyPanelProps = {
   booking: DetailBooking;
+  canWrite: boolean;
+  onEditSection: (section: BookingEditSection) => void;
 };
 
-export function BookingPolicyPanel({ booking }: BookingPolicyPanelProps) {
+export function BookingPolicyPanel({
+  booking,
+  canWrite,
+  onEditSection,
+}: BookingPolicyPanelProps) {
   const icons = bookingDetailIcons;
 
   return (
@@ -24,6 +35,12 @@ export function BookingPolicyPanel({ booking }: BookingPolicyPanelProps) {
         title="Status & milestones"
         description="Where this reservation sits in its lifecycle."
         className="min-w-0"
+        action={
+          <SectionEditButton
+            canWrite={canWrite}
+            onClick={() => onEditSection("policy")}
+          />
+        }
       >
         <DetailFieldGrid>
           <DetailField
@@ -56,6 +73,12 @@ export function BookingPolicyPanel({ booking }: BookingPolicyPanelProps) {
         title="Deadlines & policy"
         description="Cancellation windows and ticket time limits your team should watch."
         className="min-w-0"
+        action={
+          <SectionEditButton
+            canWrite={canWrite}
+            onClick={() => onEditSection("policy")}
+          />
+        }
       >
         <DetailFieldGrid>
           <DetailField

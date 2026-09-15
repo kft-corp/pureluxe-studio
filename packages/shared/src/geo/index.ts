@@ -6,6 +6,13 @@ export {
   type CountryOption,
 } from "./countries";
 export {
+  getCurrencyName,
+  isValidCurrencyCode,
+  listCurrencyOptions,
+  normalizeCurrencyCode,
+  type CurrencyOption,
+} from "./currencies";
+export {
   getLanguageName,
   isValidLanguageCode,
   listLanguageOptions,

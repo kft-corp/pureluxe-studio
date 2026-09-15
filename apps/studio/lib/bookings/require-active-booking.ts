@@ -15,3 +15,18 @@ export async function requireActiveBooking(
   }
   return booking;
 }
+
+/** Active booking that is not superseded (edits / lifecycle writes). */
+export async function requireEditableBooking(
+  bookingId: string,
+): Promise<Booking> {
+  const booking = await requireActiveBooking(bookingId);
+  if (booking.status === "superseded") {
+    throw new AppError({
+      userMessage: bookingMessages.error.supersededLocked,
+      code: "bookings.superseded_locked",
+      status: 409,
+    });
+  }
+  return booking;
+}

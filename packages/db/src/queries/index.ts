@@ -14,11 +14,19 @@ export {
 } from "./auth";
 export {
   findBookingById,
+  insertBooking,
+  insertBookingAuditLogs,
+  deleteBookingTraveller,
+  findBookingTravellerById,
+  insertBookingTraveller,
+  updateBookingTraveller,
   listBookingAuditLogs,
   listBookingTravellers,
   listBookings,
+  updateBooking,
   type BookingDirectoryRow,
   type ListBookingsResult,
+  type UpdateBookingRecord,
 } from "./bookings";
 export {
   approveClientRecord,

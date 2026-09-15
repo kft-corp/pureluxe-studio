@@ -6,7 +6,11 @@ export {
   BOOKING_DIRECTORY_PAGE_SIZE,
   listBookingDirectory,
 } from "./booking-directory";
-export { getBookingDetail, type BookingDetail } from "./booking-detail";
+export {
+  getBookingDetail,
+  buildBookingDetail,
+  type BookingDetail,
+} from "./booking-detail";
 export {
   BOOKING_QUICK_CHIP_OPTIONS,
   BOOKING_WORK_CHIP_IDS,
@@ -43,3 +47,23 @@ export {
   type ServiceTimingCard,
   type ServiceTimingIconKey,
 } from "./booking-service-details";
+export { updateBooking } from "./update-booking";
+export {
+  confirmBooking,
+  cancelBooking,
+  supersedeBooking,
+} from "./booking-lifecycle";
+export { assignBookingOwner, linkBookingTrip } from "./booking-ownership";
+export {
+  createBookingTraveller,
+  updateBookingTraveller,
+  deleteBookingTraveller,
+} from "./booking-travellers";
+export {
+  requireActiveBooking,
+  requireEditableBooking,
+} from "./require-active-booking";
+export {
+  getBookingConfirmConfig,
+  type BookingConfirmAction,
+} from "./confirm-dialog-config";

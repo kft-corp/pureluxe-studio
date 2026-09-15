@@ -21,12 +21,10 @@ export type BookingDetail = {
   recent_audit: BookingAuditLog[];
 };
 
-/** Full Studio booking detail — travellers + recent audit capped. */
-export async function getBookingDetail(
-  bookingId: string,
+/** Assemble Studio detail from a booking row (skips a second bookings fetch). */
+export async function buildBookingDetail(
+  booking: Booking,
 ): Promise<BookingDetail> {
-  const booking = await requireActiveBooking(bookingId);
-
   const [owner, bookedBy, travellers, recentAudit, clientNames] =
     await Promise.all([
       booking.relationship_owner_id
@@ -36,10 +34,10 @@ export async function getBookingDetail(
         ? findTeamMemberById(booking.booked_by_id)
         : Promise.resolve(null),
       listBookingTravellers(
-        bookingId,
+        booking.id,
         BOOKING_DETAIL_LIST_LIMITS.travellers,
       ),
-      listBookingAuditLogs(bookingId, BOOKING_DETAIL_LIST_LIMITS.audit),
+      listBookingAuditLogs(booking.id, BOOKING_DETAIL_LIST_LIMITS.audit),
       booking.client_id
         ? findClientDisplayNamesByIds([booking.client_id])
         : Promise.resolve(new Map<string, string>()),
@@ -65,4 +63,12 @@ export async function getBookingDetail(
     travellers,
     recent_audit: recentAudit,
   };
+}
+
+/** Full Studio booking detail — travellers + recent audit capped. */
+export async function getBookingDetail(
+  bookingId: string,
+): Promise<BookingDetail> {
+  const booking = await requireActiveBooking(bookingId);
+  return buildBookingDetail(booking);
 }

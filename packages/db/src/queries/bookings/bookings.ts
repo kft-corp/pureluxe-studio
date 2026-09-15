@@ -12,7 +12,6 @@ import type {
   BookingAuditLog,
   BookingServiceType,
   BookingStatus,
-  BookingTraveller,
 } from "../../schema";
 import { escapeIlike } from "../../utils/ilike";
 import {
@@ -66,22 +65,6 @@ const BOOKING_COLUMNS = [
   "vip_flag",
   "special_occasion",
   "is_demo",
-  "created_at",
-  "updated_at",
-].join(", ");
-
-const TRAVELLER_COLUMNS = [
-  "id",
-  "booking_id",
-  "client_id",
-  "title",
-  "full_name",
-  "gender",
-  "role",
-  "date_of_birth",
-  "passport_number",
-  "passport_nationality",
-  "passport_expiry",
   "created_at",
   "updated_at",
 ].join(", ");
@@ -271,28 +254,6 @@ export async function findBookingById(
   };
 }
 
-/** Named travellers on a booking (passport fields for ops). */
-export async function listBookingTravellers(
-  bookingId: string,
-  limit = 50,
-): Promise<BookingTraveller[]> {
-  const supabase = getServiceClient();
-  const { data, error } = await runSupabaseQuery(() =>
-    supabase
-      .from("booking_travellers")
-      .select(TRAVELLER_COLUMNS)
-      .eq("booking_id", bookingId)
-      .order("created_at", { ascending: true })
-      .limit(limit),
-  );
-
-  if (error) {
-    throw dbQueryError(error);
-  }
-
-  return (data as unknown as BookingTraveller[] | null) ?? [];
-}
-
 /** Recent audit rows for a booking detail. */
 export async function listBookingAuditLogs(
   bookingId: string,
@@ -480,5 +441,106 @@ export async function listBookings(
     total: count ?? 0,
     limit,
     offset,
+  };
+}
+
+export type UpdateBookingRecord = {
+  id: string;
+} & Record<string, unknown>;
+
+/** Update non-demo booking fields; returns the refreshed row. */
+export async function updateBooking(
+  input: UpdateBookingRecord,
+): Promise<Booking> {
+  const supabase = getServiceClient();
+  const { id, ...patch } = input;
+
+  const { data, error } = await runSupabaseQuery(() =>
+    supabase
+      .from("bookings")
+      .update(patch)
+      .eq("id", id)
+      .eq("is_demo", false)
+      .select(BOOKING_COLUMNS)
+      .single(),
+  );
+
+  if (error) {
+    throw dbQueryError(error);
+  }
+
+  const row = data as unknown as Booking & {
+    cost_amount?: number | string | null;
+    sell_amount?: number | string | null;
+    commission_expected?: number | string | null;
+  };
+
+  return {
+    ...row,
+    nights: toNullableNumber(row.nights),
+    num_rooms: toNullableNumber(row.num_rooms),
+    num_adults: toNullableNumber(row.num_adults),
+    num_children: toNullableNumber(row.num_children),
+    cost_amount: toNullableNumber(row.cost_amount),
+    sell_amount: toNullableNumber(row.sell_amount),
+    commission_expected: toNullableNumber(row.commission_expected),
+    service_details:
+      row.service_details && typeof row.service_details === "object"
+        ? row.service_details
+        : {},
+    vip_flag: Boolean(row.vip_flag),
+    guest_visible: Boolean(row.guest_visible),
+    is_demo: Boolean(row.is_demo),
+  };
+}
+
+/**
+ * Insert a booking row (amend / supersede). Caller supplies inventory fields.
+ * Omits id / timestamps — DB defaults apply.
+ */
+export async function insertBooking(
+  input: Omit<Booking, "id" | "created_at" | "updated_at" | "is_demo"> & {
+    is_demo?: boolean;
+  },
+): Promise<Booking> {
+  const supabase = getServiceClient();
+  const { data, error } = await runSupabaseQuery(() =>
+    supabase
+      .from("bookings")
+      .insert({
+        ...input,
+        is_demo: input.is_demo ?? false,
+        service_details: input.service_details ?? {},
+      })
+      .select(BOOKING_COLUMNS)
+      .single(),
+  );
+
+  if (error) {
+    throw dbQueryError(error);
+  }
+
+  const row = data as unknown as Booking & {
+    cost_amount?: number | string | null;
+    sell_amount?: number | string | null;
+    commission_expected?: number | string | null;
+  };
+
+  return {
+    ...row,
+    nights: toNullableNumber(row.nights),
+    num_rooms: toNullableNumber(row.num_rooms),
+    num_adults: toNullableNumber(row.num_adults),
+    num_children: toNullableNumber(row.num_children),
+    cost_amount: toNullableNumber(row.cost_amount),
+    sell_amount: toNullableNumber(row.sell_amount),
+    commission_expected: toNullableNumber(row.commission_expected),
+    service_details:
+      row.service_details && typeof row.service_details === "object"
+        ? row.service_details
+        : {},
+    vip_flag: Boolean(row.vip_flag),
+    guest_visible: Boolean(row.guest_visible),
+    is_demo: Boolean(row.is_demo),
   };
 }

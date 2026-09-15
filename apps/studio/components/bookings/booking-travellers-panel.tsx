@@ -1,21 +1,33 @@
 "use client";
 
 import Link from "next/link";
-import { LuUser } from "react-icons/lu";
+import { LuPencil, LuTrash2 } from "react-icons/lu";
 
-import { ContentSection, UserAvatar } from "@/components/ui";
+import {
+  ActionButton,
+  ContentSection,
+  UserAvatar,
+  studioButtonClass,
+} from "@/components/ui";
 import type { BookingTraveller } from "@pureluxe/db";
 import {
   formatBookingDate,
   formatTravellerGender,
   formatTravellerRole,
 } from "@/lib/bookings";
+import { formatNationality } from "@/lib/clients";
 import { pageRoutes } from "@/lib/routes";
+import { cn } from "@/lib/utils/cn";
 
 import { ListEmpty, ScrollRegion } from "./booking-detail-shared";
 
 type BookingTravellersPanelProps = {
   travellers: BookingTraveller[];
+  canWrite: boolean;
+  busy?: boolean;
+  onAdd: () => void;
+  onEdit: (travellerId: string) => void;
+  onDelete: (travellerId: string) => void;
 };
 
 function travellerMeta(traveller: BookingTraveller): string {
@@ -29,11 +41,15 @@ function travellerMeta(traveller: BookingTraveller): string {
       : null,
   ].filter(Boolean);
 
+  const nationality = traveller.passport_nationality?.trim()
+    ? formatNationality(traveller.passport_nationality)
+    : null;
+
   const passport = [
     traveller.passport_number?.trim()
       ? `Passport ${traveller.passport_number.trim()}`
       : null,
-    traveller.passport_nationality?.trim() || null,
+    nationality && nationality !== "—" ? nationality : null,
     traveller.passport_expiry
       ? `Expires ${formatBookingDate(traveller.passport_expiry)}`
       : null,
@@ -45,6 +61,11 @@ function travellerMeta(traveller: BookingTraveller): string {
 
 export function BookingTravellersPanel({
   travellers,
+  canWrite,
+  busy = false,
+  onAdd,
+  onEdit,
+  onDelete,
 }: BookingTravellersPanelProps) {
   return (
     <ContentSection
@@ -52,6 +73,13 @@ export function BookingTravellersPanel({
       description="Named guests on this reservation, including passport details for ticketing and hotels."
       count={travellers.length}
       className="min-w-0"
+      action={
+        canWrite ? (
+          <ActionButton onClick={onAdd} disabled={busy}>
+            Add traveller
+          </ActionButton>
+        ) : null
+      }
     >
       {travellers.length > 0 ? (
         <ScrollRegion enabled={travellers.length > 6}>
@@ -78,22 +106,46 @@ export function BookingTravellersPanel({
                           {formatTravellerRole(traveller.role)}
                         </span>
                       </div>
-                      <p
-                        className="mt-0.5 wrap-break-word text-xs leading-relaxed text-ink-muted"
-                        title={meta}
-                      >
+                      <p className="mt-1 text-xs leading-relaxed text-ink-muted">
                         {meta}
                       </p>
                       {traveller.client_id ? (
                         <Link
                           href={pageRoutes.client(traveller.client_id)}
-                          className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-ink-muted underline-offset-2 transition hover:text-ink hover:underline"
+                          className="mt-1 inline-block text-xs font-semibold text-ink-muted underline-offset-2 hover:text-ink hover:underline"
                         >
-                          <LuUser className="h-3 w-3 shrink-0" aria-hidden />
                           Open linked client
                         </Link>
                       ) : null}
                     </div>
+                    {canWrite ? (
+                      <div className="flex shrink-0 gap-1">
+                        <button
+                          type="button"
+                          disabled={busy}
+                          aria-label={`Edit ${name}`}
+                          onClick={() => onEdit(traveller.id)}
+                          className={cn(
+                            studioButtonClass("ghost", "sm"),
+                            "px-2",
+                          )}
+                        >
+                          <LuPencil className="h-3.5 w-3.5" aria-hidden />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          aria-label={`Remove ${name}`}
+                          onClick={() => onDelete(traveller.id)}
+                          className={cn(
+                            studioButtonClass("ghost", "sm"),
+                            "px-2 text-red-700",
+                          )}
+                        >
+                          <LuTrash2 className="h-3.5 w-3.5" aria-hidden />
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
                 </li>
               );
@@ -101,7 +153,13 @@ export function BookingTravellersPanel({
           </ul>
         </ScrollRegion>
       ) : (
-        <ListEmpty message="No travellers have been added to this booking yet." />
+        <ListEmpty
+          message={
+            canWrite
+              ? "No travellers yet. Add guests here, or they'll arrive when Trip Builder books this stay."
+              : "No travellers recorded on this reservation."
+          }
+        />
       )}
     </ContentSection>
   );

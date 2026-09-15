@@ -1,15 +1,24 @@
+import { cn } from "@/lib/utils/cn";
+
 /** Compact label / value / optional hint card — used on detail heroes. */
 export function SnapshotCard({
   label,
   value,
   hint,
+  className,
 }: {
   label: string;
   value: string;
   hint?: string;
+  className?: string;
 }) {
   return (
-    <div className="min-w-0 rounded-xl border border-border/80 bg-surface px-4 py-3">
+    <div
+      className={cn(
+        "min-w-0 rounded-xl border border-border/80 bg-surface px-4 py-3",
+        className,
+      )}
+    >
       <p className="text-[11px] font-semibold tracking-wide text-ink-muted uppercase">
         {label}
       </p>

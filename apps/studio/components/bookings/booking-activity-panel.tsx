@@ -16,7 +16,6 @@ import { bookingDetailIcons } from "./booking-detail-icons";
 import {
   DetailFieldGrid,
   ListEmpty,
-  ScrollRegion,
   type DetailBooking,
 } from "./booking-detail-shared";
 
@@ -88,8 +87,7 @@ export function BookingActivityPanel({
         className="min-w-0"
       >
         {recentAudit.length > 0 ? (
-          <ScrollRegion enabled={recentAudit.length > 6}>
-            <ul className="divide-y divide-border/80">
+          <ul className="divide-y divide-border/80">
               {recentAudit.map((entry) => {
                 const actionLabel = formatBookingAuditAction(
                   entry.action,
@@ -124,8 +122,7 @@ export function BookingActivityPanel({
                   </li>
                 );
               })}
-            </ul>
-          </ScrollRegion>
+          </ul>
         ) : (
           <ListEmpty message="No activity has been logged for this booking yet." />
         )}

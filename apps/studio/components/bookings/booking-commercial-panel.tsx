@@ -7,17 +7,28 @@ import {
   formatBookingSource,
 } from "@/lib/bookings";
 
+import type { BookingEditSection } from "./booking-edit-section-dialog";
 import {
   bookingDetailIcons,
   bookingSourceIcon,
 } from "./booking-detail-icons";
-import { DetailFieldGrid, type DetailBooking } from "./booking-detail-shared";
+import {
+  DetailFieldGrid,
+  SectionEditButton,
+  type DetailBooking,
+} from "./booking-detail-shared";
 
 type BookingCommercialPanelProps = {
   booking: DetailBooking;
+  canWrite: boolean;
+  onEditSection: (section: BookingEditSection) => void;
 };
 
-export function BookingCommercialPanel({ booking }: BookingCommercialPanelProps) {
+export function BookingCommercialPanel({
+  booking,
+  canWrite,
+  onEditSection,
+}: BookingCommercialPanelProps) {
   const icons = bookingDetailIcons;
 
   return (
@@ -26,6 +37,12 @@ export function BookingCommercialPanel({ booking }: BookingCommercialPanelProps)
         title="Supplier"
         description="Who holds the inventory and how the reservation was placed."
         className="min-w-0"
+        action={
+          <SectionEditButton
+            canWrite={canWrite}
+            onClick={() => onEditSection("commercial")}
+          />
+        }
       >
         <DetailFieldGrid>
           <DetailField
@@ -58,6 +75,12 @@ export function BookingCommercialPanel({ booking }: BookingCommercialPanelProps)
         title="Commercial snapshot"
         description="Studio-only pricing captured at the time of booking."
         className="min-w-0"
+        action={
+          <SectionEditButton
+            canWrite={canWrite}
+            onClick={() => onEditSection("commercial")}
+          />
+        }
       >
         <DetailFieldGrid>
           <DetailField

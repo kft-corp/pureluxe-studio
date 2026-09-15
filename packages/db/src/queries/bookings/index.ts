@@ -4,13 +4,23 @@
  * Naming:
  *   find*   — one row or null
  *   list*   — many rows
- *   insert* / update* — writes (later)
+ *   insert* / update* / delete* — writes
  */
+export { insertBookingAuditLogs } from "./booking-audit";
+export {
+  deleteBookingTraveller,
+  findBookingTravellerById,
+  insertBookingTraveller,
+  listBookingTravellers,
+  updateBookingTraveller,
+} from "./booking-travellers";
 export {
   findBookingById,
+  insertBooking,
   listBookingAuditLogs,
-  listBookingTravellers,
   listBookings,
+  updateBooking,
   type BookingDirectoryRow,
   type ListBookingsResult,
+  type UpdateBookingRecord,
 } from "./bookings";

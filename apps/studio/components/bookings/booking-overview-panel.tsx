@@ -20,6 +20,7 @@ import {
   bookingSourceIcon,
   serviceTimingIcon,
 } from "./booking-detail-icons";
+import type { BookingEditSection } from "./booking-edit-section-dialog";
 import type { BookingDetailTab } from "./booking-detail-tabs";
 import {
   DetailFieldGrid,
@@ -27,6 +28,7 @@ import {
   ListEmpty,
   SERVICE_DETAIL_PREVIEW_COUNT,
   ScrollRegion,
+  SectionEditButton,
   activitySummary,
   commercialSummary,
   datesLine,
@@ -42,7 +44,9 @@ type BookingOverviewPanelProps = {
   booking: DetailBooking;
   travellerCount: number;
   activityCount: number;
+  canWrite: boolean;
   onOpenTab: (tab: BookingDetailTab) => void;
+  onEditSection: (section: BookingEditSection) => void;
 };
 
 function serviceDetailsSectionTitle(serviceType: string): string {
@@ -79,7 +83,9 @@ export function BookingOverviewPanel({
   booking,
   travellerCount,
   activityCount,
+  canWrite,
   onOpenTab,
+  onEditSection,
 }: BookingOverviewPanelProps) {
   const [showAllDetails, setShowAllDetails] = useState(false);
   const place = locationLine(booking.city, booking.country);
@@ -175,6 +181,12 @@ export function BookingOverviewPanel({
           title="Reservation"
           description="Core service details for this booking."
           className="min-w-0"
+          action={
+            <SectionEditButton
+              canWrite={canWrite}
+              onClick={() => onEditSection("reservation")}
+            />
+          }
         >
           <DetailFieldGrid>
             <DetailField
@@ -231,6 +243,12 @@ export function BookingOverviewPanel({
           title="Context"
           description="Who this reservation is for and where it came from."
           className="min-w-0"
+          action={
+            <SectionEditButton
+              canWrite={canWrite}
+              onClick={() => onEditSection("context")}
+            />
+          }
         >
           <DetailFieldGrid>
             <DetailField
@@ -280,6 +298,12 @@ export function BookingOverviewPanel({
         title={serviceDetailsSectionTitle(booking.service_type)}
         description={serviceDetailsSectionDescription(booking.service_type)}
         count={detailFields.length > 0 ? detailFields.length : undefined}
+        action={
+          <SectionEditButton
+            canWrite={canWrite}
+            onClick={() => onEditSection("service_details")}
+          />
+        }
       >
         {detailFields.length > 0 ? (
           <>
@@ -311,7 +335,7 @@ export function BookingOverviewPanel({
             ) : null}
           </>
         ) : (
-          <ListEmpty message="No timing or service details recorded yet. Times and type-specific fields will appear here when stored in service details." />
+          <ListEmpty message="No timing or service details recorded yet. Use Edit to add check-in times, room type, and other service fields." />
         )}
       </ContentSection>
     </div>

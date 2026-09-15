@@ -6,15 +6,19 @@ import { ContentSection, DETAIL_EMPTY_VALUE, DetailField } from "@/components/ui
 import { displayOrDash } from "@/lib/bookings";
 import { pageRoutes } from "@/lib/routes";
 
+import type { BookingEditSection } from "./booking-edit-section-dialog";
 import { bookingDetailIcons } from "./booking-detail-icons";
 import {
   DetailFieldGrid,
   ExpandableNote,
+  SectionEditButton,
   type DetailBooking,
 } from "./booking-detail-shared";
 
 type BookingNotesPanelProps = {
   booking: DetailBooking;
+  canWrite: boolean;
+  onEditSection: (section: BookingEditSection) => void;
 };
 
 /**
@@ -22,7 +26,11 @@ type BookingNotesPanelProps = {
  * Guest-facing block (visibility, special occasion, guest notes) is deferred
  * until the Client App ships — see docs/studio/booking_deferred_fks.md.
  */
-export function BookingNotesPanel({ booking }: BookingNotesPanelProps) {
+export function BookingNotesPanel({
+  booking,
+  canWrite,
+  onEditSection,
+}: BookingNotesPanelProps) {
   const icons = bookingDetailIcons;
 
   return (
@@ -31,6 +39,12 @@ export function BookingNotesPanel({ booking }: BookingNotesPanelProps) {
         title="Internal"
         description="Studio-only context for advisors and operations."
         className="min-w-0"
+        action={
+          <SectionEditButton
+            canWrite={canWrite}
+            onClick={() => onEditSection("notes")}
+          />
+        }
       >
         <DetailFieldGrid>
           <DetailField
@@ -71,7 +85,7 @@ export function BookingNotesPanel({ booking }: BookingNotesPanelProps) {
         <ExpandableNote
           title="Internal notes"
           body={booking.internal_notes}
-          locked
+          locked={!canWrite}
         />
         {booking.amended_from_id ? (
           <div className="border-t border-border/70 px-5 py-3 sm:px-6">

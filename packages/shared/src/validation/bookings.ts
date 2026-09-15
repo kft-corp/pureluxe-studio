@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { isValidCurrencyCode } from "../geo/currencies";
+
 export const BOOKING_SERVICE_TYPES = [
   "hotel",
   "flight",
@@ -147,6 +149,266 @@ export type ListBookingsQuery = z.infer<typeof listBookingsQuerySchema>;
 export const bookingIdSchema = z
   .string()
   .uuid({ message: "That booking link looks invalid." });
+
+const optionalNullableText = (max: number, tooLongMessage: string) =>
+  z
+    .string()
+    .trim()
+    .max(max, { message: tooLongMessage })
+    .transform((value) => value || null);
+
+const optionalDate = z
+  .union([
+    z.literal("").transform(() => null),
+    z.null(),
+    z
+      .string()
+      .trim()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, {
+        message: "Use YYYY-MM-DD for dates",
+      }),
+  ])
+  .optional();
+
+const optionalDateTime = z
+  .union([
+    z.literal("").transform(() => null),
+    z.null(),
+    z
+      .string()
+      .trim()
+      .min(1, { message: "Enter a date and time" })
+      .max(64, { message: "Date/time is too long" }),
+  ])
+  .optional();
+
+const optionalNonNegativeInt = z.preprocess((value) => {
+  if (value === "" || value === null || value === undefined) return null;
+  if (typeof value === "number") return value;
+  const parsed = Number(String(value).trim());
+  return Number.isFinite(parsed) ? parsed : value;
+}, z.number().int().min(0).nullable().optional());
+
+const optionalMoney = z.preprocess((value) => {
+  if (value === "" || value === null || value === undefined) return null;
+  if (typeof value === "number") return value;
+  const parsed = Number(String(value).trim());
+  return Number.isFinite(parsed) ? parsed : value;
+}, z.number().finite().nullable().optional());
+
+/** Statuses editable via Policy PATCH — confirm / cancel / amend stay on toolbar actions. */
+export const BOOKING_EDITABLE_STATUSES = [
+  "pending",
+  "on_hold",
+  "completed",
+] as const;
+
+export const bookingEditableStatusSchema = z.enum(BOOKING_EDITABLE_STATUSES);
+
+/**
+ * Soft service_details patch — unknown keys kept; empty strings cleared.
+ * Domain merges into the existing jsonb blob.
+ */
+export const bookingServiceDetailsPatchSchema = z
+  .record(z.string(), z.unknown())
+  .optional();
+
+/** Studio PATCH whitelist — ops fields advisors edit after Trip Builder Book. */
+const bookingWritableObjectSchema = z.object({
+  title: z
+    .string()
+    .trim()
+    .min(1, { message: "Enter a booking title." })
+    .max(200, { message: "Title is too long" }),
+  hotel_name: optionalNullableText(200, "Property name is too long")
+    .nullable()
+    .optional(),
+  city: optionalNullableText(120, "City is too long").nullable().optional(),
+  country: optionalNullableText(120, "Country is too long").nullable().optional(),
+  chain: optionalNullableText(120, "Chain is too long").nullable().optional(),
+  start_date: optionalDate,
+  end_date: optionalDate,
+  nights: optionalNonNegativeInt,
+  num_rooms: optionalNonNegativeInt,
+  num_adults: optionalNonNegativeInt,
+  num_children: optionalNonNegativeInt,
+  supplier_name: optionalNullableText(200, "Supplier name is too long")
+    .nullable()
+    .optional(),
+  supplier_ref: optionalNullableText(120, "Confirmation / PNR is too long")
+    .nullable()
+    .optional(),
+  booking_channel: optionalNullableText(80, "Booking channel is too long")
+    .nullable()
+    .optional(),
+  currency: z
+    .union([
+      z.literal("").transform(() => null),
+      z.null(),
+      z
+        .string()
+        .trim()
+        .transform((value) => value.toUpperCase())
+        .refine((value) => isValidCurrencyCode(value), {
+          message: "Choose a currency from the list",
+        }),
+    ])
+    .optional(),
+  cost_amount: optionalMoney,
+  sell_amount: optionalMoney,
+  commission_expected: optionalMoney,
+  status: bookingEditableStatusSchema.optional(),
+  cancellation_reason: optionalNullableText(
+    2000,
+    "Cancellation reason is too long",
+  )
+    .nullable()
+    .optional(),
+  cancellation_deadline: optionalDate,
+  cancellation_policy: optionalNullableText(
+    5000,
+    "Cancellation policy is too long",
+  )
+    .nullable()
+    .optional(),
+  ticket_time_limit: optionalDateTime,
+  internal_notes: optionalNullableText(5000, "Internal notes are too long")
+    .nullable()
+    .optional(),
+  vip_flag: z.boolean().optional(),
+  service_details: bookingServiceDetailsPatchSchema,
+});
+
+/** PATCH whitelist — shapes only; date/status rules applied after merge in domain. */
+export const updateBookingSchema = bookingWritableObjectSchema
+  .partial()
+  .refine((value) => Object.keys(value).length > 0, {
+    message: "Nothing to update.",
+  });
+
+export type UpdateBookingInput = z.infer<typeof updateBookingSchema>;
+export type UpdateBookingBody = z.input<typeof updateBookingSchema>;
+
+const optionalUuid = z
+  .union([
+    z.literal("").transform(() => null),
+    z.null(),
+    z.string().uuid({ message: "Choose a valid option" }),
+  ])
+  .optional();
+
+/** Confirm — optional ref / deadlines filled at confirm time. */
+export const confirmBookingSchema = z.object({
+  supplier_ref: optionalNullableText(120, "Confirmation / PNR is too long")
+    .nullable()
+    .optional(),
+  cancellation_deadline: optionalDate,
+  ticket_time_limit: optionalDateTime,
+});
+
+export type ConfirmBookingInput = z.infer<typeof confirmBookingSchema>;
+export type ConfirmBookingBody = z.input<typeof confirmBookingSchema>;
+
+/** Cancel — reason required for ops clarity. */
+export const cancelBookingSchema = z.object({
+  cancellation_reason: z
+    .string()
+    .trim()
+    .min(1, { message: "Add a cancellation reason." })
+    .max(2000, { message: "Cancellation reason is too long" }),
+});
+
+export type CancelBookingInput = z.infer<typeof cancelBookingSchema>;
+export type CancelBookingBody = z.input<typeof cancelBookingSchema>;
+
+/** Assign relationship owner. */
+export const assignBookingOwnerSchema = z.object({
+  relationship_owner_id: z
+    .union([
+      z.null(),
+      z.string().uuid({ message: "Choose a valid team member" }),
+    ]),
+});
+
+export type AssignBookingOwnerInput = z.infer<typeof assignBookingOwnerSchema>;
+export type AssignBookingOwnerBody = z.input<typeof assignBookingOwnerSchema>;
+
+/** Link / unlink trip from Context. */
+export const linkBookingTripSchema = z
+  .object({
+    trip_id: optionalUuid,
+    trip_leg_id: optionalUuid,
+  })
+  .refine((value) => Object.keys(value).length > 0, {
+    message: "Nothing to update.",
+  });
+
+export type LinkBookingTripInput = z.infer<typeof linkBookingTripSchema>;
+export type LinkBookingTripBody = z.input<typeof linkBookingTripSchema>;
+
+export const BOOKING_TRAVELLER_ROLES = [
+  "lead",
+  "adult",
+  "child",
+  "infant",
+] as const;
+
+export const BOOKING_TRAVELLER_GENDERS = [
+  "male",
+  "female",
+  "unspecified",
+] as const;
+
+export const bookingTravellerRoleSchema = z.enum(BOOKING_TRAVELLER_ROLES);
+export const bookingTravellerGenderSchema = z.enum(BOOKING_TRAVELLER_GENDERS);
+
+const travellerWritableObjectSchema = z.object({
+  client_id: optionalUuid,
+  title: optionalNullableText(40, "Title is too long").nullable().optional(),
+  full_name: z
+    .string()
+    .trim()
+    .min(1, { message: "Enter the traveller's name." })
+    .max(200, { message: "Name is too long" }),
+  gender: bookingTravellerGenderSchema.nullable().optional(),
+  role: bookingTravellerRoleSchema.optional().default("adult"),
+  date_of_birth: optionalDate,
+  passport_number: optionalNullableText(80, "Passport number is too long")
+    .nullable()
+    .optional(),
+  passport_nationality: optionalNullableText(
+    80,
+    "Passport nationality is too long",
+  )
+    .nullable()
+    .optional(),
+  passport_expiry: optionalDate,
+});
+
+export const createBookingTravellerSchema = travellerWritableObjectSchema;
+
+export const updateBookingTravellerSchema = travellerWritableObjectSchema
+  .partial()
+  .refine((value) => Object.keys(value).length > 0, {
+    message: "Nothing to update.",
+  });
+
+export type CreateBookingTravellerInput = z.infer<
+  typeof createBookingTravellerSchema
+>;
+export type CreateBookingTravellerBody = z.input<
+  typeof createBookingTravellerSchema
+>;
+export type UpdateBookingTravellerInput = z.infer<
+  typeof updateBookingTravellerSchema
+>;
+export type UpdateBookingTravellerBody = z.input<
+  typeof updateBookingTravellerSchema
+>;
+
+export const bookingTravellerIdSchema = z
+  .string()
+  .uuid({ message: "That traveller link looks invalid." });
 
 /** Local time of day (HH:mm) — hotel check-in/out style. */
 const optionalTimeOfDay = z.preprocess((value) => {

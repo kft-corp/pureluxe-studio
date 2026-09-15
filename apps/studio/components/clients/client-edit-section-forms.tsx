@@ -19,6 +19,7 @@ import {
   type RelationshipOwnerOption,
 } from "@/lib/clients";
 import { showApiError, showOptionalSuccessToast, showWarningToast } from "@/lib/feedback/toast";
+import { resolveCountryCode } from "@/lib/geo/country-code";
 import { cn } from "@/lib/utils/cn";
 import {
   clientMessages,
@@ -26,18 +27,11 @@ import {
   isValidCountryCode,
   isValidLanguageCode,
   isValidTimezone,
-  listCountryOptions,
   parsePhoneParts,
 } from "@pureluxe/shared";
 
 function initialCountryCode(raw: string | null | undefined): string {
-  const value = raw?.trim() ?? "";
-  if (!value) return "";
-  if (isValidCountryCode(value)) return value.toUpperCase();
-  const byName = listCountryOptions().find(
-    (option) => option.name.toLowerCase() === value.toLowerCase(),
-  );
-  return byName?.code ?? "";
+  return resolveCountryCode(raw);
 }
 export function Field({
   label,
