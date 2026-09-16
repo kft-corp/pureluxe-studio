@@ -7,9 +7,9 @@ import type { IconType } from "react-icons";
 import { ActionButton, DETAIL_EMPTY_VALUE } from "@/components/ui";
 import type { BookingDetail } from "@/lib/bookings";
 import {
+  bookingDurationLabel,
   formatBookingDate,
   formatBookingMoney,
-  formatBookingNights,
   formatBookingServiceType,
   formatTripLinked,
   resolveBookingDeadline,
@@ -172,6 +172,7 @@ export function datesLine(
   start: string | null,
   end: string | null,
   nights: number | null,
+  serviceType?: string,
 ): { value: string; hint?: string } {
   const startLabel = formatBookingDate(start);
   const endLabel = formatBookingDate(end);
@@ -180,7 +181,13 @@ export function datesLine(
   }
   return {
     value: `${startLabel} → ${endLabel}`,
-    hint: nights != null ? formatBookingNights(nights) : undefined,
+    hint:
+      bookingDurationLabel({
+        startDate: start,
+        endDate: end,
+        nights,
+        serviceType,
+      }) ?? undefined,
   };
 }
 
@@ -224,18 +231,18 @@ export function notesSummary(booking: DetailBooking): string {
   return "No notes recorded";
 }
 
-export function activitySummary(count: number): string {
-  if (count === 0) return "No changes logged yet";
-  if (count === 1) return "1 recent update";
-  return `${count} recent updates`;
-}
-
 export function serviceSubtitle(booking: DetailBooking): string {
   const place = locationLine(booking.city, booking.country);
+  const duration = bookingDurationLabel({
+    startDate: booking.start_date,
+    endDate: booking.end_date,
+    nights: booking.nights,
+    serviceType: booking.service_type,
+  });
   const parts = [
     formatBookingServiceType(booking.service_type),
     place !== DETAIL_EMPTY_VALUE ? place : null,
-    booking.nights != null ? formatBookingNights(booking.nights) : null,
+    duration,
   ].filter((item): item is string => Boolean(item));
   return parts.join(" · ");
 }

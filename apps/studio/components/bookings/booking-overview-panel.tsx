@@ -3,12 +3,15 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { parseBookingServiceDetails } from "@pureluxe/shared";
+
 import { ContentSection, DETAIL_EMPTY_VALUE, DetailField } from "@/components/ui";
 import {
   displayOrDash,
   formatBookingCount,
   formatBookingServiceType,
   formatBookingSource,
+  formatFlightRoute,
   listServiceDetailFields,
   resolveServiceTimingCards,
 } from "@/lib/bookings";
@@ -29,7 +32,6 @@ import {
   SERVICE_DETAIL_PREVIEW_COUNT,
   ScrollRegion,
   SectionEditButton,
-  activitySummary,
   commercialSummary,
   datesLine,
   detailFieldClass,
@@ -43,7 +45,6 @@ import {
 type BookingOverviewPanelProps = {
   booking: DetailBooking;
   travellerCount: number;
-  activityCount: number;
   canWrite: boolean;
   onOpenTab: (tab: BookingDetailTab) => void;
   onEditSection: (section: BookingEditSection) => void;
@@ -79,17 +80,37 @@ function serviceDetailsSectionDescription(serviceType: string): string {
   }
 }
 
+function flightRouteFromDetails(
+  serviceDetails: DetailBooking["service_details"],
+): string | null {
+  const parsed = parseBookingServiceDetails("flight", serviceDetails ?? {});
+  if (parsed.serviceType !== "flight") return null;
+  const first = parsed.details.segments?.[0];
+  if (!first) return null;
+  return formatFlightRoute(first.from, first.to);
+}
+
 export function BookingOverviewPanel({
   booking,
   travellerCount,
-  activityCount,
   canWrite,
   onOpenTab,
   onEditSection,
 }: BookingOverviewPanelProps) {
   const [showAllDetails, setShowAllDetails] = useState(false);
+  const isHotel = booking.service_type === "hotel";
+  const isFlight = booking.service_type === "flight";
   const place = locationLine(booking.city, booking.country);
-  const stay = datesLine(booking.start_date, booking.end_date, booking.nights);
+  const stay = datesLine(
+    booking.start_date,
+    booking.end_date,
+    booking.nights,
+    booking.service_type,
+  );
+  const flightRoute = isFlight
+    ? flightRouteFromDetails(booking.service_details) ||
+      displayOrDash(booking.title)
+    : null;
   const icons = bookingDetailIcons;
   const timingCards = resolveServiceTimingCards({
     serviceType: booking.service_type,
@@ -129,8 +150,8 @@ export function BookingOverviewPanel({
           onClick={() => onOpenTab("policy")}
         />
         <JumpCard
-          title="Notes & activity"
-          summary={`${notesSummary(booking)} · ${activitySummary(activityCount)}`}
+          title="Notes"
+          summary={notesSummary(booking)}
           icon={icons.notes}
           onClick={() => onOpenTab("notes")}
         />
@@ -195,37 +216,52 @@ export function BookingOverviewPanel({
               value={formatBookingServiceType(booking.service_type)}
               className="sm:border-b sm:border-border/70"
             />
-            <DetailField
-              icon={icons.property}
-              label="Property"
-              value={displayOrDash(booking.hotel_name)}
-              className="sm:border-b sm:border-border/70"
-            />
-            <DetailField
-              icon={icons.location}
-              label="Location"
-              value={place}
-              className="sm:border-b sm:border-border/70"
-            />
-            <DetailField
-              icon={icons.chain}
-              label="Chain"
-              value={displayOrDash(booking.chain)}
-              className="sm:border-b sm:border-border/70"
-            />
+            {isFlight ? (
+              <DetailField
+                icon={icons.property}
+                label="Route"
+                value={flightRoute ?? DETAIL_EMPTY_VALUE}
+                className="sm:border-b sm:border-border/70"
+              />
+            ) : (
+              <DetailField
+                icon={icons.property}
+                label="Property"
+                value={displayOrDash(booking.hotel_name)}
+                className="sm:border-b sm:border-border/70"
+              />
+            )}
+            {!isFlight ? (
+              <DetailField
+                icon={icons.location}
+                label="Location"
+                value={place}
+                className="sm:border-b sm:border-border/70"
+              />
+            ) : null}
+            {isHotel ? (
+              <DetailField
+                icon={icons.chain}
+                label="Chain"
+                value={displayOrDash(booking.chain)}
+                className="sm:border-b sm:border-border/70"
+              />
+            ) : null}
             <DetailField
               icon={icons.travelDates}
-              label="Travel dates"
+              label={isFlight ? "Flight dates" : "Travel dates"}
               value={stay.value}
               badge={stay.hint}
               className="sm:border-b sm:border-border/70"
             />
-            <DetailField
-              icon={icons.rooms}
-              label="Rooms"
-              value={formatBookingCount(booking.num_rooms)}
-              className="sm:border-b sm:border-border/70"
-            />
+            {isHotel ? (
+              <DetailField
+                icon={icons.rooms}
+                label="Rooms"
+                value={formatBookingCount(booking.num_rooms)}
+                className="sm:border-b sm:border-border/70"
+              />
+            ) : null}
             <DetailField
               icon={icons.partySize}
               label="Party size"

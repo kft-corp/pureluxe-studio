@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { LuCalendarDays, LuChevronRight } from "react-icons/lu";
 
 import { PageLoader } from "@/components/feedback";
-import { EmptyState } from "@/components/ui";
+import { studioButtonClass } from "@/components/ui";
 import {
   MobileCard,
   ResponsiveTable,
@@ -14,8 +14,8 @@ import {
 } from "@/components/ui/responsive-table";
 import type { BookingDirectoryItem } from "@/lib/api/bookings";
 import {
+  bookingDurationLabel,
   formatBookingDate,
-  formatBookingNights,
   formatBookingServiceType,
   formatTripLinked,
   resolveBookingDeadline,
@@ -30,6 +30,8 @@ type BookingsTableProps = {
   loading: boolean;
   hasActiveFilters?: boolean;
   searchQuery?: string;
+  canWrite?: boolean;
+  onShowAll?: () => void;
 };
 
 function BookingDeadlineCell({
@@ -58,6 +60,15 @@ function BookingDeadlineCell({
   );
 }
 
+function durationLabel(booking: BookingDirectoryItem): string | null {
+  return bookingDurationLabel({
+    startDate: booking.start_date,
+    endDate: booking.end_date,
+    nights: booking.nights,
+    serviceType: booking.service_type,
+  });
+}
+
 function emptyMessage(hasActiveFilters: boolean, searchQuery: string): string {
   const q = searchQuery.trim();
   if (q) {
@@ -66,11 +77,12 @@ function emptyMessage(hasActiveFilters: boolean, searchQuery: string): string {
   if (hasActiveFilters) {
     return "No bookings match these filters. Clear them or try a different search.";
   }
-  return "No bookings yet. Create one here or book from Trip Builder.";
+  return "No bookings on your list yet. Turn off Mine to see the full ledger, or create one.";
 }
 
 function BookingDirectoryRow({ booking }: { booking: BookingDirectoryItem }) {
   const router = useRouter();
+  const duration = durationLabel(booking);
 
   return (
     <TableRow
@@ -109,9 +121,7 @@ function BookingDirectoryRow({ booking }: { booking: BookingDirectoryItem }) {
         <p className="mt-0.5 truncate text-sm text-ink-muted">
           {formatBookingServiceType(booking.service_type)}
           {booking.city ? ` · ${booking.city}` : ""}
-          {booking.nights != null
-            ? ` · ${formatBookingNights(booking.nights)}`
-            : ""}
+          {duration ? ` · ${duration}` : ""}
         </p>
       </TableCell>
       <TableCell className="whitespace-nowrap text-sm text-ink">
@@ -167,17 +177,51 @@ export function BookingsTable({
   loading,
   hasActiveFilters = false,
   searchQuery = "",
+  canWrite = false,
+  onShowAll,
 }: BookingsTableProps) {
   if (loading && bookings.length === 0) {
     return <PageLoader className="min-h-[min(40vh,18rem)]" size="sm" />;
   }
 
   if (!loading && bookings.length === 0) {
+    const showDefaultEmptyActions = !hasActiveFilters && !searchQuery.trim();
     return (
-      <EmptyState
-        icon={LuCalendarDays}
-        message={emptyMessage(hasActiveFilters, searchQuery)}
-      />
+      <div className="flex flex-col items-center justify-center gap-4 px-6 py-14 text-center">
+        <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-surface text-ink-muted">
+          <LuCalendarDays className="h-5 w-5" strokeWidth={1.75} aria-hidden />
+        </span>
+        <p className="max-w-sm text-pretty text-sm leading-relaxed text-ink-muted">
+          {emptyMessage(hasActiveFilters, searchQuery)}
+        </p>
+        {showDefaultEmptyActions ? (
+          <div className="flex w-full max-w-sm flex-col gap-2 sm:flex-row sm:justify-center">
+            {onShowAll ? (
+              <button
+                type="button"
+                onClick={onShowAll}
+                className={cn(
+                  studioButtonClass("secondary", "sm"),
+                  "w-full justify-center sm:w-auto",
+                )}
+              >
+                Show all bookings
+              </button>
+            ) : null}
+            {canWrite ? (
+              <Link
+                href={pageRoutes.bookingNew}
+                className={cn(
+                  studioButtonClass("primary", "sm"),
+                  "w-full justify-center sm:w-auto",
+                )}
+              >
+                New booking
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
     );
   }
 
@@ -186,6 +230,7 @@ export function BookingsTable({
       booking.cancellation_deadline,
       booking.ticket_time_limit,
     );
+    const duration = durationLabel(booking);
 
     return (
       <MobileCard key={booking.id} className="relative">
@@ -223,9 +268,7 @@ export function BookingsTable({
               {booking.end_date
                 ? ` – ${formatBookingDate(booking.end_date)}`
                 : ""}
-              {booking.nights != null
-                ? ` · ${formatBookingNights(booking.nights)}`
-                : ""}
+              {duration ? ` · ${duration}` : ""}
             </p>
             <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-muted">
               <span>

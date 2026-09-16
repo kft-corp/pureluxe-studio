@@ -1,8 +1,12 @@
-import { listBookingsQuerySchema } from "@pureluxe/shared";
+import {
+  bookingMessages,
+  createBookingSchema,
+  listBookingsQuerySchema,
+} from "@pureluxe/shared";
 
 import { apiFromError, apiSuccess } from "@/lib/api";
 import { requireApiPermission } from "@/lib/auth/require-api-permission";
-import { listBookingDirectory } from "@/lib/bookings";
+import { createBooking, listBookingDirectory } from "@/lib/bookings";
 
 const NO_STORE = "no-store, no-cache, must-revalidate";
 
@@ -37,6 +41,21 @@ export async function GET(request: Request) {
     const response = apiSuccess(data);
     response.headers.set("Cache-Control", NO_STORE);
     return response;
+  } catch (cause) {
+    return apiFromError(cause);
+  }
+}
+
+/** Create booking — offline / orphan inventory (`source = manual`). */
+export async function POST(request: Request) {
+  try {
+    const session = await requireApiPermission("bookings.write");
+    const input = createBookingSchema.parse(await request.json());
+    const data = await createBooking(input, { memberId: session.memberId });
+    return apiSuccess(data, {
+      status: 201,
+      message: bookingMessages.success.created,
+    });
   } catch (cause) {
     return apiFromError(cause);
   }

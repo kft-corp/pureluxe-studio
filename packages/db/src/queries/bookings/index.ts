@@ -16,6 +16,8 @@ export {
 } from "./booking-travellers";
 export {
   findBookingById,
+  findSuccessorBookingId,
+  findTeamMemberNamesByIds,
   insertBooking,
   listBookingAuditLogs,
   listBookings,

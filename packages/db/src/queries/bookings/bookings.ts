@@ -65,6 +65,7 @@ const BOOKING_COLUMNS = [
   "vip_flag",
   "special_occasion",
   "is_demo",
+  "deleted_at",
   "created_at",
   "updated_at",
 ].join(", ");
@@ -161,7 +162,7 @@ function addUtcDays(isoDate: string, days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
-async function findTeamMemberNamesByIds(
+export async function findTeamMemberNamesByIds(
   memberIds: string[],
 ): Promise<Map<string, string>> {
   const uniqueIds = [...new Set(memberIds.filter(Boolean))];
@@ -220,6 +221,7 @@ export async function findBookingById(
       .select(BOOKING_COLUMNS)
       .eq("id", bookingId)
       .eq("is_demo", false)
+      .is("deleted_at", null)
       .maybeSingle(),
   );
 
@@ -251,33 +253,67 @@ export async function findBookingById(
     vip_flag: Boolean(row.vip_flag),
     guest_visible: Boolean(row.guest_visible),
     is_demo: Boolean(row.is_demo),
+    deleted_at: (row.deleted_at as string | null) ?? null,
   };
 }
 
-/** Recent audit rows for a booking detail. */
-export async function listBookingAuditLogs(
-  bookingId: string,
-  limit = 10,
-): Promise<BookingAuditLog[]> {
+/**
+ * Successor booking created by amend (new row has amended_from_id = prior id).
+ * Returns the newest active successor id, or null.
+ */
+export async function findSuccessorBookingId(
+  priorBookingId: string,
+): Promise<string | null> {
   const supabase = getServiceClient();
   const { data, error } = await runSupabaseQuery(() =>
     supabase
-      .from("booking_audit_log")
-      .select(AUDIT_COLUMNS)
-      .eq("booking_id", bookingId)
+      .from("bookings")
+      .select("id")
+      .eq("amended_from_id", priorBookingId)
+      .eq("is_demo", false)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false })
-      .limit(limit),
+      .limit(1)
+      .maybeSingle(),
   );
 
   if (error) {
     throw dbQueryError(error);
   }
 
-  return ((data as unknown as BookingAuditLog[] | null) ?? []).map((row) => ({
-    ...row,
-    metadata:
-      row.metadata && typeof row.metadata === "object" ? row.metadata : {},
-  }));
+  const row = data as { id?: string } | null;
+  return row?.id ?? null;
+}
+
+/** Paginated audit rows for a booking (newest first). */
+export async function listBookingAuditLogs(
+  bookingId: string,
+  options?: { limit?: number; offset?: number },
+): Promise<{ logs: BookingAuditLog[]; total: number }> {
+  const limit = options?.limit ?? 10;
+  const offset = options?.offset ?? 0;
+  const supabase = getServiceClient();
+  const { data, error, count } = await runSupabaseQuery(() =>
+    supabase
+      .from("booking_audit_log")
+      .select(AUDIT_COLUMNS, { count: "exact" })
+      .eq("booking_id", bookingId)
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1),
+  );
+
+  if (error) {
+    throw dbQueryError(error);
+  }
+
+  return {
+    logs: ((data as unknown as BookingAuditLog[] | null) ?? []).map((row) => ({
+      ...row,
+      metadata:
+        row.metadata && typeof row.metadata === "object" ? row.metadata : {},
+    })),
+    total: count ?? 0,
+  };
 }
 
 /** Directory list — search, Mine/All, type, work, status, ops filters, paginate. */
@@ -316,7 +352,8 @@ export async function listBookings(
     let request = supabase
       .from("bookings")
       .select(DIRECTORY_SELECT, { count: "exact" })
-      .eq("is_demo", false);
+      .eq("is_demo", false)
+      .is("deleted_at", null);
 
     if (q) {
       const fieldFilter = bookingSearchFilter(q);
@@ -491,16 +528,21 @@ export async function updateBooking(
     vip_flag: Boolean(row.vip_flag),
     guest_visible: Boolean(row.guest_visible),
     is_demo: Boolean(row.is_demo),
+    deleted_at: (row.deleted_at as string | null) ?? null,
   };
 }
 
 /**
- * Insert a booking row (amend / supersede). Caller supplies inventory fields.
- * Omits id / timestamps — DB defaults apply.
+ * Insert a booking row (amend / supersede / create). Caller supplies inventory fields.
+ * Omits id / timestamps / deleted_at — DB defaults apply.
  */
 export async function insertBooking(
-  input: Omit<Booking, "id" | "created_at" | "updated_at" | "is_demo"> & {
+  input: Omit<
+    Booking,
+    "id" | "created_at" | "updated_at" | "is_demo" | "deleted_at"
+  > & {
     is_demo?: boolean;
+    deleted_at?: string | null;
   },
 ): Promise<Booking> {
   const supabase = getServiceClient();
@@ -510,6 +552,7 @@ export async function insertBooking(
       .insert({
         ...input,
         is_demo: input.is_demo ?? false,
+        deleted_at: input.deleted_at ?? null,
         service_details: input.service_details ?? {},
       })
       .select(BOOKING_COLUMNS)
@@ -542,5 +585,6 @@ export async function insertBooking(
     vip_flag: Boolean(row.vip_flag),
     guest_visible: Boolean(row.guest_visible),
     is_demo: Boolean(row.is_demo),
+    deleted_at: (row.deleted_at as string | null) ?? null,
   };
 }

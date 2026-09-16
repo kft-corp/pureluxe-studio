@@ -3,6 +3,7 @@ import {
   findBookingTravellerById,
   insertBookingAuditLogs,
   insertBookingTraveller as dbInsertTraveller,
+  listBookingTravellers,
   updateBookingTraveller as dbUpdateTraveller,
 } from "@pureluxe/db";
 import {
@@ -13,6 +14,7 @@ import {
 } from "@pureluxe/shared";
 
 import { buildBookingDetail, type BookingDetail } from "./booking-detail";
+import { isLeadTravellerRole } from "./booking-format";
 import { requireEditableBooking } from "./require-active-booking";
 
 /** Add a traveller; returns full booking detail. */
@@ -105,6 +107,29 @@ export async function deleteBookingTraveller(
       code: "bookings.traveller_not_found",
       status: 404,
     });
+  }
+
+  const travellers = await listBookingTravellers(bookingId, 100);
+  if (travellers.length <= 1) {
+    throw new AppError({
+      userMessage: bookingMessages.error.cannotRemoveLastTraveller,
+      code: "bookings.cannot_remove_last_traveller",
+      status: 400,
+    });
+  }
+
+  const isLead = isLeadTravellerRole(existing.role);
+  if (isLead) {
+    const otherLeads = travellers.filter(
+      (row) => row.id !== travellerId && isLeadTravellerRole(row.role),
+    );
+    if (otherLeads.length === 0) {
+      throw new AppError({
+        userMessage: bookingMessages.error.cannotRemoveLead,
+        code: "bookings.cannot_remove_lead",
+        status: 400,
+      });
+    }
   }
 
   await dbDeleteTraveller({ id: travellerId, booking_id: bookingId });

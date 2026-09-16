@@ -38,6 +38,7 @@ export const apiRoutes = {
     confirm: (bookingId: string) => `/api/bookings/${bookingId}/confirm`,
     cancel: (bookingId: string) => `/api/bookings/${bookingId}/cancel`,
     supersede: (bookingId: string) => `/api/bookings/${bookingId}/supersede`,
+    delete: (bookingId: string) => `/api/bookings/${bookingId}/delete`,
     assign: (bookingId: string) => `/api/bookings/${bookingId}/assign`,
     trip: (bookingId: string) => `/api/bookings/${bookingId}/trip`,
     travellers: (bookingId: string) => `/api/bookings/${bookingId}/travellers`,

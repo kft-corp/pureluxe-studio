@@ -43,6 +43,8 @@ export {
   listClientPreferences,
   listClientRelationships,
   findBookingById,
+  findSuccessorBookingId,
+  findTeamMemberNamesByIds,
   insertBooking,
   insertBookingAuditLogs,
   deleteBookingTraveller,

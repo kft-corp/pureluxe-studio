@@ -12,6 +12,12 @@ export {
   type BookingDetail,
 } from "./booking-detail";
 export {
+  listRecentBookingActivity,
+  type BookingAuditEntry,
+} from "./booking-activity";
+export { BOOKING_DETAIL_LIST_LIMITS } from "./booking-limits";
+export { nightsBetween } from "./booking-dates";
+export {
   BOOKING_QUICK_CHIP_OPTIONS,
   BOOKING_WORK_CHIP_IDS,
   BOOKING_WORK_CHIP_SET,
@@ -24,7 +30,10 @@ export {
 } from "./booking-filters";
 export {
   displayOrDash,
+  bookingDurationLabel,
+  BOOKING_CHANNEL_PRESETS,
   formatBookingAuditAction,
+  formatBookingChannel,
   formatBookingCount,
   formatBookingDate,
   formatBookingDateTime,
@@ -33,9 +42,11 @@ export {
   formatBookingServiceType,
   formatBookingSource,
   formatBookingStatus,
+  formatFlightRoute,
   formatTravellerGender,
   formatTravellerRole,
   formatTripLinked,
+  isLeadTravellerRole,
   resolveBookingDeadline,
   type BookingDeadlineDisplay,
   type BookingDeadlineKind,
@@ -47,6 +58,15 @@ export {
   type ServiceTimingCard,
   type ServiceTimingIconKey,
 } from "./booking-service-details";
+export {
+  BOARD_BASIS_PRESETS,
+  boardBasisFormStateFromDetails,
+  findBoardBasisPreset,
+  formatBoardBasisDisplay,
+  resolveBoardBasisFields,
+  type BoardBasisPresetCode,
+} from "./booking-board-basis";
+export { createBooking } from "./create-booking";
 export { updateBooking } from "./update-booking";
 export {
   confirmBooking,
@@ -59,10 +79,7 @@ export {
   updateBookingTraveller,
   deleteBookingTraveller,
 } from "./booking-travellers";
-export {
-  requireActiveBooking,
-  requireEditableBooking,
-} from "./require-active-booking";
+export { softDeleteBooking } from "./soft-delete-booking";
 export {
   getBookingConfirmConfig,
   type BookingConfirmAction,

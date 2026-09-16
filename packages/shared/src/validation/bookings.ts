@@ -205,6 +205,11 @@ export const BOOKING_EDITABLE_STATUSES = [
 
 export const bookingEditableStatusSchema = z.enum(BOOKING_EDITABLE_STATUSES);
 
+/** Statuses allowed when creating a manual booking. */
+export const BOOKING_CREATE_STATUSES = ["pending", "on_hold"] as const;
+
+export const bookingCreateStatusSchema = z.enum(BOOKING_CREATE_STATUSES);
+
 /**
  * Soft service_details patch — unknown keys kept; empty strings cleared.
  * Domain merges into the existing jsonb blob.
@@ -296,6 +301,103 @@ const optionalUuid = z
     z.string().uuid({ message: "Choose a valid option" }),
   ])
   .optional();
+
+/**
+ * Studio New booking — offline / orphan inventory.
+ * Server forces `source = manual` and `booked_by_id`; owner defaults to actor.
+ */
+export const createBookingSchema = z
+  .object({
+    service_type: bookingServiceTypeSchema,
+    client_id: z.string().uuid({ message: "Choose a client." }),
+    title: z
+      .string()
+      .trim()
+      .min(1, { message: "Enter a booking title." })
+      .max(200, { message: "Title is too long" }),
+    relationship_owner_id: optionalUuid,
+    trip_id: optionalUuid,
+    trip_leg_id: optionalUuid,
+    hotel_name: optionalNullableText(200, "Property name is too long")
+      .nullable()
+      .optional(),
+    city: optionalNullableText(120, "City is too long").nullable().optional(),
+    country: optionalNullableText(120, "Country is too long")
+      .nullable()
+      .optional(),
+    chain: optionalNullableText(120, "Chain is too long").nullable().optional(),
+    start_date: optionalDate,
+    end_date: optionalDate,
+    nights: optionalNonNegativeInt,
+    num_rooms: optionalNonNegativeInt,
+    num_adults: optionalNonNegativeInt,
+    num_children: optionalNonNegativeInt,
+    supplier_name: optionalNullableText(200, "Supplier name is too long")
+      .nullable()
+      .optional(),
+    supplier_ref: optionalNullableText(120, "Confirmation / PNR is too long")
+      .nullable()
+      .optional(),
+    booking_channel: optionalNullableText(80, "Booking channel is too long")
+      .nullable()
+      .optional(),
+    currency: z
+      .union([
+        z.literal("").transform(() => null),
+        z.null(),
+        z
+          .string()
+          .trim()
+          .transform((value) => value.toUpperCase())
+          .refine((value) => isValidCurrencyCode(value), {
+            message: "Choose a currency from the list",
+          }),
+      ])
+      .optional(),
+    cost_amount: optionalMoney,
+    sell_amount: optionalMoney,
+    commission_expected: optionalMoney,
+    status: bookingCreateStatusSchema.optional().default("pending"),
+    cancellation_deadline: optionalDate,
+    cancellation_policy: optionalNullableText(
+      5000,
+      "Cancellation policy is too long",
+    )
+      .nullable()
+      .optional(),
+    ticket_time_limit: optionalDateTime,
+    internal_notes: optionalNullableText(5000, "Internal notes are too long")
+      .nullable()
+      .optional(),
+    vip_flag: z.boolean().optional().default(false),
+    service_details: bookingServiceDetailsPatchSchema,
+  })
+  .superRefine((value, ctx) => {
+    if (!value.start_date || !value.end_date) return;
+
+    if (value.service_type === "hotel") {
+      if (value.start_date >= value.end_date) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "End date must be after the start date.",
+          path: ["end_date"],
+        });
+      }
+      return;
+    }
+
+    // Flights / transfers / activities may be same-day.
+    if (value.start_date > value.end_date) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "End date must be on or after the start date.",
+        path: ["end_date"],
+      });
+    }
+  });
+
+export type CreateBookingInput = z.infer<typeof createBookingSchema>;
+export type CreateBookingBody = z.input<typeof createBookingSchema>;
 
 /** Confirm — optional ref / deadlines filled at confirm time. */
 export const confirmBookingSchema = z.object({
@@ -444,6 +546,7 @@ export const hotelServiceDetailsSchema = z
     check_out_time: optionalTimeOfDay,
     room_type: optionalText,
     board_basis: optionalText,
+    board_basis_label: optionalText,
     rate_plan: optionalText,
     special_requests: optionalText,
   })

@@ -1,6 +1,7 @@
 export { getAccountProfile, updateAccountProfile, type AccountProfileData } from "./account";
 export { logout } from "./auth";
 export {
+  createBooking,
   getBooking,
   listBookings,
   type BookingDetailData,

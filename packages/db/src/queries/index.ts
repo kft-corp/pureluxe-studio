@@ -14,6 +14,8 @@ export {
 } from "./auth";
 export {
   findBookingById,
+  findSuccessorBookingId,
+  findTeamMemberNamesByIds,
   insertBooking,
   insertBookingAuditLogs,
   deleteBookingTraveller,

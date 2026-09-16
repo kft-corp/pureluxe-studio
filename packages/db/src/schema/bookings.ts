@@ -62,6 +62,7 @@ export type Booking = {
   vip_flag: boolean;
   special_occasion: string | null;
   is_demo: boolean;
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
 };

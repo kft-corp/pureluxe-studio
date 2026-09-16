@@ -10,6 +10,7 @@ import {
   createBookingTraveller,
   deleteBookingTraveller,
   linkBookingTrip,
+  softDeleteBooking,
   supersedeBooking,
   updateBookingTraveller,
 } from "@/lib/api/bookings";
@@ -102,6 +103,21 @@ export function useBookingDetail({ initialDetail }: UseBookingDetailOptions) {
       closeConfirm();
       showOptionalSuccessToast(response.message);
       router.push(pageRoutes.booking(response.data.booking.id));
+    } catch (error) {
+      showApiError(error);
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleSoftDeleteBooking() {
+    setActionLoading(true);
+    try {
+      const response = await softDeleteBooking(detail.booking.id);
+      closeConfirm();
+      showOptionalSuccessToast(response.message);
+      router.push(pageRoutes.bookings);
+      router.refresh();
     } catch (error) {
       showApiError(error);
     } finally {
@@ -214,6 +230,7 @@ export function useBookingDetail({ initialDetail }: UseBookingDetailOptions) {
     handleConfirmBooking,
     handleCancelBooking,
     handleAmendBooking,
+    handleSoftDeleteBooking,
     handleAssignOwner,
     handleLinkTrip,
     travellerDialogOpen,

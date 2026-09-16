@@ -14,6 +14,7 @@ import {
   formatBookingDate,
   formatTravellerGender,
   formatTravellerRole,
+  isLeadTravellerRole,
 } from "@/lib/bookings";
 import { formatNationality } from "@/lib/clients";
 import { pageRoutes } from "@/lib/routes";
@@ -67,6 +68,10 @@ export function BookingTravellersPanel({
   onEdit,
   onDelete,
 }: BookingTravellersPanelProps) {
+  const leadCount = travellers.filter((row) =>
+    isLeadTravellerRole(row.role),
+  ).length;
+
   return (
     <ContentSection
       title="Travellers"
@@ -89,6 +94,14 @@ export function BookingTravellersPanel({
                 .filter(Boolean)
                 .join(" ");
               const meta = travellerMeta(traveller);
+              const isLead = isLeadTravellerRole(traveller.role);
+              const canDelete =
+                travellers.length > 1 && !(isLead && leadCount <= 1);
+              const deleteHint = !canDelete
+                ? travellers.length <= 1
+                  ? "Add another traveller before removing the last guest."
+                  : "Add or promote another lead before removing this one."
+                : undefined;
 
               return (
                 <li key={traveller.id}>
@@ -134,12 +147,20 @@ export function BookingTravellersPanel({
                         </button>
                         <button
                           type="button"
-                          disabled={busy}
-                          aria-label={`Remove ${name}`}
-                          onClick={() => onDelete(traveller.id)}
+                          disabled={busy || !canDelete}
+                          title={deleteHint}
+                          aria-label={
+                            canDelete
+                              ? `Remove ${name}`
+                              : deleteHint ?? `Cannot remove ${name}`
+                          }
+                          onClick={() => {
+                            if (!canDelete) return;
+                            onDelete(traveller.id);
+                          }}
                           className={cn(
                             studioButtonClass("ghost", "sm"),
-                            "px-2 text-red-700",
+                            "px-2 text-red-700 disabled:cursor-not-allowed disabled:opacity-40",
                           )}
                         >
                           <LuTrash2 className="h-3.5 w-3.5" aria-hidden />
@@ -156,7 +177,7 @@ export function BookingTravellersPanel({
         <ListEmpty
           message={
             canWrite
-              ? "No travellers yet. Add guests here, or they'll arrive when Trip Builder books this stay."
+              ? "No travellers yet. The primary client is usually added at create — add other guests here."
               : "No travellers recorded on this reservation."
           }
         />

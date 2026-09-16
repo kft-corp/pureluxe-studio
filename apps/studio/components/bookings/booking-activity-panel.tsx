@@ -4,11 +4,12 @@ import Link from "next/link";
 import { LuHistory } from "react-icons/lu";
 
 import { ContentSection, DETAIL_EMPTY_VALUE, DetailField } from "@/components/ui";
-import type { BookingAuditLog } from "@pureluxe/db";
 import {
+  BOOKING_DETAIL_LIST_LIMITS,
   formatBookingAuditAction,
   formatBookingDateTime,
   formatTripLinked,
+  type BookingAuditEntry,
 } from "@/lib/bookings";
 import { pageRoutes } from "@/lib/routes";
 
@@ -21,21 +22,27 @@ import {
 
 type BookingActivityPanelProps = {
   booking: DetailBooking;
-  recentAudit: BookingAuditLog[];
+  initialActivity: BookingAuditEntry[];
+  /** Total audit rows for this booking (may exceed the 5 shown). */
+  initialTotal: number;
 };
 
-function performedByLabel(value: string): string {
-  if (value === "team") return "Studio team";
-  if (value === "client") return "Client app";
-  if (value === "system") return "System";
-  return value;
+function actorLabel(entry: BookingAuditEntry): string {
+  if (entry.team_member?.name) return entry.team_member.name;
+  if (entry.performed_by === "client") return "Client app";
+  if (entry.performed_by === "system") return "System";
+  if (entry.performed_by === "team") return "Studio team";
+  return "Unknown";
 }
 
 export function BookingActivityPanel({
   booking,
-  recentAudit,
+  initialActivity,
+  initialTotal,
 }: BookingActivityPanelProps) {
   const icons = bookingDetailIcons;
+  const activity = initialActivity;
+  const showingPartial = initialTotal > activity.length;
 
   return (
     <div className="min-w-0 space-y-5">
@@ -82,46 +89,49 @@ export function BookingActivityPanel({
 
       <ContentSection
         title="Recent activity"
-        description="Status, pricing, and ownership changes recorded for this booking."
-        count={recentAudit.length}
+        description={
+          showingPartial
+            ? `Latest ${BOOKING_DETAIL_LIST_LIMITS.audit} status, pricing, and ownership changes.`
+            : "Status, pricing, and ownership changes recorded for this booking."
+        }
+        count={activity.length}
         className="min-w-0"
       >
-        {recentAudit.length > 0 ? (
+        {activity.length > 0 ? (
           <ul className="divide-y divide-border/80">
-              {recentAudit.map((entry) => {
-                const actionLabel = formatBookingAuditAction(
-                  entry.action,
-                  entry.field_name,
-                );
-                return (
-                  <li
-                    key={entry.id}
-                    className="flex gap-3 px-5 py-3.5 sm:px-6"
-                  >
-                    <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border bg-surface text-ink-muted">
-                      <LuHistory
-                        className="h-4 w-4"
-                        strokeWidth={1.75}
-                        aria-hidden
-                      />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p
-                        className="wrap-break-word text-sm font-semibold text-ink"
-                        title={actionLabel}
-                      >
-                        {actionLabel}
-                      </p>
-                      <p className="mt-0.5 wrap-break-word text-xs text-ink-muted">
-                        {formatBookingDateTime(entry.created_at)}
-                        {entry.performed_by
-                          ? ` · ${performedByLabel(entry.performed_by)}`
-                          : ""}
-                      </p>
-                    </div>
-                  </li>
-                );
-              })}
+            {activity.map((entry) => {
+              const actionLabel = formatBookingAuditAction(
+                entry.action,
+                entry.field_name,
+              );
+              return (
+                <li
+                  key={entry.id}
+                  className="flex gap-3 px-5 py-3.5 sm:px-6"
+                >
+                  <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border bg-surface text-ink-muted">
+                    <LuHistory
+                      className="h-4 w-4"
+                      strokeWidth={1.75}
+                      aria-hidden
+                    />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className="wrap-break-word text-sm font-semibold text-ink"
+                      title={actionLabel}
+                    >
+                      {actionLabel}
+                    </p>
+                    <p className="mt-0.5 wrap-break-word text-xs text-ink-muted">
+                      {formatBookingDateTime(entry.created_at)}
+                      {" · "}
+                      {actorLabel(entry)}
+                    </p>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         ) : (
           <ListEmpty message="No activity has been logged for this booking yet." />

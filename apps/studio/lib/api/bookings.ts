@@ -2,6 +2,7 @@ import type {
   AssignBookingOwnerBody,
   CancelBookingBody,
   ConfirmBookingBody,
+  CreateBookingBody,
   CreateBookingTravellerBody,
   LinkBookingTripBody,
   ListBookingsQuery,
@@ -57,6 +58,16 @@ export function getBooking(bookingId: string) {
   });
 }
 
+/** Create a manual booking — returns full Studio detail. */
+export function createBooking(input: CreateBookingBody) {
+  return fetchApi<BookingDetailData>(apiRoutes.bookings.root, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+    cache: "no-store",
+  });
+}
+
 /** Patch booking fields; returns full Studio detail. */
 export function updateBooking(
   bookingId: string,
@@ -104,6 +115,14 @@ export function cancelBooking(bookingId: string, input: CancelBookingBody) {
 /** Amend — returns the new booking detail. */
 export function supersedeBooking(bookingId: string) {
   return fetchApi<BookingDetailData>(apiRoutes.bookings.supersede(bookingId), {
+    method: "POST",
+    cache: "no-store",
+  });
+}
+
+/** Soft-delete — removes from Studio ledger (row kept for audit). */
+export function softDeleteBooking(bookingId: string) {
+  return fetchApi<{ id: string }>(apiRoutes.bookings.delete(bookingId), {
     method: "POST",
     cache: "no-store",
   });

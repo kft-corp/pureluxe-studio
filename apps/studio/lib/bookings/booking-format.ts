@@ -126,6 +126,55 @@ export function formatBookingNights(value: number | null | undefined): string {
   return `${value}N`;
 }
 
+/**
+ * Duration chip for lists / detail — "Same day" for non-hotel same-day,
+ * otherwise nights when > 0.
+ */
+export function bookingDurationLabel(input: {
+  startDate: string | null | undefined;
+  endDate: string | null | undefined;
+  nights: number | null | undefined;
+  serviceType?: string | null;
+}): string | null {
+  const sameDay = Boolean(
+    input.startDate && input.endDate && input.startDate === input.endDate,
+  );
+  if (sameDay && input.serviceType !== "hotel") return "Same day";
+  if (input.nights != null && input.nights > 0) {
+    return formatBookingNights(input.nights);
+  }
+  return null;
+}
+
+/** Airport / city route label, e.g. BLR → MLE. */
+export function formatFlightRoute(
+  from: string | null | undefined,
+  to: string | null | undefined,
+): string | null {
+  const origin = from?.trim().toUpperCase() ?? "";
+  const destination = to?.trim().toUpperCase() ?? "";
+  if (origin && destination) return `${origin} → ${destination}`;
+  return origin || destination || null;
+}
+
+/** Manual create / edit channel presets. */
+export const BOOKING_CHANNEL_PRESETS = [
+  "offline",
+  "direct",
+  "wholesale",
+  "GDS",
+] as const;
+
+export function formatBookingChannel(value: string): string {
+  if (value === "GDS") return "GDS";
+  if (!value.trim()) return value;
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+export function isLeadTravellerRole(role: string | null | undefined): boolean {
+  return (role ?? "").trim().toLowerCase() === "lead";
+}
+
 export function formatBookingCount(value: number | null | undefined): string {
   if (value == null) return "—";
   return String(value);

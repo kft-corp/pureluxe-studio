@@ -14,7 +14,13 @@ import {
 } from "@/components/ui";
 import { Modal, ModalButton, modalFieldClassName } from "@/components/ui/modal";
 import type { BookingDetail } from "@/lib/bookings";
-import { formatBookingStatus } from "@/lib/bookings";
+import {
+  BOARD_BASIS_PRESETS,
+  BOOKING_CHANNEL_PRESETS,
+  boardBasisFormStateFromDetails,
+  formatBookingStatus,
+  resolveBoardBasisFields,
+} from "@/lib/bookings";
 import {
   dayAfter,
   dirtyPatch,
@@ -30,8 +36,6 @@ import {
   showWarningToast,
 } from "@/lib/feedback/toast";
 import { cn } from "@/lib/utils/cn";
-
-const BOOKING_CHANNEL_PRESETS = ["direct", "wholesale", "GDS"] as const;
 
 function Field({
   label,
@@ -140,6 +144,9 @@ export function ReservationForm({
   const [vipFlag, setVipFlag] = useState(booking.vip_flag);
   const [loading, setLoading] = useState(false);
 
+  const isHotel = booking.service_type === "hotel";
+  const isFlight = booking.service_type === "flight";
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
@@ -153,10 +160,19 @@ export function ReservationForm({
 
       const nextStart = emptyToNull(startDate);
       const nextEnd = emptyToNull(endDate);
-      if (nextStart && nextEnd && nextStart >= nextEnd) {
-        showWarningToast(bookingMessages.error.dateRange);
-        setLoading(false);
-        return;
+      if (nextStart && nextEnd) {
+        const invalid = isHotel
+          ? nextStart >= nextEnd
+          : nextStart > nextEnd;
+        if (invalid) {
+          showWarningToast(
+            isHotel
+              ? bookingMessages.error.dateRange
+              : "End date must be on or after the start date.",
+          );
+          setLoading(false);
+          return;
+        }
       }
 
       const rooms = numberOrNull(numRooms);
@@ -171,8 +187,8 @@ export function ReservationForm({
       const next = {
         title: title.trim(),
         hotel_name: emptyToNull(hotelName),
-        city: emptyToNull(city),
-        country: emptyToNull(country),
+        city: isFlight ? null : emptyToNull(city),
+        country: isFlight ? null : emptyToNull(country),
         chain: emptyToNull(chain),
         start_date: nextStart,
         end_date: nextEnd,
@@ -208,8 +224,6 @@ export function ReservationForm({
       setLoading(false);
     }
   }
-
-  const isHotel = booking.service_type === "hotel";
 
   return (
     <SectionFormShell
@@ -265,7 +279,7 @@ export function ReservationForm({
             />
           </Field>
         </>
-      ) : (
+      ) : !isFlight ? (
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="City" htmlFor="edit-city">
             <input
@@ -284,9 +298,12 @@ export function ReservationForm({
             />
           </Field>
         </div>
-      )}
+      ) : null}
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Start date" htmlFor="edit-start-date">
+        <Field
+          label={isFlight ? "Departure date" : "Start date"}
+          htmlFor="edit-start-date"
+        >
           <input
             id="edit-start-date"
             type="date"
@@ -294,26 +311,45 @@ export function ReservationForm({
             onChange={(event) => {
               const next = event.target.value;
               setStartDate(next);
-              if (next && endDate && next >= endDate) {
+              if (!next || !endDate) return;
+              if (isHotel && next >= endDate) {
                 setEndDate(dayAfter(next));
+                return;
+              }
+              if (!isHotel && next > endDate) {
+                setEndDate(next);
               }
             }}
             className={cn(modalFieldClassName)}
           />
         </Field>
-        <Field label="End date" htmlFor="edit-end-date">
+        <Field
+          label={isFlight ? "Arrival date" : "End date"}
+          htmlFor="edit-end-date"
+          hint={
+            isFlight && startDate && endDate && startDate === endDate
+              ? "Same-day arrival"
+              : undefined
+          }
+        >
           <input
             id="edit-end-date"
             type="date"
             value={endDate}
-            min={startDate ? dayAfter(startDate) : undefined}
+            min={
+              startDate
+                ? isHotel
+                  ? dayAfter(startDate)
+                  : startDate
+                : undefined
+            }
             onChange={(event) => setEndDate(event.target.value)}
             className={cn(modalFieldClassName)}
           />
         </Field>
       </div>
       {isHotel ? (
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
           <Field label="Rooms" htmlFor="edit-rooms">
             <input
               id="edit-rooms"
@@ -342,7 +378,28 @@ export function ReservationForm({
             />
           </Field>
         </div>
-      ) : null}
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Adults" htmlFor="edit-adults">
+            <input
+              id="edit-adults"
+              inputMode="numeric"
+              value={numAdults}
+              onChange={(event) => setNumAdults(event.target.value)}
+              className={cn(modalFieldClassName)}
+            />
+          </Field>
+          <Field label="Children" htmlFor="edit-children">
+            <input
+              id="edit-children"
+              inputMode="numeric"
+              value={numChildren}
+              onChange={(event) => setNumChildren(event.target.value)}
+              className={cn(modalFieldClassName)}
+            />
+          </Field>
+        </div>
+      )}
       <label className="flex items-center gap-2 text-sm text-ink">
         <input
           type="checkbox"
@@ -569,10 +626,12 @@ export function PolicyForm({ detail, onClose, onSuccess }: SectionFormProps) {
       const nextTicket = fromDatetimeLocalValue(ticketTimeLimit);
       const next: Record<string, unknown> = {
         cancellation_deadline: emptyToNull(cancellationDeadline),
-        ticket_time_limit: nextTicket,
         cancellation_policy: emptyToNull(cancellationPolicy),
         cancellation_reason: emptyToNull(cancellationReason),
       };
+      if (booking.service_type === "flight") {
+        next.ticket_time_limit = nextTicket;
+      }
 
       // Confirm / cancel stay on toolbar actions — Policy only patches hold/complete.
       if (
@@ -583,15 +642,19 @@ export function PolicyForm({ detail, onClose, onSuccess }: SectionFormProps) {
         next.status = status;
       }
 
-      const patch = dirtyPatch(next, {
+      const previous: Record<string, unknown> = {
         status: booking.status,
         cancellation_deadline: booking.cancellation_deadline,
-        ticket_time_limit: booking.ticket_time_limit
-          ? new Date(booking.ticket_time_limit).toISOString()
-          : null,
         cancellation_policy: booking.cancellation_policy,
         cancellation_reason: booking.cancellation_reason,
-      });
+      };
+      if (booking.service_type === "flight") {
+        previous.ticket_time_limit = booking.ticket_time_limit
+          ? new Date(booking.ticket_time_limit).toISOString()
+          : null;
+      }
+
+      const patch = dirtyPatch(next, previous);
 
       await saveBookingPatch({
         bookingId: booking.id,
@@ -639,18 +702,22 @@ export function PolicyForm({ detail, onClose, onSuccess }: SectionFormProps) {
             className={cn(modalFieldClassName)}
           />
         </Field>
-        <Field label="Ticket time limit" htmlFor="edit-ticket-limit">
-          <input
-            id="edit-ticket-limit"
-            type="datetime-local"
-            value={ticketTimeLimit}
-            onChange={(event) => setTicketTimeLimit(event.target.value)}
-            className={cn(modalFieldClassName)}
-          />
-          <span className="mt-1 block text-xs text-ink-muted">
-            Flights — local date and time.
-          </span>
-        </Field>
+        {booking.service_type === "flight" ? (
+          <Field label="Ticket time limit" htmlFor="edit-ticket-limit">
+            <input
+              id="edit-ticket-limit"
+              type="datetime-local"
+              value={ticketTimeLimit}
+              onChange={(event) => setTicketTimeLimit(event.target.value)}
+              className={cn(modalFieldClassName)}
+            />
+            <span className="mt-1 block text-xs text-ink-muted">
+              Local date and time at ticketing.
+            </span>
+          </Field>
+        ) : (
+          <div className="hidden sm:block" aria-hidden />
+        )}
       </div>
       <Field label="Cancellation policy" htmlFor="edit-cancel-policy">
         <textarea
@@ -747,8 +814,13 @@ export function ServiceDetailsForm({
     normalizeTimeOfDay(textFromUnknown(details.check_out_time)),
   );
   const [roomType, setRoomType] = useState(textFromUnknown(details.room_type));
-  const [boardBasis, setBoardBasis] = useState(
-    textFromUnknown(details.board_basis),
+  const initialBoard = boardBasisFormStateFromDetails({
+    board_basis: details.board_basis,
+    board_basis_label: details.board_basis_label,
+  });
+  const [boardCode, setBoardCode] = useState(initialBoard.code);
+  const [boardCustomLabel, setBoardCustomLabel] = useState(
+    initialBoard.customLabel,
   );
   const [ratePlan, setRatePlan] = useState(textFromUnknown(details.rate_plan));
   const [specialRequests, setSpecialRequests] = useState(
@@ -759,6 +831,32 @@ export function ServiceDetailsForm({
   );
   const [bookingClass, setBookingClass] = useState(
     textFromUnknown(details.booking_class),
+  );
+  const existingSegments = Array.isArray(details.segments)
+    ? (details.segments as Array<Record<string, unknown>>)
+    : [];
+  const firstSegment = existingSegments[0] ?? {};
+  const [flightFrom, setFlightFrom] = useState(
+    textFromUnknown(firstSegment.from).toUpperCase(),
+  );
+  const [flightTo, setFlightTo] = useState(
+    textFromUnknown(firstSegment.to).toUpperCase(),
+  );
+  const [departTime, setDepartTime] = useState(() =>
+    normalizeTimeOfDay(textFromUnknown(firstSegment.depart_at)),
+  );
+  const [arriveTime, setArriveTime] = useState(() =>
+    normalizeTimeOfDay(textFromUnknown(firstSegment.arrive_at)),
+  );
+  const [airline, setAirline] = useState(
+    textFromUnknown(firstSegment.airline),
+  );
+  const [flightNumber, setFlightNumber] = useState(
+    textFromUnknown(firstSegment.flight_number).toUpperCase(),
+  );
+  const [cabin, setCabin] = useState(
+    textFromUnknown(firstSegment.cabin) ||
+      textFromUnknown(details.booking_class),
   );
   const [pickupAt, setPickupAt] = useState(textFromUnknown(details.pickup_at));
   const [dropoffAt, setDropoffAt] = useState(
@@ -803,18 +901,42 @@ export function ServiceDetailsForm({
       let nextDetails: Record<string, unknown> = {};
 
       if (booking.service_type === "hotel") {
+        const board = resolveBoardBasisFields({
+          code: boardCode,
+          customLabel: boardCustomLabel,
+        });
         nextDetails = {
           check_in_time: emptyToNull(normalizeTimeOfDay(checkInTime)),
           check_out_time: emptyToNull(normalizeTimeOfDay(checkOutTime)),
           room_type: emptyToNull(roomType),
-          board_basis: emptyToNull(boardBasis),
+          board_basis: board.board_basis,
+          board_basis_label: board.board_basis_label,
           rate_plan: emptyToNull(ratePlan),
           special_requests: emptyToNull(specialRequests),
         };
       } else if (booking.service_type === "flight") {
+        const depart = normalizeTimeOfDay(departTime);
+        const arrive = normalizeTimeOfDay(arriveTime);
+        const nextSegment: Record<string, string> = {};
+        const from = flightFrom.trim().toUpperCase();
+        const to = flightTo.trim().toUpperCase();
+        if (from) nextSegment.from = from;
+        if (to) nextSegment.to = to;
+        if (depart) nextSegment.depart_at = depart;
+        if (arrive) nextSegment.arrive_at = arrive;
+        if (airline.trim()) nextSegment.airline = airline.trim();
+        if (flightNumber.trim()) {
+          nextSegment.flight_number = flightNumber.trim().toUpperCase();
+        }
+        if (cabin.trim()) nextSegment.cabin = cabin.trim();
+        const preserved = existingSegments.slice(1);
         nextDetails = {
           ticket_number: emptyToNull(ticketNumber),
-          booking_class: emptyToNull(bookingClass),
+          booking_class: emptyToNull(cabin || bookingClass),
+          segments:
+            Object.keys(nextSegment).length > 0 || preserved.length > 0
+              ? [nextSegment, ...preserved]
+              : [],
         };
       } else if (booking.service_type === "transfer") {
         nextDetails = {
@@ -851,6 +973,36 @@ export function ServiceDetailsForm({
           previousDetails[key] = emptyToNull(
             normalizeTimeOfDay(textFromUnknown(raw)),
           );
+        } else if (key === "segments" && Array.isArray(raw)) {
+          const prior = raw as Array<Record<string, unknown>>;
+          const first = prior[0] ?? {};
+          const priorSegment: Record<string, string> = {};
+          const priorFrom = textFromUnknown(first.from).toUpperCase();
+          const priorTo = textFromUnknown(first.to).toUpperCase();
+          const priorDepart = normalizeTimeOfDay(
+            textFromUnknown(first.depart_at),
+          );
+          const priorArrive = normalizeTimeOfDay(
+            textFromUnknown(first.arrive_at),
+          );
+          const priorAirline = textFromUnknown(first.airline);
+          const priorFlightNumber = textFromUnknown(
+            first.flight_number,
+          ).toUpperCase();
+          const priorCabin = textFromUnknown(first.cabin);
+          if (priorFrom) priorSegment.from = priorFrom;
+          if (priorTo) priorSegment.to = priorTo;
+          if (priorDepart) priorSegment.depart_at = priorDepart;
+          if (priorArrive) priorSegment.arrive_at = priorArrive;
+          if (priorAirline) priorSegment.airline = priorAirline;
+          if (priorFlightNumber) {
+            priorSegment.flight_number = priorFlightNumber;
+          }
+          if (priorCabin) priorSegment.cabin = priorCabin;
+          previousDetails[key] =
+            Object.keys(priorSegment).length > 0 || prior.length > 1
+              ? [priorSegment, ...prior.slice(1)]
+              : [];
         } else if (raw === "" || raw === undefined) {
           previousDetails[key] = null;
         } else {
@@ -933,12 +1085,35 @@ export function ServiceDetailsForm({
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Meals included" htmlFor="edit-board">
-              <input
-                id="edit-board"
-                value={boardBasis}
-                onChange={(event) => setBoardBasis(event.target.value)}
-                className={cn(modalFieldClassName)}
-              />
+              <div className="space-y-2">
+                <select
+                  id="edit-board"
+                  value={boardCode}
+                  onChange={(event) => {
+                    setBoardCode(event.target.value);
+                    if (event.target.value) setBoardCustomLabel("");
+                  }}
+                  className={cn(modalFieldClassName)}
+                >
+                  <option value="">Select standard meals…</option>
+                  {BOARD_BASIS_PRESETS.map((option) => (
+                    <option key={option.code} value={option.code}>
+                      {option.label} ({option.code})
+                    </option>
+                  ))}
+                </select>
+                <input
+                  id="edit-board-custom"
+                  value={boardCustomLabel}
+                  onChange={(event) => {
+                    setBoardCustomLabel(event.target.value);
+                    if (event.target.value.trim()) setBoardCode("");
+                  }}
+                  className={cn(modalFieldClassName)}
+                  placeholder="Not in the list? Type another meal plan…"
+                  aria-label="Custom meals included"
+                />
+              </div>
             </Field>
             <Field label="Booking rate" htmlFor="edit-rate-plan">
               <input
@@ -962,7 +1137,101 @@ export function ServiceDetailsForm({
       ) : null}
 
       {booking.service_type === "flight" ? (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="From" htmlFor="edit-flight-from">
+              <input
+                id="edit-flight-from"
+                value={flightFrom}
+                onChange={(event) =>
+                  setFlightFrom(event.target.value.toUpperCase())
+                }
+                className={cn(modalFieldClassName)}
+                placeholder="BLR"
+                maxLength={8}
+                autoCapitalize="characters"
+              />
+            </Field>
+            <Field label="To" htmlFor="edit-flight-to">
+              <input
+                id="edit-flight-to"
+                value={flightTo}
+                onChange={(event) =>
+                  setFlightTo(event.target.value.toUpperCase())
+                }
+                className={cn(modalFieldClassName)}
+                placeholder="MLE"
+                maxLength={8}
+                autoCapitalize="characters"
+              />
+            </Field>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label="Depart time"
+              htmlFor="edit-depart-time"
+              hint="Local time at origin"
+            >
+              <TimeOfDayInput
+                id="edit-depart-time"
+                value={departTime}
+                onChange={setDepartTime}
+                aria-label="Departure time"
+              />
+            </Field>
+            <Field
+              label="Arrive time"
+              htmlFor="edit-arrive-time"
+              hint="Local time at destination"
+            >
+              <TimeOfDayInput
+                id="edit-arrive-time"
+                value={arriveTime}
+                onChange={setArriveTime}
+                aria-label="Arrival time"
+              />
+            </Field>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field label="Airline" htmlFor="edit-airline">
+              <input
+                id="edit-airline"
+                value={airline}
+                onChange={(event) => setAirline(event.target.value)}
+                className={cn(modalFieldClassName)}
+                placeholder="Singapore Airlines"
+              />
+            </Field>
+            <Field label="Flight number" htmlFor="edit-flight-number">
+              <input
+                id="edit-flight-number"
+                value={flightNumber}
+                onChange={(event) =>
+                  setFlightNumber(event.target.value.toUpperCase())
+                }
+                className={cn(modalFieldClassName)}
+                placeholder="SQ402"
+                autoCapitalize="characters"
+              />
+            </Field>
+            <Field label="Cabin" htmlFor="edit-cabin">
+              <select
+                id="edit-cabin"
+                value={cabin}
+                onChange={(event) => {
+                  setCabin(event.target.value);
+                  setBookingClass(event.target.value);
+                }}
+                className={cn(modalFieldClassName)}
+              >
+                <option value="">Select cabin…</option>
+                <option value="economy">Economy</option>
+                <option value="premium_economy">Premium economy</option>
+                <option value="business">Business</option>
+                <option value="first">First</option>
+              </select>
+            </Field>
+          </div>
           <Field label="Ticket number" htmlFor="edit-ticket-number">
             <input
               id="edit-ticket-number"
@@ -971,15 +1240,7 @@ export function ServiceDetailsForm({
               className={cn(modalFieldClassName)}
             />
           </Field>
-          <Field label="Booking class" htmlFor="edit-booking-class">
-            <input
-              id="edit-booking-class"
-              value={bookingClass}
-              onChange={(event) => setBookingClass(event.target.value)}
-              className={cn(modalFieldClassName)}
-            />
-          </Field>
-        </div>
+        </>
       ) : null}
 
       {booking.service_type === "transfer" ? (

@@ -153,6 +153,7 @@ export function BookingDetailContent({
     handleConfirmBooking,
     handleCancelBooking,
     handleAmendBooking,
+    handleSoftDeleteBooking,
     handleAssignOwner,
     handleLinkTrip,
     travellerDialogOpen,
@@ -166,7 +167,8 @@ export function BookingDetailContent({
     pendingDeleteTravellerName,
   } = state;
 
-  const { booking, travellers, recent_audit: recentAudit } = detail;
+  const { booking, travellers, recent_audit: recentAudit, recent_audit_total } =
+    detail;
   const canEdit = canWrite && booking.status !== "superseded";
   const needsConfirm =
     booking.status === "pending" || booking.status === "on_hold";
@@ -177,7 +179,12 @@ export function BookingDetailContent({
     booking.cancellation_deadline,
     booking.ticket_time_limit,
   );
-  const stay = datesLine(booking.start_date, booking.end_date, booking.nights);
+  const stay = datesLine(
+    booking.start_date,
+    booking.end_date,
+    booking.nights,
+    booking.service_type,
+  );
   const sellLabel = formatBookingMoney(booking.sell_amount, booking.currency);
   const refLabel = displayOrDash(booking.supplier_ref);
   const deadlineUrgent =
@@ -206,8 +213,22 @@ export function BookingDetailContent({
 
       {booking.status === "superseded" ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          This booking was superseded by an amend. Open the current version from
-          Activity or the directory — edits are locked here.
+          <p>
+            This booking was superseded by an amend. Edits are locked on this
+            version.
+          </p>
+          {booking.successor_booking_id ? (
+            <Link
+              href={pageRoutes.booking(booking.successor_booking_id)}
+              className="mt-2 inline-flex font-semibold underline-offset-2 hover:underline"
+            >
+              Open current version
+            </Link>
+          ) : (
+            <p className="mt-2 text-amber-900/80">
+              Find the current version in the bookings directory.
+            </p>
+          )}
         </div>
       ) : null}
 
@@ -323,18 +344,28 @@ export function BookingDetailContent({
                 )}
               />
             ) : null}
-            {canLifecycle ? (
+            {canEdit ? (
               <ToolbarMenu
                 items={[
+                  ...(canLifecycle
+                    ? [
+                        {
+                          key: "amend",
+                          label: "Amend booking",
+                          onClick: () => setConfirmAction("amend" as const),
+                        },
+                        {
+                          key: "cancel",
+                          label: "Cancel booking",
+                          onClick: () => setConfirmAction("cancel" as const),
+                          danger: true,
+                        },
+                      ]
+                    : []),
                   {
-                    key: "amend",
-                    label: "Amend booking",
-                    onClick: () => setConfirmAction("amend"),
-                  },
-                  {
-                    key: "cancel",
-                    label: "Cancel booking",
-                    onClick: () => setConfirmAction("cancel"),
+                    key: "delete",
+                    label: "Remove from ledger",
+                    onClick: () => setConfirmAction("delete"),
                     danger: true,
                   },
                 ]}
@@ -405,7 +436,6 @@ export function BookingDetailContent({
           <BookingOverviewPanel
             booking={booking}
             travellerCount={travellers.length}
-            activityCount={recentAudit.length}
             canWrite={canEdit}
             onOpenTab={setActiveTab}
             onEditSection={setEditSection}
@@ -449,7 +479,11 @@ export function BookingDetailContent({
           />
         ) : null}
         {activeTab === "activity" ? (
-          <BookingActivityPanel booking={booking} recentAudit={recentAudit} />
+          <BookingActivityPanel
+            booking={booking}
+            initialActivity={recentAudit}
+            initialTotal={recent_audit_total}
+          />
         ) : null}
       </div>
 
@@ -493,6 +527,7 @@ export function BookingDetailContent({
         onConfirm={() => {
           if (confirmAction === "confirm") void handleConfirmBooking();
           else if (confirmAction === "amend") void handleAmendBooking();
+          else if (confirmAction === "delete") void handleSoftDeleteBooking();
           else if (confirmAction === "delete_traveller")
             void handleDeleteTraveller();
         }}

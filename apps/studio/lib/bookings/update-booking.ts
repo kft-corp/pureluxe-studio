@@ -14,6 +14,7 @@ import {
   buildBookingDetail,
   type BookingDetail,
 } from "./booking-detail";
+import { nightsBetween } from "./booking-dates";
 import { requireEditableBooking } from "./require-active-booking";
 
 function toAuditValue(value: unknown): string | null {
@@ -23,21 +24,6 @@ function toAuditValue(value: unknown): string | null {
     return String(value);
   }
   return JSON.stringify(value);
-}
-
-function nightsBetween(
-  startDate: string | null,
-  endDate: string | null,
-): number | null {
-  if (!startDate || !endDate) return null;
-  const start = new Date(`${startDate}T00:00:00.000Z`);
-  const end = new Date(`${endDate}T00:00:00.000Z`);
-  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) {
-    return null;
-  }
-  const diffMs = end.getTime() - start.getTime();
-  const nights = Math.round(diffMs / (24 * 60 * 60 * 1000));
-  return nights >= 0 ? nights : null;
 }
 
 function mergeServiceDetails(
@@ -102,12 +88,20 @@ const { service_details: serviceDetailsPatch, ...restPatch } = patch;
       ? resolvedPatch.end_date
       : existing.end_date;
 
-  if (nextStart && nextEnd && nextStart >= nextEnd) {
-    throw new AppError({
-      userMessage: bookingMessages.error.dateRange,
-      code: "bookings.invalid_date_range",
-      status: 400,
-    });
+  if (nextStart && nextEnd) {
+    const isHotel = existing.service_type === "hotel";
+    const invalid = isHotel
+      ? nextStart >= nextEnd
+      : nextStart > nextEnd;
+    if (invalid) {
+      throw new AppError({
+        userMessage: isHotel
+          ? bookingMessages.error.dateRange
+          : "End date must be on or after the start date.",
+        code: "bookings.invalid_date_range",
+        status: 400,
+      });
+    }
   }
 
   if (

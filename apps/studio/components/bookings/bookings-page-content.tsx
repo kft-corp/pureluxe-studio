@@ -125,6 +125,8 @@ export function BookingsPageContent({
             loading={directory.loading}
             hasActiveFilters={directory.hasActiveFilters}
             searchQuery={directory.search}
+            canWrite={canWrite}
+            onShowAll={() => directory.setQuickFilters([])}
           />
           {directory.total > 0 || !directory.loading ? (
             <BookingsPagination
