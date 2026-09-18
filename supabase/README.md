@@ -89,18 +89,27 @@ Adds indexes for household name search (`families.name` trigram) and related-peo
 
 Migration: `migrations/011_rate_layer.sql`
 
-Creates:
+Creates Rate Layer **Layers 1–4** config + **Knowledge Base** (end-to-end):
 
 | Object | Purpose |
 |---|---|
-| `company_settings` | Key/value company config (seeds `rate_sources`) |
-| `properties` | Hotel master + GDS/bedbank codes (**provisional** — see deferred doc) |
-| `offline_trip_types` | Path 1 — offline-only trip types |
-| `wholesaler_destinations` | Paths 2–4 — wholesale by destination |
-| `high_value_routing` | Path 5 — wholesale-first by dest XOR property |
-| Permissions | `rates.search`, `settings.rate_sources` |
+| `company_settings` | Seeds `rate_sources` (incl. channel enable flags) + `knowledge_base` |
+| `destination_type_defaults` | Layer 3 type → pattern |
+| `destination_profiles` | Canonical destinations + aliases |
+| `destination_routing_overrides` | Layer 2 (Maldives / Dubai / Bali / Doha seeded) |
+| `destination_wholesalers` | Dest ↔ wholesaler adapter bindings |
+| `rate_peak_windows` | Ski peak dates |
+| `negotiated_rate_codes` | Consortia/chain code registry |
+| `properties` | Thin hotel master (links to KB via `curated_hotel_id`) |
+| `property_supplier_codes` | Generic Sabre/Hotelbeds/wholesale codes |
+| `property_contracted_rates` | Layer 1 contracted rates |
+| `kb_sources` / `kb_entities` / `kb_facts` | KB content (facts = full notes) |
+| `kb_fact_chunks` | Semantic RAG chunks + embeddings |
+| `rate_search_events` | Optional resolveRates audit |
+| Permissions | `rates.search`, `settings.rate_sources`, `knowledge.*`, `settings.knowledge_base` |
 
-Open Rate Layer schema work (`properties` vs `curated_hotel_content`, generic supplier codes): [`docs/studio/rate-layer-deferred.md`](../docs/studio/rate-layer-deferred.md).
+Drops obsolete Path tables (`offline_trip_types`, `wholesaler_destinations`, `high_value_routing`).  
+Spec: [`docs/studio/rate-layer.md`](../docs/studio/rate-layer.md). Recreate notes: [`docs/studio/rate-layer-deferred.md`](../docs/studio/rate-layer-deferred.md).
 
 Migration: `migrations/012_trips_kernel.sql`
 
