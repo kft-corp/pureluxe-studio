@@ -1,7 +1,8 @@
 "use client";
 
-import { cn } from "@/lib/utils/cn";
+import { studioChipClass } from "@/components/ui";
 import type { MemberFilter } from "@/lib/team/member-filter-utils";
+import { cn } from "@/lib/utils/cn";
 
 export type { MemberFilter };
 
@@ -22,8 +23,8 @@ export function MemberFilters({ value, onChange, counts }: MemberFiltersProps) {
   return (
     <div
       role="group"
-      aria-label="Filter members"
-      className="inline-flex max-w-full flex-wrap gap-1 rounded-xl border border-border bg-surface p-1"
+      aria-label="Filter by status"
+      className="inline-flex max-w-full flex-wrap gap-1.5"
     >
       {FILTERS.map((filter) => {
         const isActive = filter.id === value;
@@ -35,24 +36,19 @@ export function MemberFilters({ value, onChange, counts }: MemberFiltersProps) {
             type="button"
             aria-pressed={isActive}
             onClick={() => onChange(filter.id)}
-            className={cn(
-              "inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3.5 text-sm font-medium ring-1 transition-colors",
-              isActive
-                ? "bg-surface-raised text-ink shadow-sm ring-border/80"
-                : "text-ink-muted ring-transparent hover:text-ink",
-            )}
+            className={studioChipClass(isActive)}
           >
             {filter.label}
             {count !== undefined ? (
               <span
                 className={cn(
-                  "min-w-[1.25rem] rounded-md px-1.5 py-0.5 text-center text-[11px] font-semibold tabular-nums",
-                  isActive ? "bg-surface text-ink-muted" : "text-ink-subtle",
-                  count === 0 && "opacity-0",
+                  "ml-1 min-w-[1.25rem] rounded-md px-1.5 py-0.5 text-center text-[11px] font-semibold tabular-nums",
+                  isActive ? "bg-white/20 text-on-dark" : "bg-surface text-ink-muted",
+                  count === 0 && "opacity-40",
                 )}
                 aria-hidden={count === 0}
               >
-                {count || 0}
+                {count}
               </span>
             ) : null}
           </button>

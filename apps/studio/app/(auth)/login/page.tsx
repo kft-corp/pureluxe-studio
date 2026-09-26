@@ -14,7 +14,7 @@ export default function LoginPage() {
   return (
     <main
       id="main-content"
-      className="flex min-h-screen flex-col lg:flex-row"
+      className="flex h-full overflow-hidden flex-col lg:flex-row"
     >
       <Suspense fallback={null}>
         <LoginFeedbackToast />

@@ -1,13 +1,25 @@
 import { apiRoutes } from "@/lib/routes";
 import type { TeamOverviewData } from "@/lib/team/team-overview";
+import type { RolePermissionsOverviewData } from "@/lib/team/role-permissions-overview";
 
 import { fetchApi } from "./client";
 
 export type { TeamMemberListItem, PendingInviteListItem, TeamOverviewData } from "@/lib/team/team-overview";
+export type {
+  PermissionCatalogItem,
+  RolePermissionsOverviewData,
+} from "@/lib/team/role-permissions-overview";
 
 /** Load team members, pending invites, and roles. */
 export function getTeamOverview() {
   return fetchApi<TeamOverviewData>(apiRoutes.team.members, {
+    cache: "no-store",
+  });
+}
+
+/** Load roles, permission catalog, and grants matrix. */
+export function getRolePermissionsOverview() {
+  return fetchApi<RolePermissionsOverviewData>(apiRoutes.team.roles, {
     cache: "no-store",
   });
 }
@@ -51,4 +63,16 @@ export function resendTeamInvite(inviteId: string) {
   return fetchApi<{ id: string }>(apiRoutes.team.inviteResend(inviteId), {
     method: "POST",
   });
+}
+
+/** Save permission grants for one role. */
+export function updateRolePermissions(role: string, permissionSlugs: string[]) {
+  return fetchApi<{ role: string; permissionSlugs: string[] }>(
+    apiRoutes.team.role(role),
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ permissionSlugs }),
+    },
+  );
 }

@@ -16,6 +16,27 @@ type InviteMemberDialogProps = {
   onSuccess: () => void;
 };
 
+function FieldLabel({
+  htmlFor,
+  required,
+  children,
+}: {
+  htmlFor: string;
+  required?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <label htmlFor={htmlFor} className="block text-sm font-medium text-ink">
+      {children}
+      {required ? (
+        <span className="ml-0.5 text-red-600" aria-hidden>
+          *
+        </span>
+      ) : null}
+    </label>
+  );
+}
+
 function InviteMemberForm({
   roles,
   onClose,
@@ -46,7 +67,7 @@ function InviteMemberForm({
       open
       onClose={onClose}
       title="Invite member"
-      description="They will sign in with Google once invited."
+      description="They’ll get an email and sign in with Google — no password needed."
       footer={
         <>
           <ModalButton onClick={onClose} disabled={loading}>
@@ -64,9 +85,12 @@ function InviteMemberForm({
       }
     >
       <form id="invite-member-form" onSubmit={handleSubmit} className="space-y-4 px-5 py-5">
-        <label className="block">
-          <span className="text-sm font-medium text-ink">Email</span>
+        <div>
+          <FieldLabel htmlFor="invite-email" required>
+            Work email
+          </FieldLabel>
           <input
+            id="invite-email"
             type="email"
             required
             autoComplete="email"
@@ -75,12 +99,25 @@ function InviteMemberForm({
             placeholder="name@kft.com"
             className={modalFieldClassName}
           />
-        </label>
+          <p className="mt-1.5 text-xs text-ink-muted">
+            Use their Google Workspace email so they can accept the invite.
+          </p>
+        </div>
 
-        <label className="block">
-          <span className="text-sm font-medium text-ink">Role</span>
-          <RoleSelect roles={roles} value={role} onChange={setRole} />
-        </label>
+        <div>
+          <FieldLabel htmlFor="invite-role" required>
+            Role
+          </FieldLabel>
+          <RoleSelect
+            id="invite-role"
+            roles={roles}
+            value={role}
+            onChange={setRole}
+          />
+          <p className="mt-1.5 text-xs text-ink-muted">
+            Controls what they can see and do in Studio. You can change this later.
+          </p>
+        </div>
       </form>
     </Modal>
   );

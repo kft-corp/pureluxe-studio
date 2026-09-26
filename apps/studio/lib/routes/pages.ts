@@ -3,8 +3,15 @@ export const pageRoutes = {
   home: "/",
   login: "/login",
   tripBuilder: "/trip-builder",
+  /** Open Trip Builder with this client pre-selected (when Trip Builder ships). */
+  tripBuilderWithClient: (clientId: string) =>
+    pageRouteWithSearch("/trip-builder", { primary_client_id: clientId }),
   bookings: "/bookings",
+  booking: (bookingId: string) => `/bookings/${bookingId}`,
+  bookingNew: "/bookings/new",
   clients: "/clients",
+  clientNew: "/clients/new",
+  client: (clientId: string) => `/clients/${clientId}`,
   trips: "/trips",
   trainer: "/trainer",
   tasks: "/tasks",

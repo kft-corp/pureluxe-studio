@@ -153,3 +153,6 @@ supabase/.branches/
 
 # Cursor files
 .cursor/
+
+# Local product / engineering docs (keep on disk, not in git)
+docs/

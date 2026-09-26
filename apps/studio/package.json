@@ -12,6 +12,7 @@
   "dependencies": {
     "@pureluxe/auth": "workspace:*",
     "@pureluxe/db": "workspace:*",
+    "@pureluxe/rates": "workspace:*",
     "@pureluxe/shared": "workspace:*",
     "iron-session": "^8.0.4",
     "next": "16.3.3",

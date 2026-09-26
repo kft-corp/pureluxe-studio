@@ -6,6 +6,7 @@ import type { TeamMemberListItem, TeamOverviewData } from "@/lib/api/team";
 import { updateTeamMemberRole } from "@/lib/api/team";
 import { Modal, ModalButton } from "@/components/ui/modal";
 import { showApiError, showOptionalSuccessToast } from "@/lib/feedback/toast";
+import { getMemberDisplayName } from "@/lib/team/member-display-name";
 
 import { RoleSelect } from "./role-select";
 
@@ -47,12 +48,14 @@ function ChangeRoleForm({
     }
   }
 
+  const displayName = getMemberDisplayName(member.name, member.email);
+
   return (
     <Modal
       open
       onClose={onClose}
       title="Change role"
-      description={`Update the role for ${member.name}.`}
+      description={`Update what ${displayName} can do in Studio.`}
       footer={
         <>
           <ModalButton onClick={onClose} disabled={loading}>
@@ -71,8 +74,16 @@ function ChangeRoleForm({
     >
       <form id="change-role-form" onSubmit={handleSubmit} className="px-5 py-5">
         <label className="block">
-          <span className="text-sm font-medium text-ink">Role</span>
-          <RoleSelect roles={roles} value={role} onChange={setRole} />
+          <span className="text-sm font-medium text-ink">
+            Role
+            <span className="ml-0.5 text-red-600" aria-hidden>
+              *
+            </span>
+          </span>
+          <RoleSelect id="change-role-select" roles={roles} value={role} onChange={setRole} />
+          <p className="mt-1.5 text-xs text-ink-muted">
+            Takes effect the next time they load Studio.
+          </p>
         </label>
       </form>
     </Modal>

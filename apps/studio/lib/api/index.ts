@@ -1,5 +1,44 @@
-export { getAccountProfile, type AccountProfileData } from "./account";
+export { getAccountProfile, updateAccountProfile, type AccountProfileData } from "./account";
 export { logout } from "./auth";
+export {
+  createBooking,
+  getBooking,
+  listBookings,
+  type BookingDetailData,
+  type BookingDirectoryData,
+  type BookingDirectoryItem,
+} from "./bookings";
+export {
+  approveClient,
+  confirmClientDocumentUpload,
+  createClient,
+  createClientDocument,
+  createClientPreference,
+  createClientRelationship,
+  deactivateClient,
+  deleteClientDocument,
+  deleteClientRelationship,
+  getClientDirectoryFilters,
+  getClientDocumentFileUrl,
+  getClientProfile,
+  leaveClientFamily,
+  listClients,
+  removeClientFamilyMember,
+  searchClients,
+  searchFamilies,
+  updateClient,
+  updateClientDocument,
+  updateClientFamily,
+  updateClientPreference,
+  uploadClientDocumentFile,
+  upsertClientFamily,
+  upsertClientHealth,
+  type ClientDirectoryData,
+  type ClientDirectoryItem,
+  type ClientSearchHit,
+  type CreateClientDocumentResponse,
+  type FamilySearchHit,
+} from "./clients";
 export { ApiRequestError, fetchApi } from "./client";
 export { apiError, apiFromError, apiSuccess } from "./responses";
 export {
@@ -13,3 +52,16 @@ export {
   type TeamMemberListItem,
   type TeamOverviewData,
 } from "./team";
+export {
+  approveTripLineItem,
+  getDestinationsSettings,
+  getNegotiatedCodesSettings,
+  getRateSources,
+  pasteTripLineItem,
+  patchRateSourcesSetting,
+  rejectTripLineItem,
+  runRateSearch,
+  type DestinationsSettingsData,
+  type NegotiatedCodesSettingsData,
+  type RateSourcesData,
+} from "../rates";

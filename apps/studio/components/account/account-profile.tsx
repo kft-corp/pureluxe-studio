@@ -1,7 +1,12 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import {
   LuBriefcase,
   LuFingerprint,
   LuMail,
+  LuPencil,
   LuPhone,
   LuUser,
 } from "react-icons/lu";
@@ -15,111 +20,137 @@ import {
   RoleBadge,
   StatusBadge,
   UserAvatar,
+  studioButtonClass,
 } from "@/components/ui";
-import { formatRoleLabel } from "@/lib/auth/format-role-label";
+import {
+  isProfileFieldEmpty,
+  profileFieldText,
+} from "@/lib/account/profile-fields";
 import type { AccountProfileData } from "@/lib/api/account";
+import { formatRoleLabel } from "@/lib/auth/format-role-label";
 import { cn } from "@/lib/utils/cn";
 
-function displayValue(value: string | null | undefined): string {
-  const trimmed = value?.trim();
-  return trimmed || DETAIL_EMPTY_VALUE;
-}
+import { EditProfileDialog } from "./edit-profile-dialog";
 
-function isEmptyValue(value: string | null | undefined): boolean {
-  return !value?.trim();
-}
+type AccountProfileProps = AccountProfileData;
 
-export function AccountProfile({
-  name,
-  email,
-  role,
-  title,
-  phone,
-  memberId,
-}: AccountProfileData) {
-  const displayName = displayValue(name);
-  const displayEmail = displayValue(email);
-  const displayTitle = displayValue(title);
-  const displayPhone = displayValue(phone);
-  const displayMemberId = displayValue(memberId);
-  const roleLabel = isEmptyValue(role) ? DETAIL_EMPTY_VALUE : formatRoleLabel(role);
+export function AccountProfile(props: AccountProfileProps) {
+  const router = useRouter();
+  const [profile, setProfile] = useState(props);
+  const [editOpen, setEditOpen] = useState(false);
+
+  const { name, email, role, title, phone, memberId } = profile;
+  const roleLabel = isProfileFieldEmpty(role) ? DETAIL_EMPTY_VALUE : formatRoleLabel(role);
+
+  function handleProfileUpdated(nextProfile: AccountProfileData) {
+    setProfile(nextProfile);
+    router.refresh();
+  }
 
   return (
-    <PageStack>
-      <PageToolbar>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-5">
-          <UserAvatar name={name} email={email} size="lg" />
+    <>
+      <PageStack>
+        <PageToolbar>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 flex-1 flex-col gap-4 sm:flex-row sm:items-center sm:gap-5">
+              <UserAvatar name={name} email={email} size="lg" />
 
-          <div className="min-w-0 flex-1">
-            <h2
-              className={cn(
-                "text-pretty text-xl font-semibold tracking-tight sm:text-2xl",
-                isEmptyValue(name) ? "text-ink-subtle" : "text-ink",
-              )}
-            >
-              {displayName}
-            </h2>
+              <div className="min-w-0 flex-1">
+                <h2
+                  className={cn(
+                    "text-pretty text-xl font-semibold tracking-tight sm:text-2xl",
+                    isProfileFieldEmpty(name) ? "text-ink-subtle" : "text-ink",
+                  )}
+                >
+                  {profileFieldText(name)}
+                </h2>
 
-            <p
-              className={cn(
-                "mt-1 text-sm",
-                isEmptyValue(title) ? "text-ink-subtle" : "text-ink-muted",
-              )}
-            >
-              {displayTitle}
-            </p>
+                <p
+                  className={cn(
+                    "mt-1 text-sm",
+                    isProfileFieldEmpty(title) ? "text-ink-subtle" : "text-ink-muted",
+                  )}
+                >
+                  {profileFieldText(title)}
+                </p>
 
-            <p
-              className={cn(
-                "mt-1 truncate text-sm",
-                isEmptyValue(email) ? "text-ink-subtle" : "text-ink-muted",
-              )}
-            >
-              {displayEmail}
-            </p>
+                <p
+                  className={cn(
+                    "mt-1 truncate text-sm",
+                    isProfileFieldEmpty(email) ? "text-ink-subtle" : "text-ink-muted",
+                  )}
+                >
+                  {profileFieldText(email)}
+                </p>
 
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              {!isEmptyValue(role) ? (
-                <RoleBadge label={roleLabel} role={role} />
-              ) : null}
-              <StatusBadge status="active" />
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {!isProfileFieldEmpty(role) ? (
+                    <RoleBadge label={roleLabel} role={role} />
+                  ) : null}
+                  <StatusBadge status="active" />
+                </div>
+              </div>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setEditOpen(true)}
+              className={studioButtonClass(
+                "secondary",
+                "md",
+                "w-full shrink-0 sm:w-auto sm:self-start",
+              )}
+            >
+              <LuPencil className="h-3.5 w-3.5" aria-hidden />
+              Edit profile
+            </button>
           </div>
-        </div>
-      </PageToolbar>
+        </PageToolbar>
 
-      <ContentSection
-        title="Profile details"
-        description="Your contact and team account details."
-      >
-        <dl className="divide-y divide-border/70 sm:grid sm:grid-cols-2 sm:divide-y-0">
-          <DetailField
-            icon={LuUser}
-            label="Name"
-            value={displayName}
-            className="sm:border-b sm:border-border/70"
-          />
-          <DetailField
-            icon={LuMail}
-            label="Email"
-            value={displayEmail}
-            className="sm:border-b sm:border-border/70"
-          />
-          <DetailField icon={LuBriefcase} label="Title" value={displayTitle} />
-          <DetailField icon={LuPhone} label="Phone" value={displayPhone} />
-        </dl>
-      </ContentSection>
+        <ContentSection
+          title="Profile details"
+          description="Your contact details. Name, designation, and phone can be updated."
+        >
+          <dl className="divide-y divide-border/70 sm:grid sm:grid-cols-2 sm:divide-y-0">
+            <DetailField
+              icon={LuUser}
+              label="Name"
+              value={profileFieldText(name)}
+              className="sm:border-b sm:border-border/70"
+            />
+            <DetailField
+              icon={LuMail}
+              label="Email"
+              value={profileFieldText(email)}
+              className="sm:border-b sm:border-border/70"
+            />
+            <DetailField
+              icon={LuBriefcase}
+              label="Designation"
+              value={profileFieldText(title)}
+            />
+            <DetailField icon={LuPhone} label="Phone" value={profileFieldText(phone)} />
+          </dl>
+        </ContentSection>
 
-      <ContentSection title="Account">
-        <dl>
-          <DetailField
-            icon={LuFingerprint}
-            label="Member ID"
-            value={displayMemberId}
-            mono
-          />
-        </dl>
-      </ContentSection>
-    </PageStack>
+        <ContentSection title="Account">
+          <dl>
+            <DetailField
+              icon={LuFingerprint}
+              label="Member ID"
+              value={profileFieldText(memberId)}
+              mono
+            />
+          </dl>
+        </ContentSection>
+      </PageStack>
+
+      <EditProfileDialog
+        open={editOpen}
+        profile={profile}
+        onClose={() => setEditOpen(false)}
+        onSuccess={handleProfileUpdated}
+      />
+    </>
   );
 }

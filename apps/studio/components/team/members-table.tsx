@@ -26,6 +26,8 @@ type MembersTableProps = {
   canManage: boolean;
   currentMemberId: string;
   currentMemberEmail: string;
+  searchQuery?: string;
+  hasActiveFilters?: boolean;
   onChangeRole: (member: TeamMemberListItem) => void;
   onDeactivate: (member: TeamMemberListItem) => void;
   onReactivate: (member: TeamMemberListItem) => void;
@@ -89,10 +91,36 @@ function MemberActions({
 function MemberName({ name, isSelf }: { name: string; isSelf: boolean }) {
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-      <p className="truncate font-medium text-ink">{name}</p>
-      {isSelf ? <span className="shrink-0 text-xs text-ink-subtle">(You)</span> : null}
+      <p className="truncate font-medium text-ink" title={name}>
+        {name}
+      </p>
+      {isSelf ? (
+        <span className="shrink-0 rounded-md bg-surface px-1.5 py-0.5 text-[11px] font-medium text-ink-muted ring-1 ring-border/80">
+          You
+        </span>
+      ) : null}
     </div>
   );
+}
+
+function EmailLink({ email }: { email: string }) {
+  return (
+    <a
+      href={`mailto:${email}`}
+      onClick={(event) => event.stopPropagation()}
+      className="block max-w-[16rem] truncate text-sm text-ink-muted underline-offset-2 hover:text-ink hover:underline"
+      title={email}
+    >
+      {email}
+    </a>
+  );
+}
+
+function emptyMessage(hasActiveFilters: boolean, searchQuery: string): string {
+  const q = searchQuery.trim();
+  if (q) return `No members match “${q}”.`;
+  if (hasActiveFilters) return "No members match this filter.";
+  return "No members yet.";
 }
 
 function MemberRowContent({
@@ -111,12 +139,14 @@ function MemberRowContent({
     return (
       <TableRow>
         <TableCell>
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 max-w-[20rem] items-center gap-3">
             <UserAvatar name={displayName} email={member.email} />
             <MemberName name={displayName} isSelf={isSelf} />
           </div>
         </TableCell>
-        <TableCell className="text-ink-muted">{member.email}</TableCell>
+        <TableCell>
+          <EmailLink email={member.email} />
+        </TableCell>
         <TableCell>
           <RoleBadge label={roleLabel} role={member.role} />
         </TableCell>
@@ -146,7 +176,9 @@ function MemberRowContent({
         <UserAvatar name={displayName} email={member.email} />
         <div className="min-w-0 flex-1">
           <MemberName name={displayName} isSelf={isSelf} />
-          <p className="mt-0.5 truncate text-sm text-ink-muted">{member.email}</p>
+          <div className="mt-1">
+            <EmailLink email={member.email} />
+          </div>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <RoleBadge label={roleLabel} role={member.role} />
             <StatusBadge status={member.active ? "active" : "inactive"} />
@@ -172,13 +204,18 @@ export function MembersTable({
   canManage,
   currentMemberId,
   currentMemberEmail,
+  searchQuery = "",
+  hasActiveFilters = false,
   onChangeRole,
   onDeactivate,
   onReactivate,
 }: MembersTableProps) {
   if (members.length === 0) {
     return (
-      <EmptyState icon={LuUsers} message="No members match this filter." />
+      <EmptyState
+        icon={LuUsers}
+        message={emptyMessage(hasActiveFilters, searchQuery)}
+      />
     );
   }
 

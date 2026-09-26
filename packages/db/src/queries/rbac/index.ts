@@ -1,4 +1,9 @@
-export { listPermissionSlugsByRole } from "./studio-permissions";
+export {
+  listActiveStudioPermissions,
+  listPermissionSlugsByRole,
+  listStudioRolePermissionGrants,
+  replaceRolePermissions,
+} from "./studio-permissions";
 export {
   findActiveStudioRoleBySlug,
   listActiveStudioRoles,

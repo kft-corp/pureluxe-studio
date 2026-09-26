@@ -1,5 +1,7 @@
 import type { PendingInviteListItem, TeamMemberListItem } from "@/lib/api/team";
 
+import { getMemberDisplayName } from "./member-display-name";
+
 export type MemberFilter = "all" | "active" | "pending" | "inactive";
 
 type MemberLists = {
@@ -23,6 +25,47 @@ export function partitionMembers(members: TeamMemberListItem[]) {
   return { active, inactive };
 }
 
+function normalizeQuery(query: string): string {
+  return query.trim().toLowerCase();
+}
+
+export function memberMatchesQuery(
+  member: TeamMemberListItem,
+  query: string,
+): boolean {
+  const q = normalizeQuery(query);
+  if (!q) return true;
+
+  const displayName = getMemberDisplayName(member.name, member.email).toLowerCase();
+  const email = member.email.toLowerCase();
+  return displayName.includes(q) || email.includes(q);
+}
+
+export function inviteMatchesQuery(
+  invite: PendingInviteListItem,
+  query: string,
+): boolean {
+  const q = normalizeQuery(query);
+  if (!q) return true;
+  return invite.email.toLowerCase().includes(q);
+}
+
+export function filterMembersByQuery(
+  members: TeamMemberListItem[],
+  query: string,
+): TeamMemberListItem[] {
+  if (!normalizeQuery(query)) return members;
+  return members.filter((member) => memberMatchesQuery(member, query));
+}
+
+export function filterInvitesByQuery(
+  invites: PendingInviteListItem[],
+  query: string,
+): PendingInviteListItem[] {
+  if (!normalizeQuery(query)) return invites;
+  return invites.filter((invite) => inviteMatchesQuery(invite, query));
+}
+
 export function getFilterCounts({
   active,
   inactive,
@@ -37,7 +80,25 @@ export function getFilterCounts({
 }
 
 export function getMembersSectionTitle(filter: MemberFilter): string {
-  return filter === "inactive" ? "Inactive members" : "Active members";
+  if (filter === "inactive") return "Inactive members";
+  if (filter === "active") return "Active members";
+  return "Team members";
+}
+
+export function getMembersSectionDescription(
+  filter: MemberFilter,
+  hasSearch: boolean,
+): string {
+  if (hasSearch) {
+    return "People who match your search.";
+  }
+  if (filter === "inactive") {
+    return "Deactivated accounts — reactivate to restore access.";
+  }
+  if (filter === "active") {
+    return "People with access to Studio right now.";
+  }
+  return "Active people on your Studio workspace.";
 }
 
 export function getMembersForPrimarySection(
