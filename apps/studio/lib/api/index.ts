@@ -52,3 +52,16 @@ export {
   type TeamMemberListItem,
   type TeamOverviewData,
 } from "./team";
+export {
+  approveTripLineItem,
+  getDestinationsSettings,
+  getNegotiatedCodesSettings,
+  getRateSources,
+  pasteTripLineItem,
+  patchRateSourcesSetting,
+  rejectTripLineItem,
+  runRateSearch,
+  type DestinationsSettingsData,
+  type NegotiatedCodesSettingsData,
+  type RateSourcesData,
+} from "../rates";

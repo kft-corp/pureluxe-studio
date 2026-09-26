@@ -1,0 +1,21 @@
+{
+  "name": "@pureluxe/rates",
+  "version": "0.1.0",
+  "description": "PureLuxe Rate Layer brain — resolve which sources to ask and which option to recommend.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@pureluxe/db": "workspace:*",
+    "@pureluxe/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5"
+  }
+}

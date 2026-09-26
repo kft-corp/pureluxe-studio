@@ -1,5 +1,6 @@
 -- Trip kernel: shared journey tables for Trip Builder + Trips portfolio + Client App.
 -- Spec: docs/studio/trip-builder-module.md §6 (seven-table kernel)
+-- Flow completion (confirms, attachments, docs, recents): 015_trip_builder_flow.sql
 -- Also: docs/studio/trips-module.md (reads these tables; no extra portfolio tables)
 -- Depends on: 001 (team_members), 003 (clients), 011 (properties).
 -- Safe to re-run: IF NOT EXISTS / CREATE OR REPLACE where practical.

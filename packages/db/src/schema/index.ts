@@ -59,6 +59,9 @@ export type {
 } from "./rate-layer";
 export type {
   Trip,
+  TripAttachment,
+  TripAttachmentPurpose,
+  TripAttentionSnooze,
   TripChatChannel,
   TripChatMessage,
   TripChatMode,
@@ -69,17 +72,22 @@ export type {
   TripDocument,
   TripDocumentStatus,
   TripDocumentType,
+  TripIdempotencyKey,
   TripItineraryDay,
   TripItineraryDaySource,
   TripLeg,
   TripLegItineraryStatus,
   TripLineItem,
+  TripLineItemAvailabilityStatus,
   TripLineItemCategory,
   TripLineItemSource,
   TripLineItemStatus,
   TripLineItemUnit,
+  TripPendingConfirm,
+  TripPendingConfirmStatus,
   TripSource,
   TripStatus,
+  TripUndoAction,
 } from "./trips";
 export type {
   Booking,

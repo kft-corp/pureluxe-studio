@@ -145,6 +145,15 @@ export {
   type UpdateBookingTravellerInput,
 } from "./bookings";
 export {
+  pasteLineItemBodySchema,
+  searchRatesBodySchema,
+  tripLineItemIdSchema,
+  updateRateSourcesSettingSchema,
+  type PasteLineItemBody,
+  type SearchRatesBody,
+  type UpdateRateSourcesSettingBody,
+} from "./rates";
+export {
   inviteMemberSchema,
   permissionSlugSchema,
   studioRoleSchema,

@@ -4,6 +4,7 @@ import { bookingMessages } from "./bookings";
 import { clientMessages } from "./clients";
 import { commonMessages } from "./common";
 import { dbMessages } from "./db";
+import { rateMessages } from "./rates";
 import { teamMessages } from "./team";
 
 /** All user-facing messages — import from @pureluxe/shared in UI and API routes. */
@@ -13,6 +14,7 @@ export const messages = {
     ...accountMessages.success,
     ...bookingMessages.success,
     ...clientMessages.success,
+    ...rateMessages.success,
     ...teamMessages.success,
   },
   warn: authMessages.warn,
@@ -22,6 +24,7 @@ export const messages = {
     ...clientMessages.error,
     ...dbMessages.error,
     ...commonMessages.error,
+    ...rateMessages.error,
     ...teamMessages.error,
   },
 } as const;
@@ -33,5 +36,6 @@ export {
   clientMessages,
   commonMessages,
   dbMessages,
+  rateMessages,
   teamMessages,
 };

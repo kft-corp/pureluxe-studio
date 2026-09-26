@@ -16,6 +16,9 @@ importers:
       '@pureluxe/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@pureluxe/rates':
+        specifier: workspace:*
+        version: link:../../packages/rates
       '@pureluxe/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -99,6 +102,22 @@ importers:
       zod:
         specifier: ^3.24.2
         version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
+  packages/rates:
+    dependencies:
+      '@pureluxe/db':
+        specifier: workspace:*
+        version: link:../db
+      '@pureluxe/shared':
+        specifier: workspace:*
+        version: link:../shared
     devDependencies:
       '@types/node':
         specifier: ^20
