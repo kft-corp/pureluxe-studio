@@ -1,12 +1,54 @@
 import {
-  findActiveContractedRateForStay,
+  computeContractedStayCost,
   findActivePropertyById,
+  listActiveContractedRatesForStay,
+  type PropertyContractedRate,
 } from "@pureluxe/db";
 
+import type { RawRateInput } from "../results";
 import type { AdapterContext, AdapterResult } from "./types";
 
+function stringInclusions(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string");
+}
+
+function toQuote(
+  propertyId: string,
+  propertyName: string | null,
+  rate: PropertyContractedRate,
+  checkIn: string,
+  checkOut: string,
+  adults: number,
+): RawRateInput {
+  return {
+    property_id: propertyId,
+    property_name: propertyName,
+    room_name: rate.room_category,
+    board: rate.board,
+    check_in: checkIn,
+    check_out: checkOut,
+    currency: rate.currency,
+    cost_internal: computeContractedStayCost({
+      rate,
+      check_in: checkIn,
+      check_out: checkOut,
+      adults,
+    }),
+    rate_source_code: "offline_contracted",
+    inclusions: stringInclusions(rate.inclusions),
+    availability_status: "available",
+    raw: {
+      contracted_rate_id: rate.id,
+      contract_id: rate.contract_id,
+      cost_unit: rate.cost_unit,
+      rate_basis: rate.rate_basis,
+    },
+  };
+}
+
 /**
- * Real adapter: read active contracted rate covering the stay from DB.
+ * Layer 1 offline_contracted: one quote per covering room/package rate row.
  */
 export async function searchOfflineContracted(
   ctx: AdapterContext,
@@ -23,15 +65,16 @@ export async function searchOfflineContracted(
     };
   }
 
-  const contracted =
-    ctx.contracted_rate ??
-    (await findActiveContractedRateForStay({
-      property_id: propertyId,
-      check_in: request.check_in,
-      check_out: request.check_out,
-    }));
+  const rates =
+    ctx.contracted_rates && ctx.contracted_rates.length > 0
+      ? ctx.contracted_rates
+      : await listActiveContractedRatesForStay({
+          property_id: propertyId,
+          check_in: request.check_in,
+          check_out: request.check_out,
+        });
 
-  if (!contracted) {
+  if (rates.length === 0) {
     return {
       source: "offline_contracted",
       status: "empty",
@@ -41,28 +84,20 @@ export async function searchOfflineContracted(
   }
 
   const property = await findActivePropertyById(propertyId);
+  const adults = request.adults > 0 ? request.adults : 2;
 
   return {
     source: "offline_contracted",
     status: "ok",
-    quotes: [
-      {
-        property_id: propertyId,
-        property_name: property?.name ?? null,
-        board: contracted.board,
-        check_in: request.check_in,
-        check_out: request.check_out,
-        currency: contracted.currency,
-        cost_internal: Number(contracted.cost_amount),
-        rate_source_code: "offline_contracted",
-        inclusions: Array.isArray(contracted.inclusions)
-          ? contracted.inclusions.filter(
-              (item): item is string => typeof item === "string",
-            )
-          : [],
-        availability_status: "available",
-        raw: { contracted_rate_id: contracted.id },
-      },
-    ],
+    quotes: rates.map((rate) =>
+      toQuote(
+        propertyId,
+        property?.name ?? null,
+        rate,
+        request.check_in,
+        request.check_out,
+        adults,
+      ),
+    ),
   };
 }

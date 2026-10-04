@@ -309,10 +309,7 @@ export function BookingRegisterForm({
   useEffect(() => {
     if (selectedClient) return;
     const trimmed = clientQuery.trim();
-    if (trimmed.length < 2) {
-      setClientHits([]);
-      return;
-    }
+    if (trimmed.length < 2) return;
 
     let cancelled = false;
     const timer = window.setTimeout(() => {
@@ -607,7 +604,9 @@ export function BookingRegisterForm({
                       id="register-booking-client"
                       value={clientQuery}
                       onChange={(event) => {
-                        setClientQuery(event.target.value);
+                        const next = event.target.value;
+                        setClientQuery(next);
+                        if (next.trim().length < 2) setClientHits([]);
                         clearFieldError("client_id");
                       }}
                       className={cn(

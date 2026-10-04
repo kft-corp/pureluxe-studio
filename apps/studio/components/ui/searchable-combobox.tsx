@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type KeyboardEvent,
 } from "react";
 import { createPortal } from "react-dom";
@@ -51,6 +52,8 @@ function defaultFilter(
   );
 }
 
+const subscribeNoop = () => () => {};
+
 /**
  * Portaled searchable picker — shared by country, language, and timezone fields.
  */
@@ -74,30 +77,27 @@ export function SearchableCombobox({
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(0);
   const [menuStyle, setMenuStyle] = useState<React.CSSProperties | null>(null);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    subscribeNoop,
+    () => true,
+    () => false,
+  );
 
   const selectedLabel = value.trim() ? (getLabel(value) ?? value) : "";
-  const [query, setQuery] = useState(selectedLabel);
+  const [draftQuery, setDraftQuery] = useState(selectedLabel);
+  const query = open ? draftQuery : selectedLabel;
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!open) {
-      setQuery(selectedLabel);
-    }
-  }, [selectedLabel, open]);
+  const [highlightForQuery, setHighlightForQuery] = useState(query);
+  if (query !== highlightForQuery) {
+    setHighlightForQuery(query);
+    setHighlight(0);
+  }
 
   const matches = useMemo(() => {
     return options
       .filter((option) => defaultFilter(option, query))
       .slice(0, maxResults);
   }, [options, query, maxResults]);
-
-  useEffect(() => {
-    setHighlight(0);
-  }, [query]);
 
   useLayoutEffect(() => {
     if (!open || !rootRef.current) {
@@ -149,16 +149,21 @@ export function SearchableCombobox({
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [open, listId]);
 
+  function openMenu(seedQuery = selectedLabel) {
+    setDraftQuery(seedQuery);
+    setOpen(true);
+  }
+
   function selectOption(option: SearchableComboboxOption) {
     onChange(option.value);
-    setQuery(option.label);
+    setDraftQuery(option.label);
     setOpen(false);
     inputRef.current?.blur();
   }
 
   function clearSelection() {
     onChange("");
-    setQuery("");
+    setDraftQuery("");
     setOpen(false);
     inputRef.current?.focus();
   }
@@ -166,7 +171,7 @@ export function SearchableCombobox({
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      setOpen(true);
+      openMenu(draftQuery || selectedLabel);
       setHighlight((index) =>
         matches.length === 0 ? 0 : Math.min(index + 1, matches.length - 1),
       );
@@ -185,7 +190,6 @@ export function SearchableCombobox({
     if (event.key === "Escape") {
       event.preventDefault();
       setOpen(false);
-      setQuery(selectedLabel);
     }
   }
 
@@ -255,11 +259,12 @@ export function SearchableCombobox({
           placeholder={placeholder}
           autoComplete="off"
           onChange={(event) => {
-            setQuery(event.target.value);
+            const next = event.target.value;
+            setDraftQuery(next);
             setOpen(true);
             if (value) onChange("");
           }}
-          onFocus={() => setOpen(true)}
+          onFocus={() => openMenu(selectedLabel)}
           onKeyDown={onKeyDown}
           className={cn(modalFieldClassName, "pr-16")}
         />
@@ -279,7 +284,11 @@ export function SearchableCombobox({
             type="button"
             disabled={disabled}
             onClick={() => {
-              setOpen((wasOpen) => !wasOpen);
+              if (open) {
+                setOpen(false);
+              } else {
+                openMenu(selectedLabel);
+              }
               inputRef.current?.focus();
             }}
             className="flex h-9 w-9 items-center justify-center rounded-md text-ink-muted transition hover:bg-surface-hover hover:text-ink disabled:opacity-50"

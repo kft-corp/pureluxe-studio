@@ -1,6 +1,6 @@
 import {
-  findActiveContractedRateForStay,
   findActiveRoutingOverride,
+  listActiveContractedRatesForStay,
   listActiveDestinationTypeDefaults,
   listActivePeakWindowsForStay,
   type DestinationProfile,
@@ -26,7 +26,8 @@ export type ResolvedRouting = {
   pattern: RoutingPattern;
   destination_type: DestinationType | null;
   destination_profile_id: string | null;
-  contracted_rate: PropertyContractedRate | null;
+  /** Covering room/package rows for offline_contracted quotes. */
+  contracted_rates: PropertyContractedRate[];
   peak_windows: RatePeakWindow[];
   /** From Layer 2 override when pattern is custom. */
   custom_source_order: string[] | null;
@@ -49,21 +50,21 @@ export async function resolveRoutingLayer(
     destination_type,
   });
 
-  // Layer 1 — property has an active contracted rate covering the stay.
+  // Layer 1 — property has active contracted rate(s) covering the stay.
   if (input.property_id) {
-    const contracted_rate = await findActiveContractedRateForStay({
+    const contracted_rates = await listActiveContractedRatesForStay({
       property_id: input.property_id,
       check_in: input.check_in,
       check_out: input.check_out,
     });
 
-    if (contracted_rate) {
+    if (contracted_rates.length > 0) {
       return {
         layer: 1,
         pattern: "offline_only",
         destination_type,
         destination_profile_id,
-        contracted_rate,
+        contracted_rates,
         peak_windows,
         custom_source_order: null,
       };
@@ -79,7 +80,7 @@ export async function resolveRoutingLayer(
         pattern: override.pattern,
         destination_type,
         destination_profile_id,
-        contracted_rate: null,
+        contracted_rates: [],
         peak_windows,
         custom_source_order: override.custom_source_order,
       };
@@ -99,7 +100,7 @@ export async function resolveRoutingLayer(
         pattern: typeDefault.pattern,
         destination_type,
         destination_profile_id,
-        contracted_rate: null,
+        contracted_rates: [],
         peak_windows,
         custom_source_order: null,
       };
@@ -112,7 +113,7 @@ export async function resolveRoutingLayer(
     pattern: LAYER4_DEFAULT_PATTERN,
     destination_type,
     destination_profile_id,
-    contracted_rate: null,
+    contracted_rates: [],
     peak_windows,
     custom_source_order: null,
   };

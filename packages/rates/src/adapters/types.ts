@@ -6,8 +6,8 @@ import type { RateSourceCode, SearchRatesRequest } from "../types";
 /** Shared input every adapter receives (ids come from the request, not invented). */
 export type AdapterContext = {
   request: SearchRatesRequest;
-  /** Set when resolve already found a Layer 1 contracted rate. */
-  contracted_rate?: PropertyContractedRate | null;
+  /** Layer 1 covering rates from resolve (skips a second DB read). */
+  contracted_rates?: PropertyContractedRate[];
   wholesalers?: DestinationWholesaler[];
 };
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   composeE164,
   listDialCodeOptions,
@@ -51,21 +51,26 @@ export function PhoneInput({
 
   const [country, setCountry] = useState<CountryCode>(initial.country);
   const [national, setNational] = useState(initial.national);
+  const [syncedValue, setSyncedValue] = useState(value);
+  const [syncedHint, setSyncedHint] = useState(hintCountry);
 
-  useEffect(() => {
+  // Sync external value → local parts during render (React-recommended pattern).
+  if (value !== syncedValue) {
+    setSyncedValue(value);
     const composed = composeE164(country, national) ?? "";
-    if (value === composed) return;
-    const next = parsePhoneParts(value, hintCountry ?? country);
-    setCountry(next.country);
-    setNational(next.national);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- avoid loops on local edits
-  }, [value]);
+    if (value !== composed) {
+      const next = parsePhoneParts(value, hintCountry ?? country);
+      setCountry(next.country);
+      setNational(next.national);
+    }
+  }
 
-  useEffect(() => {
-    if (!hintCountry) return;
-    if (national.trim() || value.trim()) return;
-    setCountry(hintCountry);
-  }, [hintCountry, national, value]);
+  if (hintCountry !== syncedHint) {
+    setSyncedHint(hintCountry);
+    if (hintCountry && !national.trim() && !value.trim()) {
+      setCountry(hintCountry);
+    }
+  }
 
   function emit(nextCountry: CountryCode, nextNational: string) {
     onChange(composeE164(nextCountry, nextNational) ?? "");

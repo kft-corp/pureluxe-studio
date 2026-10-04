@@ -6,9 +6,13 @@ Database for PureLuxe (Studio + Client later). One project, SQL migrations in th
 
 ```
 supabase/
-├── migrations/     # Numbered SQL — apply in order
+├── migrations/          # Numbered SQL — apply in order (db push)
+│   └── seeds/           # Optional inserts — NOT applied by db push
+│       └── README.md    # What belongs in seeds vs migrations
 └── README.md
 ```
+
+See [`migrations/seeds/README.md`](migrations/seeds/README.md) for the full seed policy.
 
 ## Apply the Studio auth tables
 
@@ -89,24 +93,29 @@ Adds indexes for household name search (`families.name` trigram) and related-peo
 
 Migration: `migrations/011_rate_layer.sql`
 
-Creates Rate Layer **Layers 1–4** config + **Knowledge Base** (end-to-end):
+Creates Rate Layer **Layers 1–4** schema. Seeds only system defaults that must exist in every environment: `company_settings` (`rate_sources`, `knowledge_base`), Layer 3 `destination_type_defaults`, and rate/knowledge permissions.
 
 | Object | Purpose |
 |---|---|
 | `company_settings` | Seeds `rate_sources` (incl. channel enable flags) + `knowledge_base` |
-| `destination_type_defaults` | Layer 3 type → pattern |
-| `destination_profiles` | Canonical destinations + aliases |
-| `destination_routing_overrides` | Layer 2 (Maldives / Dubai / Bali / Doha seeded) |
+| `destination_type_defaults` | Layer 3 type → pattern (seeded) |
+| `destination_profiles` | Canonical destinations + aliases (empty until optional seed) |
+| `destination_routing_overrides` | Layer 2 patterns (empty until optional seed) |
 | `destination_wholesalers` | Dest ↔ wholesaler adapter bindings |
-| `rate_peak_windows` | Ski peak dates |
-| `negotiated_rate_codes` | Consortia/chain code registry |
-| `properties` | Thin hotel master (links to KB via `curated_hotel_id`) |
+| `rate_peak_windows` | Ski peak dates (empty until optional seed) |
+| `negotiated_rate_codes` | Consortia/chain code registry (empty until ops or optional seed) |
+| `properties` | Thin hotel master (`curated_hotel_id` FK added in 016) |
 | `property_supplier_codes` | Generic Sabre/Hotelbeds/wholesale codes |
-| `property_contracted_rates` | Layer 1 contracted rates |
-| `kb_sources` / `kb_entities` / `kb_facts` | KB content (facts = full notes) |
-| `kb_fact_chunks` | Semantic RAG chunks + embeddings |
+| `property_contracts` | Offline contract headers (`policies` / `benefits` / `payout` jsonb) |
+| `property_contracted_rates` | Layer 1 room/package rates |
+| `property_rate_addons` | Transfers, tax, meals, drinks, festive |
+| `property_contract_offers` | % off / free HB / family-style offers |
 | `rate_search_events` | Optional resolveRates audit |
 | Permissions | `rates.search`, `settings.rate_sources`, `knowledge.*`, `settings.knowledge_base` |
+
+Optional Rate Layer rows: [`migrations/seeds/011_rate_layer.sql`](migrations/seeds/011_rate_layer.sql).  
+Optional PDF branding: [`migrations/seeds/015_trip_builder_flow.sql`](migrations/seeds/015_trip_builder_flow.sql).  
+`db push` does not apply `seeds/`.
 
 Drops obsolete Path tables (`offline_trip_types`, `wholesaler_destinations`, `high_value_routing`).  
 Spec: [`docs/studio/rate-layer.md`](../docs/studio/rate-layer.md). Recreate notes: [`docs/studio/rate-layer-deferred.md`](../docs/studio/rate-layer-deferred.md).

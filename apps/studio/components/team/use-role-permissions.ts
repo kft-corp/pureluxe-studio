@@ -92,7 +92,19 @@ export function useRolePermissions({ enabled }: UseRolePermissionsOptions) {
       return;
     }
 
-    void refresh();
+    let cancelled = false;
+
+    // Load after tick so setState is not synchronous inside the effect body.
+    const timer = window.setTimeout(() => {
+      if (!cancelled) {
+        void refresh();
+      }
+    }, 0);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [data, enabled, refresh]);
 
   const selectRole = useCallback(

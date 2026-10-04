@@ -1,8 +1,6 @@
 import { listClients, searchClients as dbSearchClients } from "@pureluxe/db";
 import type { ListClientsQuery, SearchClientsQuery } from "@pureluxe/shared";
 
-import { CLIENT_DIRECTORY_PAGE_SIZE } from "./client-limits";
-
 export { CLIENT_DIRECTORY_PAGE_SIZE } from "./client-limits";
 
 type ListDirectoryOptions = ListClientsQuery & {
@@ -15,14 +13,18 @@ export async function listClientDirectory(query: ListDirectoryOptions) {
 
   return {
     ...result,
-    clients: result.clients.map(({ active: _active, ...row }) => ({
-      ...row,
-      stats: {
-        total_spend_usd: 0,
-        booking_count: 0,
-        last_booking_date: null as string | null,
-      },
-    })),
+    clients: result.clients.map((row) => {
+      const { active, ...rest } = row;
+      void active;
+      return {
+        ...rest,
+        stats: {
+          total_spend_usd: 0,
+          booking_count: 0,
+          last_booking_date: null as string | null,
+        },
+      };
+    }),
   };
 }
 

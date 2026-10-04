@@ -1,6 +1,8 @@
 import { getServiceClient, runSupabaseQuery } from "../../client";
 import { dbQueryError } from "../../errors";
 import type {
+  KbContractStatus,
+  KbTier,
   TripLineItem,
   TripLineItemCategory,
   TripLineItemSource,
@@ -17,6 +19,9 @@ export type InsertTripLineItemInput = {
   details?: string | null;
   property_id?: string | null;
   property_name?: string | null;
+  kb_entity_id?: string | null;
+  kb_tier?: KbTier | null;
+  kb_contract_status?: KbContractStatus | null;
   unit?: TripLineItemUnit | null;
   quantity?: number | null;
   unit_count?: number;
@@ -57,6 +62,9 @@ export async function insertTripLineItem(
         details: input.details ?? null,
         property_id: input.property_id ?? null,
         property_name: input.property_name ?? null,
+        kb_entity_id: input.kb_entity_id ?? null,
+        kb_tier: input.kb_tier ?? null,
+        kb_contract_status: input.kb_contract_status ?? null,
         unit: input.unit ?? null,
         quantity: input.quantity ?? null,
         unit_count: input.unit_count ?? 1,

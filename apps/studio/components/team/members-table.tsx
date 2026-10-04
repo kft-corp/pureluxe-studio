@@ -35,7 +35,6 @@ type MembersTableProps = {
 
 type MemberRowProps = {
   member: TeamMemberListItem;
-  roles: TeamOverviewData["roles"];
   canManage: boolean;
   isSelf: boolean;
   displayName: string;
@@ -125,7 +124,6 @@ function emptyMessage(hasActiveFilters: boolean, searchQuery: string): string {
 
 function MemberRowContent({
   member,
-  roles,
   canManage,
   isSelf,
   displayName,
@@ -226,7 +224,6 @@ export function MembersTable({
 
     return {
       member,
-      roles,
       canManage,
       isSelf,
       displayName,

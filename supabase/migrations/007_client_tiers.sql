@@ -28,7 +28,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS client_tiers_one_default_uidx
 CREATE INDEX IF NOT EXISTS client_tiers_rank_idx
   ON public.client_tiers (rank);
 
--- 2. Seed tiers (idempotent)
+-- 2. Required system catalog (idempotent) — keep in migration, not seeds/.
+-- clients.tier_id is NOT NULL and depends on these rows in every environment.
 INSERT INTO public.client_tiers (slug, label, rank, description, is_default, active, config)
 VALUES
   ('standard', 'Standard', 1, 'Default guest service level.', true, true, '{}'::jsonb),

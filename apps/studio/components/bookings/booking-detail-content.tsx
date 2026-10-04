@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  createElement,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   LuArrowLeft,
   LuCheck,
@@ -174,7 +180,6 @@ export function BookingDetailContent({
     booking.status === "pending" || booking.status === "on_hold";
   const canLifecycle = canEdit && LIFECYCLE_STATUSES.has(booking.status);
 
-  const ServiceIcon = bookingServiceIcon(booking.service_type);
   const deadline = resolveBookingDeadline(
     booking.cancellation_deadline,
     booking.ticket_time_limit,
@@ -236,11 +241,11 @@ export function BookingDetailContent({
         <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex min-w-0 items-start gap-3 sm:gap-4">
             <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-border bg-surface text-ink shadow-sm sm:h-16 sm:w-16">
-              <ServiceIcon
-                className="h-5 w-5 sm:h-7 sm:w-7"
-                strokeWidth={1.5}
-                aria-hidden
-              />
+              {createElement(bookingServiceIcon(booking.service_type), {
+                className: "h-5 w-5 sm:h-7 sm:w-7",
+                strokeWidth: 1.5,
+                "aria-hidden": true,
+              })}
             </span>
 
             <div className="min-w-0 flex-1">

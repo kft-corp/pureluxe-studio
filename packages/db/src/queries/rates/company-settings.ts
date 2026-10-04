@@ -28,8 +28,11 @@ const DEFAULT_RATE_SOURCES: RateSourcesSetting = {
 
 const DEFAULT_KNOWLEDGE_BASE: KnowledgeBaseSetting = {
   scrape_enabled: false,
-  fallback_llm_enabled: true,
+  fallback_llm_enabled: false,
   guest_review_factcheck_enabled: false,
+  live_fetch_enabled: false,
+  llm_general_ttl_days: 30,
+  default_passport_country_code: "IN",
 };
 
 function asObject(value: unknown): Record<string, unknown> {
@@ -103,6 +106,9 @@ export function parseRateSourcesSetting(
 
 function parseKnowledgeBaseSetting(value: unknown): KnowledgeBaseSetting {
   const raw = asObject(value);
+  const ttl = raw.llm_general_ttl_days;
+  const passport = raw.default_passport_country_code;
+
   return {
     scrape_enabled:
       typeof raw.scrape_enabled === "boolean"
@@ -116,6 +122,18 @@ function parseKnowledgeBaseSetting(value: unknown): KnowledgeBaseSetting {
       typeof raw.guest_review_factcheck_enabled === "boolean"
         ? raw.guest_review_factcheck_enabled
         : DEFAULT_KNOWLEDGE_BASE.guest_review_factcheck_enabled,
+    live_fetch_enabled:
+      typeof raw.live_fetch_enabled === "boolean"
+        ? raw.live_fetch_enabled
+        : DEFAULT_KNOWLEDGE_BASE.live_fetch_enabled,
+    llm_general_ttl_days:
+      typeof ttl === "number" && Number.isFinite(ttl) && ttl > 0
+        ? Math.floor(ttl)
+        : DEFAULT_KNOWLEDGE_BASE.llm_general_ttl_days,
+    default_passport_country_code:
+      typeof passport === "string" && /^[A-Za-z]{2}$/.test(passport.trim())
+        ? passport.trim().toUpperCase()
+        : DEFAULT_KNOWLEDGE_BASE.default_passport_country_code,
   };
 }
 
@@ -163,6 +181,60 @@ export async function getKnowledgeBaseSetting(): Promise<KnowledgeBaseSetting> {
   }
 
   return parseKnowledgeBaseSetting(data.value);
+}
+
+export type KnowledgeBaseSettingPatch = Partial<KnowledgeBaseSetting>;
+
+/** Merge a partial patch onto current knowledge_base (no DB I/O). */
+export function mergeKnowledgeBaseSetting(
+  current: KnowledgeBaseSetting,
+  patch: KnowledgeBaseSettingPatch,
+): KnowledgeBaseSetting {
+  const passport = patch.default_passport_country_code;
+  return {
+    scrape_enabled: patch.scrape_enabled ?? current.scrape_enabled,
+    fallback_llm_enabled:
+      patch.fallback_llm_enabled ?? current.fallback_llm_enabled,
+    guest_review_factcheck_enabled:
+      patch.guest_review_factcheck_enabled ??
+      current.guest_review_factcheck_enabled,
+    live_fetch_enabled: patch.live_fetch_enabled ?? current.live_fetch_enabled,
+    llm_general_ttl_days:
+      patch.llm_general_ttl_days ?? current.llm_general_ttl_days,
+    default_passport_country_code:
+      typeof passport === "string" && /^[A-Za-z]{2}$/.test(passport.trim())
+        ? passport.trim().toUpperCase()
+        : current.default_passport_country_code,
+  };
+}
+
+/** Merge a partial patch into knowledge_base and persist. */
+export async function upsertKnowledgeBaseSetting(
+  patch: KnowledgeBaseSettingPatch,
+  updatedById?: string | null,
+): Promise<KnowledgeBaseSetting> {
+  const current = await getKnowledgeBaseSetting();
+  const next = mergeKnowledgeBaseSetting(current, patch);
+
+  const supabase = getServiceClient();
+
+  const { error } = await runSupabaseQuery(() =>
+    supabase.from("company_settings").upsert(
+      {
+        key: KNOWLEDGE_BASE_KEY,
+        value: next,
+        updated_by_id: updatedById ?? null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "key" },
+    ),
+  );
+
+  if (error) {
+    throw dbQueryError(error);
+  }
+
+  return next;
 }
 
 /** True when company_settings allows this source channel. */

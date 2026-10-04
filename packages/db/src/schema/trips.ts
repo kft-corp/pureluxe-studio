@@ -1,3 +1,9 @@
+import type {
+  KbContractStatus,
+  KbSelectionStatus,
+  KbTier,
+} from "./atlas-kb";
+
 export type TripStatus =
   | "building"
   | "waiting_on_client"
@@ -103,6 +109,8 @@ export type TripLeg = {
   check_in: string | null;
   check_out: string | null;
   itinerary_status: TripLegItineraryStatus;
+  /** Atlas gate: pending → resolved | empty after resolve-candidates. */
+  kb_selection_status: KbSelectionStatus;
   created_at: string;
   updated_at: string;
 };
@@ -133,6 +141,11 @@ export type TripLineItem = {
   details: string | null;
   property_id: string | null;
   property_name: string | null;
+  /** Atlas entity selected for this line (016). */
+  kb_entity_id: string | null;
+  /** Copied from kb_entities at select time. Rate search must not clear this. */
+  kb_tier: KbTier | null;
+  kb_contract_status: KbContractStatus | null;
   unit: TripLineItemUnit | null;
   quantity: number | null;
   unit_count: number;

@@ -55,7 +55,8 @@ export async function createClient(
     relationship_owner_id: relationshipOwnerId,
   });
 
-  const { tier_slug: _slug, ...insertFields } = input;
+  const { tier_slug, ...insertFields } = input;
+  void tier_slug;
 
   const client = await insertClient({
     ...insertFields,

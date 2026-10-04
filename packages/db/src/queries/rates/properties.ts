@@ -54,6 +54,7 @@ export type FindContractedRateInput = {
   property_id: string;
   check_in: string;
   check_out: string;
+  contract_id?: string | null;
 };
 
 /** YYYY-MM-DD minus one calendar day (UTC date parts). */
@@ -65,48 +66,44 @@ function previousCalendarDay(isoDate: string): string {
 }
 
 /**
- * Layer 1: active contracted rate whose date band covers the stay.
- * Stay nights are [check_in, check_out) — same as peak windows.
- * If several match, prefer the narrowest band (latest valid_from).
+ * Active contracted rates whose date band covers the stay
+ * ([check_in, check_out) nights). Ordered by sort_order, then room name.
  */
-export async function findActiveContractedRateForStay(
+export async function listActiveContractedRatesForStay(
   input: FindContractedRateInput,
-): Promise<PropertyContractedRate | null> {
+): Promise<PropertyContractedRate[]> {
   const supabase = getServiceClient();
 
-  const { data, error } = await runSupabaseQuery(() =>
-    supabase
-      .from("property_contracted_rates")
-      .select("*")
-      .eq("property_id", input.property_id)
-      .eq("active", true),
-  );
+  let query = supabase
+    .from("property_contracted_rates")
+    .select("*")
+    .eq("property_id", input.property_id)
+    .eq("active", true);
+
+  if (input.contract_id) {
+    query = query.eq("contract_id", input.contract_id);
+  }
+
+  const { data, error } = await runSupabaseQuery(() => query);
 
   if (error) {
     throw dbQueryError(error);
   }
 
-  const rows = (data ?? []) as PropertyContractedRate[];
   const lastNight = previousCalendarDay(input.check_out);
-
-  const covering = rows.filter((row) => {
+  const covering = ((data ?? []) as PropertyContractedRate[]).filter((row) => {
     const fromOk = row.valid_from == null || row.valid_from <= input.check_in;
     const toOk = row.valid_to == null || row.valid_to >= lastNight;
     return fromOk && toOk;
   });
 
-  if (covering.length === 0) return null;
-
-  covering.sort((a, b) => {
-    const aFrom = a.valid_from ?? "";
-    const bFrom = b.valid_from ?? "";
-    return bFrom.localeCompare(aFrom);
+  return covering.sort((a, b) => {
+    const byOrder = (a.sort_order ?? 0) - (b.sort_order ?? 0);
+    if (byOrder !== 0) return byOrder;
+    return (a.room_category ?? "").localeCompare(b.room_category ?? "");
   });
-
-  return covering[0] ?? null;
 }
 
-/** Property plus active supplier codes (one round-trip pair for the resolver). */
 export type PropertyWithSupplierCodes = {
   property: Property;
   supplier_codes: PropertySupplierCode[];

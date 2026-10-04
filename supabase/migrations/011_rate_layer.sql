@@ -1,48 +1,45 @@
--- Rate Layer + Knowledge Base schema (Layers 1–4 + KB for RAG).
+-- Rate Layer schema (Layers 1–4 + offline contracted contracts).
 -- Spec: docs/studio/rate-layer.md
 -- Depends on: 001 (team_members, set_updated_at), 002 (studio_permissions), 003 (pg_trgm).
--- Safe to re-run: IF NOT EXISTS / ON CONFLICT / CREATE OR REPLACE where practical.
+-- Atlas KB lives in 016_atlas_kb.sql (not here).
 --
--- Does NOT create trip_line_items (Trip Builder — 012_trips_kernel.sql).
+-- Fresh-install style: CREATE TABLE with final columns only — no ALTER widen blocks.
+-- If Supabase already has older Rate Layer tables, drop them first (see cleanup below),
+-- then run this file.
+--
+-- Does NOT create trip_line_items (012_trips_kernel.sql).
 -- Does NOT create a global rates catalogue.
 --
--- INSERT policy: permanent system rows + founder-confirmed seeds (Layer 2 places,
--- ski peak windows, negotiated program labels, Pure Escapes↔Maldives binding).
--- No fake hotels, KB facts, or invented live GDS access codes.
+-- INSERT policy: permanent system defaults only (company_settings, Layer 3
+-- destination_type_defaults, RBAC). Rows that may differ in live — destination
+-- profiles, routing, wholesaler bindings, ski peak dates, negotiated code
+-- placeholders — live in migrations/seeds/ and are not applied by db push.
+-- No fake hotels or invented live GDS access codes.
 --
 -- =============================================================================
 -- RECREATE / CLEANUP (run in Supabase SQL editor BEFORE this migration if needed)
 -- =============================================================================
--- If you already applied the old Path-style 011, drop obsolete + Rate Layer tables
--- you want rebuilt. Null trip/booking property FKs first if you drop properties:
---
 --   UPDATE public.trip_line_items SET property_id = NULL WHERE property_id IS NOT NULL;
---   UPDATE public.trip_legs SET property_id = NULL WHERE property_id IS NOT NULL;
 --   UPDATE public.bookings SET property_id = NULL WHERE property_id IS NOT NULL;
+--   (trip_legs has no property_id column)
 --
---   DROP TABLE IF EXISTS public.high_value_routing CASCADE;
---   DROP TABLE IF EXISTS public.wholesaler_destinations CASCADE;
---   DROP TABLE IF EXISTS public.offline_trip_types CASCADE;
+--   DROP TABLE IF EXISTS public.property_contract_offers CASCADE;
+--   DROP TABLE IF EXISTS public.property_rate_addons CASCADE;
 --   DROP TABLE IF EXISTS public.property_contracted_rates CASCADE;
+--   DROP TABLE IF EXISTS public.property_contracts CASCADE;
 --   DROP TABLE IF EXISTS public.property_supplier_codes CASCADE;
+--   DROP TABLE IF EXISTS public.rate_search_events CASCADE;
 --   DROP TABLE IF EXISTS public.rate_peak_windows CASCADE;
 --   DROP TABLE IF EXISTS public.destination_wholesalers CASCADE;
 --   DROP TABLE IF EXISTS public.destination_routing_overrides CASCADE;
 --   DROP TABLE IF EXISTS public.negotiated_rate_codes CASCADE;
---   DROP TABLE IF EXISTS public.kb_fact_chunks CASCADE;
---   DROP TABLE IF EXISTS public.kb_facts CASCADE;
---   DROP TABLE IF EXISTS public.kb_entities CASCADE;
---   DROP TABLE IF EXISTS public.kb_sources CASCADE;
 --   DROP TABLE IF EXISTS public.destination_profiles CASCADE;
 --   DROP TABLE IF EXISTS public.destination_type_defaults CASCADE;
 --   DROP TABLE IF EXISTS public.properties CASCADE;
---   DROP TABLE IF EXISTS public.company_settings CASCADE;
---   -- optional audit: DROP TABLE IF EXISTS public.rate_search_events CASCADE;
---
--- Then run this migration (or paste its body) to create the full schema once.
-
--- Optional: semantic RAG (KB-R2). Safe if extension already present.
-CREATE EXTENSION IF NOT EXISTS vector;
+--   -- optional: DROP TABLE IF EXISTS public.company_settings CASCADE;
+--   DROP TABLE IF EXISTS public.high_value_routing CASCADE;
+--   DROP TABLE IF EXISTS public.wholesaler_destinations CASCADE;
+--   DROP TABLE IF EXISTS public.offline_trip_types CASCADE;
 
 -- Drop obsolete Path-style tables from early 011 (no longer used).
 DROP TABLE IF EXISTS public.high_value_routing CASCADE;
@@ -203,20 +200,7 @@ CREATE INDEX IF NOT EXISTS destination_profiles_type_idx
   ON public.destination_profiles (destination_type)
   WHERE active = true;
 
--- Founder-confirmed Layer 2 starters (list will grow in Settings).
-INSERT INTO public.destination_profiles (canonical_name, aliases, destination_type, notes)
-SELECT v.canonical_name, v.aliases::jsonb, v.destination_type, v.notes
-FROM (
-  VALUES
-    ('Maldives', '["MLE","Malé","Male","maldives"]', 'resort_beach', 'Layer 2 wholesale_first'),
-    ('Dubai', '["DXB","dubai"]', 'city_countryside', 'Layer 2 parallel_lowest'),
-    ('Bali', '["DPS","bali"]', 'resort_beach', 'Layer 2 parallel_lowest'),
-    ('Doha', '["DOH","doha"]', 'city_countryside', 'Layer 2 parallel_lowest')
-) AS v(canonical_name, aliases, destination_type, notes)
-WHERE NOT EXISTS (
-  SELECT 1 FROM public.destination_profiles p
-  WHERE lower(p.canonical_name) = lower(v.canonical_name)
-);
+-- Optional place list: migrations/seeds/011_rate_layer.sql
 
 -- =============================================================================
 -- 4. destination_routing_overrides (Layer 2)
@@ -255,22 +239,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS destination_routing_overrides_profile_uidx
   ON public.destination_routing_overrides (destination_profile_id)
   WHERE active = true;
 
--- Founder-confirmed Layer 2 patterns.
-INSERT INTO public.destination_routing_overrides (destination_profile_id, pattern, notes)
-SELECT p.id, v.pattern, v.notes
-FROM (
-  VALUES
-    ('Maldives', 'wholesale_first', 'Founder confirmed'),
-    ('Dubai', 'parallel_lowest', 'Founder confirmed'),
-    ('Bali', 'parallel_lowest', 'Founder confirmed'),
-    ('Doha', 'parallel_lowest', 'Founder confirmed')
-) AS v(canonical_name, pattern, notes)
-JOIN public.destination_profiles p ON lower(p.canonical_name) = lower(v.canonical_name)
-WHERE NOT EXISTS (
-  SELECT 1
-  FROM public.destination_routing_overrides o
-  WHERE o.destination_profile_id = p.id AND o.active = true
-);
+-- Optional Layer 2 patterns: migrations/seeds/011_rate_layer.sql
 
 -- =============================================================================
 -- 5. destination_wholesalers
@@ -306,19 +275,7 @@ CREATE INDEX IF NOT EXISTS destination_wholesalers_profile_idx
   ON public.destination_wholesalers (destination_profile_id)
   WHERE active = true;
 
--- Founder: Pure Escapes is the wholesaler today; API not live yet — keep disabled.
-INSERT INTO public.destination_wholesalers (
-  destination_profile_id, wholesaler_name, supplier_key, priority, notes, active
-)
-SELECT p.id, 'Pure Escapes', 'wholesale_pure_escapes', 10,
-       'Founder partner — enable when wholesale API credentials are live', false
-FROM public.destination_profiles p
-WHERE lower(p.canonical_name) = 'maldives'
-  AND NOT EXISTS (
-    SELECT 1 FROM public.destination_wholesalers w
-    WHERE w.destination_profile_id = p.id
-      AND w.supplier_key = 'wholesale_pure_escapes'
-  );
+-- Optional wholesaler bindings: migrations/seeds/011_rate_layer.sql
 
 -- =============================================================================
 -- 6. rate_peak_windows (ski / festive)
@@ -360,20 +317,7 @@ CREATE INDEX IF NOT EXISTS rate_peak_windows_dates_idx
   ON public.rate_peak_windows (start_date, end_date)
   WHERE active = true;
 
--- Founder ski busy dates (ops updates yearly for new seasons).
-INSERT INTO public.rate_peak_windows (
-  destination_type, name, start_date, end_date, behaviour, notes
-)
-SELECT 'ski', v.name, v.start_date::date, v.end_date::date, 'offline_if_zero_gds', v.notes
-FROM (
-  VALUES
-    ('Christmas / New Year week', '2026-12-20', '2027-01-03', 'Founder: ~20 Dec–3 Jan'),
-    ('February half-term', '2027-02-13', '2027-02-21', 'Founder: 13–21 Feb')
-) AS v(name, start_date, end_date, notes)
-WHERE NOT EXISTS (
-  SELECT 1 FROM public.rate_peak_windows w
-  WHERE w.name = v.name AND w.start_date = v.start_date::date
-);
+-- Optional ski peak dates: migrations/seeds/011_rate_layer.sql
 
 -- =============================================================================
 -- 7. negotiated_rate_codes
@@ -403,7 +347,7 @@ CREATE TABLE IF NOT EXISTS public.negotiated_rate_codes (
 COMMENT ON TABLE public.negotiated_rate_codes IS
   'GDS negotiated / consortia codes PureLuxe holds. Admin enable/disable per row.';
 COMMENT ON COLUMN public.negotiated_rate_codes.code IS
-  'GDS access code. Seed uses stable slugs from founder program names until ops replaces with live Sabre codes.';
+  'Live GDS access code. Placeholder program slugs, if wanted, are in migrations/seeds/.';
 
 DROP TRIGGER IF EXISTS negotiated_rate_codes_set_updated_at ON public.negotiated_rate_codes;
 CREATE TRIGGER negotiated_rate_codes_set_updated_at
@@ -414,194 +358,12 @@ CREATE TRIGGER negotiated_rate_codes_set_updated_at
 CREATE UNIQUE INDEX IF NOT EXISTS negotiated_rate_codes_supplier_code_uidx
   ON public.negotiated_rate_codes (supplier_key, lower(code));
 
--- Founder consortia/chain program list (replace code with live GDS access code when known).
-INSERT INTO public.negotiated_rate_codes (code, label, supplier_key, notes)
-SELECT v.code, v.label, 'sabre', 'Founder list — replace code with live GDS access code when known'
-FROM (
-  VALUES
-    ('serandipians', 'Serandipians'),
-    ('four_seasons', 'Four Seasons'),
-    ('mandarin_oriental', 'Mandarin Oriental'),
-    ('peninsula', 'Peninsula'),
-    ('dorchester_collection', 'Dorchester Collection'),
-    ('hilton_for_luxury', 'Hilton For Luxury'),
-    ('marriott_stars', 'Marriott Stars'),
-    ('accor', 'Accor'),
-    ('rocco_forte', 'Rocco Forte'),
-    ('lhw_vita', 'LHW Vita'),
-    ('hyatt_prive', 'Hyatt Privé'),
-    ('shangri_la', 'Shangri-La'),
-    ('ihg', 'IHG'),
-    ('rosewood_elite', 'Rosewood Elite'),
-    ('jumeirah', 'Jumeirah'),
-    ('slh', 'SLH'),
-    ('preferred', 'Preferred'),
-    ('como_metropolitan_london', 'Como Metropolitan London')
-) AS v(code, label)
-WHERE NOT EXISTS (
-  SELECT 1 FROM public.negotiated_rate_codes n
-  WHERE n.supplier_key = 'sabre' AND lower(n.code) = lower(v.code)
-);
+-- Optional consortia placeholders: migrations/seeds/011_rate_layer.sql
 
 -- =============================================================================
--- 8. Knowledge Base — sources, entities, facts (RAG retrieve)
+-- 8. properties (thin hotel master — shared by all rate sources)
 -- =============================================================================
-
-CREATE TABLE IF NOT EXISTS public.kb_sources (
-  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  name            text NOT NULL,
-  source_kind     text NOT NULL DEFAULT 'website',
-  base_url        text,
-  scrape_method   text,
-  tos_notes       text,
-  meta            jsonb NOT NULL DEFAULT '{}'::jsonb,
-  active          boolean NOT NULL DEFAULT true,
-  created_at      timestamptz NOT NULL DEFAULT now(),
-  updated_at      timestamptz NOT NULL DEFAULT now(),
-
-  CONSTRAINT kb_sources_name_not_blank
-    CHECK (length(trim(name)) > 0),
-  CONSTRAINT kb_sources_kind_check
-    CHECK (source_kind IN (
-      'website',
-      'drive_doc',
-      'advisor_note',
-      'hotel_intake',
-      'consortia_portal',
-      'tourism_board',
-      'other'
-    ))
-);
-
-COMMENT ON TABLE public.kb_sources IS
-  'Approved KB scrape/intake sources (Sources Tracker). Toggle active to enable/disable.';
-
-DROP TRIGGER IF EXISTS kb_sources_set_updated_at ON public.kb_sources;
-CREATE TRIGGER kb_sources_set_updated_at
-  BEFORE UPDATE ON public.kb_sources
-  FOR EACH ROW
-  EXECUTE FUNCTION public.set_updated_at();
-
-CREATE UNIQUE INDEX IF NOT EXISTS kb_sources_name_uidx
-  ON public.kb_sources (lower(name));
-
-CREATE TABLE IF NOT EXISTS public.kb_entities (
-  id                       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  entity_type              text NOT NULL,
-  name                     text NOT NULL,
-  destination_profile_id   uuid REFERENCES public.destination_profiles (id) ON DELETE SET NULL,
-  linked_property_id       uuid, -- FK added after properties exists
-  external_keys            jsonb NOT NULL DEFAULT '{}'::jsonb,
-  notes                    text,
-  active                   boolean NOT NULL DEFAULT true,
-  created_at               timestamptz NOT NULL DEFAULT now(),
-  updated_at               timestamptz NOT NULL DEFAULT now(),
-
-  CONSTRAINT kb_entities_name_not_blank
-    CHECK (length(trim(name)) > 0),
-  CONSTRAINT kb_entities_type_check
-    CHECK (entity_type IN ('property', 'destination', 'dining', 'experience', 'other'))
-);
-
-COMMENT ON TABLE public.kb_entities IS
-  'KB content entities (hotel / destination / dining). No prices.';
-
-DROP TRIGGER IF EXISTS kb_entities_set_updated_at ON public.kb_entities;
-CREATE TRIGGER kb_entities_set_updated_at
-  BEFORE UPDATE ON public.kb_entities
-  FOR EACH ROW
-  EXECUTE FUNCTION public.set_updated_at();
-
-CREATE INDEX IF NOT EXISTS kb_entities_type_name_idx
-  ON public.kb_entities (entity_type, lower(name))
-  WHERE active = true;
-
-CREATE TABLE IF NOT EXISTS public.kb_facts (
-  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  entity_id       uuid NOT NULL REFERENCES public.kb_entities (id) ON DELETE CASCADE,
-  source_id       uuid REFERENCES public.kb_sources (id) ON DELETE SET NULL,
-  title           text,
-  body            text NOT NULL,
-  provenance      text NOT NULL,
-  status          text NOT NULL DEFAULT 'draft',
-  meta            jsonb NOT NULL DEFAULT '{}'::jsonb,
-  updated_by_id   uuid REFERENCES public.team_members (id) ON DELETE SET NULL,
-  created_at      timestamptz NOT NULL DEFAULT now(),
-  updated_at      timestamptz NOT NULL DEFAULT now(),
-
-  CONSTRAINT kb_facts_body_not_blank
-    CHECK (length(trim(body)) > 0),
-  CONSTRAINT kb_facts_provenance_check
-    CHECK (provenance IN ('verified', 'scraped', 'fallback')),
-  CONSTRAINT kb_facts_status_check
-    CHECK (status IN ('draft', 'approved', 'archived'))
-);
-
-COMMENT ON TABLE public.kb_facts IS
-  'KB facts (full note). Semantic RAG searches kb_fact_chunks, not this table.';
-
-DROP TRIGGER IF EXISTS kb_facts_set_updated_at ON public.kb_facts;
-CREATE TRIGGER kb_facts_set_updated_at
-  BEFORE UPDATE ON public.kb_facts
-  FOR EACH ROW
-  EXECUTE FUNCTION public.set_updated_at();
-
-CREATE INDEX IF NOT EXISTS kb_facts_entity_status_idx
-  ON public.kb_facts (entity_id, status, provenance);
-
-CREATE INDEX IF NOT EXISTS kb_facts_body_trgm_idx
-  ON public.kb_facts USING gin (body gin_trgm_ops)
-  WHERE status = 'approved';
-
--- =============================================================================
--- 8b. kb_fact_chunks (semantic RAG — one fact → many vectors)
--- =============================================================================
-
-CREATE TABLE IF NOT EXISTS public.kb_fact_chunks (
-  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  fact_id          uuid NOT NULL REFERENCES public.kb_facts (id) ON DELETE CASCADE,
-  chunk_index      int NOT NULL DEFAULT 0,
-  chunk_text       text NOT NULL,
-  embedding        vector(1536),
-  embedding_model  text,
-  token_count      int,
-  created_at       timestamptz NOT NULL DEFAULT now(),
-  updated_at       timestamptz NOT NULL DEFAULT now(),
-
-  CONSTRAINT kb_fact_chunks_text_not_blank
-    CHECK (length(trim(chunk_text)) > 0),
-  CONSTRAINT kb_fact_chunks_index_nonneg
-    CHECK (chunk_index >= 0),
-  UNIQUE (fact_id, chunk_index)
-);
-
-COMMENT ON TABLE public.kb_fact_chunks IS
-  'Searchable pieces of approved kb_facts. Create/rebuild chunks when a fact is approved or body changes; delete when archived.';
-COMMENT ON COLUMN public.kb_fact_chunks.embedding IS
-  'pgvector embedding for semantic search. Null until embedded. Dimension must match embedding_model.';
-COMMENT ON COLUMN public.kb_fact_chunks.chunk_text IS
-  'Text piece used for embedding and citation in Trip Builder answers.';
-
-DROP TRIGGER IF EXISTS kb_fact_chunks_set_updated_at ON public.kb_fact_chunks;
-CREATE TRIGGER kb_fact_chunks_set_updated_at
-  BEFORE UPDATE ON public.kb_fact_chunks
-  FOR EACH ROW
-  EXECUTE FUNCTION public.set_updated_at();
-
-CREATE INDEX IF NOT EXISTS kb_fact_chunks_fact_id_idx
-  ON public.kb_fact_chunks (fact_id);
-
-CREATE INDEX IF NOT EXISTS kb_fact_chunks_text_trgm_idx
-  ON public.kb_fact_chunks USING gin (chunk_text gin_trgm_ops);
-
--- Semantic (ivfflat/hnsw) index: create after embeddings exist, e.g.
---   CREATE INDEX kb_fact_chunks_embedding_ivfflat_idx
---     ON public.kb_fact_chunks USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)
---     WHERE embedding IS NOT NULL;
-
--- =============================================================================
--- 9. properties (thin hotel master)
--- =============================================================================
+-- curated_hotel_id FK to kb_entities is added in 016_atlas_kb.sql after Atlas exists.
 
 CREATE TABLE IF NOT EXISTS public.properties (
   id                       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -614,7 +376,10 @@ CREATE TABLE IF NOT EXISTS public.properties (
   region                   text,
   property_type            text,
   destination_profile_id   uuid REFERENCES public.destination_profiles (id) ON DELETE SET NULL,
-  curated_hotel_id         uuid REFERENCES public.kb_entities (id) ON DELETE SET NULL,
+  curated_hotel_id         uuid,
+  default_currency         text NOT NULL DEFAULT 'USD',
+  min_markup_percent       numeric,
+  contracting_entity_name  text,
   default_commission       numeric,
   commission_channel       text,
   commissionable           boolean,
@@ -627,13 +392,19 @@ CREATE TABLE IF NOT EXISTS public.properties (
   created_at               timestamptz NOT NULL DEFAULT now(),
   updated_at               timestamptz NOT NULL DEFAULT now(),
 
-  CONSTRAINT properties_name_not_blank CHECK (length(trim(name)) > 0)
+  CONSTRAINT properties_name_not_blank CHECK (length(trim(name)) > 0),
+  CONSTRAINT properties_default_currency_not_blank
+    CHECK (length(trim(default_currency)) > 0),
+  CONSTRAINT properties_min_markup_non_negative
+    CHECK (min_markup_percent IS NULL OR min_markup_percent >= 0)
 );
 
 COMMENT ON TABLE public.properties IS
-  'Thin hotel master for Rate Layer routing. Guest editorial lives in KB. No sell prices.';
+  'Thin hotel master for Rate Layer routing (shared by Sabre, Hotelbeds, wholesale, paste, contracted). Guest editorial lives in KB. No sell prices.';
 COMMENT ON COLUMN public.properties.curated_hotel_id IS
-  'Optional link to kb_entities (entity_type=property) for RAG content.';
+  'Optional link to kb_entities. FK added in 016_atlas_kb.sql.';
+COMMENT ON COLUMN public.properties.min_markup_percent IS
+  'Default minimum sell markup on villa/room net (e.g. 25). Per-contract override on property_contracts.';
 
 DROP TRIGGER IF EXISTS properties_set_updated_at ON public.properties;
 CREATE TRIGGER properties_set_updated_at
@@ -657,36 +428,8 @@ CREATE INDEX IF NOT EXISTS properties_curated_hotel_idx
   ON public.properties (curated_hotel_id)
   WHERE curated_hotel_id IS NOT NULL;
 
--- If an older properties table was kept (IF NOT EXISTS skip), align columns.
-ALTER TABLE public.properties
-  ADD COLUMN IF NOT EXISTS destination_profile_id uuid
-    REFERENCES public.destination_profiles (id) ON DELETE SET NULL;
-ALTER TABLE public.properties
-  ADD COLUMN IF NOT EXISTS curated_hotel_id uuid
-    REFERENCES public.kb_entities (id) ON DELETE SET NULL;
-ALTER TABLE public.properties DROP COLUMN IF EXISTS sabre_hotel_code;
-ALTER TABLE public.properties DROP COLUMN IF EXISTS hotelbeds_hotel_code;
-
--- Back-link from KB entity → property (now that properties exists).
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'kb_entities_linked_property_id_fkey'
-  ) THEN
-    ALTER TABLE public.kb_entities
-      ADD CONSTRAINT kb_entities_linked_property_id_fkey
-      FOREIGN KEY (linked_property_id)
-      REFERENCES public.properties (id)
-      ON DELETE SET NULL;
-  END IF;
-END $$;
-
-CREATE INDEX IF NOT EXISTS kb_entities_linked_property_idx
-  ON public.kb_entities (linked_property_id)
-  WHERE linked_property_id IS NOT NULL;
-
 -- =============================================================================
--- 10. property_supplier_codes
+-- 9. property_supplier_codes
 -- =============================================================================
 
 CREATE TABLE IF NOT EXISTS public.property_supplier_codes (
@@ -720,23 +463,110 @@ CREATE INDEX IF NOT EXISTS property_supplier_codes_lookup_idx
   WHERE active = true;
 
 -- =============================================================================
--- 11. property_contracted_rates (Layer 1)
+-- 10. property_contracts (Layer 1 — one PDF / agreement per hotel)
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS public.property_contracts (
+  id                     uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  property_id            uuid NOT NULL REFERENCES public.properties (id) ON DELETE CASCADE,
+  name                   text NOT NULL,
+  contract_type          text NOT NULL DEFAULT 'wholesale',
+  market                 text,
+  valid_from             date,
+  valid_to               date,
+  currency               text NOT NULL DEFAULT 'USD',
+  booking_code           text,
+  min_markup_percent     numeric,
+  source_document_name   text,
+  policies               jsonb NOT NULL DEFAULT '{}'::jsonb,
+  benefits               jsonb NOT NULL DEFAULT '[]'::jsonb,
+  payout                 jsonb NOT NULL DEFAULT '{}'::jsonb,
+  notes                  text,
+  active                 boolean NOT NULL DEFAULT true,
+  created_at             timestamptz NOT NULL DEFAULT now(),
+  updated_at             timestamptz NOT NULL DEFAULT now(),
+
+  CONSTRAINT property_contracts_name_not_blank
+    CHECK (length(trim(name)) > 0),
+  CONSTRAINT property_contracts_type_check
+    CHECK (contract_type IN ('wholesale', 'package', 'tactical')),
+  CONSTRAINT property_contracts_currency_not_blank
+    CHECK (length(trim(currency)) > 0),
+  CONSTRAINT property_contracts_dates_ok
+    CHECK (valid_to IS NULL OR valid_from IS NULL OR valid_to >= valid_from),
+  CONSTRAINT property_contracts_min_markup_non_negative
+    CHECK (min_markup_percent IS NULL OR min_markup_percent >= 0),
+  CONSTRAINT property_contracts_policies_is_object
+    CHECK (jsonb_typeof(policies) = 'object'),
+  CONSTRAINT property_contracts_benefits_is_array
+    CHECK (jsonb_typeof(benefits) = 'array'),
+  CONSTRAINT property_contracts_payout_is_object
+    CHECK (jsonb_typeof(payout) = 'object')
+);
+
+COMMENT ON TABLE public.property_contracts IS
+  'Layer 1 contract header for offline_contracted (one row per PDF/agreement).';
+COMMENT ON COLUMN public.property_contracts.booking_code IS
+  'Offer/booking reference required by hotel (e.g. SSK26IN).';
+COMMENT ON COLUMN public.property_contracts.market IS
+  'Market restriction when present (e.g. india, worldwide).';
+COMMENT ON COLUMN public.property_contracts.policies IS
+  'Dynamic policies JSON: stay_rules, payment_rules, transfer_policies, legal.';
+COMMENT ON COLUMN public.property_contracts.benefits IS
+  'Dynamic benefits JSON array: honeymoon, anniversary, package value-adds.';
+COMMENT ON COLUMN public.property_contracts.payout IS
+  'Hotel/supplier payout bank details JSON (not guest-facing).';
+
+DROP TRIGGER IF EXISTS property_contracts_set_updated_at ON public.property_contracts;
+CREATE TRIGGER property_contracts_set_updated_at
+  BEFORE UPDATE ON public.property_contracts
+  FOR EACH ROW
+  EXECUTE FUNCTION public.set_updated_at();
+
+CREATE INDEX IF NOT EXISTS property_contracts_property_idx
+  ON public.property_contracts (property_id)
+  WHERE active = true;
+
+CREATE INDEX IF NOT EXISTS property_contracts_validity_idx
+  ON public.property_contracts (valid_from, valid_to)
+  WHERE active = true;
+
+-- =============================================================================
+-- 11. property_contracted_rates (Layer 1 room / package money)
 -- =============================================================================
 
 CREATE TABLE IF NOT EXISTS public.property_contracted_rates (
-  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  property_id    uuid NOT NULL REFERENCES public.properties (id) ON DELETE CASCADE,
-  valid_from     date,
-  valid_to       date,
-  currency       text NOT NULL DEFAULT 'USD',
-  cost_amount    numeric NOT NULL,
-  cost_unit      text NOT NULL DEFAULT 'per_stay',
-  board          text,
-  inclusions     jsonb NOT NULL DEFAULT '[]'::jsonb,
-  notes          text,
-  active         boolean NOT NULL DEFAULT true,
-  created_at     timestamptz NOT NULL DEFAULT now(),
-  updated_at     timestamptz NOT NULL DEFAULT now(),
+  id                     uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  property_id            uuid NOT NULL REFERENCES public.properties (id) ON DELETE CASCADE,
+  contract_id            uuid REFERENCES public.property_contracts (id) ON DELETE CASCADE,
+  room_category          text,
+  season_code            text,
+  rate_basis             text NOT NULL DEFAULT 'nightly',
+  valid_from             date,
+  valid_to               date,
+  currency               text NOT NULL DEFAULT 'USD',
+  cost_amount            numeric NOT NULL,
+  cost_unit              text NOT NULL DEFAULT 'per_stay',
+  package_nights         int,
+  extra_night_amount     numeric,
+  base_adults            int NOT NULL DEFAULT 2,
+  base_children          int NOT NULL DEFAULT 0,
+  max_adults             int,
+  max_children           int,
+  board                  text,
+  includes_breakfast     boolean NOT NULL DEFAULT true,
+  includes_lunch         boolean NOT NULL DEFAULT false,
+  includes_dinner        boolean NOT NULL DEFAULT false,
+  includes_transfer      boolean NOT NULL DEFAULT false,
+  includes_green_tax     boolean NOT NULL DEFAULT false,
+  min_nights             int,
+  units_count            int,
+  sort_order             int NOT NULL DEFAULT 0,
+  inclusions             jsonb NOT NULL DEFAULT '[]'::jsonb,
+  notes                  text,
+  active                 boolean NOT NULL DEFAULT true,
+  created_at             timestamptz NOT NULL DEFAULT now(),
+  updated_at             timestamptz NOT NULL DEFAULT now(),
 
   CONSTRAINT property_contracted_rates_cost_positive
     CHECK (cost_amount >= 0),
@@ -744,14 +574,39 @@ CREATE TABLE IF NOT EXISTS public.property_contracted_rates (
     CHECK (length(trim(currency)) > 0),
   CONSTRAINT property_contracted_rates_unit_check
     CHECK (cost_unit IN ('per_stay', 'per_night', 'per_person', 'package')),
+  CONSTRAINT property_contracted_rates_basis_check
+    CHECK (rate_basis IN ('nightly', 'package')),
   CONSTRAINT property_contracted_rates_dates_ok
     CHECK (valid_to IS NULL OR valid_from IS NULL OR valid_to >= valid_from),
   CONSTRAINT property_contracted_rates_inclusions_is_array
-    CHECK (jsonb_typeof(inclusions) = 'array')
+    CHECK (jsonb_typeof(inclusions) = 'array'),
+  CONSTRAINT property_contracted_rates_base_adults_positive
+    CHECK (base_adults >= 1),
+  CONSTRAINT property_contracted_rates_base_children_non_negative
+    CHECK (base_children >= 0),
+  CONSTRAINT property_contracted_rates_max_adults_ok
+    CHECK (max_adults IS NULL OR max_adults >= base_adults),
+  CONSTRAINT property_contracted_rates_max_children_ok
+    CHECK (max_children IS NULL OR max_children >= 0),
+  CONSTRAINT property_contracted_rates_package_nights_ok
+    CHECK (package_nights IS NULL OR package_nights >= 1),
+  CONSTRAINT property_contracted_rates_extra_night_ok
+    CHECK (extra_night_amount IS NULL OR extra_night_amount >= 0),
+  CONSTRAINT property_contracted_rates_min_nights_ok
+    CHECK (min_nights IS NULL OR min_nights >= 1),
+  CONSTRAINT property_contracted_rates_season_check
+    CHECK (
+      season_code IS NULL
+      OR season_code IN ('peak', 'high', 'low', 'shoulder', 'other')
+    )
 );
 
 COMMENT ON TABLE public.property_contracted_rates IS
-  'Layer 1 standing contracted rates. Admin enters after PDF digitization (Maldives/India).';
+  'Layer 1 offline_contracted room/package rates. Maps to NormalizedRateOption like Sabre/wholesale/paste.';
+COMMENT ON COLUMN public.property_contracted_rates.room_category IS
+  'Villa/room name → NormalizedRateOption.room_name.';
+COMMENT ON COLUMN public.property_contracted_rates.rate_basis IS
+  'nightly = wholesale-style; package = fixed 3N/4N/5N India-style totals.';
 
 DROP TRIGGER IF EXISTS property_contracted_rates_set_updated_at ON public.property_contracted_rates;
 CREATE TRIGGER property_contracted_rates_set_updated_at
@@ -763,8 +618,186 @@ CREATE INDEX IF NOT EXISTS property_contracted_rates_property_idx
   ON public.property_contracted_rates (property_id)
   WHERE active = true;
 
+CREATE INDEX IF NOT EXISTS property_contracted_rates_contract_idx
+  ON public.property_contracted_rates (contract_id)
+  WHERE active = true AND contract_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS property_contracted_rates_validity_idx
+  ON public.property_contracted_rates (property_id, valid_from, valid_to)
+  WHERE active = true;
+
+CREATE INDEX IF NOT EXISTS property_contracted_rates_room_idx
+  ON public.property_contracted_rates (property_id, room_category)
+  WHERE active = true AND room_category IS NOT NULL;
+
 -- =============================================================================
--- 12. rate_search_events (optional audit — empty until live search)
+-- 12. property_rate_addons
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS public.property_rate_addons (
+  id                           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  property_id                  uuid NOT NULL REFERENCES public.properties (id) ON DELETE CASCADE,
+  contract_id                  uuid REFERENCES public.property_contracts (id) ON DELETE CASCADE,
+  addon_type                   text NOT NULL,
+  name                         text NOT NULL,
+  amount                       numeric NOT NULL,
+  currency                     text NOT NULL DEFAULT 'USD',
+  unit                         text NOT NULL DEFAULT 'per_person',
+  age_from                     int,
+  age_to                       int,
+  valid_from                   date,
+  valid_to                     date,
+  board_required               text,
+  mandatory                    boolean NOT NULL DEFAULT false,
+  applies_to_room_categories   jsonb NOT NULL DEFAULT '["*"]'::jsonb,
+  notes                        text,
+  active                       boolean NOT NULL DEFAULT true,
+  created_at                   timestamptz NOT NULL DEFAULT now(),
+  updated_at                   timestamptz NOT NULL DEFAULT now(),
+
+  CONSTRAINT property_rate_addons_name_not_blank
+    CHECK (length(trim(name)) > 0),
+  CONSTRAINT property_rate_addons_amount_non_negative
+    CHECK (amount >= 0),
+  CONSTRAINT property_rate_addons_currency_not_blank
+    CHECK (length(trim(currency)) > 0),
+  CONSTRAINT property_rate_addons_type_check
+    CHECK (addon_type IN (
+      'transfer',
+      'green_tax',
+      'meal',
+      'beverage',
+      'festive',
+      'extra_adult',
+      'extra_child',
+      'other'
+    )),
+  CONSTRAINT property_rate_addons_unit_check
+    CHECK (unit IN (
+      'per_person',
+      'per_person_per_night',
+      'per_night',
+      'per_villa_per_night',
+      'per_event',
+      'per_stay'
+    )),
+  CONSTRAINT property_rate_addons_dates_ok
+    CHECK (valid_to IS NULL OR valid_from IS NULL OR valid_to >= valid_from),
+  CONSTRAINT property_rate_addons_age_ok
+    CHECK (
+      age_from IS NULL
+      OR age_to IS NULL
+      OR age_to >= age_from
+    ),
+  CONSTRAINT property_rate_addons_rooms_is_array
+    CHECK (jsonb_typeof(applies_to_room_categories) = 'array')
+);
+
+COMMENT ON TABLE public.property_rate_addons IS
+  'Layer 1 offline_contracted add-on catalog (seaplane, green tax, HB/FB, drinks, festive, extra adult).';
+
+DROP TRIGGER IF EXISTS property_rate_addons_set_updated_at ON public.property_rate_addons;
+CREATE TRIGGER property_rate_addons_set_updated_at
+  BEFORE UPDATE ON public.property_rate_addons
+  FOR EACH ROW
+  EXECUTE FUNCTION public.set_updated_at();
+
+CREATE INDEX IF NOT EXISTS property_rate_addons_property_idx
+  ON public.property_rate_addons (property_id)
+  WHERE active = true;
+
+CREATE INDEX IF NOT EXISTS property_rate_addons_contract_idx
+  ON public.property_rate_addons (contract_id)
+  WHERE active = true AND contract_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS property_rate_addons_type_idx
+  ON public.property_rate_addons (property_id, addon_type)
+  WHERE active = true;
+
+-- =============================================================================
+-- 13. property_contract_offers
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS public.property_contract_offers (
+  id                         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  property_id                uuid NOT NULL REFERENCES public.properties (id) ON DELETE CASCADE,
+  contract_id                uuid REFERENCES public.property_contracts (id) ON DELETE CASCADE,
+  name                       text NOT NULL,
+  offer_type                 text NOT NULL,
+  percent_off_villa          numeric,
+  free_board                 text,
+  transfer_discount_percent  numeric,
+  valid_from                 date,
+  valid_to                   date,
+  book_by                    date,
+  min_nights                 int,
+  blackout_dates             jsonb NOT NULL DEFAULT '[]'::jsonb,
+  excluded_room_categories   jsonb NOT NULL DEFAULT '[]'::jsonb,
+  combinable_flags           jsonb NOT NULL DEFAULT '{}'::jsonb,
+  notes                      text,
+  active                     boolean NOT NULL DEFAULT true,
+  created_at                 timestamptz NOT NULL DEFAULT now(),
+  updated_at                 timestamptz NOT NULL DEFAULT now(),
+
+  CONSTRAINT property_contract_offers_name_not_blank
+    CHECK (length(trim(name)) > 0),
+  CONSTRAINT property_contract_offers_type_check
+    CHECK (offer_type IN (
+      'percent_off_villa',
+      'free_board_upgrade',
+      'transfer_discount',
+      'family',
+      'bundle',
+      'other'
+    )),
+  CONSTRAINT property_contract_offers_percent_villa_ok
+    CHECK (
+      percent_off_villa IS NULL
+      OR (percent_off_villa >= 0 AND percent_off_villa <= 100)
+    ),
+  CONSTRAINT property_contract_offers_transfer_pct_ok
+    CHECK (
+      transfer_discount_percent IS NULL
+      OR (
+        transfer_discount_percent >= 0
+        AND transfer_discount_percent <= 100
+      )
+    ),
+  CONSTRAINT property_contract_offers_dates_ok
+    CHECK (valid_to IS NULL OR valid_from IS NULL OR valid_to >= valid_from),
+  CONSTRAINT property_contract_offers_min_nights_ok
+    CHECK (min_nights IS NULL OR min_nights >= 1),
+  CONSTRAINT property_contract_offers_blackout_is_array
+    CHECK (jsonb_typeof(blackout_dates) = 'array'),
+  CONSTRAINT property_contract_offers_excluded_rooms_is_array
+    CHECK (jsonb_typeof(excluded_room_categories) = 'array'),
+  CONSTRAINT property_contract_offers_combinable_is_object
+    CHECK (jsonb_typeof(combinable_flags) = 'object')
+);
+
+COMMENT ON TABLE public.property_contract_offers IS
+  'Layer 1 offline_contracted commercial offers (% off villa, free HB, transfer discount, family).';
+
+DROP TRIGGER IF EXISTS property_contract_offers_set_updated_at ON public.property_contract_offers;
+CREATE TRIGGER property_contract_offers_set_updated_at
+  BEFORE UPDATE ON public.property_contract_offers
+  FOR EACH ROW
+  EXECUTE FUNCTION public.set_updated_at();
+
+CREATE INDEX IF NOT EXISTS property_contract_offers_property_idx
+  ON public.property_contract_offers (property_id)
+  WHERE active = true;
+
+CREATE INDEX IF NOT EXISTS property_contract_offers_contract_idx
+  ON public.property_contract_offers (contract_id)
+  WHERE active = true AND contract_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS property_contract_offers_validity_idx
+  ON public.property_contract_offers (valid_from, valid_to)
+  WHERE active = true;
+
+-- =============================================================================
+-- 14. rate_search_events (optional audit)
 -- =============================================================================
 
 CREATE TABLE IF NOT EXISTS public.rate_search_events (
@@ -789,7 +822,7 @@ CREATE INDEX IF NOT EXISTS rate_search_events_created_idx
   ON public.rate_search_events (created_at DESC);
 
 -- =============================================================================
--- 13. RBAC — Rate Layer + Knowledge Base
+-- 15. RBAC — Rate Layer (+ knowledge permission seeds used by Atlas later)
 -- =============================================================================
 
 INSERT INTO public.studio_permissions (slug, module, action, label, sort_order)
@@ -829,7 +862,7 @@ AND EXISTS (
 ON CONFLICT DO NOTHING;
 
 -- =============================================================================
--- 14. RLS + service_role grants
+-- 16. RLS + service_role grants
 -- =============================================================================
 
 ALTER TABLE public.company_settings ENABLE ROW LEVEL SECURITY;
@@ -839,13 +872,12 @@ ALTER TABLE public.destination_routing_overrides ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.destination_wholesalers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.rate_peak_windows ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.negotiated_rate_codes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.kb_sources ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.kb_entities ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.kb_facts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.kb_fact_chunks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.properties ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.property_supplier_codes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.property_contracts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.property_contracted_rates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.property_rate_addons ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.property_contract_offers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.rate_search_events ENABLE ROW LEVEL SECURITY;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.company_settings TO service_role;
@@ -855,11 +887,10 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.destination_routing_overrides TO 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.destination_wholesalers TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.rate_peak_windows TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.negotiated_rate_codes TO service_role;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.kb_sources TO service_role;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.kb_entities TO service_role;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.kb_facts TO service_role;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.kb_fact_chunks TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.properties TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.property_supplier_codes TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.property_contracts TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.property_contracted_rates TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.property_rate_addons TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.property_contract_offers TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.rate_search_events TO service_role;

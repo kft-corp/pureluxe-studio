@@ -100,7 +100,7 @@ export async function searchRatesForLeg(
 
   const ran = await runAdapterPlan(plan, {
     request,
-    contracted_rate: resolved.contracted_rate,
+    contracted_rates: resolved.contracted_rates,
     wholesalers,
   });
 

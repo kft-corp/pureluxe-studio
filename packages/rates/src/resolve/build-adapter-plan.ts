@@ -70,8 +70,8 @@ export function buildAdapterPlan(input: {
   const steps: AdapterStep[] = [];
   let requires_offline_paste = false;
 
-  // L1 contracted rate — surface offline contracted only.
-  if (routing.layer === 1 && routing.contracted_rate) {
+  // L1 — only offline contracted (one or many room/package rows).
+  if (routing.layer === 1 && routing.contracted_rates.length > 0) {
     pushIfEnabled(steps, setting, "offline_contracted", "primary");
     return {
       layer: routing.layer,

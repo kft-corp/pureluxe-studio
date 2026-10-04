@@ -497,28 +497,11 @@ SET
   allowed_mime_types = EXCLUDED.allowed_mime_types;
 
 -- =============================================================================
--- 15. Settings seed — PDF branding consumed at generate (Settings UI later)
+-- 15. PDF branding setting
 -- =============================================================================
-
-INSERT INTO public.company_settings (key, value)
-VALUES (
-  'pdf_branding',
-  '{
-    "company_display_name": "PureLuxe",
-    "logo_path": null,
-    "logo_dark_path": null,
-    "colors": {
-      "primary": "#1a4d3e",
-      "ink": "#141414",
-      "paper": "#f4f1ea"
-    },
-    "font_display": "Cormorant Garamond",
-    "font_body": "DM Sans",
-    "letterhead": null,
-    "footer_text": null
-  }'::jsonb
-)
-ON CONFLICT (key) DO NOTHING;
+-- Optional starter branding (colors/fonts/name) is NOT seeded here — it may
+-- differ in live. Run migrations/seeds/015_trip_builder_flow.sql by hand when
+-- you want placeholder branding. Production should set real brand in Settings.
 
 -- =============================================================================
 -- 16. RLS + service_role grants (Studio APIs use service_role; no client policies)
