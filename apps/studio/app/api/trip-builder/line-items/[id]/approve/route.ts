@@ -11,10 +11,12 @@ type RouteContext = {
 /** pending_review → pending. */
 export async function POST(_request: Request, context: RouteContext) {
   try {
-    await requireApiPermission("trip_builder.write");
+    const session = await requireApiPermission("trip_builder.write");
     const { id } = await context.params;
     const lineItemId = tripLineItemIdSchema.parse(id);
-    const data = await approveTripLineItem(lineItemId);
+    const data = await approveTripLineItem(lineItemId, {
+      memberId: session.memberId,
+    });
 
     return apiSuccess(data, {
       message: rateMessages.success.approved,

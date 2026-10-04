@@ -3,6 +3,8 @@ export const rateMessages = {
   success: {
     searched: "Rate search completed.",
     pasteCreated: "Paste saved for review.",
+    rateAdded: "Rate saved on the trip.",
+    rateSelected: "Rate selected for this stay.",
     approved: "Line item approved.",
     rejected: "Line item rejected.",
     settingsLoaded: "Rate source settings loaded.",
@@ -20,6 +22,8 @@ export const rateMessages = {
     pasteParseFailed:
       "We couldn't read a clear amount from that paste. Check the text and try again.",
     notPendingReview: "Only items pending review can be approved or rejected.",
+    notSelectable:
+      "Only a priced accommodation rate on this trip can be selected.",
     searchFailed: "Rate search failed. Try again.",
     liveRatesUnavailable:
       "Live supplier rates aren't connected yet. Try offline paste or a contracted rate.",

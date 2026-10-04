@@ -4,7 +4,10 @@ import { apiFromError, apiSuccess } from "@/lib/api";
 import { requireApiPermission } from "@/lib/auth/require-api-permission";
 import { runRateSearch } from "@/lib/rates";
 
-/** Run Rate Layer resolver for a trip leg (thin → @pureluxe/rates). */
+/**
+ * Run Rate Layer resolver for a trip leg (thin → @pureluxe/rates).
+ * When trip_id is set, ownership is enforced inside runRateSearch.
+ */
 export async function POST(request: Request) {
   try {
     const session = await requireApiPermission("rates.search");

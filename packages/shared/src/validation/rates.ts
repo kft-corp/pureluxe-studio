@@ -99,6 +99,97 @@ export const tripLineItemIdSchema = z.string().uuid({
   message: "Choose a valid line item.",
 });
 
+const rateSourceCodeSchema = z.enum([
+  "gds_public",
+  "gds_negotiated",
+  "ota_bedbank",
+  "wholesale",
+  "offline_contracted",
+  "offline_manual",
+]);
+
+/** One normalized search option — same shape as @pureluxe/rates options. */
+export const normalizedRateOptionSchema = z.object({
+  property_id: optionalUuid,
+  property_name: z
+    .string()
+    .trim()
+    .max(200)
+    .nullable()
+    .optional()
+    .transform((value) => value || null),
+  room_name: z
+    .string()
+    .trim()
+    .max(200)
+    .nullable()
+    .optional()
+    .transform((value) => value || null),
+  board: z
+    .string()
+    .trim()
+    .max(120)
+    .nullable()
+    .optional()
+    .transform((value) => value || null),
+  check_in: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, { message: "Use check-in as YYYY-MM-DD." }),
+  check_out: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, { message: "Use check-out as YYYY-MM-DD." }),
+  currency: z
+    .string()
+    .trim()
+    .length(3)
+    .transform((value) => value.toUpperCase()),
+  cost_internal: z.number().finite().nonnegative(),
+  rate_source_code: rateSourceCodeSchema,
+  inclusions: z.array(z.string().trim().max(200)).default([]),
+  cancellation_summary: z
+    .string()
+    .trim()
+    .max(2000)
+    .nullable()
+    .optional()
+    .transform((value) => value || null),
+  payment_summary: z
+    .string()
+    .trim()
+    .max(2000)
+    .nullable()
+    .optional()
+    .transform((value) => value || null),
+  availability_status: z
+    .enum(["available", "on_request", "unknown", "unavailable"])
+    .default("unknown"),
+  recommended: z.boolean().default(false),
+  raw: z.record(z.string(), z.unknown()).default({}),
+});
+
+export type NormalizedRateOptionBody = z.infer<typeof normalizedRateOptionSchema>;
+
+/**
+ * POST /api/trip-builder/line-items/from-rate
+ * Persist a search option onto the trip (optionally select it).
+ */
+export const addRateOptionBodySchema = z
+  .object({
+    trip_id: z.string().uuid({ message: "Choose a trip." }),
+    leg_id: optionalUuid,
+    option: normalizedRateOptionSchema,
+    select: z.boolean().optional().default(false),
+  })
+  .refine((body) => body.option.check_out > body.option.check_in, {
+    message: "Check-out must be after check-in.",
+    path: ["option", "check_out"],
+  });
+
+export type AddRateOptionBody = z.input<typeof addRateOptionBodySchema>;
+export type AddRateOptionInput = z.output<typeof addRateOptionBodySchema>;
+
 /** PATCH /api/settings/rate-sources — partial company rate_sources jsonb. */
 export const updateRateSourcesSettingSchema = z.object({
   default_currency: z

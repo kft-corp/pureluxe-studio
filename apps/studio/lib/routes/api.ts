@@ -45,6 +45,24 @@ export const apiRoutes = {
     traveller: (bookingId: string, travellerId: string) =>
       `/api/bookings/${bookingId}/travellers/${travellerId}`,
   },
+  tripBuilder: {
+    trips: "/api/trip-builder/trips",
+    trip: (tripId: string) => `/api/trip-builder/trips/${tripId}`,
+    stay: (tripId: string) => `/api/trip-builder/trips/${tripId}/stay`,
+    quote: (tripId: string) => `/api/trip-builder/trips/${tripId}/quote`,
+    quoteGenerate: (tripId: string) =>
+      `/api/trip-builder/trips/${tripId}/quote/generate`,
+    quoteUrl: (tripId: string) => `/api/trip-builder/trips/${tripId}/quote/url`,
+    ratesSearch: "/api/trip-builder/rates/search",
+    lineItemsPaste: "/api/trip-builder/line-items/paste",
+    lineItemsFromRate: "/api/trip-builder/line-items/from-rate",
+    lineItemApprove: (lineItemId: string) =>
+      `/api/trip-builder/line-items/${lineItemId}/approve`,
+    lineItemReject: (lineItemId: string) =>
+      `/api/trip-builder/line-items/${lineItemId}/reject`,
+    lineItemSelect: (lineItemId: string) =>
+      `/api/trip-builder/line-items/${lineItemId}/select`,
+  },
   families: {
     search: "/api/families/search",
   },

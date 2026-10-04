@@ -21,6 +21,7 @@ migrations. Prefer seeds (or Settings UI) for those.
 | File | After migration | What it loads |
 |---|---|---|
 | [`011_rate_layer.sql`](./011_rate_layer.sql) | `011_rate_layer.sql` | Maldives/Dubai/Bali/Doha profiles, Layer 2 overrides, Pure Escapes binding (inactive), ski peak windows, negotiated code **placeholder slugs** (`active = false`) |
+| [`011_rate_layer_kanuhura.sql`](./011_rate_layer_kanuhura.sql) | `011` + run `011_rate_layer.sql` seed first (Maldives profile) | Six Senses Kanuhura property, wholesale 2026–27 + India package `SSK26IN` contracts, villa rates, add-ons, offers |
 | [`015_trip_builder_flow.sql`](./015_trip_builder_flow.sql) | `015_trip_builder_flow.sql` | Starter `pdf_branding` company setting |
 
 ## How to run

@@ -99,7 +99,7 @@ export function AppShell({ user, children }: AppShellProps) {
           </div>
         </header>
 
-        <main className="min-h-0 w-full flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain bg-surface scrollbar-gutter-stable">
+        <main className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-y-contain bg-surface">
           {children}
         </main>
       </div>

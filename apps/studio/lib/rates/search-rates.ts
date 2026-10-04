@@ -1,11 +1,17 @@
 import { searchRatesForLeg, type SearchRatesResult } from "@pureluxe/rates";
 import type { SearchRatesBody } from "@pureluxe/shared";
 
+import { requireAssignedTrip } from "@/lib/trip-builder";
+
 /** Thin wrapper — Studio API → @pureluxe/rates brain. */
 export async function runRateSearch(
   input: SearchRatesBody,
   actor: { memberId: string },
 ): Promise<SearchRatesResult> {
+  if (input.trip_id) {
+    await requireAssignedTrip(input.trip_id, actor.memberId);
+  }
+
   return searchRatesForLeg({
     trip_id: input.trip_id ?? undefined,
     leg_id: input.leg_id ?? undefined,

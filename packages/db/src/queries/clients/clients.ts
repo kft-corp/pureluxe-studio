@@ -11,7 +11,7 @@ import { escapeIlike } from "../../utils/ilike";
 import { findClientTierBySlug } from "./client-tiers";
 
 const CLIENT_COLUMNS =
-  "id, display_name, title, first_name, last_name, legal_name, email, phone, whatsapp, preferred_contact_method, preferred_language, timezone, nationality, city_of_residence, company, address_line_1, address_line_2, address_city, address_state, address_postal_code, address_country, relationship_owner_id, tier_id, client_since, referred_by_client_id, important_dates, guest_notes, internal_notes, source, review_status, reviewed_by_id, reviewed_at, profile_completeness, avatar_url, active, merged_into_client_id, deactivated_at, deactivated_by_id, created_by_id, updated_by_id, created_at, updated_at";
+  "id, display_name, title, first_name, last_name, legal_name, email, phone, whatsapp, preferred_contact_method, preferred_language, timezone, nationality, city_of_residence, company, address_line_1, address_line_2, address_city, address_state, address_postal_code, address_country, relationship_owner_id, tier_id, client_since, referred_by_client_id, important_dates, guest_notes, internal_notes, source, review_status, reviewed_by_id, reviewed_at, profile_completeness, avatar_url, active, is_demo, merged_into_client_id, deactivated_at, deactivated_by_id, created_by_id, updated_by_id, created_at, updated_at";
 
 const TIER_EMBED = "client_tiers(id, slug, label, rank)";
 

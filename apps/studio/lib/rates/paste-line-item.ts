@@ -1,5 +1,4 @@
 import {
-  findTripById,
   findTripLegById,
   getRateSourcesSetting,
   insertTripLineItem,
@@ -13,6 +12,8 @@ import {
 } from "@pureluxe/rates";
 import { AppError, rateMessages, type PasteLineItemBody } from "@pureluxe/shared";
 
+import { requireAssignedTrip } from "@/lib/trip-builder";
+
 /**
  * Paste → parse → normalize → trip_line_items pending_review.
  * Uses the same option → line-item shape as searchRatesForLeg.
@@ -21,14 +22,7 @@ export async function pasteTripLineItem(
   input: PasteLineItemBody,
   actor: { memberId: string },
 ): Promise<TripLineItem> {
-  const trip = await findTripById(input.trip_id);
-  if (!trip) {
-    throw new AppError({
-      userMessage: rateMessages.error.tripNotFound,
-      code: "rates.trip_not_found",
-      status: 404,
-    });
-  }
+  await requireAssignedTrip(input.trip_id, actor.memberId);
 
   if (input.leg_id) {
     const leg = await findTripLegById(input.leg_id);

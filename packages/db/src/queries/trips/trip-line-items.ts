@@ -145,3 +145,201 @@ export async function updateTripLineItemStatus(
 
   return data as TripLineItem | null;
 }
+
+/** Marker written on the Phase 1 named-hotel stay shell (before rates). */
+export const STAY_SHELL_MARKER = { stay_shell: true } as const;
+
+/** True when the row is the Phase 1 named-hotel placeholder (not a priced rate). */
+export function isStayShellLineItem(row: TripLineItem): boolean {
+  const extracted = row.extracted_json;
+  return Boolean(
+    extracted &&
+      typeof extracted === "object" &&
+      (extracted as { stay_shell?: unknown }).stay_shell === true,
+  );
+}
+
+/** Selected accommodation for a leg, if any. */
+export async function findSelectedAccommodationLineItem(
+  tripId: string,
+  legId: string,
+): Promise<TripLineItem | null> {
+  const supabase = getServiceClient();
+
+  const { data, error } = await runSupabaseQuery(() =>
+    supabase
+      .from("trip_line_items")
+      .select("*")
+      .eq("trip_id", tripId)
+      .eq("leg_id", legId)
+      .eq("category", "accommodation")
+      .eq("selected", true)
+      .maybeSingle(),
+  );
+
+  if (error) {
+    throw dbQueryError(error);
+  }
+
+  return data as TripLineItem | null;
+}
+
+/** Priced accommodation candidates on a trip (excludes stay-shell placeholders). */
+export async function listPricedAccommodationLineItems(
+  tripId: string,
+  legId?: string | null,
+): Promise<TripLineItem[]> {
+  const supabase = getServiceClient();
+
+  let query = supabase
+    .from("trip_line_items")
+    .select("*")
+    .eq("trip_id", tripId)
+    .eq("category", "accommodation")
+    .not("cost_internal", "is", null)
+    .order("created_at", { ascending: false });
+
+  if (legId) {
+    query = query.eq("leg_id", legId);
+  }
+
+  const { data, error } = await runSupabaseQuery(() => query);
+
+  if (error) {
+    throw dbQueryError(error);
+  }
+
+  const rows = (data ?? []) as TripLineItem[];
+  return rows.filter((row) => !isStayShellLineItem(row));
+}
+
+/** Clear selected flag on accommodation items for a leg. */
+export async function clearSelectedAccommodationForLeg(
+  tripId: string,
+  legId: string,
+): Promise<void> {
+  const supabase = getServiceClient();
+
+  const { error } = await runSupabaseQuery(() =>
+    supabase
+      .from("trip_line_items")
+      .update({ selected: false })
+      .eq("trip_id", tripId)
+      .eq("leg_id", legId)
+      .eq("category", "accommodation")
+      .eq("selected", true),
+  );
+
+  if (error) {
+    throw dbQueryError(error);
+  }
+}
+
+/** Mark one accommodation line item selected (caller clears peers first). */
+export async function setTripLineItemSelected(
+  lineItemId: string,
+  selected: boolean,
+): Promise<TripLineItem | null> {
+  const supabase = getServiceClient();
+
+  const { data, error } = await runSupabaseQuery(() =>
+    supabase
+      .from("trip_line_items")
+      .update({ selected })
+      .eq("id", lineItemId)
+      .select("*")
+      .maybeSingle(),
+  );
+
+  if (error) {
+    throw dbQueryError(error);
+  }
+
+  return data as TripLineItem | null;
+}
+
+/** Phase 1 stay shell for a leg (named hotel before rates), or null. */
+export async function findStayShellLineItem(
+  tripId: string,
+  legId: string,
+): Promise<TripLineItem | null> {
+  const supabase = getServiceClient();
+
+  const { data, error } = await runSupabaseQuery(() =>
+    supabase
+      .from("trip_line_items")
+      .select("*")
+      .eq("trip_id", tripId)
+      .eq("leg_id", legId)
+      .eq("category", "accommodation")
+      .eq("source", "manual")
+      .eq("selected", false)
+      .is("cost_internal", null)
+      .is("sell_amount", null)
+      .order("created_at", { ascending: false })
+      .limit(20),
+  );
+
+  if (error) {
+    throw dbQueryError(error);
+  }
+
+  const rows = (data ?? []) as TripLineItem[];
+  return rows.find(isStayShellLineItem) ?? null;
+}
+
+export type UpsertStayShellInput = {
+  trip_id: string;
+  leg_id: string;
+  property_id?: string | null;
+  property_name: string;
+  created_by_id?: string | null;
+};
+
+/**
+ * Upsert the named-hotel stay shell on a leg.
+ * Does not touch selected / priced rate options.
+ */
+export async function upsertStayShellLineItem(
+  input: UpsertStayShellInput,
+): Promise<TripLineItem> {
+  const existing = await findStayShellLineItem(input.trip_id, input.leg_id);
+  const supabase = getServiceClient();
+  const title = input.property_name;
+
+  if (existing) {
+    const { data, error } = await runSupabaseQuery(() =>
+      supabase
+        .from("trip_line_items")
+        .update({
+          title,
+          property_id: input.property_id ?? null,
+          property_name: input.property_name,
+          extracted_json: STAY_SHELL_MARKER,
+        })
+        .eq("id", existing.id)
+        .select("*")
+        .single(),
+    );
+
+    if (error) {
+      throw dbQueryError(error);
+    }
+
+    return data as TripLineItem;
+  }
+
+  return insertTripLineItem({
+    trip_id: input.trip_id,
+    leg_id: input.leg_id,
+    category: "accommodation",
+    title,
+    property_id: input.property_id ?? null,
+    property_name: input.property_name,
+    status: "pending",
+    selected: false,
+    source: "manual",
+    extracted_json: { ...STAY_SHELL_MARKER },
+    created_by_id: input.created_by_id ?? null,
+  });
+}

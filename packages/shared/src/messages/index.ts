@@ -6,6 +6,7 @@ import { commonMessages } from "./common";
 import { dbMessages } from "./db";
 import { rateMessages } from "./rates";
 import { teamMessages } from "./team";
+import { tripMessages } from "./trips";
 
 /** All user-facing messages — import from @pureluxe/shared in UI and API routes. */
 export const messages = {
@@ -16,6 +17,7 @@ export const messages = {
     ...clientMessages.success,
     ...rateMessages.success,
     ...teamMessages.success,
+    ...tripMessages.success,
   },
   warn: authMessages.warn,
   error: {
@@ -26,6 +28,7 @@ export const messages = {
     ...commonMessages.error,
     ...rateMessages.error,
     ...teamMessages.error,
+    ...tripMessages.error,
   },
 } as const;
 
@@ -38,4 +41,5 @@ export {
   dbMessages,
   rateMessages,
   teamMessages,
+  tripMessages,
 };

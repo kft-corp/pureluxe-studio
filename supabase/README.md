@@ -114,6 +114,7 @@ Creates Rate Layer **Layers 1–4** schema. Seeds only system defaults that must
 | Permissions | `rates.search`, `settings.rate_sources`, `knowledge.*`, `settings.knowledge_base` |
 
 Optional Rate Layer rows: [`migrations/seeds/011_rate_layer.sql`](migrations/seeds/011_rate_layer.sql).  
+Optional Kanuhura contracts/rates: [`migrations/seeds/011_rate_layer_kanuhura.sql`](migrations/seeds/011_rate_layer_kanuhura.sql) (run Maldives profile seed first).  
 Optional PDF branding: [`migrations/seeds/015_trip_builder_flow.sql`](migrations/seeds/015_trip_builder_flow.sql).  
 `db push` does not apply `seeds/`.
 

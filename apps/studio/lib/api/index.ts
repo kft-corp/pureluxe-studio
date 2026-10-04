@@ -53,6 +53,7 @@ export {
   type TeamOverviewData,
 } from "./team";
 export {
+  addRateOptionToTrip,
   approveTripLineItem,
   getDestinationsSettings,
   getNegotiatedCodesSettings,
@@ -61,7 +62,23 @@ export {
   patchRateSourcesSetting,
   rejectTripLineItem,
   runRateSearch,
+  selectTripAccommodationLineItem,
   type DestinationsSettingsData,
   type NegotiatedCodesSettingsData,
   type RateSourcesData,
 } from "../rates";
+export {
+  addTripBuilderRateOption,
+  createTripBuilderTrip,
+  generateTripBuilderQuote,
+  getTripBuilderQuote,
+  getTripBuilderQuoteUrl,
+  getTripBuilderTrip,
+  listTripBuilderTrips,
+  pasteTripBuilderLineItem,
+  searchTripBuilderRates,
+  selectTripBuilderLineItem,
+  setTripBuilderStay,
+  updateTripBuilderQuote,
+  updateTripBuilderTrip,
+} from "./trip-builder";

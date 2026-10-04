@@ -5,9 +5,12 @@ import {
 } from "@pureluxe/db";
 import { AppError, rateMessages } from "@pureluxe/shared";
 
+import { requireAssignedTrip } from "@/lib/trip-builder";
+
 async function transitionFromPendingReview(
   lineItemId: string,
   nextStatus: "pending" | "rejected",
+  actor: { memberId: string },
 ): Promise<TripLineItem> {
   const existing = await findTripLineItemById(lineItemId);
   if (!existing) {
@@ -17,6 +20,8 @@ async function transitionFromPendingReview(
       status: 404,
     });
   }
+
+  await requireAssignedTrip(existing.trip_id, actor.memberId);
 
   const updated = await updateTripLineItemStatus(lineItemId, nextStatus, {
     fromStatus: "pending_review",
@@ -36,13 +41,15 @@ async function transitionFromPendingReview(
 /** pending_review → pending (atomic). */
 export async function approveTripLineItem(
   lineItemId: string,
+  actor: { memberId: string },
 ): Promise<TripLineItem> {
-  return transitionFromPendingReview(lineItemId, "pending");
+  return transitionFromPendingReview(lineItemId, "pending", actor);
 }
 
 /** pending_review → rejected (atomic). */
 export async function rejectTripLineItem(
   lineItemId: string,
+  actor: { memberId: string },
 ): Promise<TripLineItem> {
-  return transitionFromPendingReview(lineItemId, "rejected");
+  return transitionFromPendingReview(lineItemId, "rejected", actor);
 }
