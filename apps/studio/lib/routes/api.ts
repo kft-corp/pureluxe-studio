@@ -53,6 +53,9 @@ export const apiRoutes = {
     quoteGenerate: (tripId: string) =>
       `/api/trip-builder/trips/${tripId}/quote/generate`,
     quoteUrl: (tripId: string) => `/api/trip-builder/trips/${tripId}/quote/url`,
+    chat: (tripId: string) => `/api/trip-builder/trips/${tripId}/chat`,
+    /** Pre-trip home chat — ephemeral, client lookup tools only. */
+    preTripChat: "/api/trip-builder/pre-trip/chat",
     ratesSearch: "/api/trip-builder/rates/search",
     lineItemsPaste: "/api/trip-builder/line-items/paste",
     lineItemsFromRate: "/api/trip-builder/line-items/from-rate",

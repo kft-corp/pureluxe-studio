@@ -30,6 +30,17 @@ export {
 } from "./trip-legs";
 export { setTripPrimaryClient } from "./trip-clients";
 export {
+  findAssistantReplyAfter,
+  findTripChatMessageByClientRequestId,
+  insertTripChatMessage,
+  listTripChatMessages,
+  listTripChatMessagesPage,
+  updateTripChatMessage,
+  type InsertTripChatMessageInput,
+  type ListTripChatMessagesPageOptions,
+  type TripChatMessagePage,
+} from "./trip-chat-messages";
+export {
   findTripById,
   insertTrip,
   listAssignedTrips,

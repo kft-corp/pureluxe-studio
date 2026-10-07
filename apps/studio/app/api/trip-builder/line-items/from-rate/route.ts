@@ -2,14 +2,14 @@ import { addRateOptionBodySchema, rateMessages } from "@pureluxe/shared";
 
 import { apiFromError, apiSuccess } from "@/lib/api";
 import { requireApiPermission } from "@/lib/auth/require-api-permission";
-import { addRateOptionToTrip } from "@/lib/rates";
+import { attachRateOption } from "@/lib/rates";
 
 /** Persist a search option onto the trip (optionally select it). */
 export async function POST(request: Request) {
   try {
     const session = await requireApiPermission("trip_builder.write");
     const input = addRateOptionBodySchema.parse(await request.json());
-    const data = await addRateOptionToTrip(input, {
+    const data = await attachRateOption(input, {
       memberId: session.memberId,
     });
 

@@ -1,0 +1,136 @@
+import {
+  TRIP_BUILDER_STAGE_LABELS,
+  type TripFacts,
+  type TripRateFact,
+} from "../types";
+
+import {
+  listTripGaps,
+  resolveNextStep,
+  resolveTripStage,
+} from "./trip-stage";
+
+const MAX_CANDIDATES = 8;
+const MAX_TEXT = 400;
+
+function money(
+  amount: number | null,
+  currency: string | null,
+): string {
+  if (amount == null) return "missing";
+  const code = currency?.trim() || "";
+  return code ? `${code} ${amount}` : String(amount);
+}
+
+function textOrMissing(value: string | null | undefined): string {
+  const trimmed = value?.trim();
+  return trimmed ? clip(trimmed) : "missing";
+}
+
+function clip(value: string): string {
+  if (value.length <= MAX_TEXT) return value;
+  return `${value.slice(0, MAX_TEXT - 1)}…`;
+}
+
+function nightsBetween(
+  checkIn: string | null | undefined,
+  checkOut: string | null | undefined,
+): number | null {
+  if (!checkIn || !checkOut) return null;
+  const from = Date.parse(`${checkIn}T12:00:00Z`);
+  const to = Date.parse(`${checkOut}T12:00:00Z`);
+  if (Number.isNaN(from) || Number.isNaN(to) || to <= from) return null;
+  return Math.round((to - from) / (24 * 60 * 60 * 1000));
+}
+
+function formatRate(rate: TripRateFact): string {
+  const bits = [
+    rate.title,
+    rate.subtitle ? `(${rate.subtitle})` : null,
+    `advisor cost ${money(rate.cost_internal, rate.currency)}`,
+    rate.rate_source_code ? `source ${rate.rate_source_code}` : null,
+    rate.selected ? "selected" : null,
+  ].filter(Boolean);
+  return bits.join(" · ");
+}
+
+/**
+ * Compact trip snapshot for the model system prompt.
+ * Facts only — no instructions (those live in prompts/).
+ */
+export function buildTripContext(trip: TripFacts): string {
+  const stage = resolveTripStage(trip);
+  const selected = trip.rates.selected;
+  const gaps = listTripGaps(trip);
+  const nights = nightsBetween(trip.stay?.check_in, trip.stay?.check_out);
+  const candidates = trip.rates.candidates.slice(0, MAX_CANDIDATES);
+  const omitted =
+    trip.rates.candidates.length > candidates.length
+      ? trip.rates.candidates.length - candidates.length
+      : 0;
+
+  const lines = [
+    `Title: ${textOrMissing(trip.title)}`,
+    `Status: ${trip.status || "missing"}`,
+    `Pricing locked: ${trip.pricing_locked ? "yes (stay/rate edits may be blocked)" : "no"}`,
+    `Stage: ${TRIP_BUILDER_STAGE_LABELS[stage]}`,
+    `Next step: ${resolveNextStep(trip)}`,
+    `Gaps: ${gaps.length ? gaps.join("; ") : "none"}`,
+    "",
+    "Client:",
+    trip.client
+      ? `- Name: ${trip.client.display_name}`
+      : "- Name: missing",
+    "",
+    "Stay:",
+  ];
+
+  if (!trip.stay) {
+    lines.push("- missing");
+  } else {
+    lines.push(
+      `- Hotel: ${textOrMissing(trip.stay.property_name)}`,
+      `- City: ${textOrMissing(trip.stay.city)}`,
+      `- Check-in: ${textOrMissing(trip.stay.check_in)}`,
+      `- Check-out: ${textOrMissing(trip.stay.check_out)}`,
+      `- Nights: ${nights != null ? String(nights) : "missing"}`,
+    );
+  }
+
+  lines.push("", "Rates:");
+  if (selected) {
+    lines.push(`- Selected: ${formatRate(selected)}`);
+  } else {
+    lines.push("- Selected: missing");
+  }
+
+  if (candidates.length === 0) {
+    lines.push("- Saved candidates: none");
+  } else {
+    lines.push(`- Saved candidates (${trip.rates.candidates.length}):`);
+    for (const rate of candidates) {
+      lines.push(`  - ${formatRate(rate)}`);
+    }
+    if (omitted > 0) {
+      lines.push(`  - …and ${omitted} more not listed`);
+    }
+  }
+
+  lines.push(
+    "",
+    "Quote draft (client-facing):",
+    `- Title: ${textOrMissing(trip.quote.title)}`,
+    `- Intro: ${textOrMissing(trip.quote.intro)}`,
+    `- Notes: ${textOrMissing(trip.quote.notes)}`,
+    `- Highlights: ${
+      trip.quote.highlights.length
+        ? trip.quote.highlights.map(clip).join(" | ")
+        : "none"
+    }`,
+    `- Sell price (client): ${money(trip.quote.sell_total, trip.quote.sell_currency)}`,
+    `- Document status: ${trip.quote.document_status ?? "none"}`,
+    `- PDF file ready: ${trip.quote.has_file ? "yes" : "no"}`,
+  );
+
+  return lines.join("\n");
+}

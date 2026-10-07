@@ -7,6 +7,15 @@ export { listTripBuilderTrips, type TripListItem, type TripListResult } from "./
 export { requireAssignedTrip } from "./require-assigned-trip";
 export { setTripStay } from "./set-trip-stay";
 export {
+  NEW_TRIP_TITLE,
+  buildTripAutoTitle,
+  displayTripSubtitle,
+  displayTripTitle,
+  nextTripTitle,
+  tripTitleInitial,
+  type TripTitleParts,
+} from "./trip-title";
+export {
   buildTripDetail,
   loadTripStay,
   type TripClientSnapshot,
@@ -25,3 +34,13 @@ export {
   getTripQuoteFileUrl,
   updateTripQuote,
 } from "./quote";
+export {
+  listChatMessages,
+  prepareChatTurn,
+  type PreparedChatTurn,
+  type ChatMessage,
+  type ChatMessagePage,
+  type ChatStreamEvent,
+} from "./chat";
+export { createChatStream, encodeChatStreamEvent } from "./chat-stream";
+export { createPreTripChatStream } from "./pre-trip-chat";

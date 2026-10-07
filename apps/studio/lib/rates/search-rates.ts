@@ -4,7 +4,7 @@ import type { SearchRatesBody } from "@pureluxe/shared";
 import { requireAssignedTrip } from "@/lib/trip-builder";
 
 /** Thin wrapper — Studio API → @pureluxe/rates brain. */
-export async function runRateSearch(
+export async function searchTripRates(
   input: SearchRatesBody,
   actor: { memberId: string },
 ): Promise<SearchRatesResult> {

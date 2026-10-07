@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils/cn";
 
 import { TripBuilderStages } from "./trip-builder-stages";
 import { TripBuilderTripsMenu } from "./trip-builder-trips-menu";
-import { resolveTripStage } from "./trip-stages";
+import { resolveTripStage } from "./stages";
 
 type TripBuilderHeaderProps = {
   trips: TripListItem[];
@@ -16,7 +16,8 @@ type TripBuilderHeaderProps = {
   canWrite: boolean;
   busy: boolean;
   onOpenTrip: (tripId: string) => void;
-  onNewTrip: () => void;
+  /** Clear to home draft chat — does not create a trip. */
+  onNewChat: () => void;
   onToggleSummary: () => void;
 };
 
@@ -51,7 +52,7 @@ function HeaderIconButton({
       aria-pressed={ariaPressed}
       onClick={onClick}
       className={cn(
-        "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-ink transition",
+        "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-ink transition sm:h-8 sm:w-8",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-dark/20",
         "disabled:cursor-not-allowed disabled:opacity-50",
         active ? "bg-black/10" : "bg-transparent hover:bg-black/5",
@@ -64,7 +65,8 @@ function HeaderIconButton({
 
 /**
  * Header layout (LTR):
- * Stages · … · Summary · Latest trips · New trip
+ * Stages · … · Summary · Latest trips · New chat
+ * Stages stay disabled until a trip is open.
  */
 export function TripBuilderHeader({
   trips,
@@ -73,11 +75,12 @@ export function TripBuilderHeader({
   canWrite,
   busy,
   onOpenTrip,
-  onNewTrip,
+  onNewChat,
   onToggleSummary,
 }: TripBuilderHeaderProps) {
-  const stage = resolveTripStage(detail);
+  const stage = detail ? resolveTripStage(detail) : null;
   const SummaryIcon = summaryOpen ? LuPanelRightClose : LuPanelRightOpen;
+  const tripOpen = Boolean(detail);
 
   return (
     <header className="w-full shrink-0 border-b border-border bg-surface-raised px-3 py-2.5 sm:px-4">
@@ -89,9 +92,10 @@ export function TripBuilderHeader({
         <div className="flex shrink-0 items-center gap-0.5">
           <HeaderIconButton
             active={summaryOpen}
+            disabled={!tripOpen}
             aria-pressed={summaryOpen}
             aria-label={summaryOpen ? "Close summary" : "Open summary"}
-            title="Summary"
+            title={tripOpen ? "Summary" : "Summary (open a trip first)"}
             onClick={onToggleSummary}
           >
             <SummaryIcon className="size-[18px]" strokeWidth={2} aria-hidden />
@@ -107,9 +111,9 @@ export function TripBuilderHeader({
           {canWrite ? (
             <HeaderIconButton
               disabled={busy}
-              aria-label="New trip"
-              title="New trip"
-              onClick={onNewTrip}
+              aria-label="New chat"
+              title="New chat"
+              onClick={onNewChat}
             >
               <LuPlus className="size-[18px]" strokeWidth={2} aria-hidden />
             </HeaderIconButton>

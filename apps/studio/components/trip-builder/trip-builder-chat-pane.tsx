@@ -1,85 +1,86 @@
 "use client";
 
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { LuBotMessageSquare } from "react-icons/lu";
 
-import type { NormalizedRateOption } from "@pureluxe/rates";
-import type { SetTripStayBody } from "@pureluxe/shared";
+import { AGENT_PHASE_LABEL, type AgentPhase } from "@pureluxe/ai";
 
-import { studioButtonClass, studioChipClass } from "@/components/ui";
-import type { TripDetail } from "@/lib/trip-builder";
+import { studioButtonClass } from "@/components/ui";
+import type { ChatMessage, TripDetail } from "@/lib/trip-builder";
+import { cn } from "@/lib/utils/cn";
 
-import type { TripBuilderDraft } from "./trip-builder-draft";
-import { TripBuilderClientStep } from "./trip-builder-client-step";
-import { TripBuilderRatesStep } from "./trip-builder-rates-step";
-import { TripBuilderStayStep } from "./trip-builder-stay-step";
-import { resolveTripStage } from "./trip-stages";
+import { ChatMarkdown } from "./chat-markdown";
+import { resolveTripStage } from "./stages";
+import type { TripBuilderChip } from "./trip-builder-action-chip";
 
 type TripBuilderChatPaneProps = {
   detail: TripDetail | null;
   canWrite: boolean;
   busy: boolean;
-  notices: string[];
-  draft: TripBuilderDraft | null;
-  rateOptions: NormalizedRateOption[];
-  rateSearchMessage: string | null;
-  onNewTrip: () => void;
-  onAssignClient: (clientId: string) => void;
-  onSaveStay: (input: SetTripStayBody) => void;
-  onSearchRates: () => void;
-  onSelectRateOption: (option: NormalizedRateOption) => void;
-  onSelectRateCandidate: (lineItemId: string) => void;
-  onPasteQuote: (text: string) => void;
-  onStarter: (intent: "client" | "hotel") => void;
+  messages: ChatMessage[];
+  chatLoading: boolean;
+  chatLoadingOlder: boolean;
+  hasMoreMessages: boolean;
+  streamingContent: string | null;
+  agentPhase: AgentPhase | null;
+  homeChips: TripBuilderChip[];
+  onCreateTrip: () => void;
+  onLoadOlder: () => void;
 };
 
-const HOME_STARTERS = [
-  { id: "hotel" as const, label: "Quote a named hotel" },
-  { id: "client" as const, label: "Start a client trip" },
-];
-
-/** Chat hero — home lead or open-trip steps (agent later). */
+/** Full-width chat thread — agent left, you right. */
 export function TripBuilderChatPane({
   detail,
   canWrite,
   busy,
-  notices,
-  draft,
-  rateOptions,
-  rateSearchMessage,
-  onNewTrip,
-  onAssignClient,
-  onSaveStay,
-  onSearchRates,
-  onSelectRateOption,
-  onSelectRateCandidate,
-  onPasteQuote,
-  onStarter,
+  messages,
+  chatLoading,
+  chatLoadingOlder,
+  hasMoreMessages,
+  streamingContent,
+  agentPhase,
+  homeChips,
+  onCreateTrip,
+  onLoadOlder,
 }: TripBuilderChatPaneProps) {
-  if (!detail) {
-    return (
-      <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center px-4 py-8 sm:px-6">
-        <div className="text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-border bg-surface-raised shadow-sm">
-            <LuBotMessageSquare className="h-5 w-5 text-ink-muted" aria-hidden />
-          </div>
-          <h2 className="mt-5 font-serif text-3xl font-normal tracking-tight text-ink sm:text-4xl">
-            What do you need?
-          </h2>
-          <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-ink-muted">
-            Build a hotel quote step by step — start a trip, choose the client,
-            then set the stay.
-          </p>
-        </div>
+  const hasDraftThread =
+    !detail && (messages.length > 0 || streamingContent != null);
 
-        <div className="mt-8 flex flex-col items-center gap-3">
+  if (chatLoading && !detail) {
+    return (
+      <div className="flex h-full min-h-0 w-full flex-1 flex-col px-4 pt-4 pb-3 sm:px-6">
+        <ChatLoadingState />
+      </div>
+    );
+  }
+
+  if (!detail && !hasDraftThread) {
+    return (
+      <div className="mx-auto flex h-full w-full max-w-[440px] flex-col justify-center px-4 py-8 text-center sm:py-16">
+        <h2 className="font-serif text-[1.65rem] leading-tight font-semibold tracking-tight text-ink sm:text-[2.05rem]">
+          What do you need?
+        </h2>
+        <p className="mx-auto mt-2.5 max-w-md text-[14px] leading-relaxed text-ink-muted sm:text-[15px]">
+          I’m your{" "}
+          <strong className="font-semibold text-ink">PureLuxe agent</strong> — I
+          can look up clients and answer questions about them. Tap{" "}
+          <strong className="font-semibold text-ink">Create trip</strong> when
+          you’re ready to build.
+        </p>
+
+        <div className="mt-6 flex justify-center sm:mt-8">
           {canWrite ? (
             <button
               type="button"
               disabled={busy}
-              onClick={onNewTrip}
-              className={studioButtonClass("primary", "md", "min-w-[10rem]")}
+              onClick={onCreateTrip}
+              className={studioButtonClass(
+                "primary",
+                "md",
+                "min-w-[148px] h-11 rounded-[10px] text-sm sm:h-10",
+              )}
             >
-              New trip
+              Create trip
             </button>
           ) : (
             <p className="max-w-sm text-center text-xs text-ink-muted">
@@ -87,142 +88,388 @@ export function TripBuilderChatPane({
               access.
             </p>
           )}
-
-          <div className="flex flex-wrap justify-center gap-2">
-            <span className="w-full text-center text-[11px] font-medium tracking-wide text-ink-subtle uppercase">
-              Or try
-            </span>
-            {HOME_STARTERS.map((starter) => (
-              <button
-                key={starter.id}
-                type="button"
-                disabled={busy || !canWrite}
-                onClick={() => onStarter(starter.id)}
-                className={studioChipClass(false)}
-              >
-                {starter.label}
-              </button>
-            ))}
-          </div>
         </div>
 
-        <NoticeList notices={notices} />
+        {homeChips.length > 0 ? (
+          <div className="mt-6 sm:mt-7">
+            <p className="mb-2 text-[12px] text-ink-muted">Try saying</p>
+            <div className="flex flex-wrap justify-center gap-2">
+              {homeChips.map((chip) => (
+                <button
+                  key={chip.id}
+                  type="button"
+                  disabled={busy || !canWrite}
+                  onClick={chip.onClick}
+                  className={cn(
+                    "inline-flex h-9 items-center rounded-full bg-[#faf9f7] px-3.5 text-[13px] font-medium leading-none text-ink ring-1 ring-border transition-colors sm:h-7 sm:px-3",
+                    "hover:bg-[#e8f2ee]/90 hover:text-[#1a4d3e] hover:ring-[#1a4d3e]/25",
+                    "disabled:cursor-not-allowed disabled:opacity-50",
+                  )}
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
     );
   }
 
-  const stage = resolveTripStage(detail);
+  const showWelcome =
+    Boolean(detail) &&
+    !chatLoading &&
+    messages.length === 0 &&
+    streamingContent == null;
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 px-4 py-5 sm:px-6">
-      <AssistantBubble>
-        {stage === "client"
-          ? "Who is this trip for? Search and confirm the client."
-          : stage === "stay"
-            ? `Got it${detail.client ? ` — ${detail.client.display_name}` : ""}. Set the hotel, city, and dates for this quote.`
-            : stage === "rates"
-              ? `Stay looks set for ${detail.stay?.property_name}. Search rates or paste a hotel quote to continue.`
-              : `Rate selected${detail.rates.selected ? ` — ${detail.rates.selected.title}` : ""}. Package is ready; quote editing lands next.`}
-      </AssistantBubble>
+    <ChatScrollArea
+      chatLoading={chatLoading}
+      chatLoadingOlder={chatLoadingOlder}
+      hasMoreMessages={hasMoreMessages && Boolean(detail)}
+      onLoadOlder={onLoadOlder}
+      messages={messages}
+      streamingContent={streamingContent}
+      agentPhase={agentPhase}
+      welcomeContent={
+        detail && showWelcome
+          ? tripWelcomeMessage(detail, resolveTripStage(detail))
+          : null
+      }
+      banner={<AgentStatusBanner detail={detail} />}
+    />
+  );
+}
 
-      {stage === "client" ? (
-        <TripBuilderClientStep
-          key={`client-${draft?.clientQuery ?? ""}`}
-          canWrite={canWrite}
-          busy={busy}
-          initialQuery={draft?.clientQuery ?? ""}
-          autoFocus={canWrite}
-          onAssign={onAssignClient}
-        />
-      ) : null}
+function tripWelcomeMessage(
+  detail: TripDetail,
+  stage: ReturnType<typeof resolveTripStage>,
+): string {
+  return `I'm your **PureLuxe agent**. I'll help you build this trip step by step — **client → stay → rates → quote**.\n\nUse chips to confirm actions. ${stageCueFor(detail, stage)}`;
+}
 
-      {stage === "stay" ? (
-        <TripBuilderStayStep
-          key={`${detail.trip.id}-stay-${detail.stay?.leg_id ?? "new"}-${draft?.hotelName ?? ""}`}
-          stay={detail.stay}
-          canWrite={canWrite}
-          busy={busy}
-          pricingLocked={detail.pricing_locked}
-          initialHotel={draft?.hotelName ?? ""}
-          autoFocusHotel={draft?.focus === "hotel" || Boolean(draft?.hotelName)}
-          onSave={onSaveStay}
-        />
-      ) : null}
-
-      {stage === "rates" && detail.stay ? (
-        <TripBuilderRatesStep
-          stay={detail.stay}
-          selected={detail.rates.selected}
-          candidates={detail.rates.candidates}
-          searchOptions={rateOptions}
-          searchMessage={rateSearchMessage}
-          canWrite={canWrite}
-          busy={busy}
-          onSearch={onSearchRates}
-          onSelectOption={onSelectRateOption}
-          onSelectCandidate={onSelectRateCandidate}
-          onPaste={onPasteQuote}
-        />
-      ) : null}
-
-      {stage === "package" || stage === "quote" ? (
-        <section className="rounded-xl border border-dashed border-border bg-surface-raised/70 px-4 py-5">
-          <p className="text-sm font-medium text-ink">
-            {stage === "quote" ? "Quote ready" : "Package ready"}
-          </p>
-          <p className="mt-1.5 text-xs leading-relaxed text-ink-muted">
-            {stage === "quote"
-              ? "Quote PDF is generated. Use the quote URL API to download it."
-              : "Client, stay, and selected rate are on the trip. Edit the quote draft, then generate the PDF via the quote APIs."}
-          </p>
-          {detail.rates.selected ? (
-            <p className="mt-3 text-xs text-ink">
-              Selected: {detail.rates.selected.title}
-              {detail.rates.selected.cost_internal != null
-                ? ` · ${detail.rates.selected.currency ?? ""} ${detail.rates.selected.cost_internal}`
-                : ""}
-            </p>
-          ) : null}
-          {detail.quote.document ? (
-            <p className="mt-1 text-xs text-ink-muted">
-              Quote doc: {detail.quote.document.status}
-              {detail.quote.document.has_file ? " · file ready" : ""}
-            </p>
-          ) : null}
-        </section>
-      ) : null}
-
-      <NoticeList notices={notices} />
+function AgentStatusBanner({ detail }: { detail: TripDetail | null }) {
+  return (
+    <div className="mb-3 flex w-full items-start gap-2.5 rounded-xl border border-[#d5e8df] bg-[#e8f2ee] px-3 py-2.5 sm:mb-4">
+      <div
+        className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#1a4d3e] text-white"
+        aria-hidden
+      >
+        <LuBotMessageSquare className="h-3.5 w-3.5" strokeWidth={2} />
+      </div>
+      <div className="min-w-0">
+        <p className="text-[11px] font-semibold text-[#1a4d3e]">
+          PureLuxe trip builder
+        </p>
+        <p className="mt-0.5 text-[13px] leading-snug text-ink">
+          {!detail
+            ? "Hi — I’m your trip builder agent. Chat for client info, or tap Create trip when you’re ready to plan."
+            : "Hi — I’ll help you plan this trip. Ask anything, or use chips to confirm the next step."}
+        </p>
+      </div>
     </div>
   );
 }
 
-function AssistantBubble({ children }: { children: React.ReactNode }) {
+function ChatScrollArea({
+  banner,
+  chatLoading,
+  chatLoadingOlder,
+  hasMoreMessages,
+  onLoadOlder,
+  messages,
+  streamingContent,
+  agentPhase,
+  welcomeContent,
+}: {
+  banner: React.ReactNode;
+  chatLoading: boolean;
+  chatLoadingOlder: boolean;
+  hasMoreMessages: boolean;
+  onLoadOlder: () => void;
+  messages: ChatMessage[];
+  streamingContent: string | null;
+  agentPhase: AgentPhase | null;
+  welcomeContent: string | null;
+}) {
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const endRef = useRef<HTMLDivElement | null>(null);
+  const stickToBottomRef = useRef(true);
+  const scrollAdjustRef = useRef<number | null>(null);
+  const olderFetchLockRef = useRef(false);
+
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el || chatLoading) return;
+
+    if (scrollAdjustRef.current != null) {
+      el.scrollTop = el.scrollHeight - scrollAdjustRef.current;
+      scrollAdjustRef.current = null;
+      return;
+    }
+
+    if (stickToBottomRef.current) {
+      endRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+    }
+  }, [messages, streamingContent, agentPhase, chatLoading, welcomeContent]);
+
+  useEffect(() => {
+    if (chatLoading) {
+      stickToBottomRef.current = true;
+    }
+  }, [chatLoading]);
+
+  useEffect(() => {
+    if (!chatLoadingOlder) {
+      olderFetchLockRef.current = false;
+    }
+  }, [chatLoadingOlder]);
+
+  function handleScroll() {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const distanceFromBottom =
+      el.scrollHeight - el.scrollTop - el.clientHeight;
+    stickToBottomRef.current = distanceFromBottom < 96;
+
+    if (
+      el.scrollTop < 72 &&
+      hasMoreMessages &&
+      !olderFetchLockRef.current &&
+      !chatLoading
+    ) {
+      olderFetchLockRef.current = true;
+      scrollAdjustRef.current = el.scrollHeight - el.scrollTop;
+      onLoadOlder();
+    }
+  }
+
   return (
-    <div className="rounded-2xl rounded-tl-md border border-border bg-surface-raised px-4 py-3 shadow-sm">
-      <p className="text-[11px] font-semibold tracking-wide text-ink-subtle uppercase">
-        PureLuxe
-      </p>
-      <p className="mt-1.5 text-sm leading-relaxed text-ink">{children}</p>
+    <div
+      ref={scrollRef}
+      onScroll={handleScroll}
+      className="flex h-full min-h-0 w-full flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain px-3 pt-3 pb-3 sm:px-6 sm:pt-4"
+    >
+      {banner}
+
+      {chatLoading ? (
+        <ChatLoadingState />
+      ) : (
+        <ChatMessageList
+          messages={messages}
+          streamingContent={streamingContent}
+          agentPhase={agentPhase}
+          loadingOlder={chatLoadingOlder}
+          welcomeContent={welcomeContent}
+          endRef={endRef}
+        />
+      )}
     </div>
   );
 }
 
-function NoticeList({ notices }: { notices: string[] }) {
-  if (notices.length === 0) return null;
+function ChatLoadingState() {
   return (
-    <div className="space-y-2">
-      {notices.map((notice, index) => (
-        <div
-          key={`${index}-${notice.slice(0, 24)}`}
-          className="rounded-2xl rounded-tr-md border border-border/80 bg-surface px-4 py-3"
-        >
-          <p className="text-[11px] font-semibold tracking-wide text-ink-subtle uppercase">
-            Note
-          </p>
-          <p className="mt-1.5 text-sm leading-relaxed text-ink">{notice}</p>
+    <div
+      className="flex flex-1 flex-col items-center justify-center gap-2 py-16"
+      aria-busy
+      aria-live="polite"
+    >
+      <p className="text-[13px] font-medium text-[#1a4d3e]">Loading chat</p>
+      <span className="inline-flex gap-1" aria-hidden>
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#1a4d3e]" />
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#1a4d3e] [animation-delay:150ms]" />
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#1a4d3e] [animation-delay:300ms]" />
+      </span>
+    </div>
+  );
+}
+
+function stageCueFor(
+  detail: TripDetail,
+  stage: ReturnType<typeof resolveTripStage>,
+): string {
+  if (stage === "client") {
+    return "Type the client name below. Matching clients appear as chips — tap one to assign.";
+  }
+  if (stage === "stay") {
+    const name = detail.client?.display_name;
+    return name
+      ? `Client set — ${name}. Type hotel, city, and dates (YYYY-MM-DD), then tap Save stay.`
+      : "Type hotel, city, and dates (YYYY-MM-DD), then tap Save stay.";
+  }
+  if (stage === "rates") {
+    return `Stay set for ${detail.stay?.property_name}. Tap Search rates, pick a rate chip, or paste a supplier quote.`;
+  }
+  if (stage === "quote") {
+    return "Quote PDF is ready. Ask me to summarize, or tap Open PDF.";
+  }
+  return "Rate selected. Ask for wording help, set sell (e.g. sell 4500 USD), then tap Generate PDF.";
+}
+
+function formatMsgTime(iso: string) {
+  try {
+    return new Date(iso).toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  } catch {
+    return "";
+  }
+}
+
+function ChatMessageList({
+  messages,
+  streamingContent,
+  agentPhase,
+  loadingOlder,
+  welcomeContent,
+  endRef,
+}: {
+  messages: ChatMessage[];
+  streamingContent: string | null;
+  agentPhase: AgentPhase | null;
+  loadingOlder: boolean;
+  welcomeContent: string | null;
+  endRef: React.RefObject<HTMLDivElement | null>;
+}) {
+  const showWelcome =
+    Boolean(welcomeContent) &&
+    messages.length === 0 &&
+    streamingContent == null;
+
+  if (!showWelcome && messages.length === 0 && streamingContent == null) {
+    return null;
+  }
+
+  const phaseLabel = agentPhase ? AGENT_PHASE_LABEL[agentPhase] : null;
+  const showPhaseOnly =
+    streamingContent != null &&
+    streamingContent.length === 0 &&
+    Boolean(phaseLabel);
+
+  return (
+    <div className="flex w-full flex-col gap-3 sm:gap-4" aria-live="polite">
+      {loadingOlder ? (
+        <p className="py-1 text-center text-[12px] text-ink-muted">
+          Loading earlier messages…
+        </p>
+      ) : null}
+      {showWelcome && welcomeContent ? (
+        <AgentMessage time="" content={welcomeContent} />
+      ) : null}
+      {messages.map((message) =>
+        message.role === "assistant" ? (
+          <AgentMessage
+            key={message.id}
+            time={formatMsgTime(message.created_at)}
+            incomplete={message.incomplete}
+            content={message.content}
+          />
+        ) : (
+          <YouMessage key={message.id} time={formatMsgTime(message.created_at)}>
+            {message.content}
+          </YouMessage>
+        ),
+      )}
+      {streamingContent != null ? (
+        <AgentMessage
+          time="now"
+          content={streamingContent}
+          statusLabel={showPhaseOnly ? phaseLabel : null}
+        />
+      ) : null}
+      <div ref={endRef} />
+    </div>
+  );
+}
+
+function AgentStatusLabel({ label }: { label: string }) {
+  const text = label.replace(/…$/, "");
+  return (
+    <p
+      className="agent-phase-label inline-flex items-center gap-0.5 py-0.5 text-[13px] font-medium text-[#1a4d3e]"
+      aria-live="polite"
+      aria-label={label}
+    >
+      {text}
+      <span className="inline-flex gap-0.5" aria-hidden>
+        <span className="animate-pulse">.</span>
+        <span className="animate-pulse [animation-delay:150ms]">.</span>
+        <span className="animate-pulse [animation-delay:300ms]">.</span>
+      </span>
+    </p>
+  );
+}
+
+function AgentMessage({
+  content,
+  time,
+  incomplete,
+  statusLabel,
+}: {
+  content: string;
+  time: string;
+  incomplete?: boolean;
+  /** Phase label while waiting for the first text delta. */
+  statusLabel?: string | null;
+}) {
+  return (
+    <div className="mr-auto flex w-full max-w-[min(100%,42rem)] items-start gap-2 self-start sm:gap-2.5">
+      <div
+        className="mt-4 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#1a4d3e] text-white sm:mt-5 sm:h-8 sm:w-8"
+        aria-hidden
+      >
+        <LuBotMessageSquare className="h-3 w-3 sm:h-3.5 sm:w-3.5" strokeWidth={2} />
+      </div>
+      <div className="min-w-0 flex-1 overflow-hidden">
+        <div className="mb-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] font-semibold text-ink">
+          PureLuxe Agent
+          {time ? (
+            <span className="font-medium text-ink-muted">{time}</span>
+          ) : null}
         </div>
-      ))}
+        <div className="text-[14px] leading-relaxed break-words text-ink">
+          {statusLabel ? (
+            <AgentStatusLabel key={statusLabel} label={statusLabel} />
+          ) : content.trim() ? (
+            <ChatMarkdown content={content} />
+          ) : (
+            <AgentStatusLabel
+              key={AGENT_PHASE_LABEL.thinking}
+              label={AGENT_PHASE_LABEL.thinking}
+            />
+          )}
+          {incomplete ? (
+            <p className="mt-2 text-[11px] text-ink-subtle">
+              Reply was interrupted.
+            </p>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function YouMessage({
+  children,
+  time,
+}: {
+  children: React.ReactNode;
+  time: string;
+}) {
+  return (
+    <div className="ml-auto w-full max-w-[min(88%,42rem)] self-end sm:max-w-[min(100%,42rem)]">
+      <div className="mb-1 flex items-center justify-end gap-1.5 text-[11px] font-semibold text-ink">
+        You
+        {time ? (
+          <span className="font-medium text-ink-muted">{time}</span>
+        ) : null}
+      </div>
+      <div className="rounded-[14px] rounded-tr-sm border border-[#ddd6c8] bg-brand-light px-3 py-2.5 text-[14px] leading-relaxed break-words text-ink sm:px-3.5">
+        <p className="whitespace-pre-wrap">{children}</p>
+      </div>
     </div>
   );
 }

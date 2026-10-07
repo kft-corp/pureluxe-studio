@@ -2,7 +2,7 @@ import { rateMessages, tripLineItemIdSchema } from "@pureluxe/shared";
 
 import { apiFromError, apiSuccess } from "@/lib/api";
 import { requireApiPermission } from "@/lib/auth/require-api-permission";
-import { selectTripAccommodationLineItem } from "@/lib/rates";
+import { selectAccommodationRate } from "@/lib/rates";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -14,7 +14,7 @@ export async function POST(_request: Request, context: RouteContext) {
     const session = await requireApiPermission("trip_builder.write");
     const { id } = await context.params;
     const lineItemId = tripLineItemIdSchema.parse(id);
-    const data = await selectTripAccommodationLineItem(lineItemId, {
+    const data = await selectAccommodationRate(lineItemId, {
       memberId: session.memberId,
     });
 

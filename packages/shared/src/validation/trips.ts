@@ -162,3 +162,72 @@ export const generateTripQuoteSchema = z.object({
 
 export type GenerateTripQuoteBody = z.input<typeof generateTripQuoteSchema>;
 export type GenerateTripQuoteInput = z.output<typeof generateTripQuoteSchema>;
+
+/**
+ * GET /api/trip-builder/trips/[id]/chat
+ * Recent-first page of studio chat messages.
+ */
+export const tripBuilderChatListQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).optional().default(30),
+  before: z.string().trim().min(1).max(64).optional(),
+});
+
+export type TripBuilderChatListQuery = z.output<
+  typeof tripBuilderChatListQuerySchema
+>;
+
+/**
+ * POST /api/trip-builder/trips/[id]/chat
+ * Persist user message + stream assistant reply (Slice 2).
+ */
+export const tripBuilderChatSendSchema = z.object({
+  message: z
+    .string()
+    .trim()
+    .min(1, { message: "Enter a message." })
+    .max(4000, { message: "Keep the message under 4000 characters." }),
+  client_request_id: z
+    .string()
+    .trim()
+    .min(8, { message: "Missing send key." })
+    .max(128, { message: "Send key is too long." }),
+});
+
+export type TripBuilderChatSendBody = z.input<typeof tripBuilderChatSendSchema>;
+export type TripBuilderChatSendInput = z.output<
+  typeof tripBuilderChatSendSchema
+>;
+
+const chatHistoryMessageSchema = z.object({
+  role: z.enum(["user", "assistant"]),
+  content: z
+    .string()
+    .trim()
+    .min(1)
+    .max(4000, { message: "Keep each history message under 4000 characters." }),
+});
+
+/**
+ * POST /api/trip-builder/pre-trip/chat
+ * Ephemeral home chat (no trip row). Client lookup tools only.
+ */
+export const tripBuilderPreTripChatSendSchema = z.object({
+  message: z
+    .string()
+    .trim()
+    .min(1, { message: "Enter a message." })
+    .max(4000, { message: "Keep the message under 4000 characters." }),
+  history: z.array(chatHistoryMessageSchema).max(40).optional().default([]),
+  client_request_id: z
+    .string()
+    .trim()
+    .min(8, { message: "Missing send key." })
+    .max(128, { message: "Send key is too long." }),
+});
+
+export type TripBuilderPreTripChatSendBody = z.input<
+  typeof tripBuilderPreTripChatSendSchema
+>;
+export type TripBuilderPreTripChatSendInput = z.output<
+  typeof tripBuilderPreTripChatSendSchema
+>;

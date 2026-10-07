@@ -1,4 +1,4 @@
-export { addRateOptionToTrip } from "./add-rate-option";
+export { attachRateOption } from "./attach-rate-option";
 export { pasteTripLineItem } from "./paste-line-item";
 export {
   getDestinationsSettings,
@@ -13,5 +13,5 @@ export {
   approveTripLineItem,
   rejectTripLineItem,
 } from "./review-line-item";
-export { selectTripAccommodationLineItem } from "./select-line-item";
-export { runRateSearch } from "./search-rates";
+export { selectAccommodationRate } from "./select-accommodation-rate";
+export { searchTripRates } from "./search-rates";

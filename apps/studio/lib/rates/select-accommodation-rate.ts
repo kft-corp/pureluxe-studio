@@ -11,10 +11,10 @@ import { AppError, rateMessages } from "@pureluxe/shared";
 import { requireAssignedTrip } from "@/lib/trip-builder";
 
 /**
- * Select a priced accommodation line item for its leg.
+ * Select a priced accommodation rate for its leg.
  * Approves pending_review first; clears any prior selection on that leg.
  */
-export async function selectTripAccommodationLineItem(
+export async function selectAccommodationRate(
   lineItemId: string,
   actor: { memberId: string },
 ): Promise<TripLineItem> {

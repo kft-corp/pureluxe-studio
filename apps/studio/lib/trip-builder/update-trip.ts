@@ -9,6 +9,7 @@ import { requireActiveClient } from "@/lib/clients/require-active-client";
 
 import { requireAssignedTrip } from "./require-assigned-trip";
 import { buildTripDetail, type TripDetail } from "./trip-detail";
+import { nextTripTitle } from "./trip-title";
 
 /** Patch trip shell fields; returns Studio detail. */
 export async function updateTrip(
@@ -16,10 +17,12 @@ export async function updateTrip(
   input: UpdateTripInput,
   actor: { memberId: string },
 ): Promise<TripDetail> {
-  await requireAssignedTrip(tripId, actor.memberId);
+  const existing = await requireAssignedTrip(tripId, actor.memberId);
 
+  let clientName: string | null = null;
   if (input.primary_client_id) {
-    await requireActiveClient(input.primary_client_id);
+    const client = await requireActiveClient(input.primary_client_id);
+    clientName = client.display_name;
   }
 
   const patch: UpdateTripRecord = {};
@@ -28,6 +31,9 @@ export async function updateTrip(
   }
   if (input.title !== undefined) {
     patch.title = input.title;
+  } else if (clientName) {
+    const autoTitle = nextTripTitle(existing.title, { clientName });
+    if (autoTitle) patch.title = autoTitle;
   }
   if (input.status !== undefined) {
     patch.status = input.status;

@@ -39,13 +39,13 @@ export function resolveTripStage(detail: TripDetail | null): TripStage {
 /** Human next-step copy for the status strip. */
 export function resolveNextStep(detail: TripDetail | null): string {
   if (!detail) return "Start a trip";
-  if (!detail.client) return "Choose a client";
-  if (!stayComplete(detail)) return "Set hotel, city, and dates";
-  if (!detail.rates.selected) return "Search rates or paste a hotel quote";
+  if (!detail.client) return "Select a client";
+  if (!stayComplete(detail)) return "Set hotel & dates";
+  if (!detail.rates.selected) return "Select a rate";
   if (detail.quote.document?.status !== "ready") {
-    return "Edit the quote draft, then generate the PDF";
+    return "Generate quote PDF";
   }
-  return "Quote PDF is ready";
+  return "Open quote PDF";
 }
 
 export function formatStayDates(

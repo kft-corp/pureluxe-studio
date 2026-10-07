@@ -168,6 +168,9 @@ export {
   setTripStaySchema,
   updateTripQuoteSchema,
   generateTripQuoteSchema,
+  tripBuilderChatListQuerySchema,
+  tripBuilderChatSendSchema,
+  tripBuilderPreTripChatSendSchema,
   type TripStatusFilter,
   type ListTripsQuery,
   type CreateTripBody,
@@ -180,6 +183,11 @@ export {
   type UpdateTripQuoteInput,
   type GenerateTripQuoteBody,
   type GenerateTripQuoteInput,
+  type TripBuilderChatListQuery,
+  type TripBuilderChatSendBody,
+  type TripBuilderChatSendInput,
+  type TripBuilderPreTripChatSendBody,
+  type TripBuilderPreTripChatSendInput,
 } from "./trips";
 export {
   inviteMemberSchema,

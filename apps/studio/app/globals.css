@@ -175,6 +175,26 @@ body {
   }
 }
 
+/* Trip Builder agent phase label — brief fade on phase change */
+@keyframes agentPhaseFadeIn {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.agent-phase-label {
+  animation: agentPhaseFadeIn 180ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-phase-label {
+    animation: none;
+  }
+}
+
 /* Trip Builder stage stepper — current step blink */
 @keyframes tripStageBlink {
   0%,

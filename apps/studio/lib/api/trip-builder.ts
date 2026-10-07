@@ -1,25 +1,31 @@
-import type {
-  AddRateOptionBody,
-  CreateTripBody,
-  GenerateTripQuoteBody,
-  ListTripsQuery,
-  PasteLineItemBody,
-  SearchRatesBody,
-  SetTripStayBody,
-  UpdateTripBody,
-  UpdateTripQuoteBody,
-} from "@pureluxe/shared";
-import type { SearchRatesResult } from "@pureluxe/rates";
 import type { TripLineItem } from "@pureluxe/db";
+import type { SearchRatesResult } from "@pureluxe/rates";
+import {
+  isApiErrorResponse,
+  type AddRateOptionBody,
+  type ApiErrorResponse,
+  type CreateTripBody,
+  type GenerateTripQuoteBody,
+  type ListTripsQuery,
+  type PasteLineItemBody,
+  type SearchRatesBody,
+  type SetTripStayBody,
+  type TripBuilderChatSendBody,
+  type TripBuilderPreTripChatSendBody,
+  type UpdateTripBody,
+  type UpdateTripQuoteBody,
+} from "@pureluxe/shared";
 
 import type {
+  ChatMessagePage,
+  ChatStreamEvent,
   TripDetail,
   TripListResult,
   TripQuoteSnapshot,
 } from "@/lib/trip-builder";
 import { apiRoutes } from "@/lib/routes";
 
-import { fetchApi } from "./client";
+import { ApiRequestError, fetchApi } from "./client";
 
 type TripQuoteResponse = {
   detail: TripDetail;
@@ -163,4 +169,111 @@ export function getTripBuilderQuoteUrl(tripId: string) {
     apiRoutes.tripBuilder.quoteUrl(tripId),
     { cache: "no-store" },
   );
+}
+
+const DEFAULT_CHAT_PAGE = 30;
+
+/** Load a recent page of persisted studio chat messages. */
+export function listTripChatMessages(
+  tripId: string,
+  params?: { limit?: number; before?: string },
+) {
+  const search = new URLSearchParams();
+  search.set("limit", String(params?.limit ?? DEFAULT_CHAT_PAGE));
+  if (params?.before) search.set("before", params.before);
+  return fetchApi<ChatMessagePage>(
+    `${apiRoutes.tripBuilder.chat(tripId)}?${search.toString()}`,
+    { cache: "no-store" },
+  );
+}
+
+export type TripChatStreamHandlers = {
+  onEvent: (event: ChatStreamEvent) => void;
+};
+
+/**
+ * Send a chat message and consume NDJSON stream events.
+ * Does not use fetchApi — response is a stream, not `{ success, data }`.
+ */
+async function consumeChatNdjsonStream(
+  response: Response,
+  handlers: TripChatStreamHandlers,
+): Promise<void> {
+  const contentType = response.headers.get("content-type") ?? "";
+
+  if (!response.ok || !contentType.includes("application/x-ndjson")) {
+    let body: unknown = null;
+    try {
+      body = await response.json();
+    } catch {
+      // ignore
+    }
+    if (
+      typeof body === "object" &&
+      body !== null &&
+      isApiErrorResponse(body as ApiErrorResponse)
+    ) {
+      throw new ApiRequestError(body as ApiErrorResponse, response.status);
+    }
+    throw new Error("Unexpected chat stream response.");
+  }
+
+  if (!response.body) {
+    throw new Error("Chat stream body missing.");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    let newline = buffer.indexOf("\n");
+    while (newline >= 0) {
+      const line = buffer.slice(0, newline).trim();
+      buffer = buffer.slice(newline + 1);
+      if (line) {
+        handlers.onEvent(JSON.parse(line) as ChatStreamEvent);
+      }
+      newline = buffer.indexOf("\n");
+    }
+  }
+
+  const trailing = buffer.trim();
+  if (trailing) {
+    handlers.onEvent(JSON.parse(trailing) as ChatStreamEvent);
+  }
+}
+
+export async function streamTripChat(
+  tripId: string,
+  input: TripBuilderChatSendBody,
+  handlers: TripChatStreamHandlers,
+): Promise<void> {
+  const response = await fetch(apiRoutes.tripBuilder.chat(tripId), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+    cache: "no-store",
+  });
+  await consumeChatNdjsonStream(response, handlers);
+}
+
+/**
+ * Pre-trip home chat — ephemeral NDJSON stream (no trip row).
+ */
+export async function streamPreTripChat(
+  input: TripBuilderPreTripChatSendBody,
+  handlers: TripChatStreamHandlers,
+): Promise<void> {
+  const response = await fetch(apiRoutes.tripBuilder.preTripChat, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+    cache: "no-store",
+  });
+  await consumeChatNdjsonStream(response, handlers);
 }

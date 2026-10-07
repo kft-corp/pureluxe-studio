@@ -8,6 +8,8 @@ export const tripMessages = {
     quoteLoaded: "Quote loaded.",
     quoteSaved: "Quote draft saved.",
     quoteGenerated: "Quote PDF generated.",
+    chatListed: "Chat loaded.",
+    chatSent: "Message sent.",
   },
   error: {
     notFound: "We couldn't find that trip.",
@@ -23,5 +25,10 @@ export const tripMessages = {
       "Finish client, stay, and a selected rate before generating the quote PDF.",
     quoteFileMissing: "No quote PDF is ready yet. Generate one first.",
     quoteGenerateFailed: "We couldn't generate the quote PDF. Try again.",
+    aiNotConfigured:
+      "AI is not configured. Add ANTHROPIC_API_KEY to the environment.",
+    aiFailed: "We couldn't get an AI reply. Try again.",
+    chatListFailed: "We couldn't load chat. Refresh and try again.",
+    chatSendFailed: "We couldn't send that message. Try again.",
   },
 } as const;

@@ -3,7 +3,8 @@ import type { SearchRatesRequest, SearchRatesResult } from "../types";
 import { searchRatesForLeg } from "./search-rates-for-leg";
 
 /**
- * Alias for searchRatesForLeg — same brain, name used in product docs.
+ * Product-facing name (docs/rate-layer.md).
+ * Implementation lives in searchRatesForLeg — prefer that for new Studio code.
  */
 export async function resolveRates(
   request: SearchRatesRequest,

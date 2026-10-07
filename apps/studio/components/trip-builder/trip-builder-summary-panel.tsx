@@ -5,7 +5,7 @@ import { LuX } from "react-icons/lu";
 import { studioButtonClass } from "@/components/ui";
 import type { TripDetail } from "@/lib/trip-builder";
 
-import { formatStayDates, resolveNextStep } from "./trip-stages";
+import { formatStayDates, resolveNextStep } from "./stages";
 
 type TripBuilderSummaryPanelProps = {
   detail: TripDetail | null;
@@ -44,7 +44,7 @@ export function TripBuilderSummaryPanel({
         aria-label="Close summary"
         onClick={onClose}
       />
-      <aside className="absolute inset-y-0 right-0 z-30 flex w-[min(22rem,100%)] flex-col border-l border-border bg-surface shadow-xl lg:static lg:z-0 lg:w-80 lg:shrink-0 lg:shadow-none">
+      <aside className="absolute inset-y-0 right-0 z-30 flex w-[min(22rem,100%)] flex-col border-l border-border bg-surface pb-[env(safe-area-inset-bottom)] shadow-xl lg:static lg:z-0 lg:w-80 lg:shrink-0 lg:pb-0 lg:shadow-none">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <div>
             <p className="text-[11px] font-semibold tracking-wide text-ink-subtle uppercase">
@@ -55,10 +55,10 @@ export function TripBuilderSummaryPanel({
           <button
             type="button"
             onClick={onClose}
-            className={studioButtonClass("ghost", "sm", "!px-2")}
+            className={studioButtonClass("ghost", "sm", "h-10 w-10 !px-0 sm:h-8 sm:w-8")}
             aria-label="Close summary"
           >
-            <LuX className="h-3.5 w-3.5" aria-hidden />
+            <LuX className="h-4 w-4 sm:h-3.5 sm:w-3.5" aria-hidden />
           </button>
         </div>
 
@@ -112,7 +112,7 @@ export function TripBuilderSummaryPanel({
               </div>
 
               <p className="text-[11px] leading-relaxed text-ink-subtle">
-                Quote editing and PDF arrive in a later phase.
+                Build in chat — confirm client, stay, rates, and PDF with chips.
               </p>
             </>
           )}

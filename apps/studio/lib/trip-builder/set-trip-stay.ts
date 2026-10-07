@@ -1,6 +1,8 @@
 import {
   findActivePropertyById,
+  findClientById,
   findTripById,
+  updateTrip as dbUpdateTrip,
   upsertFirstTripLeg,
   upsertStayShellLineItem,
 } from "@pureluxe/db";
@@ -8,6 +10,7 @@ import { AppError, tripMessages, type SetTripStayInput } from "@pureluxe/shared"
 
 import { requireAssignedTrip } from "./require-assigned-trip";
 import { buildTripDetail, type TripDetail } from "./trip-detail";
+import { nextTripTitle } from "./trip-title";
 
 /**
  * Set Phase 1 fixed stay: first leg (city + dates) + named-hotel shell.
@@ -72,6 +75,21 @@ export async function setTripStay(
     property_name: hotelName,
     created_by_id: actor.memberId,
   });
+
+  let clientName: string | null = null;
+  if (trip.primary_client_id) {
+    const client = await findClientById(trip.primary_client_id);
+    clientName = client?.display_name ?? null;
+  }
+
+  const autoTitle = nextTripTitle(trip.title, {
+    clientName,
+    city,
+    hotel: hotelName,
+  });
+  if (autoTitle) {
+    await dbUpdateTrip(trip.id, { title: autoTitle });
+  }
 
   const fresh = (await findTripById(trip.id)) ?? trip;
   return buildTripDetail(fresh);

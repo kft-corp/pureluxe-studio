@@ -16,10 +16,10 @@ import {
 import { requireAssignedTrip } from "@/lib/trip-builder";
 
 /**
- * Persist a search option as a trip line item.
+ * Attach a search option as a trip line item.
  * When select=true, marks it as the selected accommodation for the leg.
  */
-export async function addRateOptionToTrip(
+export async function attachRateOption(
   input: AddRateOptionInput,
   actor: { memberId: string },
 ): Promise<TripLineItem> {

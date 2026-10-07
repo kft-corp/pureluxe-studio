@@ -9,7 +9,13 @@ loadEnvConfig(path.join(process.cwd(), "../.."), undefined, undefined, true);
 
 const nextConfig: NextConfig = {
   // Shared packages under packages/* will be consumed here as @pureluxe/*
-  transpilePackages: ["@pureluxe/auth", "@pureluxe/db", "@pureluxe/shared"],
+  transpilePackages: [
+    "@pureluxe/ai",
+    "@pureluxe/auth",
+    "@pureluxe/db",
+    "@pureluxe/rates",
+    "@pureluxe/shared",
+  ],
   reactStrictMode: true,
   images: {
     localPatterns: [
