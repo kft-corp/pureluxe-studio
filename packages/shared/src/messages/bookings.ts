@@ -35,5 +35,11 @@ export const bookingMessages = {
     cannotConfirm: "Only pending or on-hold bookings can be confirmed.",
     cannotCancel: "This booking can’t be cancelled in its current status.",
     cannotAmend: "Only active bookings can be amended.",
+    tripBuilderOwned:
+      "This stay is still planned in Trip Builder. Confirm the booking before changing the hotel, dates, guests, cost, or cancellation policy.",
+    pricingLocked:
+      "Pricing is locked on the linked trip. Cost and currency stay as they are.",
+    tripLinkOwned:
+      "This booking was created from Trip Builder. Keep it linked until the booking is confirmed.",
   },
 } as const;

@@ -18,8 +18,11 @@ import {
   type UpdateTripQuoteInput,
 } from "@pureluxe/shared";
 
-import { buildSimpleQuotePdf } from "./build-quote-pdf";
+import { buildClientQuotePdf } from "./build-quote-pdf";
+import { syncTripCommercials } from "./sync-trip-commercials";
+import { syncTripHotelBooking } from "./sync-trip-booking";
 import { getTripDetail } from "./get-trip-detail";
+import { clearTripDossier } from "./trip-dossier";
 import { requireAssignedTrip } from "./require-assigned-trip";
 import {
   buildTripDetail,
@@ -29,16 +32,71 @@ import {
 } from "./trip-detail";
 
 const QUOTE_DOC_TYPE = "rates" as const;
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function formatQuoteDate(iso: string | null): string {
+  if (!iso) return "";
+  const [year, month, day] = iso.split("-").map(Number);
+  if (!year || !month || !day) return iso;
+  return `${day} ${MONTHS[month - 1]} ${year}`;
+}
+
+function nightCount(checkIn: string | null, checkOut: string | null): number {
+  if (!checkIn || !checkOut) return 0;
+  const [y1, m1, d1] = checkIn.split("-").map(Number);
+  const [y2, m2, d2] = checkOut.split("-").map(Number);
+  if (!y1 || !m1 || !d1 || !y2 || !m2 || !d2) return 0;
+  const nights = Math.round(
+    (Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86_400_000,
+  );
+  return nights > 0 ? nights : 0;
+}
+
+function staysOf(detail: TripDetail) {
+  return detail.stays.length > 0 ? detail.stays : detail.stay ? [detail.stay] : [];
+}
+
+function selectedForStay(detail: TripDetail, legId: string) {
+  return (
+    detail.rates.candidates.find(
+      (rate) => rate.selected && rate.leg_id === legId,
+    ) ?? null
+  );
+}
+
+function partyLine(stay: TripDetail["stay"], detail: TripDetail): string {
+  if (!stay) return "";
+  const nights = nightCount(stay.check_in, stay.check_out);
+  const parts: string[] = [];
+  const names = detail.travellers.map((person) => person.display_name.trim()).filter(Boolean);
+  if (names.length > 0) parts.push(names.join(", "));
+  if (nights) parts.push(nights === 1 ? "1 night" : `${nights} nights`);
+  if (stay.adults) {
+    parts.push(stay.adults === 1 ? "1 adult" : `${stay.adults} adults`);
+  }
+  if (stay.children) {
+    parts.push(stay.children === 1 ? "1 child" : `${stay.children} children`);
+  }
+  if (stay.rooms) {
+    parts.push(stay.rooms === 1 ? "1 room" : `${stay.rooms} rooms`);
+  }
+  return parts.join("  ·  ");
+}
 
 type QuoteResult = { detail: TripDetail; quote: TripQuoteSnapshot };
 
 function quoteReady(detail: TripDetail): boolean {
+  const stays = staysOf(detail);
   return Boolean(
     detail.client &&
-      detail.stay?.check_in &&
-      detail.stay.check_out &&
-      detail.stay.property_name &&
-      detail.rates.selected,
+      stays.length > 0 &&
+      stays.every(
+        (stay) =>
+          stay.check_in &&
+          stay.check_out &&
+          stay.property_name &&
+          selectedForStay(detail, stay.leg_id),
+      ),
   );
 }
 
@@ -51,9 +109,14 @@ function fingerprintFor(detail: TripDetail): string {
         sell_total: detail.trip.sell_total,
         sell_currency: detail.trip.sell_currency,
         payment_plan: detail.trip.payment_plan,
-        stay: detail.stay,
-        rate_id: detail.rates.selected?.id ?? null,
-        rate_cost: detail.rates.selected?.cost_internal ?? null,
+        stays: staysOf(detail).map((stay) => ({
+          leg_id: stay.leg_id,
+          city: stay.city,
+          check_in: stay.check_in,
+          check_out: stay.check_out,
+          property_name: stay.property_name,
+          rate_id: selectedForStay(detail, stay.leg_id)?.id ?? null,
+        })),
         narrative: {
           title: detail.quote.title,
           intro: detail.quote.intro,
@@ -120,6 +183,7 @@ export async function updateTripQuote(
   if (Object.keys(commercialPatch).length > 0) {
     await updateTrip(tripId, commercialPatch);
   }
+  await syncTripCommercials(tripId);
 
   await upsertTripDocumentDraft({
     trip_id: tripId,
@@ -131,11 +195,12 @@ export async function updateTripQuote(
         : (existing?.status ?? "generating"),
   });
 
-  const freshTrip =
-    Object.keys(commercialPatch).length > 0
-      ? ((await findTripById(tripId)) ?? trip)
-      : trip;
+  const freshTrip = (await findTripById(tripId)) ?? trip;
   const detail = await buildTripDetail(freshTrip);
+  if (input.sell_total != null) {
+    await syncTripHotelBooking(detail, actor);
+  }
+  clearTripDossier(tripId);
   return { detail, quote: detail.quote };
 }
 
@@ -170,26 +235,34 @@ export async function generateTripQuotePdf(
 
   await markTripDocumentGenerating(tripId, QUOTE_DOC_TYPE);
 
-  const lines = [
-    "PureLuxe Quote",
-    detail.quote.title || "Hotel quote",
-    "",
-    `Client: ${detail.client?.display_name ?? "—"}`,
-    `Hotel: ${detail.stay?.property_name ?? "—"}`,
-    `City: ${detail.stay?.city ?? "—"}`,
-    `Dates: ${detail.stay?.check_in ?? "—"} to ${detail.stay?.check_out ?? "—"}`,
-    `Rate: ${detail.rates.selected?.title ?? "—"}`,
-    `Cost (internal): ${detail.rates.selected?.cost_internal ?? "—"} ${detail.rates.selected?.currency ?? ""}`,
-    `Sell: ${detail.trip.sell_total ?? "—"} ${detail.trip.sell_currency ?? ""}`,
-    "",
-    detail.quote.intro ? `Intro: ${detail.quote.intro}` : "Intro: —",
-    detail.quote.notes ? `Notes: ${detail.quote.notes}` : "Notes: —",
-    ...detail.quote.highlights.map((item) => `- ${item}`),
-  ];
+  const sell =
+    detail.trip.sell_total == null
+      ? "To be confirmed"
+      : `${detail.trip.sell_currency ?? ""} ${detail.trip.sell_total}`.trim();
+  const pdf = buildClientQuotePdf({
+    clientName: detail.client?.display_name ?? "Guest",
+    stays: staysOf(detail).map((stay) => {
+      const selected = selectedForStay(detail, stay.leg_id);
+      return {
+        hotel: stay.property_name ?? "Hotel",
+        city: stay.city,
+        dates: [formatQuoteDate(stay.check_in), formatQuoteDate(stay.check_out)]
+          .filter(Boolean)
+          .join("  –  "),
+        party: partyLine(stay, detail),
+        room: selected?.subtitle || selected?.title || "Accommodation",
+        inclusions: selected?.inclusions ?? [],
+      };
+    }),
+    sell,
+    intro: detail.quote.intro,
+    notes: detail.quote.notes,
+    highlights: detail.quote.highlights,
+  });
 
   try {
     const path = buildTripDocumentPath(tripId, QUOTE_DOC_TYPE);
-    await uploadTripDocumentPdf(path, buildSimpleQuotePdf(lines));
+    await uploadTripDocumentPdf(path, pdf);
     await completeTripDocumentReady({
       trip_id: tripId,
       type: QUOTE_DOC_TYPE,
@@ -198,6 +271,7 @@ export async function generateTripQuotePdf(
       generated_by_id: actor.memberId,
     });
     detail = await buildTripDetail(trip);
+    clearTripDossier(tripId);
     return { detail, quote: detail.quote };
   } catch (cause) {
     throw new AppError({

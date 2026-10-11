@@ -29,6 +29,7 @@ import {
   formatBookingMoney,
   formatBookingStatus,
   resolveBookingDeadline,
+  tripBuilderOwnsStay,
 } from "@/lib/bookings";
 import { getBookingConfirmConfig } from "@/lib/bookings/confirm-dialog-config";
 import { pageRoutes } from "@/lib/routes";
@@ -173,8 +174,13 @@ export function BookingDetailContent({
     pendingDeleteTravellerName,
   } = state;
 
-  const { booking, travellers, recent_audit: recentAudit, recent_audit_total } =
-    detail;
+  const {
+    booking,
+    travellers,
+    trip,
+    recent_audit: recentAudit,
+    recent_audit_total,
+  } = detail;
   const canEdit = canWrite && booking.status !== "superseded";
   const needsConfirm =
     booking.status === "pending" || booking.status === "on_hold";
@@ -190,7 +196,13 @@ export function BookingDetailContent({
     booking.nights,
     booking.service_type,
   );
-  const sellLabel = formatBookingMoney(booking.sell_amount, booking.currency);
+  const tripPrice = trip
+    ? formatBookingMoney(trip.sell_total, trip.sell_currency)
+    : null;
+  const sellLabel = trip
+    ? tripPrice
+    : formatBookingMoney(booking.sell_amount, booking.currency);
+  const stayOwned = tripBuilderOwnsStay(booking);
   const refLabel = displayOrDash(booking.supplier_ref);
   const deadlineUrgent =
     deadline.kind === "cancel" || deadline.kind === "ticket";
@@ -328,7 +340,9 @@ export function BookingDetailContent({
             {canEdit ? (
               <ToolbarMenu
                 menuClassName="min-w-[12rem]"
-                items={EDIT_MENU_ITEMS.map((item) => ({
+                items={EDIT_MENU_ITEMS.filter(
+                  (item) => item.section !== "reservation" || !stayOwned,
+                ).map((item) => ({
                   key: item.section,
                   label: item.label,
                   onClick: () => setEditSection(item.section),
@@ -414,10 +428,12 @@ export function BookingDetailContent({
             }
           />
           <SnapshotCard
-            label="Sell price"
-            value={sellLabel}
+            label={trip ? "Trip client price" : "Sell price"}
+            value={sellLabel ?? "—"}
             hint={
-              booking.currency?.trim().toUpperCase() || "Commercial snapshot"
+              trip
+                ? trip.sell_currency?.trim().toUpperCase() || "Stored on the trip"
+                : booking.currency?.trim().toUpperCase() || "Commercial snapshot"
             }
           />
         </div>
@@ -465,6 +481,7 @@ export function BookingDetailContent({
         {activeTab === "commercial" ? (
           <BookingCommercialPanel
             booking={booking}
+            trip={trip}
             canWrite={canEdit}
             onEditSection={setEditSection}
           />

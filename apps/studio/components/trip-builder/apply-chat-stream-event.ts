@@ -10,6 +10,7 @@ type ApplyOptions = {
   setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
   setStreamingContent: Dispatch<SetStateAction<string | null>>;
   setAgentPhase: Dispatch<SetStateAction<AgentPhase | null>>;
+  onClients?: (clients: { id: string; display_name: string }[]) => void;
   onError?: () => void;
   showError: (error: unknown) => void;
 };
@@ -30,6 +31,7 @@ export function applyChatStreamEvent(options: ApplyOptions): void {
     setMessages,
     setStreamingContent,
     setAgentPhase,
+    onClients,
     onError,
     showError,
   } = options;
@@ -44,6 +46,10 @@ export function applyChatStreamEvent(options: ApplyOptions): void {
         return [...withoutOptimistic, event.user];
       });
       setStreamingContent("");
+      return;
+    }
+    case "clients": {
+      onClients?.(event.clients);
       return;
     }
     case "status": {

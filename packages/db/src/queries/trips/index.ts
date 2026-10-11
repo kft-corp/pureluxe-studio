@@ -1,7 +1,14 @@
 export {
   clearSelectedAccommodationForLeg,
+  patchStayShellParty,
+  deleteLineItemsForLeg,
+  deleteUnselectedStayOptions,
+  updateStayOption,
   findSelectedAccommodationLineItem,
   findStayShellLineItem,
+  linkStayShellProperty,
+  pointStayShellAtHotel,
+  fillTripLineItemRateFacts,
   findTripLineItemById,
   insertTripLineItem,
   isStayShellLineItem,
@@ -23,12 +30,24 @@ export {
   type UpsertTripDocumentDraftInput,
 } from "./trip-documents";
 export {
+  deleteTripLeg,
   findFirstTripLeg,
   findTripLegById,
+  insertTripLeg,
+  listTripLegs,
+  updateTripLeg,
   upsertFirstTripLeg,
+  type InsertTripLegInput,
   type UpsertFirstTripLegInput,
 } from "./trip-legs";
-export { setTripPrimaryClient } from "./trip-clients";
+export {
+  deleteTripCompanion,
+  findPrimaryTripClient,
+  listTripTravellers,
+  setTripPrimaryClient,
+  upsertTripCompanion,
+  type TripTravellerRow,
+} from "./trip-clients";
 export {
   findAssistantReplyAfter,
   findTripChatMessageByClientRequestId,

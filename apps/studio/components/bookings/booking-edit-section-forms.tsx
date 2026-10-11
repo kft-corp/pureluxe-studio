@@ -20,6 +20,7 @@ import {
   boardBasisFormStateFromDetails,
   formatBookingStatus,
   resolveBoardBasisFields,
+  tripBuilderOwnsStay,
 } from "@/lib/bookings";
 import {
   dayAfter,
@@ -439,6 +440,8 @@ export function CommercialForm({
       : String(booking.commission_expected),
   );
   const [loading, setLoading] = useState(false);
+  const pricesLocked =
+    tripBuilderOwnsStay(booking) || Boolean(detail.trip?.pricing_locked);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -458,9 +461,13 @@ export function CommercialForm({
         supplier_name: emptyToNull(supplierName),
         supplier_ref: emptyToNull(supplierRef),
         booking_channel: emptyToNull(bookingChannel),
-        currency: emptyToNull(currency),
-        sell_amount: sell,
-        cost_amount: cost,
+        ...(pricesLocked
+          ? {}
+          : {
+              currency: emptyToNull(currency),
+              sell_amount: sell,
+              cost_amount: cost,
+            }),
         commission_expected: expected,
       };
       const patch = dirtyPatch(next, {
@@ -542,6 +549,13 @@ export function CommercialForm({
           ) : null}
         </select>
       </Field>
+      {pricesLocked ? (
+        <p className="text-xs leading-5 text-ink-muted">
+          {tripBuilderOwnsStay(booking)
+            ? "Cost and currency come from Trip Builder until this booking is confirmed. Supplier details can still be saved here."
+            : "Pricing is locked on the linked trip. Supplier details can still be saved here."}
+        </p>
+      ) : null}
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Currency" htmlFor="edit-currency">
           <CurrencyCombobox
@@ -549,6 +563,7 @@ export function CommercialForm({
             value={currency}
             onChange={setCurrency}
             placeholder="Search currencies…"
+            disabled={pricesLocked}
           />
         </Field>
         <Field
@@ -560,6 +575,7 @@ export function CommercialForm({
             id="edit-sell"
             inputMode="decimal"
             value={sellAmount}
+            disabled={pricesLocked}
             onChange={(event) => setSellAmount(event.target.value)}
             className={cn(modalFieldClassName)}
           />
@@ -573,6 +589,7 @@ export function CommercialForm({
             id="edit-cost"
             inputMode="decimal"
             value={costAmount}
+            disabled={pricesLocked}
             onChange={(event) => setCostAmount(event.target.value)}
             className={cn(modalFieldClassName)}
           />
@@ -613,6 +630,7 @@ export function PolicyForm({ detail, onClose, onSuccess }: SectionFormProps) {
   const [cancellationPolicy, setCancellationPolicy] = useState(
     booking.cancellation_policy ?? "",
   );
+  const policyOwned = tripBuilderOwnsStay(booking);
   const [cancellationReason, setCancellationReason] = useState(
     booking.cancellation_reason ?? "",
   );
@@ -626,7 +644,9 @@ export function PolicyForm({ detail, onClose, onSuccess }: SectionFormProps) {
       const nextTicket = fromDatetimeLocalValue(ticketTimeLimit);
       const next: Record<string, unknown> = {
         cancellation_deadline: emptyToNull(cancellationDeadline),
-        cancellation_policy: emptyToNull(cancellationPolicy),
+        ...(policyOwned
+          ? {}
+          : { cancellation_policy: emptyToNull(cancellationPolicy) }),
         cancellation_reason: emptyToNull(cancellationReason),
       };
       if (booking.service_type === "flight") {
@@ -719,10 +739,19 @@ export function PolicyForm({ detail, onClose, onSuccess }: SectionFormProps) {
           <div className="hidden sm:block" aria-hidden />
         )}
       </div>
-      <Field label="Cancellation policy" htmlFor="edit-cancel-policy">
+      <Field
+        label="Cancellation policy"
+        htmlFor="edit-cancel-policy"
+        hint={
+          policyOwned
+            ? "This text comes from the selected rate until the booking is confirmed."
+            : undefined
+        }
+      >
         <textarea
           id="edit-cancel-policy"
           value={cancellationPolicy}
+          disabled={policyOwned}
           onChange={(event) => setCancellationPolicy(event.target.value)}
           rows={3}
           className={cn(modalFieldClassName, "resize-y")}

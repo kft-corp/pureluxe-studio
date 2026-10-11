@@ -10,12 +10,40 @@ function toRateFact(rate: TripRateSnapshot) {
     currency: rate.currency,
     rate_source_code: rate.rate_source_code,
     selected: rate.selected,
+    sell_amount: rate.sell_amount,
+    inclusions: rate.inclusions,
+    cancellation_policy: rate.cancellation_policy,
+  };
+}
+
+function stayFact(
+  stay: TripDetail["stays"][number],
+  rates: TripDetail["rates"],
+) {
+  return {
+    city: stay.city,
+    check_in: stay.check_in,
+    check_out: stay.check_out,
+    property_name: stay.property_name,
+    rate_selected: rates.candidates.some(
+      (rate) => rate.selected && rate.leg_id === stay.leg_id,
+    ),
   };
 }
 
 /** Map Studio trip aggregate → lean AI trip facts. */
 export function toTripFacts(detail: TripDetail): TripFacts {
   const selected = detail.rates.selected;
+  const stays = (detail.stays.length > 0
+    ? detail.stays
+    : detail.stay
+      ? [detail.stay]
+      : []
+  ).map((stay) => stayFact(stay, detail.rates));
+  const open =
+    stays.find((stay) => !stay.property_name || !stay.rate_selected) ??
+    stays[0] ??
+    null;
 
   return {
     trip_id: detail.trip.id,
@@ -25,14 +53,29 @@ export function toTripFacts(detail: TripDetail): TripFacts {
     client: detail.client
       ? { id: detail.client.id, display_name: detail.client.display_name }
       : null,
-    stay: detail.stay
+    travellers_confirmed: Boolean(detail.trip.travellers_confirmed_at),
+    travellers: detail.travellers.map((person) => ({
+      display_name: person.display_name,
+      role: person.role,
+      party_role: person.party_role,
+    })),
+    family_suggestions: detail.family_suggestions.map((person) => ({
+      display_name: person.display_name,
+      party_role: person.party_role,
+      family_role: person.family_role,
+    })),
+    starts_on: detail.trip.starts_on,
+    ends_on: detail.trip.ends_on,
+    legs_confirmed: Boolean(detail.trip.legs_confirmed_at),
+    stay: open
       ? {
-          city: detail.stay.city,
-          check_in: detail.stay.check_in,
-          check_out: detail.stay.check_out,
-          property_name: detail.stay.property_name,
+          city: open.city,
+          check_in: open.check_in,
+          check_out: open.check_out,
+          property_name: open.property_name,
         }
       : null,
+    stays,
     rates: {
       selected: selected ? toRateFact(selected) : null,
       candidates: detail.rates.candidates.map(toRateFact),

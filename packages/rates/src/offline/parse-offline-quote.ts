@@ -24,6 +24,8 @@ const BARE_MONEY_RE =
   /(?:total|rate|cost|price|amount)[:\s]+([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?)/i;
 const BOARD_RE =
   /\b(BB|HB|FB|AI|RO|bed\s*&\s*breakfast|half\s*board|full\s*board|all\s*inclusive|room\s*only)\b/i;
+const TAX_RE =
+  /\b(?:tax|gst|vat)\b[^%\n]{0,16}(\d+(?:\.\d+)?)\s*%|(\d+(?:\.\d+)?)\s*%\s*(?:tax|gst|vat)\b/i;
 
 function parseAmount(text: string): number | null {
   const match = text.match(MONEY_RE) ?? text.match(BARE_MONEY_RE);
@@ -72,6 +74,13 @@ export function parseOfflineQuote(
   }
 
   const currency = detectCurrency(text, input.currency ?? "USD");
+  const taxMatch = text.match(TAX_RE);
+  const taxRaw = taxMatch?.[1] ?? taxMatch?.[2];
+  const taxPercentage = taxRaw == null ? null : Number(taxRaw);
+  const tax =
+    taxPercentage != null && Number.isFinite(taxPercentage) && taxPercentage >= 0
+      ? taxPercentage
+      : null;
 
   if (cost == null) {
     return { status: "empty", fields: null, warnings };
@@ -88,7 +97,10 @@ export function parseOfflineQuote(
     rate_source_code: input.rate_source_code ?? "offline_manual",
     inclusions: [],
     availability_status: "on_request",
-    raw: { paste_text: text },
+    raw: {
+      paste_text: text,
+      ...(tax != null ? { tax_percentage: tax } : {}),
+    },
   };
 
   return {

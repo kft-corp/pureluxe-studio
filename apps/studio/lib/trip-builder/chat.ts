@@ -14,6 +14,7 @@ import {
 } from "@pureluxe/db";
 import {
   AppError,
+  type TripBuilderChatLinesInput,
   type TripBuilderChatListQuery,
   type TripBuilderChatSendInput,
   tripMessages,
@@ -21,7 +22,12 @@ import {
 
 import { createTripTools, toTripFacts } from "@/lib/ai";
 
+import { questionUsesRatePack, readRateSearchPack } from "@/lib/rates/rate-search-pack";
+
+import { answerAtlasStay } from "./atlas-stay";
 import { getTripDetail } from "./get-trip-detail";
+import { isClientQuestion, isPlaceQuestion } from "./message-intent";
+import { getTripDossier, questionNeedsPlaceLookup } from "./trip-dossier";
 import { requireAssignedTrip } from "./require-assigned-trip";
 
 /** Lean chat row for Studio APIs / UI (studio channel only). */
@@ -36,6 +42,7 @@ export type ChatMessage = {
 
 export type ChatStreamEvent =
   | { type: "meta"; user: ChatMessage }
+  | { type: "clients"; clients: { id: string; display_name: string }[] }
   | { type: "status"; phase: AgentPhase }
   | { type: "delta"; text: string }
   | { type: "done"; assistant: ChatMessage }
@@ -55,6 +62,12 @@ function toChatMessage(row: TripChatMessage): ChatMessage {
     client_request_id: row.client_request_id,
     created_at: row.created_at,
   };
+}
+
+function questionForAtlas(message: string, history: ChatHistoryMessage[]): string {
+  if (!/\b(?:there|that place|that country|that city)\b/i.test(message)) return message;
+  const prior = [...history].reverse().find((row) => row.role === "user")?.content.trim();
+  return prior ? `${message} ${prior}` : message;
 }
 
 function toHistory(
@@ -138,6 +151,27 @@ type ReplayTurn = {
 };
 
 export type PreparedChatTurn = StreamTurn | ReplayTurn;
+
+/** Store chat lines on the trip. Does not call the agent. */
+export async function saveTripChatLines(
+  tripId: string,
+  lines: TripBuilderChatLinesInput["lines"],
+  actor: { memberId: string },
+): Promise<ChatMessage[]> {
+  await requireAssignedTrip(tripId, actor.memberId);
+  const saved: ChatMessage[] = [];
+  for (const line of lines) {
+    const row = await insertTripChatMessage({
+      trip_id: tripId,
+      channel: "studio",
+      role: line.role,
+      content: line.content,
+      team_member_id: actor.memberId,
+    });
+    saved.push(toChatMessage(row));
+  }
+  return saved;
+}
 
 /**
  * Persist (or reuse) the user message, then prepare a Claude stream.
@@ -224,10 +258,36 @@ async function buildStreamTurn(
   draftAssistant: TripChatMessage | null,
 ): Promise<StreamTurn> {
   const detail = await getTripDetail(tripId, actor);
+  const dossier = await getTripDossier(tripId, actor, detail);
   const { messages: rows } = await listTripChatMessagesPage(tripId, "studio", {
     limit: 40,
   });
   const history = toHistory(rows, userRow.id);
+  const stays = detail.stays.length > 0 ? detail.stays : detail.stay ? [detail.stay] : [];
+  const cityHint =
+    stays.find((stay) => stay.city.trim() && !stay.property_name?.trim())?.city ??
+    stays.find((stay) => stay.city.trim())?.city ??
+    null;
+  const ratePack = readRateSearchPack(tripId);
+  const rateQuestion = Boolean(ratePack) && questionUsesRatePack(userRow.content);
+  const placeQuestion = isPlaceQuestion(userRow.content);
+  const editingTrip =
+    !placeQuestion &&
+    /\b(?:change|move|update|edit|set|shift|correct|remove|add)\b/i.test(userRow.content) &&
+    /\b(?:dates?|start|end|stay|hotel|city|check[\s-]?in|check[\s-]?out|rooms?)\b/i.test(
+      userRow.content,
+    );
+  const lookupPlace =
+    !editingTrip &&
+    !rateQuestion &&
+    !isClientQuestion(userRow.content) &&
+    (placeQuestion || questionNeedsPlaceLookup(dossier.placeNames));
+  const atlas = lookupPlace
+    ? await answerAtlasStay({
+        question: questionForAtlas(userRow.content, history),
+        cityHint,
+      })
+    : { matched: false, answer: "", hotels: [], place: { city: null, country: null } };
 
   async function* chunks(): AsyncGenerator<AgentStreamChunk> {
     yield* streamTripTurn({
@@ -237,6 +297,13 @@ async function buildStreamTurn(
       trip: toTripFacts(detail),
       history,
       clientRequestId: userRow.client_request_id,
+      atlasNotes: atlas.matched ? atlas.answer : null,
+      dossierNotes: dossier.notes,
+      ratePackNotes:
+        !isClientQuestion(userRow.content) &&
+        (questionUsesRatePack(userRow.content) || isPlaceQuestion(userRow.content))
+          ? ratePack
+          : null,
       tools: createTripTools({
         tripId,
         memberId: actor.memberId,

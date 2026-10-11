@@ -27,8 +27,28 @@ export function TripBuilderTripsMenu({
   disabled,
 }: TripBuilderTripsMenuProps) {
   const [open, setOpen] = useState(false);
+  const [menuBox, setMenuBox] = useState<{ top: number; right: number } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
+
+  function placeMenu() {
+    const rect = buttonRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setMenuBox({
+      top: rect.bottom + 6,
+      right: Math.max(8, window.innerWidth - rect.right),
+    });
+  }
+
+  function toggleMenu() {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    placeMenu();
+    setOpen(true);
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -43,11 +63,20 @@ export function TripBuilderTripsMenu({
       if (event.key === "Escape") setOpen(false);
     }
 
+    function onScroll(event: Event) {
+      if (rootRef.current?.contains(event.target as Node)) return;
+      setOpen(false);
+    }
+
     document.addEventListener("mousedown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
+    window.addEventListener("resize", placeMenu);
+    window.addEventListener("scroll", onScroll, true);
     return () => {
       document.removeEventListener("mousedown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("resize", placeMenu);
+      window.removeEventListener("scroll", onScroll, true);
     };
   }, [open]);
 
@@ -60,6 +89,7 @@ export function TripBuilderTripsMenu({
   return (
     <div ref={rootRef} className="relative shrink-0">
       <button
+        ref={buttonRef}
         type="button"
         disabled={disabled}
         aria-haspopup="listbox"
@@ -69,15 +99,15 @@ export function TripBuilderTripsMenu({
           tripCount > 0 ? `Recent trips (${tripCount})` : "Recent trips"
         }
         title={tooltip}
-        onClick={() => setOpen((value) => !value)}
+        onClick={toggleMenu}
         className={cn(
-          "relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-ink transition sm:h-8 sm:w-8",
+          "relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-ink transition lg:h-8 lg:w-8",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-dark/20",
           "disabled:cursor-not-allowed disabled:opacity-50",
           open ? "bg-black/10" : "bg-transparent hover:bg-black/5",
         )}
       >
-        <LuHistory className="size-[18px]" strokeWidth={2} aria-hidden />
+        <LuHistory className="size-4 lg:size-[18px]" strokeWidth={2} aria-hidden />
         {tripCount > 0 ? (
           <span
             className="absolute -top-0.5 -right-0.5 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-[#1a4d3e] px-1 text-[9px] font-semibold leading-none text-white"
@@ -88,12 +118,13 @@ export function TripBuilderTripsMenu({
         ) : null}
       </button>
 
-      {open ? (
+      {open && menuBox ? (
         <div
           id={menuId}
           role="listbox"
           aria-label="Recent trips"
-          className="absolute top-full right-0 z-40 mt-1.5 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-lg border border-border bg-surface-raised shadow-lg"
+          style={{ top: menuBox.top, right: menuBox.right }}
+          className="fixed z-50 w-[min(20rem,calc(100vw-1rem))] overflow-hidden rounded-lg border border-border bg-surface-raised shadow-lg"
         >
           <div className="border-b border-border px-3 py-2.5">
             <p className="text-[13px] font-medium text-ink">Recent trips</p>
@@ -104,7 +135,7 @@ export function TripBuilderTripsMenu({
               No assigned trips yet. Tap Create trip when ready.
             </p>
           ) : (
-            <ul className="max-h-72 overflow-y-auto py-1">
+            <ul className="max-h-[min(24rem,calc(100dvh-7rem))] overflow-y-auto py-1">
               {trips.map((trip) => {
                 const selected = trip.id === activeTripId;
                 const subtitle = displayTripSubtitle(trip);

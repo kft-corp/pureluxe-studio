@@ -2,10 +2,22 @@
  * Trip Builder domain — thin services over @pureluxe/db.
  * Same layout as lib/bookings / lib/rates.
  */
+export { answerAtlasStay, type AtlasHotelChoice, type AtlasStayAnswer } from "./atlas-stay";
 export { createTrip } from "./create-trip";
 export { listTripBuilderTrips, type TripListItem, type TripListResult } from "./list-trips";
 export { requireAssignedTrip } from "./require-assigned-trip";
-export { setTripStay } from "./set-trip-stay";
+export { addTripLeg } from "./add-trip-leg";
+export { removeTripLeg } from "./remove-trip-leg";
+export { reviseTripLeg } from "./revise-trip-leg";
+export { setTripStay, type StayPropertyMatch } from "./set-trip-stay";
+export {
+  addTripTraveller,
+  changeTripLead,
+  confirmTripTravellers,
+  partyCounts,
+  removeTripTraveller,
+  removeTripTravellerByName,
+} from "./trip-party";
 export {
   NEW_TRIP_TITLE,
   buildTripAutoTitle,
@@ -19,9 +31,12 @@ export {
   buildTripDetail,
   loadTripStay,
   type TripClientSnapshot,
+  type TripFamilySuggestion,
+  type TripTravellerSnapshot,
   type TripDetail,
   type TripQuoteDocumentSnapshot,
   type TripQuoteSnapshot,
+  type TripOptionsQuoteSnapshot,
   type TripRateSnapshot,
   type TripRatesSnapshot,
   type TripStaySnapshot,
@@ -37,6 +52,7 @@ export {
 export {
   listChatMessages,
   prepareChatTurn,
+  saveTripChatLines,
   type PreparedChatTurn,
   type ChatMessage,
   type ChatMessagePage,

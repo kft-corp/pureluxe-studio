@@ -47,8 +47,16 @@ function formatRate(rate: TripRateFact): string {
   const bits = [
     rate.title,
     rate.subtitle ? `(${rate.subtitle})` : null,
-    `advisor cost ${money(rate.cost_internal, rate.currency)}`,
-    rate.rate_source_code ? `source ${rate.rate_source_code}` : null,
+    `team cost ${money(rate.cost_internal, rate.currency)}`,
+    rate.sell_amount != null
+      ? `client price ${money(rate.sell_amount, rate.currency)}`
+      : "client price not set",
+    rate.inclusions && rate.inclusions.length > 0
+      ? `included ${rate.inclusions.slice(0, 4).join(", ")}`
+      : "included not on file",
+    rate.cancellation_policy?.trim()
+      ? `cancellation ${clip(rate.cancellation_policy.trim())}`
+      : "cancellation not on file",
     rate.selected ? "selected" : null,
   ].filter(Boolean);
   return bits.join(" · ");
@@ -77,17 +85,38 @@ export function buildTripContext(trip: TripFacts): string {
     `Next step: ${resolveNextStep(trip)}`,
     `Gaps: ${gaps.length ? gaps.join("; ") : "none"}`,
     "",
+    `Trip dates: ${
+      trip.starts_on && trip.ends_on
+        ? `${trip.starts_on} to ${trip.ends_on}`
+        : "missing"
+    }`,
+    `Stay list finished: ${trip.legs_confirmed ? "yes" : "no"}`,
+    "",
     "Client:",
     trip.client
-      ? `- Name: ${trip.client.display_name}`
-      : "- Name: missing",
+      ? `- Lead: ${trip.client.display_name}`
+      : "- Lead: missing",
+    `Travellers confirmed: ${trip.travellers_confirmed ? "yes" : "no"}`,
+    ...(trip.travellers ?? []).map(
+      (person) =>
+        `- ${person.display_name} (${person.role === "primary" ? "lead" : person.party_role})`,
+    ),
+    ...(trip.family_suggestions?.length
+      ? [
+          "Household not on the trip yet:",
+          ...trip.family_suggestions.map(
+            (person) => `- ${person.display_name} (${person.family_role})`,
+          ),
+        ]
+      : []),
     "",
     "Stay:",
   ];
 
-  if (!trip.stay) {
+  const stays = trip.stays ?? [];
+  if (stays.length === 0 && !trip.stay) {
     lines.push("- missing");
-  } else {
+  } else if (stays.length === 0 && trip.stay) {
     lines.push(
       `- Hotel: ${textOrMissing(trip.stay.property_name)}`,
       `- City: ${textOrMissing(trip.stay.city)}`,
@@ -95,6 +124,18 @@ export function buildTripContext(trip: TripFacts): string {
       `- Check-out: ${textOrMissing(trip.stay.check_out)}`,
       `- Nights: ${nights != null ? String(nights) : "missing"}`,
     );
+  } else {
+    stays.forEach((stay, index) => {
+      const nightsForStay = nightsBetween(stay.check_in, stay.check_out);
+      lines.push(
+        `- Stay ${index + 1}: ${textOrMissing(stay.city)}`,
+        `  Hotel: ${textOrMissing(stay.property_name)}`,
+        `  Check-in: ${textOrMissing(stay.check_in)}`,
+        `  Check-out: ${textOrMissing(stay.check_out)}`,
+        `  Nights: ${nightsForStay != null ? String(nightsForStay) : "missing"}`,
+        `  Rate selected: ${stay.rate_selected ? "yes" : "no"}`,
+      );
+    });
   }
 
   lines.push("", "Rates:");

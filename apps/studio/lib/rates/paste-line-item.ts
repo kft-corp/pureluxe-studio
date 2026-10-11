@@ -106,6 +106,8 @@ export async function pasteTripLineItem(
     property_name: draft.property_name,
     currency: draft.currency,
     cost_internal: draft.cost_internal,
+    tax_percentage: draft.tax_percentage,
+    availability_status: draft.availability_status,
     rate_source_code: draft.rate_source_code,
     inclusions: draft.inclusions,
     cancellation_policy: draft.cancellation_policy,

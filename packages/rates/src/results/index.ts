@@ -15,6 +15,7 @@ export {
   type GuestRate,
 } from "./to-guest-rate";
 export {
+  taxPercentageFromRaw,
   toLineItemFields,
   toLineItemFieldsList,
   type LineItemFields,

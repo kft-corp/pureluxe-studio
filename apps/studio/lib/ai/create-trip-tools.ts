@@ -42,7 +42,7 @@ export function createTripTools(options: Options): TripToolHandlers {
       if (!id) {
         throw new AppError({
           userMessage:
-            "No client on this trip yet. Search for a client and assign via a Use chip, or pass client_id.",
+            "No client on this trip yet. Pass client_id from search_clients.",
           code: "ai.client_required",
           status: 400,
         });

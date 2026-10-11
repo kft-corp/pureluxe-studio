@@ -8,6 +8,10 @@ const TRIP_COLUMNS = [
   "primary_client_id",
   "relationship_owner_id",
   "title",
+  "starts_on",
+  "ends_on",
+  "legs_confirmed_at",
+  "travellers_confirmed_at",
   "status",
   "client_visibility",
   "published_at",
@@ -86,11 +90,19 @@ export type InsertTripInput = {
 export type UpdateTripRecord = {
   primary_client_id?: string | null;
   title?: string | null;
+  starts_on?: string | null;
+  ends_on?: string | null;
+  legs_confirmed_at?: string | null;
+  travellers_confirmed_at?: string | null;
   status?: TripStatus;
   relationship_owner_id?: string | null;
   sell_total?: number | null;
   sell_currency?: string | null;
   payment_plan?: Record<string, unknown> | null;
+  cost_total_internal?: number | null;
+  margin_internal?: number | null;
+  pricing_locked_at?: string | null;
+  pricing_locked_by_id?: string | null;
 };
 
 /** Look up a trip by id (null if missing). */

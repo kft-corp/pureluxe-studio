@@ -1,14 +1,37 @@
 import {
   clearSelectedAccommodationForLeg,
+  deleteUnselectedStayOptions,
+  fillTripLineItemRateFacts,
   findTripLineItemById,
   isStayShellLineItem,
+  pointStayShellAtHotel,
   setTripLineItemSelected,
   updateTripLineItemStatus,
   type TripLineItem,
+  type TripLineItemAvailabilityStatus,
 } from "@pureluxe/db";
-import { AppError, rateMessages } from "@pureluxe/shared";
+import { taxPercentageFromRaw } from "@pureluxe/rates";
+import { AppError, rateMessages, tripMessages } from "@pureluxe/shared";
 
 import { requireAssignedTrip } from "@/lib/trip-builder";
+import { markQuoteStale } from "@/lib/trip-builder/stay-side-effects";
+import { refreshTripAfterRateChange } from "@/lib/trip-builder/sync-trip-commercials";
+
+const AVAILABILITY = new Set<TripLineItemAvailabilityStatus>([
+  "unknown",
+  "available",
+  "unavailable",
+  "on_request",
+]);
+
+function availabilityFromExtracted(
+  extracted: Record<string, unknown> | null,
+): TripLineItemAvailabilityStatus | null {
+  const value = extracted?.availability_status;
+  return typeof value === "string" && AVAILABILITY.has(value as TripLineItemAvailabilityStatus)
+    ? (value as TripLineItemAvailabilityStatus)
+    : null;
+}
 
 /**
  * Select a priced accommodation rate for its leg.
@@ -27,7 +50,14 @@ export async function selectAccommodationRate(
     });
   }
 
-  await requireAssignedTrip(existing.trip_id, actor.memberId);
+  const trip = await requireAssignedTrip(existing.trip_id, actor.memberId);
+  if (trip.pricing_locked_at) {
+    throw new AppError({
+      userMessage: tripMessages.error.pricingLocked,
+      code: "trips.pricing_locked",
+      status: 409,
+    });
+  }
 
   const legId = existing.leg_id;
   if (
@@ -58,6 +88,19 @@ export async function selectAccommodationRate(
     row = approved;
   }
 
+  const extracted = row.extracted_json;
+  const raw =
+    extracted?.raw && typeof extracted.raw === "object"
+      ? (extracted.raw as Record<string, unknown>)
+      : null;
+  if (row.availability_status == null || row.tax_percentage == null) {
+    await fillTripLineItemRateFacts(row.id, {
+      availability_status:
+        row.availability_status ?? availabilityFromExtracted(extracted),
+      tax_percentage: row.tax_percentage ?? taxPercentageFromRaw(raw),
+    });
+  }
+
   await clearSelectedAccommodationForLeg(row.trip_id, legId);
   const selected = await setTripLineItemSelected(row.id, true);
   if (!selected) {
@@ -68,5 +111,16 @@ export async function selectAccommodationRate(
     });
   }
 
+  if (selected.property_name?.trim()) {
+    await pointStayShellAtHotel({
+      trip_id: selected.trip_id,
+      leg_id: legId,
+      property_id: selected.property_id,
+      property_name: selected.property_name,
+    });
+  }
+  await deleteUnselectedStayOptions(selected.trip_id, legId);
+  await markQuoteStale(selected.trip_id);
+  await refreshTripAfterRateChange(selected.trip_id, actor);
   return selected;
 }

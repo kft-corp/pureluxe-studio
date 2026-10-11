@@ -45,6 +45,8 @@ export type Booking = {
   currency: string | null;
   cost_amount: number | null;
   sell_amount: number | null;
+  /** Percent points, for example 18 for 18%. Null when the rate did not state a tax percent. */
+  tax_percentage: number | null;
   commission_expected: number | null;
   status: BookingStatus;
   confirmed_at: string | null;

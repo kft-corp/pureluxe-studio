@@ -3,12 +3,15 @@ import {
   updateBooking as dbUpdateBooking,
 } from "@pureluxe/db";
 import {
+  AppError,
+  bookingMessages,
   type AssignBookingOwnerInput,
   type LinkBookingTripInput,
 } from "@pureluxe/shared";
 
 import { buildBookingDetail, type BookingDetail } from "./booking-detail";
 import { requireEditableBooking } from "./require-active-booking";
+import { tripBuilderOwnsStay } from "./trip-builder-booking";
 
 /** Assign / clear relationship owner. */
 export async function assignBookingOwner(
@@ -53,6 +56,18 @@ export async function linkBookingTrip(
   actor: { memberId: string },
 ): Promise<BookingDetail> {
   const existing = await requireEditableBooking(bookingId);
+
+  if (
+    tripBuilderOwnsStay(existing) &&
+    input.trip_id !== undefined &&
+    input.trip_id !== existing.trip_id
+  ) {
+    throw new AppError({
+      userMessage: bookingMessages.error.tripLinkOwned,
+      code: "bookings.trip_link_owned",
+      status: 409,
+    });
+  }
 
   const patch: Record<string, unknown> = {};
   const fieldChanges: Record<

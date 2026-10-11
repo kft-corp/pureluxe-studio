@@ -1,4 +1,5 @@
 import {
+  findTripById,
   insertBookingAuditLogs,
   updateBooking as dbUpdateBooking,
   type Booking,
@@ -16,6 +17,11 @@ import {
 } from "./booking-detail";
 import { nightsBetween } from "./booking-dates";
 import { requireEditableBooking } from "./require-active-booking";
+import {
+  PRICING_LOCK_FIELDS,
+  TRIP_BUILDER_OWNED_FIELDS,
+  tripBuilderOwnsStay,
+} from "./trip-builder-booking";
 
 function toAuditValue(value: unknown): string | null {
   if (value === null || value === undefined) return null;
@@ -68,8 +74,35 @@ export async function updateBooking(
     }
   }
 
-const { service_details: serviceDetailsPatch, ...restPatch } = patch;
+  const { service_details: serviceDetailsPatch, ...restPatch } = patch;
   const resolvedPatch: UpdateBookingInput = { ...restPatch };
+
+  if (tripBuilderOwnsStay(existing)) {
+    const blocked = TRIP_BUILDER_OWNED_FIELDS.some(
+      (field) => field in resolvedPatch,
+    );
+    if (blocked) {
+      throw new AppError({
+        userMessage: bookingMessages.error.tripBuilderOwned,
+        code: "bookings.trip_builder_owned",
+        status: 409,
+      });
+    }
+  }
+
+  if (existing.trip_id) {
+    const lockedPrice = PRICING_LOCK_FIELDS.some((field) => field in resolvedPatch);
+    if (lockedPrice) {
+      const trip = await findTripById(existing.trip_id);
+      if (trip?.pricing_locked_at) {
+        throw new AppError({
+          userMessage: bookingMessages.error.pricingLocked,
+          code: "bookings.pricing_locked",
+          status: 409,
+        });
+      }
+    }
+  }
 
   const mergedServiceDetails = mergeServiceDetails(
     existing.service_details ?? {},

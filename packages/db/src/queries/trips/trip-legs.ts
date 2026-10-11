@@ -100,3 +100,105 @@ export async function upsertFirstTripLeg(
 
   return data as TripLeg;
 }
+
+/** Every stay on a trip, earliest first. */
+export async function listTripLegs(tripId: string): Promise<TripLeg[]> {
+  const supabase = getServiceClient();
+
+  const { data, error } = await runSupabaseQuery(() =>
+    supabase
+      .from("trip_legs")
+      .select("*")
+      .eq("trip_id", tripId)
+      .order("sequence_order", { ascending: true }),
+  );
+
+  if (error) {
+    throw dbQueryError(error);
+  }
+
+  return (data ?? []) as TripLeg[];
+}
+
+export type InsertTripLegInput = {
+  trip_id: string;
+  destination: string;
+  check_in: string;
+  check_out: string;
+  destination_profile_id?: string | null;
+};
+
+/** Append a stay. Sequence is one past the last leg. */
+export async function insertTripLeg(input: InsertTripLegInput): Promise<TripLeg> {
+  const existing = await listTripLegs(input.trip_id);
+  const sequence =
+    existing.reduce((max, leg) => Math.max(max, leg.sequence_order), 0) + 1;
+  const supabase = getServiceClient();
+
+  const { data, error } = await runSupabaseQuery(() =>
+    supabase
+      .from("trip_legs")
+      .insert({
+        trip_id: input.trip_id,
+        sequence_order: sequence,
+        destination: input.destination,
+        check_in: input.check_in,
+        check_out: input.check_out,
+        destination_profile_id: input.destination_profile_id ?? null,
+      })
+      .select("*")
+      .single(),
+  );
+
+  if (error) {
+    throw dbQueryError(error);
+  }
+
+  return data as TripLeg;
+}
+
+/** Update city and dates on one stay. */
+export async function updateTripLeg(
+  legId: string,
+  input: {
+    destination: string;
+    check_in: string;
+    check_out: string;
+    destination_profile_id?: string | null;
+  },
+): Promise<TripLeg> {
+  const supabase = getServiceClient();
+
+  const { data, error } = await runSupabaseQuery(() =>
+    supabase
+      .from("trip_legs")
+      .update({
+        destination: input.destination,
+        check_in: input.check_in,
+        check_out: input.check_out,
+        destination_profile_id: input.destination_profile_id ?? null,
+      })
+      .eq("id", legId)
+      .select("*")
+      .single(),
+  );
+
+  if (error) {
+    throw dbQueryError(error);
+  }
+
+  return data as TripLeg;
+}
+
+/** Remove one stay. Line items and bookings are cleared by the caller first. */
+export async function deleteTripLeg(tripId: string, legId: string): Promise<void> {
+  const supabase = getServiceClient();
+
+  const { error } = await runSupabaseQuery(() =>
+    supabase.from("trip_legs").delete().eq("trip_id", tripId).eq("id", legId),
+  );
+
+  if (error) {
+    throw dbQueryError(error);
+  }
+}

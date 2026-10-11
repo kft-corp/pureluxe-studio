@@ -178,6 +178,7 @@ export async function supersedeBooking(
     currency: existing.currency,
     cost_amount: existing.cost_amount,
     sell_amount: existing.sell_amount,
+    tax_percentage: existing.tax_percentage,
     commission_expected: existing.commission_expected,
     status: existing.status === "confirmed" ? "pending" : existing.status,
     confirmed_at: null,

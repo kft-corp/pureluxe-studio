@@ -43,15 +43,17 @@ export const viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  /** Shrink the layout when the mobile keyboard opens so the composer stays visible. */
+  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${cormorant.variable} h-full overflow-hidden antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${cormorant.variable} h-dvh overflow-hidden antialiased`}
     >
-      <body className="h-full overflow-hidden font-sans">
+      <body className="h-dvh overflow-hidden font-sans">
         {children}
         <AppToaster />
       </body>

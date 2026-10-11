@@ -12,6 +12,7 @@ export {
 } from "./company-settings";
 export {
   computeContractedStayCost,
+  contractedRateCoversStay,
   stayNightCount,
   type ComputeContractedStayCostInput,
 } from "./contracted-cost";
@@ -35,6 +36,7 @@ export { listActiveNegotiatedRateCodes } from "./negotiated-rate-codes";
 export {
   findActivePropertyById,
   findActivePropertyWithSupplierCodes,
+  searchActivePropertiesByName,
   listActiveContractedRatesForStay,
   listActiveSupplierCodesForProperty,
   type FindContractedRateInput,

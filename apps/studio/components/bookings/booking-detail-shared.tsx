@@ -207,9 +207,11 @@ export function travellersSummary(count: number): string {
 
 export function commercialSummary(booking: DetailBooking): string {
   const sell = formatBookingMoney(booking.sell_amount, booking.currency);
+  const cost = formatBookingMoney(booking.cost_amount, booking.currency);
+  const money = sell !== "—" ? sell : cost;
   const ref = booking.supplier_ref?.trim();
-  if (sell !== "—" && ref) return `${sell} · Ref ${ref}`;
-  if (sell !== "—") return sell;
+  if (money !== "—" && ref) return `${money} · Ref ${ref}`;
+  if (money !== "—") return money;
   if (ref) return `Ref ${ref}`;
   return "No commercial details yet";
 }

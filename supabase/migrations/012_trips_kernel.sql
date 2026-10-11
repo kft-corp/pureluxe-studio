@@ -34,6 +34,10 @@ CREATE TABLE IF NOT EXISTS public.trips (
   primary_client_id       uuid REFERENCES public.clients (id) ON DELETE SET NULL,
   relationship_owner_id   uuid REFERENCES public.team_members (id) ON DELETE SET NULL,
   title                   text,
+  starts_on               date,
+  ends_on                 date,
+  legs_confirmed_at       timestamptz,
+  travellers_confirmed_at timestamptz,
   status                  text NOT NULL DEFAULT 'building'
                             CHECK (status IN (
                               'building',
@@ -59,7 +63,10 @@ CREATE TABLE IF NOT EXISTS public.trips (
   created_by_id           uuid REFERENCES public.team_members (id) ON DELETE SET NULL,
   is_demo                 boolean NOT NULL DEFAULT false,
   created_at              timestamptz NOT NULL DEFAULT now(),
-  updated_at              timestamptz NOT NULL DEFAULT now()
+  updated_at              timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT trips_date_order CHECK (
+    starts_on IS NULL OR ends_on IS NULL OR ends_on > starts_on
+  )
 );
 
 COMMENT ON TABLE public.trips IS
@@ -72,6 +79,14 @@ COMMENT ON COLUMN public.trips.cost_total_internal IS
   'Team only — never return on Client APIs.';
 COMMENT ON COLUMN public.trips.margin_internal IS
   'Team only — never return on Client APIs.';
+COMMENT ON COLUMN public.trips.starts_on IS
+  'First day of the whole trip. Stays cannot start before this.';
+COMMENT ON COLUMN public.trips.ends_on IS
+  'Last day of the whole trip. Stays cannot end after this.';
+COMMENT ON COLUMN public.trips.legs_confirmed_at IS
+  'Set when the stay list is finished. Hotel planning starts after this.';
+COMMENT ON COLUMN public.trips.travellers_confirmed_at IS
+  'Set when the advisor finishes the named party. Adult and child counts come from trip_clients.';
 
 DROP TRIGGER IF EXISTS trips_set_updated_at ON public.trips;
 CREATE TRIGGER trips_set_updated_at
@@ -106,6 +121,8 @@ CREATE TABLE IF NOT EXISTS public.trip_clients (
   client_id   uuid NOT NULL REFERENCES public.clients (id) ON DELETE CASCADE,
   role        text NOT NULL DEFAULT 'companion'
                 CHECK (role IN ('primary', 'companion')),
+  party_role  text NOT NULL DEFAULT 'adult'
+                CHECK (party_role IN ('adult', 'child')),
   created_at  timestamptz NOT NULL DEFAULT now(),
 
   UNIQUE (trip_id, client_id)
@@ -113,12 +130,33 @@ CREATE TABLE IF NOT EXISTS public.trip_clients (
 
 COMMENT ON TABLE public.trip_clients IS
   'Travellers on a trip. Primary should match trips.primary_client_id (enforce in domain).';
+COMMENT ON COLUMN public.trip_clients.party_role IS
+  'adult or child for rate occupancy. The primary traveller is an adult.';
 
 CREATE INDEX IF NOT EXISTS trip_clients_client_id_idx
   ON public.trip_clients (client_id);
 
 CREATE INDEX IF NOT EXISTS trip_clients_trip_id_idx
   ON public.trip_clients (trip_id);
+
+-- Upgrade path when trips / trip_clients already exist without the party columns.
+ALTER TABLE public.trips
+  ADD COLUMN IF NOT EXISTS travellers_confirmed_at timestamptz;
+
+ALTER TABLE public.trip_clients
+  ADD COLUMN IF NOT EXISTS party_role text NOT NULL DEFAULT 'adult';
+
+ALTER TABLE public.trip_clients
+  DROP CONSTRAINT IF EXISTS trip_clients_party_role_check;
+
+ALTER TABLE public.trip_clients
+  ADD CONSTRAINT trip_clients_party_role_check
+  CHECK (party_role IN ('adult', 'child'));
+
+UPDATE public.trips
+SET travellers_confirmed_at = COALESCE(legs_confirmed_at, updated_at, now())
+WHERE travellers_confirmed_at IS NULL
+  AND (starts_on IS NOT NULL OR legs_confirmed_at IS NOT NULL);
 
 -- =============================================================================
 -- 4. trip_legs

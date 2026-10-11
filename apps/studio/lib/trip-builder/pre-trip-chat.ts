@@ -49,7 +49,9 @@ export function createPreTripChatStream(
         for await (const chunk of streamPreTripTurn({
           message: input.message,
           history,
-          handlers: createPreTripTools(),
+          handlers: createPreTripTools((clients) => {
+            send({ type: "clients", clients });
+          }),
         })) {
           if (chunk.kind === "status") {
             send({ type: "status", phase: chunk.phase });

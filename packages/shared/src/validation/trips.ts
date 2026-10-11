@@ -20,7 +20,10 @@ export const tripIdSchema = z.string().uuid({
 const optionalUuid = z
   .union([z.string().uuid(), z.literal(""), z.null()])
   .optional()
-  .transform((value) => value || null);
+  .transform((value) => {
+    if (value === undefined) return undefined;
+    return value || null;
+  });
 
 const optionalTitle = z
   .string()
@@ -28,7 +31,10 @@ const optionalTitle = z
   .max(200, { message: "Keep the title under 200 characters." })
   .optional()
   .nullable()
-  .transform((value) => value || null);
+  .transform((value) => {
+    if (value === undefined) return undefined;
+    return value || null;
+  });
 
 const isoDate = z
   .string()
@@ -68,20 +74,39 @@ export const updateTripSchema = z
     primary_client_id: optionalUuid,
     title: optionalTitle,
     status: tripStatusSchema.optional(),
+    starts_on: isoDate.optional(),
+    ends_on: isoDate.optional(),
+    /** Mark the stay list finished so hotel planning can start. */
+    confirm_legs: z.boolean().optional(),
+    /** Drop stays that fall outside the new trip dates, then save those dates. */
+    drop_outside_legs: z.boolean().optional(),
+    /** Lock stay, rate, and sell edits after a ready quote PDF. */
+    lock_pricing: z.literal(true).optional(),
   })
   .refine((body) => Object.keys(body).length > 0, {
     message: "Provide at least one field to update.",
-  });
+  })
+  .refine(
+    (body) =>
+      (body.starts_on == null && body.ends_on == null) ||
+      (body.starts_on != null && body.ends_on != null && body.ends_on > body.starts_on),
+    {
+      message: "Trip check-out must be after check-in.",
+      path: ["ends_on"],
+    },
+  );
 
 export type UpdateTripBody = z.input<typeof updateTripSchema>;
 export type UpdateTripInput = z.output<typeof updateTripSchema>;
 
 /**
  * POST /api/trip-builder/trips/[id]/stay
- * Phase 1 fixed stay: hotel + city + dates on the first leg.
+ * Hotel + city + dates on one stay.
+ * leg_id updates that stay. Omit it to write the first stay.
  */
 export const setTripStaySchema = z
   .object({
+    leg_id: optionalUuid,
     city: z
       .string()
       .trim()
@@ -98,6 +123,11 @@ export const setTripStaySchema = z
       .nullable()
       .transform((value) => value || null),
     destination_profile_id: optionalUuid,
+    adults: z.number().int().min(1).max(20),
+    children: z.number().int().min(0).max(20),
+    rooms: z.number().int().min(1).max(20),
+    /** Save even when the nights overlap another stay. */
+    confirm_overlap: z.boolean().optional().default(false),
   })
   .refine((body) => body.check_out > body.check_in, {
     message: "Check-out must be after check-in.",
@@ -108,8 +138,57 @@ export const setTripStaySchema = z
     path: ["property_name"],
   });
 
+export const addTripTravellerSchema = z.object({
+  client_id: z.string().uuid({ message: "Choose a client." }),
+  party_role: z.enum(["adult", "child"]).optional().default("adult"),
+});
+
+export type AddTripTravellerBody = z.input<typeof addTripTravellerSchema>;
+export type AddTripTravellerInput = z.output<typeof addTripTravellerSchema>;
+
 export type SetTripStayBody = z.input<typeof setTripStaySchema>;
 export type SetTripStayInput = z.output<typeof setTripStaySchema>;
+
+/** POST /api/trip-builder/trips/[id]/legs — another stay, hotel comes later. */
+export const addTripLegSchema = z
+  .object({
+    city: z
+      .string()
+      .trim()
+      .min(1, { message: "Enter a city or destination." })
+      .max(200, { message: "Keep the city under 200 characters." }),
+    check_in: isoDate,
+    check_out: isoDate,
+    /** Add even when the nights overlap another stay. */
+    confirm_overlap: z.boolean().optional().default(false),
+  })
+  .refine((body) => body.check_out > body.check_in, {
+    message: "Check-out must be after check-in.",
+    path: ["check_out"],
+  });
+
+export type AddTripLegBody = z.input<typeof addTripLegSchema>;
+export type AddTripLegInput = z.output<typeof addTripLegSchema>;
+
+/** PATCH /api/trip-builder/trips/[id]/legs/[legId] — city and dates on one stay. */
+export const updateTripLegSchema = z
+  .object({
+    city: z
+      .string()
+      .trim()
+      .min(1, { message: "Enter a city or destination." })
+      .max(200, { message: "Keep the city under 200 characters." }),
+    check_in: isoDate,
+    check_out: isoDate,
+    confirm_overlap: z.boolean().optional().default(false),
+  })
+  .refine((body) => body.check_out > body.check_in, {
+    message: "Check-out must be after check-in.",
+    path: ["check_out"],
+  });
+
+export type UpdateTripLegBody = z.input<typeof updateTripLegSchema>;
+export type UpdateTripLegInput = z.output<typeof updateTripLegSchema>;
 
 const optionalText = (max: number) =>
   z
@@ -118,7 +197,10 @@ const optionalText = (max: number) =>
     .max(max)
     .optional()
     .nullable()
-    .transform((value) => value || null);
+    .transform((value) => {
+      if (value === undefined) return undefined;
+      return value || null;
+    });
 
 /**
  * PATCH /api/trip-builder/trips/[id]/quote
@@ -145,7 +227,10 @@ export const updateTripQuoteSchema = z
       .length(3)
       .optional()
       .nullable()
-      .transform((value) => (value ? value.toUpperCase() : null)),
+      .transform((value) => {
+        if (value === undefined) return undefined;
+        return value ? value.toUpperCase() : null;
+      }),
     payment_plan: z.record(z.string(), z.unknown()).optional().nullable(),
   })
   .refine((body) => Object.keys(body).length > 0, {
@@ -162,6 +247,33 @@ export const generateTripQuoteSchema = z.object({
 
 export type GenerateTripQuoteBody = z.input<typeof generateTripQuoteSchema>;
 export type GenerateTripQuoteInput = z.output<typeof generateTripQuoteSchema>;
+
+const optionsLineEditSchema = z.object({
+  id: z
+    .string()
+    .trim()
+    .regex(/^[a-z0-9:_-]{1,120}$/i, { message: "Choose a line on the options quote." }),
+  text: z.string().max(2000, { message: "Keep that line under 2000 characters." }),
+});
+
+/** PATCH /api/trip-builder/trips/[id]/options */
+export const updateOptionsQuoteSchema = z
+  .object({
+    title: optionalText(200),
+    notes: optionalText(4000),
+    line_edits: z.array(optionsLineEditSchema).max(40).optional(),
+  })
+  .refine((body) => Object.keys(body).length > 0, {
+    message: "Provide a title, a note, or a line to update.",
+  });
+
+/** POST /api/trip-builder/trips/[id]/options/edit */
+export const proposeOptionsQuoteEditSchema = z.object({
+  message: z.string().trim().min(1).max(2000),
+});
+
+export type UpdateOptionsQuoteBody = z.input<typeof updateOptionsQuoteSchema>;
+export type UpdateOptionsQuoteInput = z.output<typeof updateOptionsQuoteSchema>;
 
 /**
  * GET /api/trip-builder/trips/[id]/chat
@@ -192,6 +304,23 @@ export const tripBuilderChatSendSchema = z.object({
     .min(8, { message: "Missing send key." })
     .max(128, { message: "Send key is too long." }),
 });
+
+const tripChatLineSchema = z.object({
+  role: z.enum(["user", "assistant"]),
+  content: z
+    .string()
+    .trim()
+    .min(1, { message: "Enter a message." })
+    .max(8000, { message: "Keep the message under 8000 characters." }),
+});
+
+/** Save chat lines onto a trip without starting an agent turn. */
+export const tripBuilderChatLinesSchema = z.object({
+  lines: z.array(tripChatLineSchema).min(1).max(40),
+});
+
+export type TripBuilderChatLinesBody = z.input<typeof tripBuilderChatLinesSchema>;
+export type TripBuilderChatLinesInput = z.output<typeof tripBuilderChatLinesSchema>;
 
 export type TripBuilderChatSendBody = z.input<typeof tripBuilderChatSendSchema>;
 export type TripBuilderChatSendInput = z.output<

@@ -48,6 +48,7 @@ const BOOKING_COLUMNS = [
   "currency",
   "cost_amount",
   "sell_amount",
+  "tax_percentage",
   "commission_expected",
   "status",
   "confirmed_at",
@@ -210,6 +211,36 @@ function toBaseRow(
   };
 }
 
+/** Latest open hotel booking created from this trip, or null. */
+export async function findOpenHotelBookingForTrip(
+  tripId: string,
+  legId?: string | null,
+): Promise<Booking | null> {
+  const supabase = getServiceClient();
+  const { data, error } = await runSupabaseQuery(() => {
+    let query = supabase
+      .from("bookings")
+      .select("id")
+      .eq("trip_id", tripId)
+      .eq("service_type", "hotel")
+      .eq("source", "trip_builder")
+      .eq("is_demo", false)
+      .is("deleted_at", null)
+      .neq("status", "cancelled")
+      .neq("status", "superseded");
+    if (legId) query = query.eq("trip_leg_id", legId);
+    return query.order("created_at", { ascending: false }).limit(1).maybeSingle();
+  });
+
+  if (error) {
+    throw dbQueryError(error);
+  }
+
+  const id = (data as { id: string } | null)?.id;
+  if (!id) return null;
+  return findBookingById(id);
+}
+
 /** One non-demo booking by id, or null. */
 export async function findBookingById(
   bookingId: string,
@@ -245,6 +276,9 @@ export async function findBookingById(
     num_children: toNullableNumber(row.num_children),
     cost_amount: toNullableNumber(row.cost_amount),
     sell_amount: toNullableNumber(row.sell_amount),
+    tax_percentage: toNullableNumber(
+      (row as { tax_percentage?: number | string | null }).tax_percentage,
+    ),
     commission_expected: toNullableNumber(row.commission_expected),
     service_details:
       row.service_details && typeof row.service_details === "object"
@@ -520,6 +554,9 @@ export async function updateBooking(
     num_children: toNullableNumber(row.num_children),
     cost_amount: toNullableNumber(row.cost_amount),
     sell_amount: toNullableNumber(row.sell_amount),
+    tax_percentage: toNullableNumber(
+      (row as { tax_percentage?: number | string | null }).tax_percentage,
+    ),
     commission_expected: toNullableNumber(row.commission_expected),
     service_details:
       row.service_details && typeof row.service_details === "object"
@@ -577,6 +614,9 @@ export async function insertBooking(
     num_children: toNullableNumber(row.num_children),
     cost_amount: toNullableNumber(row.cost_amount),
     sell_amount: toNullableNumber(row.sell_amount),
+    tax_percentage: toNullableNumber(
+      (row as { tax_percentage?: number | string | null }).tax_percentage,
+    ),
     commission_expected: toNullableNumber(row.commission_expected),
     service_details:
       row.service_details && typeof row.service_details === "object"

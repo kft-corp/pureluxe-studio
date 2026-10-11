@@ -14,6 +14,7 @@ import {
   formatFlightRoute,
   listServiceDetailFields,
   resolveServiceTimingCards,
+  tripBuilderOwnsStay,
 } from "@/lib/bookings";
 import { pageRoutes } from "@/lib/routes";
 
@@ -200,13 +201,19 @@ export function BookingOverviewPanel({
       <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <ContentSection
           title="Reservation"
-          description="Core service details for this booking."
+          description={
+            tripBuilderOwnsStay(booking)
+              ? "Hotel, dates, and guests come from Trip Builder until this booking is confirmed."
+              : "Core service details for this booking."
+          }
           className="min-w-0"
           action={
-            <SectionEditButton
-              canWrite={canWrite}
-              onClick={() => onEditSection("reservation")}
-            />
+            tripBuilderOwnsStay(booking) ? null : (
+              <SectionEditButton
+                canWrite={canWrite}
+                onClick={() => onEditSection("reservation")}
+              />
+            )
           }
         >
           <DetailFieldGrid>

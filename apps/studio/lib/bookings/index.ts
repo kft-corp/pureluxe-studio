@@ -10,6 +10,7 @@ export {
   getBookingDetail,
   buildBookingDetail,
   type BookingDetail,
+  type BookingTripCommercial,
 } from "./booking-detail";
 export {
   listRecentBookingActivity,
@@ -74,6 +75,7 @@ export {
   supersedeBooking,
 } from "./booking-lifecycle";
 export { assignBookingOwner, linkBookingTrip } from "./booking-ownership";
+export { tripBuilderOwnsStay } from "./trip-builder-booking";
 export {
   createBookingTraveller,
   updateBookingTraveller,

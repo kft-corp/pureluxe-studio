@@ -113,6 +113,26 @@ export async function updateBookingTraveller(
   return data as unknown as BookingTraveller;
 }
 
+/** Replace who from the household is on this booking. */
+export async function replaceFamilyBookingMembers(
+  bookingId: string,
+  clientIds: string[],
+): Promise<void> {
+  const supabase = getServiceClient();
+  const { error: deleteError } = await runSupabaseQuery(() =>
+    supabase.from("family_booking_members").delete().eq("booking_id", bookingId),
+  );
+  if (deleteError) throw dbQueryError(deleteError);
+  const unique = [...new Set(clientIds)];
+  if (unique.length === 0) return;
+  const { error } = await runSupabaseQuery(() =>
+    supabase.from("family_booking_members").insert(
+      unique.map((clientId) => ({ booking_id: bookingId, client_id: clientId })),
+    ),
+  );
+  if (error) throw dbQueryError(error);
+}
+
 /** Delete a traveller from a booking. */
 export async function deleteBookingTraveller(input: {
   id: string;

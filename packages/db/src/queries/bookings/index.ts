@@ -12,10 +12,12 @@ export {
   findBookingTravellerById,
   insertBookingTraveller,
   listBookingTravellers,
+  replaceFamilyBookingMembers,
   updateBookingTraveller,
 } from "./booking-travellers";
 export {
   findBookingById,
+  findOpenHotelBookingForTrip,
   findSuccessorBookingId,
   findTeamMemberNamesByIds,
   insertBooking,

@@ -109,6 +109,7 @@ export type {
   TripChatRole,
   TripClient,
   TripClientRole,
+  TripPartyRole,
   TripClientVisibility,
   TripDocument,
   TripDocumentStatus,

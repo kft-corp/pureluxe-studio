@@ -34,6 +34,7 @@ export {
   rankAndRecommend,
   toGuestRate,
   toGuestRates,
+  taxPercentageFromRaw,
   toLineItemFields,
   toLineItemFieldsList,
   type GuestRate,
@@ -44,6 +45,8 @@ export {
 } from "./results";
 
 export {
+  cancellationLinesFromPolicies,
+  cancellationSummaryFromPolicies,
   checkOfflineAvailability,
   parseOfflineQuote,
   type OfflineAvailabilityInput,

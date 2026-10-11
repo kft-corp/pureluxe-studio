@@ -42,7 +42,7 @@ export function TripBuilderActionChip({
       disabled={disabled}
       onClick={chip.onClick}
       className={cn(
-        "inline-flex h-9 max-w-[min(100%,18rem)] items-center gap-1 rounded-full px-3.5 text-[13px] font-medium leading-none transition-colors sm:h-7 sm:px-3",
+        "inline-flex h-auto min-h-10 max-w-full items-center gap-1 rounded-full px-3 py-2 text-left text-[13px] font-medium leading-snug transition-colors lg:h-7 lg:max-w-[18rem] lg:min-h-0 lg:py-0 lg:leading-none",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a4d3e]/20",
         "disabled:cursor-not-allowed disabled:opacity-50",
         primary
@@ -51,7 +51,7 @@ export function TripBuilderActionChip({
       )}
     >
       {chip.icon ? <ChipIcon icon={chip.icon} /> : null}
-      <span className="truncate">{chip.label}</span>
+      <span className="break-words lg:truncate">{chip.label}</span>
     </button>
   );
 }

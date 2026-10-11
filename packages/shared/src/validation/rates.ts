@@ -190,6 +190,20 @@ export const addRateOptionBodySchema = z
 export type AddRateOptionBody = z.input<typeof addRateOptionBodySchema>;
 export type AddRateOptionInput = z.output<typeof addRateOptionBodySchema>;
 
+/** PATCH /api/trip-builder/line-items/[id] — client-facing option edits. */
+export const updateStayOptionSchema = z
+  .object({
+    sell_amount: z.number().finite().nonnegative().nullable().optional(),
+    cancellation_policy: z.string().trim().max(2000).nullable().optional(),
+    inclusions: z.array(z.string().trim().min(1).max(200)).max(30).optional(),
+  })
+  .refine((body) => Object.values(body).some((value) => value !== undefined), {
+    message: "Provide a price, inclusions, or cancellation to update.",
+  });
+
+export type UpdateStayOptionBody = z.input<typeof updateStayOptionSchema>;
+export type UpdateStayOptionInput = z.output<typeof updateStayOptionSchema>;
+
 /** PATCH /api/settings/rate-sources — partial company rate_sources jsonb. */
 export const updateRateSourcesSettingSchema = z.object({
   default_currency: z

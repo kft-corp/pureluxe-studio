@@ -6,15 +6,29 @@ import { getClientProfile, searchClients } from "@/lib/clients";
 import { toClientBrief } from "./to-client-brief";
 import { toClientSearchHit } from "./to-client-search-hit";
 
+export type FoundClient = { id: string; display_name: string };
+
 /**
  * Home chat tools (no trip open).
  * Only search_clients + get_client — client_id required for get_client.
+ * `onClients` reports real matches so the UI can offer Create trip · name chips.
  */
-export function createPreTripTools(): ClientToolHandlers {
+export function createPreTripTools(
+  onClients?: (clients: FoundClient[]) => void,
+): ClientToolHandlers {
   return {
     async searchClients({ query, limit }) {
       const result = await searchClients({ q: query, limit: limit ?? 8 });
-      return { clients: result.clients.map(toClientSearchHit) };
+      const clients = result.clients.map(toClientSearchHit);
+      if (clients.length > 0) {
+        onClients?.(
+          clients.map((client) => ({
+            id: client.id,
+            display_name: client.display_name,
+          })),
+        );
+      }
+      return { clients };
     },
 
     async getClient({ clientId }) {

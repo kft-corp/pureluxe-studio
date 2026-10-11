@@ -40,10 +40,12 @@ export function computeContractedStayCost(
   }
   if (input.rate.cost_unit === "package") {
     const packageNights = input.rate.package_nights;
-    const extra = Number(input.rate.extra_night_amount);
+    const extraRaw = input.rate.extra_night_amount;
+    const extra = extraRaw == null ? null : Number(extraRaw);
     if (
       packageNights != null &&
       nights > packageNights &&
+      extra != null &&
       Number.isFinite(extra) &&
       extra >= 0
     ) {
@@ -54,4 +56,27 @@ export function computeContractedStayCost(
 
   // per_stay (default)
   return amount;
+}
+
+/**
+ * A fixed package with no extra-night amount only covers that package length.
+ * A package with an extra-night amount covers that length and longer.
+ * Nightly and per-stay rates cover any stay that meets the minimum.
+ */
+export function contractedRateCoversStay(
+  rate: PropertyContractedRate,
+  nights: number,
+): boolean {
+  if (nights <= 0) return false;
+  if (rate.min_nights != null && nights < rate.min_nights) return false;
+  if (rate.cost_unit !== "package") return true;
+
+  const packageNights = rate.package_nights;
+  if (packageNights == null || packageNights <= 0) return true;
+
+  const extra =
+    rate.extra_night_amount == null ? null : Number(rate.extra_night_amount);
+  const hasExtra = extra != null && Number.isFinite(extra) && extra >= 0;
+  if (hasExtra) return nights >= packageNights;
+  return nights === packageNights;
 }

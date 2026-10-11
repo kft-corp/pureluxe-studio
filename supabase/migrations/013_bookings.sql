@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS public.bookings (
   currency                  text,
   cost_amount               numeric,
   sell_amount               numeric,
+  tax_percentage            numeric,
   commission_expected       numeric,
   status                    text NOT NULL DEFAULT 'pending'
                               CHECK (status IN (
@@ -80,6 +81,8 @@ COMMENT ON TABLE public.bookings IS
   'Confirmed inventory ledger — one row per reservation. Studio + Client App share this table.';
 COMMENT ON COLUMN public.bookings.cost_amount IS
   'Team only — supplier cost snapshot; never return on Client APIs.';
+COMMENT ON COLUMN public.bookings.tax_percentage IS
+  'Percent points, for example 18 for 18%. Set only when the supplier rate states a tax percent.';
 COMMENT ON COLUMN public.bookings.internal_notes IS
   'Studio only — never return on Client APIs.';
 COMMENT ON COLUMN public.bookings.guest_visible IS

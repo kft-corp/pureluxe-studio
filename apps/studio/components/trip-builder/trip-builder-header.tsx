@@ -52,7 +52,7 @@ function HeaderIconButton({
       aria-pressed={ariaPressed}
       onClick={onClick}
       className={cn(
-        "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-ink transition sm:h-8 sm:w-8",
+        "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-ink transition lg:h-8 lg:w-8",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-dark/20",
         "disabled:cursor-not-allowed disabled:opacity-50",
         active ? "bg-black/10" : "bg-transparent hover:bg-black/5",
@@ -64,8 +64,9 @@ function HeaderIconButton({
 }
 
 /**
- * Header layout (LTR):
- * Stages · … · Summary · Latest trips · New chat
+ * Below the desktop breakpoint the actions sit on the first row and the
+ * stage names wrap underneath, so none of them are clipped. On a wide
+ * screen the stages lead and the actions sit on the right.
  * Stages stay disabled until a trip is open.
  */
 export function TripBuilderHeader({
@@ -83,13 +84,13 @@ export function TripBuilderHeader({
   const tripOpen = Boolean(detail);
 
   return (
-    <header className="w-full shrink-0 border-b border-border bg-surface-raised px-3 py-2.5 sm:px-4">
-      <div className="flex w-full items-center gap-2 sm:gap-3">
-        <div className="min-w-0 flex-1 overflow-hidden">
+    <header className="w-full shrink-0 border-b border-border bg-surface-raised">
+      <div className="flex w-full flex-col gap-1 px-2 py-1.5 lg:flex-row lg:items-center lg:gap-3 lg:px-4 lg:py-2.5">
+        <div className="order-2 min-w-0 lg:order-1 lg:flex-1">
           <TripBuilderStages current={stage} />
         </div>
 
-        <div className="flex shrink-0 items-center gap-0.5">
+        <div className="order-1 flex items-center justify-end gap-0.5 lg:order-2 lg:shrink-0">
           <HeaderIconButton
             active={summaryOpen}
             disabled={!tripOpen}
@@ -98,7 +99,7 @@ export function TripBuilderHeader({
             title={tripOpen ? "Summary" : "Summary (open a trip first)"}
             onClick={onToggleSummary}
           >
-            <SummaryIcon className="size-[18px]" strokeWidth={2} aria-hidden />
+            <SummaryIcon className="size-4 lg:size-[18px]" strokeWidth={2} aria-hidden />
           </HeaderIconButton>
 
           <TripBuilderTripsMenu
@@ -115,7 +116,7 @@ export function TripBuilderHeader({
               title="New chat"
               onClick={onNewChat}
             >
-              <LuPlus className="size-[18px]" strokeWidth={2} aria-hidden />
+              <LuPlus className="size-4 lg:size-[18px]" strokeWidth={2} aria-hidden />
             </HeaderIconButton>
           ) : null}
         </div>

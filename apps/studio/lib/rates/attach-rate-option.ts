@@ -1,19 +1,22 @@
 import {
-  clearSelectedAccommodationForLeg,
   findFirstTripLeg,
   findTripLegById,
   insertTripLineItem,
-  setTripLineItemSelected,
+  listPricedAccommodationLineItems,
   type TripLineItem,
 } from "@pureluxe/db";
 import { toLineItemFields, type NormalizedRateOption } from "@pureluxe/rates";
 import {
   AppError,
   rateMessages,
+  tripMessages,
   type AddRateOptionInput,
 } from "@pureluxe/shared";
 
 import { requireAssignedTrip } from "@/lib/trip-builder";
+import { markQuoteStale } from "@/lib/trip-builder/stay-side-effects";
+
+import { selectAccommodationRate } from "./select-accommodation-rate";
 
 /**
  * Attach a search option as a trip line item.
@@ -23,7 +26,14 @@ export async function attachRateOption(
   input: AddRateOptionInput,
   actor: { memberId: string },
 ): Promise<TripLineItem> {
-  await requireAssignedTrip(input.trip_id, actor.memberId);
+  const trip = await requireAssignedTrip(input.trip_id, actor.memberId);
+  if (trip.pricing_locked_at) {
+    throw new AppError({
+      userMessage: tripMessages.error.pricingLocked,
+      code: "trips.pricing_locked",
+      status: 409,
+    });
+  }
 
   let legId = input.leg_id;
   if (legId) {
@@ -40,6 +50,21 @@ export async function attachRateOption(
   }
 
   const draft = toLineItemFields(input.option as NormalizedRateOption);
+  if (legId) {
+    const saved = await listPricedAccommodationLineItems(input.trip_id, legId);
+    const room = (draft.subtitle ?? draft.title).trim().toLowerCase();
+    const hotel = (draft.property_name ?? "").trim().toLowerCase();
+    const duplicate = saved.find((row) => {
+      const sameHotel = (row.property_name ?? "").trim().toLowerCase() === hotel;
+      const sameRoom = (row.subtitle ?? row.title).trim().toLowerCase() === room;
+      return sameHotel && sameRoom;
+    });
+    if (duplicate) {
+      if (!input.select) return duplicate;
+      return selectAccommodationRate(duplicate.id, actor);
+    }
+  }
+
   const created = await insertTripLineItem({
     trip_id: input.trip_id,
     leg_id: legId,
@@ -51,6 +76,8 @@ export async function attachRateOption(
     property_name: draft.property_name,
     currency: draft.currency,
     cost_internal: draft.cost_internal,
+    tax_percentage: draft.tax_percentage,
+    availability_status: draft.availability_status,
     rate_source_code: draft.rate_source_code,
     inclusions: draft.inclusions,
     cancellation_policy: draft.cancellation_policy,
@@ -62,8 +89,10 @@ export async function attachRateOption(
     created_by_id: actor.memberId,
   });
 
-  if (!input.select || !legId) return created;
+  if (!input.select || !legId) {
+    await markQuoteStale(input.trip_id);
+    return created;
+  }
 
-  await clearSelectedAccommodationForLeg(input.trip_id, legId);
-  return (await setTripLineItemSelected(created.id, true)) ?? created;
+  return selectAccommodationRate(created.id, actor);
 }

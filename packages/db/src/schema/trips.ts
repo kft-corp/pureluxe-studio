@@ -18,6 +18,8 @@ export type TripSource = "studio" | "client_app" | "import";
 
 export type TripClientRole = "primary" | "companion";
 
+export type TripPartyRole = "adult" | "child";
+
 export type TripLegItineraryStatus = "not_started" | "drafted" | "confirmed";
 
 export type TripItineraryDaySource = "curated" | "generated" | "manual";
@@ -44,7 +46,7 @@ export type TripLineItemAvailabilityStatus =
   | "unavailable"
   | "on_request";
 
-export type TripDocumentType = "itinerary" | "rates";
+export type TripDocumentType = "itinerary" | "rates" | "options";
 
 export type TripDocumentStatus = "ready" | "stale" | "generating";
 
@@ -68,6 +70,14 @@ export type Trip = {
   primary_client_id: string | null;
   relationship_owner_id: string | null;
   title: string | null;
+  /** First day of the whole trip. Stays must start on or after this. */
+  starts_on: string | null;
+  /** Last day of the whole trip. Stays must end on or before this. */
+  ends_on: string | null;
+  /** Set when the stay list is finished and hotel planning can start. */
+  legs_confirmed_at: string | null;
+  /** Set when the named party is finished. */
+  travellers_confirmed_at: string | null;
   status: TripStatus;
   client_visibility: TripClientVisibility;
   published_at: string | null;
@@ -96,6 +106,7 @@ export type TripClient = {
   trip_id: string;
   client_id: string;
   role: TripClientRole;
+  party_role: TripPartyRole;
   created_at: string;
 };
 

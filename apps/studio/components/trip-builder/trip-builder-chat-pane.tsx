@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef } from "react";
-import { LuBotMessageSquare } from "react-icons/lu";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { LuArrowDown, LuBotMessageSquare } from "react-icons/lu";
 
 import { AGENT_PHASE_LABEL, type AgentPhase } from "@pureluxe/ai";
 
@@ -10,8 +10,15 @@ import type { ChatMessage, TripDetail } from "@/lib/trip-builder";
 import { cn } from "@/lib/utils/cn";
 
 import { ChatMarkdown } from "./chat-markdown";
+import { stayAskText } from "./parse-stay-message";
 import { resolveTripStage } from "./stages";
 import type { TripBuilderChip } from "./trip-builder-action-chip";
+import {
+  TripBuilderRateCard,
+  TripBuilderStayNotesCard,
+  type TripBuilderRateCard as RateCard,
+  type TripBuilderStayNotes,
+} from "./trip-builder-rate-card";
 
 type TripBuilderChatPaneProps = {
   detail: TripDetail | null;
@@ -24,6 +31,9 @@ type TripBuilderChatPaneProps = {
   streamingContent: string | null;
   agentPhase: AgentPhase | null;
   homeChips: TripBuilderChip[];
+  rateCards: RateCard[];
+  stayNotes: TripBuilderStayNotes | null;
+  activeLegId?: string | null;
   onCreateTrip: () => void;
   onLoadOlder: () => void;
 };
@@ -40,6 +50,9 @@ export function TripBuilderChatPane({
   streamingContent,
   agentPhase,
   homeChips,
+  rateCards,
+  stayNotes,
+  activeLegId = null,
   onCreateTrip,
   onLoadOlder,
 }: TripBuilderChatPaneProps) {
@@ -56,7 +69,8 @@ export function TripBuilderChatPane({
 
   if (!detail && !hasDraftThread) {
     return (
-      <div className="mx-auto flex h-full w-full max-w-[440px] flex-col justify-center px-4 py-8 text-center sm:py-16">
+      <div className="h-full min-h-0 w-full overflow-y-auto">
+      <div className="mx-auto flex min-h-full w-full max-w-[440px] flex-col justify-center px-4 py-6 text-center sm:py-16">
         <h2 className="font-serif text-[1.65rem] leading-tight font-semibold tracking-tight text-ink sm:text-[2.05rem]">
           What do you need?
         </h2>
@@ -101,7 +115,7 @@ export function TripBuilderChatPane({
                   disabled={busy || !canWrite}
                   onClick={chip.onClick}
                   className={cn(
-                    "inline-flex h-9 items-center rounded-full bg-[#faf9f7] px-3.5 text-[13px] font-medium leading-none text-ink ring-1 ring-border transition-colors sm:h-7 sm:px-3",
+                    "inline-flex min-h-10 max-w-full items-center rounded-full bg-[#faf9f7] px-3 py-2 text-left text-[13px] font-medium leading-snug break-words text-ink ring-1 ring-border transition-colors lg:min-h-7 lg:py-1 lg:leading-none",
                     "hover:bg-[#e8f2ee]/90 hover:text-[#1a4d3e] hover:ring-[#1a4d3e]/25",
                     "disabled:cursor-not-allowed disabled:opacity-50",
                   )}
@@ -112,6 +126,7 @@ export function TripBuilderChatPane({
             </div>
           </div>
         ) : null}
+      </div>
       </div>
     );
   }
@@ -131,11 +146,15 @@ export function TripBuilderChatPane({
       messages={messages}
       streamingContent={streamingContent}
       agentPhase={agentPhase}
+      busy={busy}
       welcomeContent={
         detail && showWelcome
-          ? tripWelcomeMessage(detail, resolveTripStage(detail))
+          ? tripWelcomeMessage(detail, resolveTripStage(detail), activeLegId)
           : null
       }
+      rateCards={streamingContent ? [] : rateCards}
+      stayNotes={streamingContent ? null : stayNotes}
+      offersDisabled={busy}
       banner={<AgentStatusBanner detail={detail} />}
     />
   );
@@ -144,8 +163,12 @@ export function TripBuilderChatPane({
 function tripWelcomeMessage(
   detail: TripDetail,
   stage: ReturnType<typeof resolveTripStage>,
+  activeLegId: string | null,
 ): string {
-  return `I'm your **PureLuxe agent**. I'll help you build this trip step by step — **client → stay → rates → quote**.\n\nUse chips to confirm actions. ${stageCueFor(detail, stage)}`;
+  if (stage === "client") {
+    return "I've created this trip. Tell me which client it is for, and a confirm chip will appear before they are added.";
+  }
+  return stageCueFor(detail, stage, activeLegId);
 }
 
 function AgentStatusBanner({ detail }: { detail: TripDetail | null }) {
@@ -180,7 +203,11 @@ function ChatScrollArea({
   messages,
   streamingContent,
   agentPhase,
+  busy,
   welcomeContent,
+  rateCards,
+  stayNotes,
+  offersDisabled,
 }: {
   banner: React.ReactNode;
   chatLoading: boolean;
@@ -190,11 +217,16 @@ function ChatScrollArea({
   messages: ChatMessage[];
   streamingContent: string | null;
   agentPhase: AgentPhase | null;
+  busy: boolean;
   welcomeContent: string | null;
+  rateCards: RateCard[];
+  stayNotes: TripBuilderStayNotes | null;
+  offersDisabled: boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
   const stickToBottomRef = useRef(true);
+  const [showJump, setShowJump] = useState(false);
   const scrollAdjustRef = useRef<number | null>(null);
   const olderFetchLockRef = useRef(false);
 
@@ -211,11 +243,12 @@ function ChatScrollArea({
     if (stickToBottomRef.current) {
       endRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
     }
-  }, [messages, streamingContent, agentPhase, chatLoading, welcomeContent]);
+  }, [messages, streamingContent, agentPhase, busy, chatLoading, welcomeContent, rateCards]);
 
   useEffect(() => {
     if (chatLoading) {
       stickToBottomRef.current = true;
+      setShowJump(false);
     }
   }, [chatLoading]);
 
@@ -232,6 +265,9 @@ function ChatScrollArea({
     const distanceFromBottom =
       el.scrollHeight - el.scrollTop - el.clientHeight;
     stickToBottomRef.current = distanceFromBottom < 96;
+    const jumpThreshold = Math.max(280, Math.min(el.clientHeight * 0.6, 520));
+    const show = distanceFromBottom >= jumpThreshold;
+    setShowJump((current) => (current === show ? current : show));
 
     if (
       el.scrollTop < 72 &&
@@ -245,12 +281,19 @@ function ChatScrollArea({
     }
   }
 
+  function jumpToLatest() {
+    stickToBottomRef.current = true;
+    setShowJump(false);
+    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }
+
   return (
-    <div
-      ref={scrollRef}
-      onScroll={handleScroll}
-      className="flex h-full min-h-0 w-full flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain px-3 pt-3 pb-3 sm:px-6 sm:pt-4"
-    >
+    <div className="relative flex h-full min-h-0 w-full flex-1 flex-col">
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="flex h-full min-h-0 w-full flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain px-3 pt-3 pb-3 sm:px-6 sm:pt-4"
+      >
       {banner}
 
       {chatLoading ? (
@@ -260,11 +303,33 @@ function ChatScrollArea({
           messages={messages}
           streamingContent={streamingContent}
           agentPhase={agentPhase}
+          busy={busy}
           loadingOlder={chatLoadingOlder}
           welcomeContent={welcomeContent}
+          rateCards={rateCards}
+          stayNotes={stayNotes}
+          offersDisabled={offersDisabled}
           endRef={endRef}
         />
       )}
+    </div>
+      <button
+        type="button"
+        onClick={jumpToLatest}
+        aria-label="Jump to latest messages"
+        aria-hidden={showJump ? undefined : true}
+        tabIndex={showJump ? 0 : -1}
+        className={cn(
+          "absolute bottom-4 left-1/2 z-10 grid h-11 w-11 -translate-x-1/2 place-items-center rounded-full lg:h-8 lg:w-8",
+          "bg-[#e8f2ee] text-[#1a4d3e] ring-1 ring-[#1a4d3e]/30",
+          "shadow-[0_2px_10px_rgba(26,77,62,0.12)] transition-opacity duration-200",
+          "hover:bg-[#dceae3] hover:ring-[#1a4d3e]/45",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a4d3e]/25",
+          showJump ? "opacity-100" : "pointer-events-none opacity-0",
+        )}
+      >
+        <LuArrowDown className="h-4 w-4" strokeWidth={2.25} aria-hidden />
+      </button>
     </div>
   );
 }
@@ -289,23 +354,44 @@ function ChatLoadingState() {
 function stageCueFor(
   detail: TripDetail,
   stage: ReturnType<typeof resolveTripStage>,
+  activeLegId: string | null,
 ): string {
+  if (stage === "client" && detail.client && !detail.trip.travellers_confirmed_at) {
+    const name = detail.client.display_name;
+    return `**${name}** is the lead. Who else is traveling? Add a client, or say **just them**.`;
+  }
   if (stage === "client") {
-    return "Type the client name below. Matching clients appear as chips — tap one to assign.";
+    return "Ask about a client anytime. To add someone, say who — a confirm chip appears before they are assigned.";
+  }
+  if (stage === "stay" && !detail.trip.starts_on) {
+    const name = detail.client?.display_name;
+    const who = name ? `This trip is for **${name}**. ` : "";
+    return `${who}First, set the trip start and end. Every stay has to sit inside those days. Hotel check-in and check-out come later, on each stay.\n\nStart: 2026-10-10\nEnd: 2026-10-20`;
+  }
+  if (stage === "stay" && !detail.trip.legs_confirmed_at) {
+    return `Trip dates are **${detail.trip.starts_on}** to **${detail.trip.ends_on}**.\n\nList each stay inside those dates:\n\nCity: Maldives\nCheck-in: ${detail.trip.starts_on}\nCheck-out: ${detail.trip.ends_on}\n\nA city on its own uses the full trip for the first stay. When the list is complete, tap **Plan these stays**.`;
   }
   if (stage === "stay") {
-    const name = detail.client?.display_name;
-    return name
-      ? `Client set — ${name}. Type hotel, city, and dates (YYYY-MM-DD), then tap Save stay.`
-      : "Type hotel, city, and dates (YYYY-MM-DD), then tap Save stay.";
+    const open =
+      detail.stays.find((stay) => stay.leg_id === activeLegId) ??
+      detail.stays[0] ??
+      detail.stay;
+    const lead = open?.city
+      ? `Plan **${open.city}** (${open.check_in} to ${open.check_out}). Switch stays from the row under the header. You can add a stay, change one, or change the trip dates in chat.`
+      : "This trip needs a stay.";
+    return stayAskText(lead);
   }
   if (stage === "rates") {
-    return `Stay set for ${detail.stay?.property_name}. Tap Search rates, pick a rate chip, or paste a supplier quote.`;
+    const open =
+      detail.stays.find((stay) => stay.leg_id === activeLegId) ??
+      detail.stays[0] ??
+      detail.stay;
+    const hotel = open?.property_name?.trim();
+    return hotel
+      ? `Stay set for ${hotel}. Ask me to search rates, or paste a supplier quote. I'll confirm before I search. Switch stays from the row under the header. A date or hotel change clears the selected rate.`
+      : "Ask me to search rates for the open stay, or paste a supplier quote. I'll confirm before I search.";
   }
-  if (stage === "quote") {
-    return "Quote PDF is ready. Ask me to summarize, or tap Open PDF.";
-  }
-  return "Rate selected. Ask for wording help, set sell (e.g. sell 4500 USD), then tap Generate PDF.";
+  return "The room is chosen. A pending booking is in Bookings. The client PDF is the options quote. Open Bookings and set the booking to confirmed only after you check the stay.";
 }
 
 function formatMsgTime(iso: string) {
@@ -323,15 +409,23 @@ function ChatMessageList({
   messages,
   streamingContent,
   agentPhase,
+  busy,
   loadingOlder,
   welcomeContent,
+  rateCards,
+  stayNotes,
+  offersDisabled,
   endRef,
 }: {
   messages: ChatMessage[];
   streamingContent: string | null;
   agentPhase: AgentPhase | null;
+  busy: boolean;
   loadingOlder: boolean;
   welcomeContent: string | null;
+  rateCards: RateCard[];
+  stayNotes: TripBuilderStayNotes | null;
+  offersDisabled: boolean;
   endRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const showWelcome =
@@ -339,7 +433,7 @@ function ChatMessageList({
     messages.length === 0 &&
     streamingContent == null;
 
-  if (!showWelcome && messages.length === 0 && streamingContent == null) {
+  if (!showWelcome && messages.length === 0 && streamingContent == null && !busy) {
     return null;
   }
 
@@ -348,6 +442,13 @@ function ChatMessageList({
     streamingContent != null &&
     streamingContent.length === 0 &&
     Boolean(phaseLabel);
+  const lastAssistantId = [...messages]
+    .reverse()
+    .find((message) => message.role === "assistant")?.id;
+  const offers =
+    rateCards.length > 0 ? (
+      <MessageOffers rateCards={rateCards} stayNotes={stayNotes} disabled={offersDisabled} />
+    ) : null;
 
   return (
     <div className="flex w-full flex-col gap-3 sm:gap-4" aria-live="polite">
@@ -357,7 +458,7 @@ function ChatMessageList({
         </p>
       ) : null}
       {showWelcome && welcomeContent ? (
-        <AgentMessage time="" content={welcomeContent} />
+        <AgentMessage time="" content={welcomeContent} offers={offers} />
       ) : null}
       {messages.map((message) =>
         message.role === "assistant" ? (
@@ -366,6 +467,7 @@ function ChatMessageList({
             time={formatMsgTime(message.created_at)}
             incomplete={message.incomplete}
             content={message.content}
+            offers={message.id === lastAssistantId ? offers : null}
           />
         ) : (
           <YouMessage key={message.id} time={formatMsgTime(message.created_at)}>
@@ -373,11 +475,20 @@ function ChatMessageList({
           </YouMessage>
         ),
       )}
+      {!showWelcome && !lastAssistantId && offers ? (
+        <AgentMessage time="" content="" offers={offers} />
+      ) : null}
       {streamingContent != null ? (
         <AgentMessage
           time="now"
           content={streamingContent}
           statusLabel={showPhaseOnly ? phaseLabel : null}
+        />
+      ) : busy ? (
+        <AgentMessage
+          time="now"
+          content=""
+          statusLabel={AGENT_PHASE_LABEL.thinking}
         />
       ) : null}
       <div ref={endRef} />
@@ -403,17 +514,48 @@ function AgentStatusLabel({ label }: { label: string }) {
   );
 }
 
+function MessageOffers({
+  rateCards,
+  stayNotes,
+  disabled,
+}: {
+  rateCards: RateCard[];
+  stayNotes: TripBuilderStayNotes | null;
+  disabled: boolean;
+}) {
+  const recommended = rateCards.filter((card) => card.recommended);
+  const others = rateCards.filter((card) => !card.recommended);
+  return (
+    <div className="mt-2.5 flex flex-col gap-2">
+      {stayNotes ? <TripBuilderStayNotesCard notes={stayNotes} /> : null}
+      {recommended.map((card) => (
+        <TripBuilderRateCard key={card.id} card={card} disabled={disabled} />
+      ))}
+      {others.length > 0 && recommended.length > 0 ? (
+        <p className="pt-1 text-[11px] font-semibold tracking-wide text-ink-muted uppercase">
+          Other rates
+        </p>
+      ) : null}
+      {others.map((card) => (
+        <TripBuilderRateCard key={card.id} card={card} disabled={disabled} />
+      ))}
+    </div>
+  );
+}
+
 function AgentMessage({
   content,
   time,
   incomplete,
   statusLabel,
+  offers,
 }: {
   content: string;
   time: string;
   incomplete?: boolean;
   /** Phase label while waiting for the first text delta. */
   statusLabel?: string | null;
+  offers?: React.ReactNode;
 }) {
   return (
     <div className="mr-auto flex w-full max-w-[min(100%,42rem)] items-start gap-2 self-start sm:gap-2.5">
@@ -435,7 +577,7 @@ function AgentMessage({
             <AgentStatusLabel key={statusLabel} label={statusLabel} />
           ) : content.trim() ? (
             <ChatMarkdown content={content} />
-          ) : (
+          ) : offers ? null : (
             <AgentStatusLabel
               key={AGENT_PHASE_LABEL.thinking}
               label={AGENT_PHASE_LABEL.thinking}
@@ -446,6 +588,7 @@ function AgentMessage({
               Reply was interrupted.
             </p>
           ) : null}
+          {offers}
         </div>
       </div>
     </div>

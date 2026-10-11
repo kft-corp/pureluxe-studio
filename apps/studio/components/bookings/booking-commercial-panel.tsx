@@ -5,6 +5,8 @@ import {
   displayOrDash,
   formatBookingMoney,
   formatBookingSource,
+  tripBuilderOwnsStay,
+  type BookingTripCommercial,
 } from "@/lib/bookings";
 
 import type { BookingEditSection } from "./booking-edit-section-dialog";
@@ -20,12 +22,26 @@ import {
 
 type BookingCommercialPanelProps = {
   booking: DetailBooking;
+  trip: BookingTripCommercial | null;
   canWrite: boolean;
   onEditSection: (section: BookingEditSection) => void;
 };
 
+function stayTaxLabel(booking: DetailBooking): string {
+  const percent = booking.tax_percentage;
+  const cost = booking.cost_amount;
+  if (percent == null || cost == null) return "Not set";
+  const tax = (cost * percent) / 100;
+  const formatted = formatBookingMoney(tax, booking.currency);
+  const percentLabel = new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 2,
+  }).format(percent);
+  return `${formatted} (${percentLabel}%)`;
+}
+
 export function BookingCommercialPanel({
   booking,
+  trip,
   canWrite,
   onEditSection,
 }: BookingCommercialPanelProps) {
@@ -73,7 +89,11 @@ export function BookingCommercialPanel({
 
       <ContentSection
         title="Commercial snapshot"
-        description="Studio-only pricing captured at the time of booking."
+        description={
+          trip
+            ? "Supplier cost is for this stay. The client price and trip margin stay on the trip."
+            : "Studio-only pricing captured at the time of booking."
+        }
         className="min-w-0"
         action={
           <SectionEditButton
@@ -85,8 +105,12 @@ export function BookingCommercialPanel({
         <DetailFieldGrid>
           <DetailField
             icon={icons.sellPrice}
-            label="Sell price"
-            value={formatBookingMoney(booking.sell_amount, booking.currency)}
+            label={trip ? "Trip client price" : "Sell price"}
+            value={
+              trip
+                ? formatBookingMoney(trip.sell_total, trip.sell_currency)
+                : formatBookingMoney(booking.sell_amount, booking.currency)
+            }
             className="sm:border-b sm:border-border/70"
           />
           <DetailField
@@ -95,6 +119,22 @@ export function BookingCommercialPanel({
             value={formatBookingMoney(booking.cost_amount, booking.currency)}
             className="sm:border-b sm:border-border/70"
           />
+          {trip ? (
+            <DetailField
+              icon={icons.supplierCost}
+              label="Tax"
+              value={stayTaxLabel(booking)}
+              className="sm:border-b sm:border-border/70"
+            />
+          ) : null}
+          {trip ? (
+            <DetailField
+              icon={icons.sellPrice}
+              label="Trip margin"
+              value={formatBookingMoney(trip.margin_internal, trip.sell_currency)}
+              className="sm:border-b sm:border-border/70"
+            />
+          ) : null}
           <DetailField
             icon={icons.commission}
             label="Expected commission"
@@ -105,10 +145,21 @@ export function BookingCommercialPanel({
           />
           <DetailField
             icon={icons.currency}
-            label="Currency"
+            label={trip ? "Cost currency" : "Currency"}
             value={displayOrDash(booking.currency?.toUpperCase())}
           />
         </DetailFieldGrid>
+        {trip ? (
+          <p className="mt-3 text-xs leading-5 text-ink-muted">
+            {booking.tax_percentage == null
+              ? "Tax is not set on this stay. Trip margin is the client price minus the hotel net."
+              : "Tax is the stored percent on top of this stay's hotel net. Trip margin subtracts tax only when every priced stay has a tax percent."}
+            {tripBuilderOwnsStay(booking)
+              ? " Confirm the booking before changing this cost in Bookings."
+              : ""}
+            {trip.pricing_locked ? " Pricing is locked on the trip." : ""}
+          </p>
+        ) : null}
       </ContentSection>
     </div>
   );

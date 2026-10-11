@@ -1,5 +1,18 @@
 import type { TripLineItem } from "@pureluxe/db";
 import type { SearchRatesResult } from "@pureluxe/rates";
+
+export type TripBuilderRateSearch = SearchRatesResult & {
+  hotel_brief: string | null;
+  stay_notes: {
+    checkIn: string | null;
+    checkOut: string | null;
+    payment: string[];
+    offers: string[];
+    required: string[];
+    markup: string | null;
+  } | null;
+  rate_context: string | null;
+};
 import {
   isApiErrorResponse,
   type AddRateOptionBody,
@@ -9,17 +22,23 @@ import {
   type ListTripsQuery,
   type PasteLineItemBody,
   type SearchRatesBody,
+  type AddTripLegBody,
   type SetTripStayBody,
+  type UpdateTripLegBody,
   type TripBuilderChatSendBody,
   type TripBuilderPreTripChatSendBody,
   type UpdateTripBody,
   type UpdateTripQuoteBody,
+  type UpdateOptionsQuoteBody,
+  type UpdateStayOptionBody,
 } from "@pureluxe/shared";
 
 import type {
+  ChatMessage,
   ChatMessagePage,
   ChatStreamEvent,
   TripDetail,
+  StayPropertyMatch,
   TripListResult,
   TripQuoteSnapshot,
 } from "@/lib/trip-builder";
@@ -69,6 +88,30 @@ export function createTripBuilderTrip(input: CreateTripBody) {
   });
 }
 
+/** Add a companion, confirm the named party, or make another client the lead. */
+export function saveTripBuilderTraveller(
+  tripId: string,
+  input:
+    | { client_id: string; party_role: "adult" | "child" }
+    | { confirm: true }
+    | { lead_client_id: string },
+) {
+  return fetchApi<TripDetail>(apiRoutes.tripBuilder.travellers(tripId), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+    cache: "no-store",
+  });
+}
+
+/** Remove a companion from the trip. */
+export function removeTripBuilderTraveller(tripId: string, clientId: string) {
+  return fetchApi<TripDetail>(apiRoutes.tripBuilder.traveller(tripId, clientId), {
+    method: "DELETE",
+    cache: "no-store",
+  });
+}
+
 /** Patch trip shell fields. */
 export function updateTripBuilderTrip(tripId: string, input: UpdateTripBody) {
   return fetchApi<TripDetail>(apiRoutes.tripBuilder.trip(tripId), {
@@ -79,9 +122,71 @@ export function updateTripBuilderTrip(tripId: string, input: UpdateTripBody) {
   });
 }
 
-/** Set Phase 1 fixed stay (hotel + city + dates). */
+/** Set one stay (hotel + city + dates). Pass leg_id to update that stay. */
 export function setTripBuilderStay(tripId: string, input: SetTripStayBody) {
-  return fetchApi<TripDetail>(apiRoutes.tripBuilder.stay(tripId), {
+  return fetchApi<{ detail: TripDetail; property_match: StayPropertyMatch }>(
+    apiRoutes.tripBuilder.stay(tripId),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+      cache: "no-store",
+    },
+  );
+}
+
+/** Change city and dates on one stay. The hotel and party stay put. */
+export function updateTripBuilderLeg(
+  tripId: string,
+  legId: string,
+  input: UpdateTripLegBody,
+) {
+  return fetchApi<TripDetail>(apiRoutes.tripBuilder.leg(tripId, legId), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+    cache: "no-store",
+  });
+}
+
+/** Remove one stay. Its pending booking is cancelled. */
+export function removeTripBuilderLeg(tripId: string, legId: string) {
+  return fetchApi<TripDetail>(apiRoutes.tripBuilder.leg(tripId, legId), {
+    method: "DELETE",
+    cache: "no-store",
+  });
+}
+
+/** Add another stay. City and dates only — the hotel is saved next. */
+export function addTripBuilderLeg(tripId: string, input: AddTripLegBody) {
+  return fetchApi<{ detail: TripDetail; leg_id: string }>(
+    apiRoutes.tripBuilder.legs(tripId),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+      cache: "no-store",
+    },
+  );
+}
+
+export type AtlasStayReply = {
+  matched: boolean;
+  answer: string;
+  place: { city: string | null; country: string | null };
+  hotels: Array<{
+    id: string;
+    name: string;
+    brand: string | null;
+    city: string;
+    propertyId: string | null;
+    contractStatus: "contracted" | "not_yet_contracted" | "unknown";
+  }>;
+};
+
+/** Stay-stage place and hotel questions, answered from Atlas. */
+export function askTripBuilderAtlas(input: { question: string; city?: string | null }) {
+  return fetchApi<AtlasStayReply>(apiRoutes.tripBuilder.atlas, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -91,7 +196,7 @@ export function setTripBuilderStay(tripId: string, input: SetTripStayBody) {
 
 /** Search rates for the open trip stay. */
 export function searchTripBuilderRates(input: SearchRatesBody) {
-  return fetchApi<SearchRatesResult>(apiRoutes.tripBuilder.ratesSearch, {
+  return fetchApi<TripBuilderRateSearch>(apiRoutes.tripBuilder.ratesSearch, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -160,6 +265,75 @@ export function generateTripBuilderQuote(
       body: JSON.stringify(input),
       cache: "no-store",
     },
+  );
+}
+
+/** Edit the client price or wording on a saved options-quote room. */
+export function updateTripBuilderStayOption(
+  lineItemId: string,
+  input: UpdateStayOptionBody,
+) {
+  return fetchApi<TripDetail>(apiRoutes.tripBuilder.lineItem(lineItemId), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+    cache: "no-store",
+  });
+}
+
+export type OptionsQuoteEditMatch = {
+  id: string;
+  label: string;
+  text: string;
+  after: string;
+};
+
+export type OptionsQuoteEditProposal =
+  | { kind: "skip" }
+  | { kind: "none"; message: string }
+  | { kind: "matches"; matches: OptionsQuoteEditMatch[] };
+
+/** Ask which lines a sentence would change. Nothing is saved. */
+export function proposeTripBuilderOptionsEdit(tripId: string, message: string) {
+  return fetchApi<OptionsQuoteEditProposal>(apiRoutes.tripBuilder.optionsEdit(tripId), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message }),
+    cache: "no-store",
+  });
+}
+
+/** Edit the title or note on the options quote. */
+export function updateTripBuilderOptionsQuote(
+  tripId: string,
+  input: UpdateOptionsQuoteBody,
+) {
+  return fetchApi<TripDetail>(apiRoutes.tripBuilder.options(tripId), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+    cache: "no-store",
+  });
+}
+
+/** Generate the options quote PDF. */
+export function generateTripBuilderOptionsQuote(
+  tripId: string,
+  input: GenerateTripQuoteBody = {},
+) {
+  return fetchApi<TripDetail>(apiRoutes.tripBuilder.optionsGenerate(tripId), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+    cache: "no-store",
+  });
+}
+
+/** Short-lived signed URL for the options quote PDF. */
+export function getTripBuilderOptionsQuoteUrl(tripId: string) {
+  return fetchApi<{ url: string; expires_in: number }>(
+    apiRoutes.tripBuilder.optionsUrl(tripId),
+    { cache: "no-store" },
   );
 }
 
@@ -246,6 +420,19 @@ async function consumeChatNdjsonStream(
   if (trailing) {
     handlers.onEvent(JSON.parse(trailing) as ChatStreamEvent);
   }
+}
+
+/** Persist chat lines on a trip. No agent turn. */
+export function saveTripBuilderChatLines(
+  tripId: string,
+  lines: { role: "user" | "assistant"; content: string }[],
+) {
+  return fetchApi<ChatMessage[]>(apiRoutes.tripBuilder.chatLines(tripId), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ lines }),
+    cache: "no-store",
+  });
 }
 
 export async function streamTripChat(

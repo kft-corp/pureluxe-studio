@@ -68,6 +68,7 @@ export async function createBooking(
     currency: input.currency ?? null,
     cost_amount: input.cost_amount ?? null,
     sell_amount: input.sell_amount ?? null,
+    tax_percentage: null,
     commission_expected: input.commission_expected ?? null,
     status: input.status,
     confirmed_at: null,

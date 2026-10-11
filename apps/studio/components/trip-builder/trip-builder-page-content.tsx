@@ -7,7 +7,7 @@ import { TripBuilderComposer } from "./trip-builder-composer";
 import { TripBuilderHeader } from "./trip-builder-header";
 import { TripBuilderStatusStrip } from "./trip-builder-status-strip";
 import { TripBuilderSummaryPanel } from "./trip-builder-summary-panel";
-import { resolveTripStage } from "./stages";
+import { legsConfirmed, resolveTripStage, tripDatesReady } from "./stages";
 import { useTripBuilder } from "./use-trip-builder";
 
 type TripBuilderPageContentProps = {
@@ -39,14 +39,18 @@ export function TripBuilderPageContent({
     : builder.chatBusy
       ? undefined
       : stage === "client"
-        ? "Type a client name, then tap a Use chip."
+        ? builder.detail?.client && !builder.detail.trip.travellers_confirmed_at
+          ? "Add travellers from the household, or say just them."
+          : "Type a client name, then tap a confirm chip."
         : stage === "stay"
-          ? "Type hotel, city, dates — tap Save stay when ready."
+          ? !tripDatesReady(builder.detail)
+            ? "Send the trip start and end first. Example: Start: 2026-10-10, End: 2026-10-20."
+            : !legsConfirmed(builder.detail)
+              ? "List each stay inside the trip. A city alone uses the full trip for the first stay."
+              : "Plan the open stay. You can add a stay, change one, or change the trip dates in chat."
           : stage === "rates"
-            ? "Search rates, pick a chip, or paste a quote."
-            : stage === "package"
-              ? "Type sell 4500 USD if needed, then Generate PDF."
-              : "Ask for a summary, or open the quote PDF.";
+            ? "Tap Add for the client on a room. Ask if you want help choosing."
+            : "The room is chosen. The booking stays pending until you confirm it in Bookings.";
 
   return (
     <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col bg-surface">
@@ -64,7 +68,11 @@ export function TripBuilderPageContent({
       />
 
       {/* Status / Next strip only when a trip exists */}
-      <TripBuilderStatusStrip detail={builder.detail} />
+      <TripBuilderStatusStrip
+        detail={builder.detail}
+        activeLegId={builder.activeLegId}
+        onSelectLeg={builder.selectLeg}
+      />
 
       <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[linear-gradient(180deg,#ffffff_0%,#faf9f7_100%)]">
@@ -80,7 +88,10 @@ export function TripBuilderPageContent({
               streamingContent={builder.streamingContent}
               agentPhase={builder.agentPhase}
               homeChips={builder.homeChips}
-              onCreateTrip={() => void builder.createTrip()}
+              rateCards={builder.rateCards}
+              stayNotes={builder.stayNotes}
+              activeLegId={builder.activeLegId}
+              onCreateTrip={builder.promptCreateTrip}
               onLoadOlder={() => void builder.loadOlderMessages()}
             />
           </div>
@@ -94,15 +105,22 @@ export function TripBuilderPageContent({
             helperText={helperText}
             chips={builder.chips}
             disabled={composerBusy || (!canWrite && tripOpen)}
-            streaming={builder.chatBusy}
+            streaming={builder.chatBusy || builder.busy}
             onSend={(text) => void builder.handleSend(text)}
           />
         </section>
 
         <TripBuilderSummaryPanel
           detail={builder.detail}
+          activeLegId={builder.activeLegId}
           open={builder.summaryOpen}
+          canWrite={builder.canWrite}
+          busy={builder.busy}
           onClose={() => builder.setSummaryOpen(false)}
+          onSelectStay={builder.selectLeg}
+          onOpenOptions={() => void builder.openOptionsQuote()}
+          onRegenerateOptions={() => void builder.regenerateOptionsQuote()}
+          onChooseSavedOption={(lineItemId) => builder.offerChooseSaved(lineItemId)}
         />
       </div>
     </div>

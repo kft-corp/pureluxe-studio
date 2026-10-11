@@ -68,6 +68,8 @@ SELECT
   25,
   'Six Senses Kanuhura Wholesale Rates Agreement 2026-2027 - KFT Corporation.pdf',
   jsonb_build_object(
+    'check_in_time', '14:00',
+    'check_out_time', '12:00',
     'stay_rules', jsonb_build_array(
       'Peak min 5N for 1BR; Peak min 7N for 2BR/3BR listed categories',
       'No checkout on 2026-12-30 or 2026-12-31',
@@ -154,15 +156,23 @@ SELECT
   25,
   'Six Senses Kanuhura - India Package 2026 - Low & Shoulder Seasons (1).pdf',
   jsonb_build_object(
+    'check_in_time', '14:00',
+    'check_out_time', '12:00',
     'stay_rules', jsonb_build_array(
       'Minimum 3 nights',
       'India market only; new bookings only',
       'Not combinable with other contracted/tactical offers (honeymoon/anniversary OK)',
       'Not for 5+ villa groups',
       'Stop sale with 2 business days notice',
-      'Quote booking code SSK26IN'
+      'Quote booking code SSK26IN',
+      'Other terms follow the wholesale contract'
     ),
-    'payment_rules', jsonb_build_array('As per main wholesale contract'),
+    'payment_rules', jsonb_build_array(
+      jsonb_build_object('season', 'peak', 'prepay_days', 90, 'cancel_days', 90, 'charge_pct', 100),
+      jsonb_build_object('season', 'high', 'prepay_days', 30, 'cancel_days', 30, 'charge_pct', 100),
+      jsonb_build_object('season', 'low', 'prepay_days', 14, 'cancel_days', 14, 'charge_pct', 100),
+      jsonb_build_object('season', 'shoulder', 'prepay_days', 21, 'cancel_days', 21, 'charge_pct', 100)
+    ),
     'transfer_policies', jsonb_build_array(
       'Shared return seaplane included for rate-based occupancy',
       'Extra adult seaplane USD 695 return; child 2-11 complimentary'
@@ -378,7 +388,7 @@ CROSS JOIN (
   VALUES
   ('2N Beach Villa with Pool + 2N Water Villa with Pool', 'low', '2026-04-13', '2026-09-30', 4223, 1, 200),
   ('2N Deluxe Beach Villa with Pool + 2N Water Villa with Pool', 'low', '2026-04-13', '2026-09-30', 4533, 1, 210),
-  ('2N Deluxe Beach Villa Suite with Pool + 2N Water Villa with Pool', 'low', '2026-04-13', '2026-09-30', 4786, 2, 220),
+  ('2N Deluxe Beach Villa Suite with Pool + 2N Water Villa with Pool', 'low', '2026-04-13', '2026-09-30', 4785, 2, 220),
   ('2N Beach Retreat with Pool + 2N Water Villa with Pool', 'low', '2026-04-13', '2026-09-30', 6268, 2, 230),
   ('2N Beach Villa with Pool + 2N Water Villa with Pool', 'shoulder', '2026-10-01', '2026-12-21', 5293, 1, 200),
   ('2N Deluxe Beach Villa with Pool + 2N Water Villa with Pool', 'shoulder', '2026-10-01', '2026-12-21', 5678, 1, 210),

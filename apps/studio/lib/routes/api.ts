@@ -49,13 +49,26 @@ export const apiRoutes = {
     trips: "/api/trip-builder/trips",
     trip: (tripId: string) => `/api/trip-builder/trips/${tripId}`,
     stay: (tripId: string) => `/api/trip-builder/trips/${tripId}/stay`,
+    legs: (tripId: string) => `/api/trip-builder/trips/${tripId}/legs`,
+    travellers: (tripId: string) => `/api/trip-builder/trips/${tripId}/travellers`,
+    traveller: (tripId: string, clientId: string) =>
+      `/api/trip-builder/trips/${tripId}/travellers/${clientId}`,
+    leg: (tripId: string, legId: string) =>
+      `/api/trip-builder/trips/${tripId}/legs/${legId}`,
     quote: (tripId: string) => `/api/trip-builder/trips/${tripId}/quote`,
     quoteGenerate: (tripId: string) =>
       `/api/trip-builder/trips/${tripId}/quote/generate`,
     quoteUrl: (tripId: string) => `/api/trip-builder/trips/${tripId}/quote/url`,
+    options: (tripId: string) => `/api/trip-builder/trips/${tripId}/options`,
+    optionsEdit: (tripId: string) => `/api/trip-builder/trips/${tripId}/options/edit`,
+    optionsGenerate: (tripId: string) =>
+      `/api/trip-builder/trips/${tripId}/options/generate`,
+    optionsUrl: (tripId: string) => `/api/trip-builder/trips/${tripId}/options/url`,
     chat: (tripId: string) => `/api/trip-builder/trips/${tripId}/chat`,
+    chatLines: (tripId: string) => `/api/trip-builder/trips/${tripId}/chat/lines`,
     /** Pre-trip home chat — ephemeral, client lookup tools only. */
     preTripChat: "/api/trip-builder/pre-trip/chat",
+    atlas: "/api/trip-builder/atlas",
     ratesSearch: "/api/trip-builder/rates/search",
     lineItemsPaste: "/api/trip-builder/line-items/paste",
     lineItemsFromRate: "/api/trip-builder/line-items/from-rate",
@@ -65,6 +78,7 @@ export const apiRoutes = {
       `/api/trip-builder/line-items/${lineItemId}/reject`,
     lineItemSelect: (lineItemId: string) =>
       `/api/trip-builder/line-items/${lineItemId}/select`,
+    lineItem: (lineItemId: string) => `/api/trip-builder/line-items/${lineItemId}`,
   },
   families: {
     search: "/api/families/search",

@@ -1,5 +1,6 @@
 import { getServiceClient, runSupabaseQuery } from "../../client";
 import { dbQueryError } from "../../errors";
+import { escapeIlike } from "../../utils/ilike";
 import type {
   Property,
   PropertyContractedRate,
@@ -26,6 +27,33 @@ export async function findActivePropertyById(
   }
 
   return data as Property | null;
+}
+
+/** Active properties whose name contains the text (case-insensitive). */
+export async function searchActivePropertiesByName(
+  name: string,
+  limit = 8,
+): Promise<Property[]> {
+  const trimmed = name.trim();
+  if (trimmed.length < 2) return [];
+
+  const supabase = getServiceClient();
+  const pattern = `%${escapeIlike(trimmed)}%`;
+  const { data, error } = await runSupabaseQuery(() =>
+    supabase
+      .from("properties")
+      .select("*")
+      .eq("active", true)
+      .ilike("name", pattern)
+      .order("name", { ascending: true })
+      .limit(limit),
+  );
+
+  if (error) {
+    throw dbQueryError(error);
+  }
+
+  return (data ?? []) as Property[];
 }
 
 /** Active supplier codes for one property (Sabre, Hotelbeds, …). */

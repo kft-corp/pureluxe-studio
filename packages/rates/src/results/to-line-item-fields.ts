@@ -13,6 +13,9 @@ export type LineItemFields = {
   property_name: string | null;
   currency: string;
   cost_internal: number;
+  /** Set only when the supplier quote states a tax percent. */
+  tax_percentage: number | null;
+  availability_status: NormalizedRateOption["availability_status"];
   rate_source_code: string;
   inclusions: string[];
   cancellation_policy: string | null;
@@ -28,6 +31,16 @@ export type LineItemFields = {
     raw: Record<string, unknown>;
   };
 };
+
+/** Percent points from a supplier payload, for example 18 for 18%. */
+export function taxPercentageFromRaw(
+  raw: Record<string, unknown> | null | undefined,
+): number | null {
+  const value = raw?.tax_percentage;
+  const amount = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  if (!Number.isFinite(amount) || amount < 0) return null;
+  return amount;
+}
 
 /** Build a stable line-item payload from any normalized option. */
 export function toLineItemFields(
@@ -49,6 +62,8 @@ export function toLineItemFields(
     property_name: option.property_name,
     currency: option.currency,
     cost_internal: option.cost_internal,
+    tax_percentage: taxPercentageFromRaw(option.raw),
+    availability_status: option.availability_status,
     rate_source_code: option.rate_source_code,
     inclusions: [...option.inclusions],
     cancellation_policy: option.cancellation_summary,

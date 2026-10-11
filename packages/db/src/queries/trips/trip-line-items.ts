@@ -4,6 +4,7 @@ import type {
   KbContractStatus,
   KbTier,
   TripLineItem,
+  TripLineItemAvailabilityStatus,
   TripLineItemCategory,
   TripLineItemSource,
   TripLineItemStatus,
@@ -27,6 +28,7 @@ export type InsertTripLineItemInput = {
   unit_count?: number;
   rate_per_unit?: number | null;
   tax_percentage?: number | null;
+  availability_status?: TripLineItemAvailabilityStatus | null;
   currency?: string | null;
   sell_amount?: number | null;
   cost_internal?: number | null;
@@ -70,6 +72,7 @@ export async function insertTripLineItem(
         unit_count: input.unit_count ?? 1,
         rate_per_unit: input.rate_per_unit ?? null,
         tax_percentage: input.tax_percentage ?? null,
+        availability_status: input.availability_status ?? null,
         currency: input.currency ?? null,
         sell_amount: input.sell_amount ?? null,
         cost_internal: input.cost_internal ?? null,
@@ -213,6 +216,88 @@ export async function listPricedAccommodationLineItems(
   return rows.filter((row) => !isStayShellLineItem(row));
 }
 
+/**
+ * Drop rooms that were only on the options quote.
+ * The chosen row is already selected. The stay shell has no cost, so it stays.
+ */
+export async function deleteUnselectedStayOptions(
+  tripId: string,
+  legId: string,
+): Promise<void> {
+  const supabase = getServiceClient();
+  const { error } = await runSupabaseQuery(() =>
+    supabase
+      .from("trip_line_items")
+      .delete()
+      .eq("trip_id", tripId)
+      .eq("leg_id", legId)
+      .eq("category", "accommodation")
+      .eq("selected", false)
+      .not("cost_internal", "is", null),
+  );
+  if (error) throw dbQueryError(error);
+}
+
+/** Client-facing edits on a room saved for the options quote. */
+export async function updateStayOption(
+  lineItemId: string,
+  patch: {
+    sell_amount?: number | null;
+    cancellation_policy?: string | null;
+    inclusions?: string[];
+  },
+): Promise<TripLineItem | null> {
+  const supabase = getServiceClient();
+  const { data, error } = await runSupabaseQuery(() =>
+    supabase
+      .from("trip_line_items")
+      .update(patch)
+      .eq("id", lineItemId)
+      .eq("category", "accommodation")
+      .eq("selected", false)
+      .select("*")
+      .maybeSingle(),
+  );
+  if (error) throw dbQueryError(error);
+  return data as TripLineItem | null;
+}
+
+/** Remove every line item on one stay (shell, rates, and the rest). */
+export async function deleteLineItemsForLeg(
+  tripId: string,
+  legId: string,
+): Promise<void> {
+  const supabase = getServiceClient();
+
+  const { error } = await runSupabaseQuery(() =>
+    supabase.from("trip_line_items").delete().eq("trip_id", tripId).eq("leg_id", legId),
+  );
+
+  if (error) {
+    throw dbQueryError(error);
+  }
+}
+
+/** Write adult and child counts onto the stay shell. Rooms stay as saved. */
+export async function patchStayShellParty(
+  tripId: string,
+  legId: string,
+  party: { adults: number; children: number },
+): Promise<void> {
+  const existing = await findStayShellLineItem(tripId, legId);
+  if (!existing) return;
+  const extracted = {
+    ...(existing.extracted_json ?? {}),
+    adults: party.adults,
+    children: party.children,
+  };
+  const supabase = getServiceClient();
+  const { error } = await runSupabaseQuery(() =>
+    supabase.from("trip_line_items").update({ extracted_json: extracted }).eq("id", existing.id),
+  );
+  if (error) throw dbQueryError(error);
+}
+
 /** Clear selected flag on accommodation items for a leg. */
 export async function clearSelectedAccommodationForLeg(
   tripId: string,
@@ -233,6 +318,45 @@ export async function clearSelectedAccommodationForLeg(
   if (error) {
     throw dbQueryError(error);
   }
+}
+
+const AVAILABILITY = new Set<TripLineItemAvailabilityStatus>([
+  "unknown",
+  "available",
+  "unavailable",
+  "on_request",
+]);
+
+/** Copy rate facts onto the row when a search or paste stored them. */
+export async function fillTripLineItemRateFacts(
+  lineItemId: string,
+  facts: {
+    availability_status?: TripLineItemAvailabilityStatus | null;
+    tax_percentage?: number | null;
+  },
+): Promise<void> {
+  const patch: Record<string, unknown> = {};
+  if (
+    facts.availability_status &&
+    AVAILABILITY.has(facts.availability_status)
+  ) {
+    patch.availability_status = facts.availability_status;
+  }
+  if (
+    facts.tax_percentage != null &&
+    Number.isFinite(facts.tax_percentage) &&
+    facts.tax_percentage >= 0
+  ) {
+    patch.tax_percentage = facts.tax_percentage;
+  }
+  if (Object.keys(patch).length === 0) return;
+
+  const supabase = getServiceClient();
+  const { error } = await runSupabaseQuery(() =>
+    supabase.from("trip_line_items").update(patch).eq("id", lineItemId),
+  );
+
+  if (error) throw dbQueryError(error);
 }
 
 /** Mark one accommodation line item selected (caller clears peers first). */
@@ -294,6 +418,9 @@ export type UpsertStayShellInput = {
   property_id?: string | null;
   property_name: string;
   created_by_id?: string | null;
+  adults?: number;
+  children?: number;
+  rooms?: number;
 };
 
 /**
@@ -306,6 +433,12 @@ export async function upsertStayShellLineItem(
   const existing = await findStayShellLineItem(input.trip_id, input.leg_id);
   const supabase = getServiceClient();
   const title = input.property_name;
+  const extracted = {
+    ...STAY_SHELL_MARKER,
+    adults: input.adults ?? null,
+    children: input.children ?? null,
+    rooms: input.rooms ?? null,
+  };
 
   if (existing) {
     const { data, error } = await runSupabaseQuery(() =>
@@ -315,7 +448,7 @@ export async function upsertStayShellLineItem(
           title,
           property_id: input.property_id ?? null,
           property_name: input.property_name,
-          extracted_json: STAY_SHELL_MARKER,
+          extracted_json: extracted,
         })
         .eq("id", existing.id)
         .select("*")
@@ -339,7 +472,61 @@ export async function upsertStayShellLineItem(
     status: "pending",
     selected: false,
     source: "manual",
-    extracted_json: { ...STAY_SHELL_MARKER },
+    extracted_json: extracted,
     created_by_id: input.created_by_id ?? null,
   });
+}
+
+/** Point the stay shell at the hotel the client chose, without changing the party. */
+export async function pointStayShellAtHotel(input: {
+  trip_id: string;
+  leg_id: string;
+  property_id: string | null;
+  property_name: string;
+}): Promise<void> {
+  const existing = await findStayShellLineItem(input.trip_id, input.leg_id);
+  if (!existing) return;
+  const supabase = getServiceClient();
+  const { error } = await runSupabaseQuery(() =>
+    supabase
+      .from("trip_line_items")
+      .update({
+        title: input.property_name,
+        property_id: input.property_id,
+        property_name: input.property_name,
+      })
+      .eq("id", existing.id),
+  );
+  if (error) throw dbQueryError(error);
+}
+
+/** Point the stay shell at a known property without touching party counts. */
+export async function linkStayShellProperty(input: {
+  trip_id: string;
+  leg_id: string;
+  property_id: string;
+  property_name: string;
+}): Promise<TripLineItem | null> {
+  const existing = await findStayShellLineItem(input.trip_id, input.leg_id);
+  if (!existing) return null;
+
+  const supabase = getServiceClient();
+  const { data, error } = await runSupabaseQuery(() =>
+    supabase
+      .from("trip_line_items")
+      .update({
+        title: input.property_name,
+        property_id: input.property_id,
+        property_name: input.property_name,
+      })
+      .eq("id", existing.id)
+      .select("*")
+      .single(),
+  );
+
+  if (error) {
+    throw dbQueryError(error);
+  }
+
+  return data as TripLineItem;
 }
