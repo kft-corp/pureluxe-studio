@@ -30,10 +30,12 @@ export type OptionsQuoteHotel = {
   name: string;
   city: string;
   propertyId: string | null;
-  contractIds: string[];
-  seasons: string[];
-  /** Client-facing stay rules, benefits, and offers. Filled before the PDF is drawn. */
-  policies: string[];
+  /** Check-in and check-out times that match every room. */
+  arrival: string[];
+  /** Transfers that match every room. */
+  transfers: string[];
+  /** Stay rules, benefits, charges, and notes that match every room. */
+  shared: string[];
   rooms: OptionsQuoteRoom[];
 };
 
@@ -55,6 +57,11 @@ export type OptionsQuoteRoom = {
   terms: string | null;
   /** Room note that is safe to show the client. */
   note: string | null;
+  /** Contract and season used to load this room's rules. Not printed. */
+  contractId: string | null;
+  season: string | null;
+  /** Benefits, charges, and notes that are not true for every room at this hotel. */
+  extras: string[];
 };
 
 /** Sentence under the price basis. The advisor can rewrite it. The letterhead cannot. */
@@ -128,13 +135,9 @@ function stayBlock(stay: TripStaySnapshot, rows: TripRateSnapshot[]): OptionsQuo
     name,
     city: stay.city.trim(),
     propertyId: rooms.find((row) => row.property_id)?.property_id ?? stay.property_id,
-    contractIds: [
-      ...new Set(rooms.map((row) => row.contract_id).filter((id): id is string => Boolean(id))),
-    ],
-    seasons: [
-      ...new Set(rooms.map((row) => row.season_code?.trim()).filter((code): code is string => Boolean(code))),
-    ],
-    policies: [] as string[],
+    arrival: [] as string[],
+    transfers: [] as string[],
+    shared: [] as string[],
     rooms: rooms.map(roomLine),
   }));
   const hotelLabel = hotels.length === 1 ? "one hotel" : `${hotels.length} hotels`;
@@ -170,6 +173,9 @@ function roomLine(row: TripRateSnapshot): OptionsQuoteRoom {
     payment: clientRule(row.payment_policy, row.season_code),
     terms: null,
     note: clientNote(row.rate_note),
+    contractId: row.contract_id,
+    season: row.season_code?.trim() || null,
+    extras: [],
   };
 }
 

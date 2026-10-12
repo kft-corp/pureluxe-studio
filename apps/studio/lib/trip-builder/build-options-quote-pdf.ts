@@ -260,7 +260,9 @@ function paintHotel(doc: PDFKit.PDFDocument, hotel: OptionsQuoteHotel, y: number
     58 +
     hotel.rooms.reduce((sum, room) => sum + roomHeight(doc, room, !sameInclusions), 0) +
     (sameInclusions ? bulletHeight(doc, hotel.rooms[0]?.inclusions ?? []) : 0) +
-    (hotel.policies.length > 0 ? bulletHeight(doc, hotel.policies) : 0) +
+    bulletHeight(doc, hotel.arrival) +
+    bulletHeight(doc, hotel.transfers) +
+    bulletHeight(doc, hotel.shared) +
     (terms.length > 0 ? termHeight(doc, terms) : 0);
   y = ensure(doc, y, Math.min(block, px(220)));
   const cardTop = y;
@@ -302,7 +304,9 @@ function paintHotel(doc: PDFKit.PDFDocument, hotel: OptionsQuoteHotel, y: number
   });
 
   if (sameInclusions) y = paintBullets(doc, "What's included", hotel.rooms[0]?.inclusions ?? [], y);
-  if (hotel.policies.length > 0) y = paintBullets(doc, "Policies and benefits", hotel.policies, y);
+  y = paintBullets(doc, "Arrival and departure", hotel.arrival, y);
+  y = paintBullets(doc, "Transfers", hotel.transfers, y);
+  y = paintBullets(doc, "For every room", hotel.shared, y);
   if (terms.length > 0) y = paintTerms(doc, terms, y);
   if (doc.bufferedPageRange().count === cardPage) {
     doc.rect(LEFT, cardTop, WIDTH, y - cardTop).lineWidth(0.6).strokeColor(LINE).stroke();
@@ -348,6 +352,14 @@ function paintRoom(
     doc.font(FONT.regular).fontSize(TYPE.roomMeta).fillColor(MUTED).text(room.inclusions.join("  ·  "), LEFT + px(14), textY + px(2), {
       width: textWidth,
     });
+    textY = doc.y;
+  }
+  if (room.extras.length > 0) {
+    doc.font(FONT.regular).fontSize(TYPE.roomMeta).fillColor(INK);
+    for (const extra of room.extras) {
+      doc.text(`•  ${extra}`, LEFT + px(14), textY + px(2), { width: textWidth, lineGap: 1 });
+      textY = doc.y;
+    }
   }
   doc.font(FONT.bold).fontSize(TYPE.room).fillColor(INK).text(amount, LEFT + WIDTH - priceColumn(), y + 7, {
     width: priceColumn() - px(14),
@@ -407,7 +419,11 @@ function roomHeight(doc: PDFKit.PDFDocument, room: OptionsQuoteRoom, showInclusi
     showInclusions && room.inclusions.length > 0
       ? doc.heightOfString(room.inclusions.join("  ·  "), { width: textWidth }) + 4
       : 0;
-  return Math.max(28, name + detail + included + 14);
+  const extras = room.extras.reduce(
+    (sum, item) => sum + doc.heightOfString(`•  ${item}`, { width: textWidth, lineGap: 1 }) + 4,
+    0,
+  );
+  return Math.max(28, name + detail + included + extras + 14);
 }
 
 function bulletHeight(doc: PDFKit.PDFDocument, items: string[]): number {

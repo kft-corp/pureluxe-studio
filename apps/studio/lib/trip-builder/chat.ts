@@ -28,6 +28,7 @@ import { answerAtlasStay } from "./atlas-stay";
 import { getTripDetail } from "./get-trip-detail";
 import {
   isClientQuestion,
+  isFollowUpFragment,
   isPlaceQuestion,
   isTripQuestion,
   mightNamePlace,
@@ -279,6 +280,7 @@ async function buildStreamTurn(
     null;
   const ratePack = readRateSearchPack(tripId);
   const placeQuestion = isPlaceQuestion(userRow.content);
+  const followUp = isFollowUpFragment(userRow.content);
   const editingTrip =
     !placeQuestion &&
     /\b(?:change|move|update|edit|set|shift|correct|remove|add)\b/i.test(userRow.content) &&
@@ -290,6 +292,7 @@ async function buildStreamTurn(
     !isClientQuestion(userRow.content) &&
     (placeQuestion ||
       mightNamePlace(userRow.content) ||
+      followUp ||
       questionNeedsPlaceLookup(dossier.placeNames) ||
       (Boolean(cityHint) && isTripQuestion(userRow.content)));
   const namedOnly =
@@ -323,7 +326,8 @@ async function buildStreamTurn(
       dossierNotes: dossier.notes,
       ratePackNotes:
         !isClientQuestion(userRow.content) &&
-        (questionUsesRatePack(userRow.content) || isPlaceQuestion(userRow.content))
+        !editingTrip &&
+        (questionUsesRatePack(userRow.content) || placeQuestion || followUp)
           ? ratePack
           : null,
       tools: createTripTools({

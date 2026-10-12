@@ -431,8 +431,17 @@ function forStaySeason(line: string, seasons: string[]): boolean {
   return seasons.some((season) => season.toLowerCase() === name);
 }
 
+/** Client-facing rules for one room's contract and season. Team notes stay off. */
+export type ClientQuoteFacts = {
+  arrival: string[];
+  transfers: string[];
+  stay: string[];
+  benefits: string[];
+  charges: string[];
+};
+
 /**
- * Policies and benefits a client can read for this hotel and these dates.
+ * Policies and benefits a client can read for this room and these dates.
  * Advisor markup, bank payout, and other seasons stay off the list.
  */
 export async function clientQuotePolicies(input: {
@@ -441,7 +450,8 @@ export async function clientQuotePolicies(input: {
   checkOut: string;
   contractId: string | null;
   seasons: string[];
-}): Promise<string[]> {
+}): Promise<ClientQuoteFacts> {
+  const empty: ClientQuoteFacts = { arrival: [], transfers: [], stay: [], benefits: [], charges: [] };
   const facts = await loadHotelStayFacts({
     propertyId: input.propertyId,
     checkIn: input.checkIn,
@@ -449,35 +459,46 @@ export async function clientQuotePolicies(input: {
     contractId: input.contractId,
   });
   const contract = facts?.contract;
-  if (!facts || !contract) return [];
+  if (!facts || !contract) return empty;
   const policies = contract.policies ?? {};
-  const lines: string[] = [];
+  const arrival: string[] = [];
+  const transfers: string[] = [];
+  const stay: string[] = [];
+  const benefits: string[] = [];
+  const charges: string[] = [];
   if (facts.checkInTime || facts.checkOutTime) {
     const clocks = [
       facts.checkInTime ? `Check-in ${facts.checkInTime}` : null,
       facts.checkOutTime ? `check-out ${facts.checkOutTime}` : null,
     ].filter((part): part is string => Boolean(part));
     const clock = clientSentence(clocks.join(", "));
-    if (clock) lines.push(clock);
+    if (clock) arrival.push(clock);
   }
-  const guestLines = [
-    ...stringList(policies.stay_rules).filter((rule) => !/check-?in\s+[0-2]?\d:[0-5]\d/i.test(rule)),
-    ...stringList(policies.transfer_policies),
-  ];
-  for (const rule of guestLines) {
-    if (datesMissStay(rule, input.checkIn, input.checkOut)) continue;
+  const keepSeasonLine = (rule: string, target: string[]) => {
+    if (datesMissStay(rule, input.checkIn, input.checkOut)) return;
     const line = clientClauses(rule);
-    if (line && forStaySeason(line, input.seasons)) lines.push(line);
+    if (line && forStaySeason(line, input.seasons)) target.push(line);
+  };
+  for (const rule of stringList(policies.stay_rules)) {
+    if (/check-?in\s+[0-2]?\d:[0-5]\d/i.test(rule)) continue;
+    keepSeasonLine(rule, stay);
   }
+  for (const rule of stringList(policies.transfer_policies)) keepSeasonLine(rule, transfers);
   for (const benefit of contract.benefits ?? []) {
     const line = benefitLine(benefit);
     const guest = line ? clientClauses(line) : null;
-    if (guest && forStaySeason(guest, input.seasons)) lines.push(guest);
+    if (guest && forStaySeason(guest, input.seasons)) benefits.push(guest);
   }
   for (const charge of facts.requiredCharges) {
     if (datesMissStay(charge, input.checkIn, input.checkOut)) continue;
     const line = clientClauses(charge);
-    if (line) lines.push(line);
+    if (line) charges.push(line);
   }
-  return [...new Set(lines)];
+  return {
+    arrival: [...new Set(arrival)],
+    transfers: [...new Set(transfers)],
+    stay: [...new Set(stay)],
+    benefits: [...new Set(benefits)],
+    charges: [...new Set(charges)],
+  };
 }

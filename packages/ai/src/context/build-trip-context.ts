@@ -12,6 +12,8 @@ import {
 
 const MAX_CANDIDATES = 8;
 const MAX_TEXT = 400;
+/** Cancellation, payment, and inclusions for the rooms listed in this prompt. */
+const MAX_ROOM_FACT = 1200;
 
 function money(
   amount: number | null,
@@ -27,9 +29,15 @@ function textOrMissing(value: string | null | undefined): string {
   return trimmed ? clip(trimmed) : "missing";
 }
 
-function clip(value: string): string {
-  if (value.length <= MAX_TEXT) return value;
-  return `${value.slice(0, MAX_TEXT - 1)}…`;
+function clip(value: string, max = MAX_TEXT): string {
+  if (value.length <= max) return value;
+  return `${value.slice(0, max - 1)}…`;
+}
+
+function roomFact(label: string, value: string | null | undefined, empty: string): string {
+  const text = value?.trim();
+  if (!text) return empty;
+  return `${label} ${clip(text, MAX_ROOM_FACT)}`;
 }
 
 function nightsBetween(
@@ -51,12 +59,9 @@ function formatRate(rate: TripRateFact): string {
     rate.sell_amount != null
       ? `client price ${money(rate.sell_amount, rate.currency)}`
       : "client price not set",
-    rate.inclusions && rate.inclusions.length > 0
-      ? `included ${rate.inclusions.slice(0, 4).join(", ")}`
-      : "included not in PureLuxe",
-    rate.cancellation_policy?.trim()
-      ? `cancellation ${clip(rate.cancellation_policy.trim())}`
-      : "cancellation not in PureLuxe",
+    roomFact("included", rate.inclusions?.join(", "), "included not in PureLuxe"),
+    roomFact("cancellation", rate.cancellation_policy, "cancellation not in PureLuxe"),
+    roomFact("payment", rate.payment_policy, "payment not in PureLuxe"),
     rate.selected ? "selected" : null,
   ].filter(Boolean);
   return bits.join(" · ");
@@ -153,7 +158,7 @@ export function buildTripContext(trip: TripFacts): string {
       lines.push(`  - ${formatRate(rate)}`);
     }
     if (omitted > 0) {
-      lines.push(`  - …and ${omitted} more not listed`);
+      lines.push(`  - ${omitted} more rooms are not listed here`);
     }
   }
 

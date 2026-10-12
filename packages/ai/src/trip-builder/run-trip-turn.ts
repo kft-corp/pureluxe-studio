@@ -9,6 +9,7 @@ import {
 import type { TripBuilderStage, TripTurnInput } from "../types";
 
 import { buildModelMessages } from "./build-model-messages";
+import { buildChatMemory } from "./chat-memory";
 
 function prepareTurn(input: TripTurnInput) {
   const stage = resolveTripStage(input.trip);
@@ -17,6 +18,7 @@ function prepareTurn(input: TripTurnInput) {
   const atlas = input.atlasNotes?.trim();
   const dossier = input.dossierNotes?.trim();
   const ratePack = input.ratePackNotes?.trim();
+  const memory = buildChatMemory(input.trip, input.history);
   const system = [
     buildSystemPrompt({
       stage,
@@ -45,6 +47,16 @@ function prepareTurn(input: TripTurnInput) {
           "If they are choosing a room for the client, compare only the rooms in this pack. Name the room and the team cost, and say what is included and the cancellation when those are written here. Tell them to tap Add for the client on that card. Client chose this is for a room already saved, after the client has picked. Do not save a room. If a suggested client price is written here, you may repeat that figure. Do not calculate a different price. Percent questions are answered before you see them.",
           "",
           ratePack,
+        ].join("\n")
+      : "",
+    memory
+      ? [
+          "",
+          "Chat memory. Private. A few lines from this trip and from earlier messages.",
+          "Trip facts win if they disagree. Use this when the new message is short, such as that one, the cheaper room, same dates, or and the visa.",
+          "Do not recite this memory.",
+          "",
+          memory,
         ].join("\n")
       : "",
     atlas

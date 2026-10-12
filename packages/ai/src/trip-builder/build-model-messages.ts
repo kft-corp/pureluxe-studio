@@ -1,7 +1,8 @@
 import type { ClaudeChatMessage } from "../providers/claude";
 import type { ChatHistoryMessage } from "../types";
 
-const MAX_HISTORY = 20;
+/** Raw turns sent to the model. Older turns are folded into chat memory instead. */
+export const MAX_MODEL_HISTORY = 20;
 
 /**
  * Build model chat messages from prior history + the latest advisor message.
@@ -13,7 +14,7 @@ export function buildModelMessages(
 ): ClaudeChatMessage[] {
   const prior = (history ?? [])
     .filter((message) => message.content.trim().length > 0)
-    .slice(-MAX_HISTORY);
+    .slice(-MAX_MODEL_HISTORY);
 
   const merged: ClaudeChatMessage[] = [];
   for (const message of prior) {

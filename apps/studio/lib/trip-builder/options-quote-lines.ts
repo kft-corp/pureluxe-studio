@@ -45,9 +45,18 @@ export function listQuoteLines(document: OptionsQuoteDocument): QuoteLine[] {
         room.inclusions.forEach((item, index) => {
           push(lines, `room:${room.id}:inclusion:${index}`, `Included · ${room.name}`, item);
         });
+        room.extras.forEach((item, index) => {
+          push(lines, `room:${room.id}:extra:${index}`, `This room · ${room.name}`, item);
+        });
       }
-      hotel.policies.forEach((item, index) => {
-        push(lines, `${hotelId}:policy:${index}`, `Policy · ${hotel.name}`, item);
+      hotel.arrival.forEach((item, index) => {
+        push(lines, `${hotelId}:arrival:${index}`, `Arrival · ${hotel.name}`, item);
+      });
+      hotel.transfers.forEach((item, index) => {
+        push(lines, `${hotelId}:transfer:${index}`, `Transfer · ${hotel.name}`, item);
+      });
+      hotel.shared.forEach((item, index) => {
+        push(lines, `${hotelId}:shared:${index}`, `For every room · ${hotel.name}`, item);
       });
       for (const term of quoteTermLines(hotel)) {
         push(lines, term.id, `Terms · ${term.label}`, term.text);
@@ -89,17 +98,14 @@ export function applyQuoteEdits(
         const detail = read(edits, `room:${room.id}:detail`);
         if (detail != null) room.detail = detail.trim() || null;
         room.price = keep(edits, `room:${room.id}:price`, room.price);
-        room.inclusions = room.inclusions
-          .map((item, index) => read(edits, `room:${room.id}:inclusion:${index}`) ?? item)
-          .map((item) => item.trim())
-          .filter(Boolean);
+        room.inclusions = editedLines(edits, room.inclusions, `room:${room.id}:inclusion`);
+        room.extras = editedLines(edits, room.extras, `room:${room.id}:extra`);
         const terms = read(edits, `room:${room.id}:terms`);
         if (terms != null) room.terms = terms.trim() || "";
       }
-      hotel.policies = hotel.policies
-        .map((item, index) => read(edits, `${hotelId}:policy:${index}`) ?? item)
-        .map((item) => item.trim())
-        .filter(Boolean);
+      hotel.arrival = editedLines(edits, hotel.arrival, `${hotelId}:arrival`);
+      hotel.transfers = editedLines(edits, hotel.transfers, `${hotelId}:transfer`);
+      hotel.shared = editedLines(edits, hotel.shared, `${hotelId}:shared`);
     });
   });
 }
@@ -170,6 +176,13 @@ export function matchQuoteReplace(
     matches.push({ ...line, after });
   }
   return matches;
+}
+
+function editedLines(edits: Record<string, string>, lines: string[], prefix: string): string[] {
+  return lines
+    .map((item, index) => read(edits, `${prefix}:${index}`) ?? item)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function push(lines: QuoteLine[], id: string, label: string, text: string) {

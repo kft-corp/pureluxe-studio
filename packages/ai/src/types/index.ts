@@ -33,6 +33,8 @@ export type TripRateFact = {
   inclusions?: string[];
   /** Cancel rules stored on this rate. Null when none are on file. */
   cancellation_policy?: string | null;
+  /** Payment rules stored on this rate. Null when none are on file. */
+  payment_policy?: string | null;
 };
 
 /**

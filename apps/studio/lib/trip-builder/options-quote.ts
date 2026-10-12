@@ -15,11 +15,12 @@ import {
 import { AppError, tripMessages } from "@pureluxe/shared";
 
 import { buildOptionsQuotePdf } from "./build-options-quote-pdf";
-import { clientQuotePolicies } from "./hotel-contract-facts";
+import { clientQuotePolicies, type ClientQuoteFacts } from "./hotel-contract-facts";
 import {
   optionsQuoteFromTrip,
   roomsForOptionsQuote,
   type OptionsQuoteDocument,
+  type OptionsQuoteHotel,
 } from "./options-quote-document";
 import { applyQuoteEdits, listQuoteLines, quoteLineBlocked } from "./options-quote-lines";
 import { clearTripDossier } from "./trip-dossier";
@@ -30,41 +31,78 @@ import { parseLineEdits, parseQuoteNarrative, type TripDetail } from "./trip-det
 
 const OPTIONS_DOC_TYPE = "options" as const;
 
+function emptyFacts(): ClientQuoteFacts {
+  return { arrival: [], transfers: [], stay: [], benefits: [], charges: [] };
+}
+
 async function fillHotelPolicies(document: OptionsQuoteDocument) {
-  const cache = new Map<string, string[]>();
+  const cache = new Map<string, ClientQuoteFacts>();
   for (const stay of document.stays) {
-    if (!stay.checkIn || !stay.checkOut) continue;
     for (const hotel of stay.hotels) {
-      if (!hotel.propertyId) continue;
-      const contractIds = hotel.contractIds.length > 0 ? hotel.contractIds : [null];
-      const lines: string[] = [];
-      for (const contractId of contractIds) {
-        const key = [hotel.propertyId, stay.checkIn, stay.checkOut, contractId ?? "", hotel.seasons.join(",")].join("|");
+      const loaded: ClientQuoteFacts[] = [];
+      for (const room of hotel.rooms) {
+        if (!hotel.propertyId || !stay.checkIn || !stay.checkOut) {
+          loaded.push(emptyFacts());
+          continue;
+        }
+        const key = [hotel.propertyId, stay.checkIn, stay.checkOut, room.contractId ?? "", room.season ?? ""].join("|");
         let found = cache.get(key);
         if (!found) {
           found = await clientQuotePolicies({
             propertyId: hotel.propertyId,
             checkIn: stay.checkIn,
             checkOut: stay.checkOut,
-            contractId,
-            seasons: hotel.seasons,
+            contractId: room.contractId,
+            seasons: room.season ? [room.season] : [],
           });
           cache.set(key, found);
         }
-        lines.push(...found);
+        loaded.push(found);
       }
-      const notes = roomPolicyNotes(hotel.rooms);
-      hotel.policies = [...new Set([...lines, ...notes])];
+      placeHotelFacts(hotel, loaded);
     }
   }
 }
 
-function roomPolicyNotes(rooms: OptionsQuoteDocument["stays"][number]["hotels"][number]["rooms"]): string[] {
-  const noted = rooms.flatMap((room) => (room.note ? [{ name: room.name, note: room.note }] : []));
-  if (noted.length === 0) return [];
-  const unique = [...new Set(noted.map((room) => room.note))];
-  if (unique.length === 1) return [unique[0]!];
-  return noted.map((room) => `${room.name}. ${room.note}`);
+/** Keep a line on the hotel only when every room has that same line. */
+function placeHotelFacts(hotel: OptionsQuoteHotel, loaded: ClientQuoteFacts[]) {
+  const arrival = onEveryRoom(loaded.map((row) => row.arrival));
+  const transfers = onEveryRoom(loaded.map((row) => row.transfers));
+  const stay = onEveryRoom(loaded.map((row) => row.stay));
+  const benefits = onEveryRoom(loaded.map((row) => row.benefits));
+  const charges = onEveryRoom(loaded.map((row) => row.charges));
+  const notes = hotel.rooms.map((room) => room.note?.trim() || "");
+  const sharedNote = notes.length > 0 && notes.every((note) => note && note === notes[0]) ? notes[0]! : "";
+  hotel.arrival = arrival;
+  hotel.transfers = transfers;
+  hotel.shared = distinct([...stay, ...benefits, ...charges, ...(sharedNote ? [sharedNote] : [])]);
+  hotel.rooms.forEach((room, index) => {
+    const facts = loaded[index] ?? emptyFacts();
+    const note = room.note?.trim() || "";
+    room.extras = distinct([
+      ...onlyHere(facts.arrival, arrival),
+      ...onlyHere(facts.transfers, transfers),
+      ...onlyHere(facts.stay, stay),
+      ...onlyHere(facts.benefits, benefits),
+      ...onlyHere(facts.charges, charges),
+      ...(note && note !== sharedNote ? [note] : []),
+    ]);
+  });
+}
+
+function onEveryRoom(groups: string[][]): string[] {
+  if (groups.length === 0) return [];
+  const [first, ...rest] = groups;
+  return distinct(first ?? []).filter((line) => rest.every((group) => group.includes(line)));
+}
+
+function onlyHere(lines: string[], shared: string[]): string[] {
+  const keep = new Set(shared);
+  return distinct(lines).filter((line) => !keep.has(line));
+}
+
+function distinct(lines: string[]): string[] {
+  return [...new Set(lines.map((line) => line.trim()).filter(Boolean))];
 }
 
 function optionsReady(detail: TripDetail): boolean {

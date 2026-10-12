@@ -38,7 +38,7 @@ export async function proposeOptionsQuoteEdit(
     return {
       kind: "none",
       message:
-        "The header and footer stay as they are. You can change the title, the rooms, what's included, the policies, the cancellation line, and the note.",
+        "The header and footer stay as they are. You can change the title, the rooms, what's included, arrival, transfers, what applies to every room, what applies to one room, the cancellation line, and the note.",
     };
   }
   if (quoteLineBlocked(text)) {

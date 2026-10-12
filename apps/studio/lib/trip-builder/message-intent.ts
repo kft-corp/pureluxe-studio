@@ -187,6 +187,26 @@ export function mightNamePlace(message: string): boolean {
   return text.split(/\s+/).length <= 5;
 }
 
+const FOLLOW_UP_START =
+  /^(?:and|also|what about|how about|same|that|this|those|him|her|it|them)\b/i;
+
+const FOLLOW_UP_WORD =
+  /\b(?:that one|this one|the other|the cheaper|the cheapest|the second|the first|same dates|same hotel|same room)\b/i;
+
+/**
+ * A short line that continues the last topic.
+ * "That one", "the cheaper villa", "same dates", and "and the visa?" count.
+ * A yes, a sell price, or "make him a child" does not.
+ */
+export function isFollowUpFragment(message: string): boolean {
+  const text = message.trim();
+  if (text.length < 2 || text.length > 80) return false;
+  if (isClientQuestion(text) || NAME_COMMAND.test(text)) return false;
+  if (/\b(?:add|remove|make|change|set|sell|lock)\b/i.test(text)) return false;
+  if (FOLLOW_UP_START.test(text)) return true;
+  return FOLLOW_UP_WORD.test(text);
+}
+
 /** They asked for hotels on file, not a rate price. */
 export function wantsHotelSearch(message: string): boolean {
   if (isClientQuestion(message)) return false;

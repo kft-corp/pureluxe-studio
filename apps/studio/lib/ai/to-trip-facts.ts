@@ -13,6 +13,7 @@ function toRateFact(rate: TripRateSnapshot) {
     sell_amount: rate.sell_amount,
     inclusions: rate.inclusions,
     cancellation_policy: rate.cancellation_policy,
+    payment_policy: rate.payment_policy,
   };
 }
 
