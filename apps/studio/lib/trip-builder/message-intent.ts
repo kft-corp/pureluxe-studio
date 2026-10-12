@@ -173,6 +173,20 @@ export function isPlaceQuestion(message: string): boolean {
   return PLACE_TOPIC.test(message);
 }
 
+const NAME_COMMAND =
+  /^(?:sell\b|start\b|end\b|yes|no|ok|okay|hotel:|rooms?:|client price|add\b|remove\b|make\b|just them|search rates|lock\b)/i;
+
+/**
+ * A short message that may be only a country, city, or hotel name.
+ * "Maldives" and "Soneva Fushi" count. A sell price or a date command does not.
+ */
+export function mightNamePlace(message: string): boolean {
+  const text = message.trim();
+  if (text.length < 3 || text.length > 60) return false;
+  if (isClientQuestion(text) || NAME_COMMAND.test(text)) return false;
+  return text.split(/\s+/).length <= 5;
+}
+
 /** They asked for hotels on file, not a rate price. */
 export function wantsHotelSearch(message: string): boolean {
   if (isClientQuestion(message)) return false;

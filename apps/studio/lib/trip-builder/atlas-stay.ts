@@ -34,9 +34,9 @@ export type AtlasStayAnswer = {
 };
 
 const CONTRACT_LABEL: Record<AtlasHotelChoice["contractStatus"], string> = {
-  contracted: "Contract on file",
-  not_yet_contracted: "No contract on file yet",
-  unknown: "Contract status not on file",
+  contracted: "Contract in PureLuxe",
+  not_yet_contracted: "No contract in PureLuxe yet",
+  unknown: "Contract status not in PureLuxe",
 };
 
 const PLACE_QUESTION =
@@ -70,8 +70,90 @@ function includesName(message: string, name: string): boolean {
   return needle.length >= 3 && haystack.includes(needle);
 }
 
+function bestHotel(hotels: KbEntity[], text: string): KbEntity | null {
+  const tokens = new Set(
+    (text.toLowerCase().match(/[a-z0-9]{4,}/g) ?? []).filter(
+      (word) => !FACT_STOP_WORDS.has(word),
+    ),
+  );
+  return (
+    hotels
+      .filter((hotel) => {
+        const name = hotel.name.toLowerCase();
+        const brand = hotel.brand?.toLowerCase() ?? "";
+        if (includesName(text, hotel.name) || (brand && includesName(text, brand))) {
+          return true;
+        }
+        return [...tokens].some(
+          (token) => token.length >= 5 && (name.includes(token) || brand.includes(token)),
+        );
+      })
+      .sort((a, b) => b.name.length - a.name.length)[0] ?? null
+  );
+}
+
+/** Hotel name anywhere in the knowledge base, not only in the saved stay's city. */
+async function findNamedHotel(text: string, pool: KbEntity[]): Promise<KbEntity | null> {
+  const local = bestHotel(pool, text);
+  if (local) return local;
+  const words = [
+    ...new Set(text.toLowerCase().match(/[a-z0-9]{4,}/g) ?? []),
+  ]
+    .filter((word) => !FACT_STOP_WORDS.has(word))
+    .slice(0, 3);
+  const queries = text.trim().length <= 60 ? [text.trim(), ...words] : words;
+  const found: KbEntity[] = [];
+  const seen = new Set<string>();
+  for (const query of queries) {
+    if (!query) continue;
+    const rows = await listActiveKbEntities({
+      q: query,
+      entity_type: "hotel",
+      include_placeholders: false,
+      include_not_yet_contracted: true,
+      limit: 12,
+    });
+    for (const row of rows) {
+      if (seen.has(row.id)) continue;
+      seen.add(row.id);
+      found.push(row);
+    }
+  }
+  return bestHotel(found, text);
+}
+
 function asksAboutPlace(question: string): boolean {
   return PLACE_QUESTION.test(question);
+}
+
+function matchCountry(text: string, countries: KbCountry[]): KbCountry | null {
+  return (
+    countries.find((row) => includesName(text, row.name)) ??
+    countries.find((row) => {
+      const code = row.country_code.trim().toUpperCase();
+      return code.length >= 2 && new RegExp(`\\b${code}\\b`).test(text.toUpperCase());
+    }) ??
+    null
+  );
+}
+
+function matchCity(text: string, cities: KbCity[]): KbCity | null {
+  return (
+    cities
+      .filter((row) => includesName(text, row.name))
+      .sort((a, b) => b.name.length - a.name.length)[0] ?? null
+  );
+}
+
+/** "What is Paris like?" names a place. "Tell me about this trip" does not. */
+function namesAnotherPlace(question: string, hint: string): boolean {
+  const named = question.match(
+    /\b(?:in|for|about|to|visit|is)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)/,
+  );
+  if (!named) return false;
+  const name = named[1].toLowerCase();
+  const saved = hint.toLowerCase();
+  return name !== saved && !saved.includes(name) && !name.includes(saved);
 }
 
 function contractStatus(value: string): AtlasHotelChoice["contractStatus"] {
@@ -111,6 +193,7 @@ async function describeHotel(hotel: KbEntity): Promise<string[]> {
   ]);
   const lines = [
     hotel.brand ? `Brand: ${hotel.brand}` : null,
+    hotel.advisor_take ? `Advisor note: ${hotel.advisor_take}` : null,
     hotel.description,
     hotel.address_line_1,
     hotel.website_url,
@@ -118,7 +201,7 @@ async function describeHotel(hotel: KbEntity): Promise<string[]> {
     details?.dining_notes,
     details?.wellness_notes,
     rooms.length > 0
-      ? `Rooms on file: ${rooms.map((room) => room.name).join(", ")}`
+      ? `Rooms in PureLuxe: ${rooms.map((room) => room.name).join(", ")}`
       : null,
     ...facts.map((fact) =>
       fact.title ? `${fact.title}: ${fact.body}` : fact.body,
@@ -153,6 +236,8 @@ async function relatedFacts(question: string, placeNames: string[]): Promise<Awa
 export async function answerAtlasStay(input: {
   question: string;
   cityHint?: string | null;
+  /** Recent user lines. A follow-up such as "what is the visa?" keeps the name they just gave. */
+  earlier?: string | null;
 }): Promise<AtlasStayAnswer> {
   const question = input.question.trim();
   const hint = input.cityHint?.trim() || "";
@@ -165,17 +250,6 @@ export async function answerAtlasStay(input: {
   );
   const allCities = citiesByCountry.flatMap((row) => row.cities);
 
-  const namedCountry =
-    countries.find((row) => includesName(question, row.name)) ??
-    countries.find((row) => {
-      const code = row.country_code.trim().toUpperCase();
-      return code.length >= 2 && new RegExp(`\\b${code}\\b`).test(question.toUpperCase());
-    }) ??
-    null;
-  const namedCity =
-    allCities
-      .filter((row) => includesName(question, row.name))
-      .sort((a, b) => b.name.length - a.name.length)[0] ?? null;
   const hintCity =
     allCities.find((row) => row.name.toLowerCase() === hint.toLowerCase()) ??
     allCities
@@ -187,31 +261,53 @@ export async function answerAtlasStay(input: {
     countries.find((row) => includesName(hint, row.name) || includesName(row.name, hint)) ??
     null;
 
-  const hotelPoolCity = namedCity ?? hintCity;
-  const hotels = hotelPoolCity ? await hotelsForCity(hotelPoolCity) : [];
-  const namedHotel =
-    hotels
-      .filter(
-        (hotel) =>
-          includesName(question, hotel.name) ||
-          (hotel.brand ? includesName(question, hotel.brand) : false),
-      )
-      .sort((a, b) => b.name.length - a.name.length)[0] ?? null;
+  const earlier = input.earlier?.trim() ?? "";
+  let namedCountry = matchCountry(question, countries);
+  let namedCity = matchCity(question, allCities);
+  let namedHotel = await findNamedHotel(
+    question,
+    namedCity || hintCity ? await hotelsForCity(namedCity ?? hintCity!) : [],
+  );
+  if (!namedCountry && !namedCity && !namedHotel && earlier) {
+    namedCountry = matchCountry(earlier, countries);
+    namedCity = matchCity(earlier, allCities);
+    namedHotel = await findNamedHotel(
+      earlier,
+      namedCity ? await hotelsForCity(namedCity) : [],
+    );
+  }
 
   const aboutPlace = asksAboutPlace(question);
-  const placeCity: KbCity | null =
-    namedCity ?? (aboutPlace || namedHotel ? hintCity : null);
+  // "Tell me about this trip" does not say visa or season. The saved stay is still the place.
+  const useSavedPlace =
+    Boolean(hint) &&
+    !namedCity &&
+    !namedCountry &&
+    !namedHotel &&
+    !namesAnotherPlace(question, hint);
+  let placeCity: KbCity | null =
+    namedCity ?? (aboutPlace || namedHotel || useSavedPlace ? hintCity : null);
+  if (!placeCity && namedHotel?.city_id) {
+    placeCity = allCities.find((row) => row.id === namedHotel.city_id) ?? null;
+  }
   const placeCountry: KbCountry | null =
     namedCountry ??
     (placeCity ? countries.find((row) => row.id === placeCity.country_id) ?? null : null) ??
-    (aboutPlace || wantsHotelSearch(question) ? hintCountry : null);
+    (namedHotel?.country_id
+      ? countries.find((row) => row.id === namedHotel.country_id) ?? null
+      : null) ??
+    (aboutPlace || wantsHotelSearch(question) || useSavedPlace ? hintCountry : null);
 
   const setting = await getKnowledgeBaseSetting();
   const passport = setting.default_passport_country_code || "IN";
 
+  const factQuery =
+    useSavedPlace && !aboutPlace
+      ? [hint, placeCity?.name, placeCountry?.name].filter(Boolean).join(" ")
+      : question;
   const factHits =
-    aboutPlace || namedHotel || namedCountry || namedCity
-      ? await relatedFacts(question, [
+    aboutPlace || namedHotel || namedCountry || namedCity || useSavedPlace
+      ? await relatedFacts(factQuery, [
           placeCountry?.name ?? "",
           placeCity?.name ?? "",
           namedHotel?.name ?? "",
@@ -243,7 +339,7 @@ export async function answerAtlasStay(input: {
     const facts = bundle?.facts;
     const visaLine = bundle?.visa
       ? `Visa for a ${passport} passport: ${bundle.visa.summary}${visaLabel(bundle.visa.entry_type) ? ` (${visaLabel(bundle.visa.entry_type)})` : ""}${bundle.visa.details ? `. ${bundle.visa.details}` : ""}`
-      : `No visa rule on file for a ${passport} passport.`;
+      : `No visa rule in PureLuxe for a ${passport} passport.`;
     blocks.push(
       section(placeCountry.name, [
         facts?.currency_code ? `Currency: ${facts.currency_code}` : null,
@@ -268,7 +364,8 @@ export async function answerAtlasStay(input: {
     );
   }
 
-  const listed = listHotels ? await hotelsToList(hotels, placeCity, placeCountry) : [];
+  const cityHotels = placeCity ? await hotelsForCity(placeCity) : [];
+  const listed = listHotels ? await hotelsToList(cityHotels, placeCity, placeCountry) : [];
   const choices: AtlasHotelChoice[] = listed.map((hotel) => ({
     id: hotel.id,
     name: hotel.name,
@@ -281,7 +378,7 @@ export async function answerAtlasStay(input: {
   if (listHotels && choices.length > 0) {
     blocks.push(
       section(
-        "Hotels on file",
+        "Hotels in PureLuxe",
         choices.map(
           (hotel) =>
             `${hotel.name}${hotel.brand ? ` (${hotel.brand})` : ""} — ${CONTRACT_LABEL[hotel.contractStatus]}`,
@@ -290,7 +387,7 @@ export async function answerAtlasStay(input: {
     );
   } else if (listHotels && (placeCity || placeCountry)) {
     const where = placeCity?.name ?? placeCountry?.name ?? "that place";
-    blocks.push(`No hotels are on file for ${where}.`);
+    blocks.push(`PureLuxe has no hotels for ${where}.`);
   }
 
   if (namedHotel) {

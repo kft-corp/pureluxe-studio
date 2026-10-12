@@ -64,7 +64,7 @@ export async function searchTripRates(
         );
       } else {
         return unmatchedHotelResult(
-          `I don't have a hotel on file named "${hotel}". Send Hotel: with the name stored on the property, tap Update stay, or paste a supplier quote.`,
+          `PureLuxe doesn't have a hotel named "${hotel}". Send Hotel: with the name stored on the property, tap Update stay, or paste a supplier quote.`,
         );
       }
     }

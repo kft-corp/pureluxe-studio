@@ -10,11 +10,13 @@ loadEnvConfig(path.join(process.cwd(), "../.."), undefined, undefined, true);
 const nextConfig: NextConfig = {
   // PDFKit reads its font metrics from disk. Bundling it breaks that in production.
   serverExternalPackages: ["pdfkit"],
+  // pnpm keeps pdfkit under the repo root node_modules/.pnpm. The default
+  // trace root is apps/studio, so those metric files are left out of the deploy.
+  outputFileTracingRoot: path.join(process.cwd(), "../.."),
   outputFileTracingIncludes: {
     "/api/trip-builder/trips/[id]/options/generate": [
-      "./node_modules/@fontsource/source-sans-3/files/source-sans-3-latin-400-normal.woff",
-      "./node_modules/@fontsource/source-sans-3/files/source-sans-3-latin-700-normal.woff",
-      "./node_modules/@fontsource/source-sans-3/files/source-sans-3-latin-400-italic.woff",
+      "./assets/fonts/**/*",
+      "./node_modules/pdfkit/js/data/**/*",
     ],
   },
   // Turbopack's on-disk dev cache can keep serving a route tree that omits

@@ -123,13 +123,13 @@ function roomLine(option: NormalizedRateOption, index: number, markupPercent: nu
       : null,
     occupancyLine(option.raw),
     rawText(option.raw, "notes"),
-    option.inclusions.length > 0 ? `included ${option.inclusions.join(", ")}` : "included not on file",
+    option.inclusions.length > 0 ? `included ${option.inclusions.join(", ")}` : "included not in PureLuxe",
     option.cancellation_summary?.trim()
       ? `cancellation ${option.cancellation_summary.trim()}`
-      : "cancellation not on file",
+      : "cancellation not in PureLuxe",
     option.payment_summary?.trim()
       ? `payment ${option.payment_summary.trim()}`
-      : "payment not on file",
+      : "payment not in PureLuxe",
   ].filter(Boolean);
   return bits.join(". ") + ".";
 }
@@ -151,16 +151,16 @@ export function buildRateSearchNotes(
     options.length > 0
       ? options.map((option, index) => roomLine(option, index + 1, markupPercent)).join("\n")
       : "No room rate covers these dates.";
-  const facts = hotelBrief?.trim() || "No other hotel facts are on file for these dates.";
+  const facts = hotelBrief?.trim() || "PureLuxe has no other hotel facts for these dates.";
   const suggestion =
     markupPercent == null
-      ? "No minimum markup is on file, so there is no suggested client price."
-      : `Suggested client price is the team cost plus the minimum markup of ${markupPercent}% on file. It is not saved.`;
+      ? "PureLuxe has no minimum markup, so there is no suggested client price."
+      : `Suggested client price is the team cost plus the minimum markup of ${markupPercent}% in PureLuxe. It is not saved.`;
   return [
-    `Hotel rate pack for ${hotel}, ${stay}. Team cost is the advisor cost. ${suggestion}`,
+    `Hotel rates for ${hotel}, ${stay}. Team cost is the advisor cost. ${suggestion}`,
     "Rooms:",
     rooms,
-    "Hotel facts already on file:",
+    "Hotel facts in PureLuxe:",
     facts,
   ].join("\n");
 }

@@ -66,6 +66,7 @@ import {
   wantsRateSearch,
   wantsHotelSearch,
   isPlaceQuestion,
+  mightNamePlace,
   isTripQuestion,
 } from "./chat-intent";
 import {
@@ -3053,7 +3054,10 @@ export function useTripBuilder({
         questionUsesRatePack(message) &&
         (rateOptions.length > 0 ||
           detail.rates.candidates.some((row) => !row.selected));
-      if (!choosingRooms && (isPlaceQuestion(message) || wantsHotelSearch(message))) {
+      if (
+        !choosingRooms &&
+        (isPlaceQuestion(message) || wantsHotelSearch(message) || mightNamePlace(message))
+      ) {
         const remembered = atlasPlaceRef.current;
         const hint = remembered?.city || remembered?.country || openStay?.city || null;
         const answered = await askAtlas(message, hint);

@@ -53,10 +53,10 @@ function formatRate(rate: TripRateFact): string {
       : "client price not set",
     rate.inclusions && rate.inclusions.length > 0
       ? `included ${rate.inclusions.slice(0, 4).join(", ")}`
-      : "included not on file",
+      : "included not in PureLuxe",
     rate.cancellation_policy?.trim()
       ? `cancellation ${clip(rate.cancellation_policy.trim())}`
-      : "cancellation not on file",
+      : "cancellation not in PureLuxe",
     rate.selected ? "selected" : null,
   ].filter(Boolean);
   return bits.join(" · ");

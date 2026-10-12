@@ -261,7 +261,7 @@ function contractSections(
     section("Contract terms", legal),
     section("Benefits", benefits),
     section("Charges that must be added", required),
-    section("Optional extras on file", optional),
+    section("Optional extras in PureLuxe", optional),
     section("Offers that cover these dates", offerLines),
   ].filter((block): block is string => Boolean(block));
 
@@ -377,7 +377,7 @@ export async function loadHotelStayFacts(input: {
 
   const intro =
     checkInTime || checkOutTime
-      ? `Check-in ${checkInTime ?? "time not on file"}, check-out ${checkOutTime ?? "time not on file"}.`
+      ? `Check-in ${checkInTime ?? "time not in PureLuxe"}, check-out ${checkOutTime ?? "time not in PureLuxe"}.`
       : null;
 
   const markupPercent = selected?.min_markup_percent ?? property?.min_markup_percent ?? null;

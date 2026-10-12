@@ -5,7 +5,7 @@
  * opens and downloads as a normal PDF. The painter reads OptionsQuoteDocument only.
  */
 
-import { createRequire } from "node:module";
+import { existsSync } from "node:fs";
 import path from "node:path";
 
 import PDFDocument from "pdfkit";
@@ -64,7 +64,7 @@ const SAND = "#f0ebd7";
 const HEAD = "#f3f3f3";
 const WHITE = "#ffffff";
 
-/** Same family as docs/studio/client-quote.html. Files ship with @fontsource/source-sans-3. */
+/** Same family as docs/studio/client-quote.html. Copied into assets/fonts so a deploy does not depend on node_modules. */
 const FONT = {
   regular: "SourceSans",
   bold: "SourceSans-Bold",
@@ -72,9 +72,15 @@ const FONT = {
 } as const;
 
 function sourceSansFile(file: string): string {
-  const require = createRequire(path.join(process.cwd(), "package.json"));
-  const root = path.dirname(require.resolve("@fontsource/source-sans-3/package.json"));
-  return path.join(root, "files", file);
+  const candidates = [
+    path.join(process.cwd(), "assets", "fonts", file),
+    path.join(process.cwd(), "apps", "studio", "assets", "fonts", file),
+  ];
+  const found = candidates.find((candidate) => existsSync(candidate));
+  if (!found) {
+    throw new Error(`Missing font ${file}. Expected it under assets/fonts.`);
+  }
+  return found;
 }
 
 function useSourceSans(doc: PDFKit.PDFDocument) {

@@ -2,10 +2,11 @@ import {
   classifyPartyIntent,
   isPlaceQuestion,
   isTripQuestion,
+  mightNamePlace,
   wantsHotelSearch,
 } from "@/lib/trip-builder/message-intent";
 
-export { isPlaceQuestion, isTripQuestion, wantsHotelSearch };
+export { isPlaceQuestion, isTripQuestion, mightNamePlace, wantsHotelSearch };
 
 const CREATE_TRIP =
   /\b(create|start|begin|open|make|new)\b[\s\S]{0,40}\btrips?\b|\b(new trip|start a trip)\b/i;

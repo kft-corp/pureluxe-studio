@@ -26,7 +26,12 @@ import { questionUsesRatePack, readRateSearchPack } from "@/lib/rates/rate-searc
 
 import { answerAtlasStay } from "./atlas-stay";
 import { getTripDetail } from "./get-trip-detail";
-import { isClientQuestion, isPlaceQuestion } from "./message-intent";
+import {
+  isClientQuestion,
+  isPlaceQuestion,
+  isTripQuestion,
+  mightNamePlace,
+} from "./message-intent";
 import { getTripDossier, questionNeedsPlaceLookup } from "./trip-dossier";
 import { requireAssignedTrip } from "./require-assigned-trip";
 
@@ -64,10 +69,14 @@ function toChatMessage(row: TripChatMessage): ChatMessage {
   };
 }
 
-function questionForAtlas(message: string, history: ChatHistoryMessage[]): string {
-  if (!/\b(?:there|that place|that country|that city)\b/i.test(message)) return message;
-  const prior = [...history].reverse().find((row) => row.role === "user")?.content.trim();
-  return prior ? `${message} ${prior}` : message;
+/** Recent user lines, so "what is the visa?" still refers to the name they just gave. */
+function earlierUserText(history: ChatHistoryMessage[]): string {
+  return history
+    .filter((row) => row.role === "user")
+    .slice(-3)
+    .map((row) => row.content.trim())
+    .filter(Boolean)
+    .join("\n");
 }
 
 function toHistory(
@@ -269,7 +278,6 @@ async function buildStreamTurn(
     stays.find((stay) => stay.city.trim())?.city ??
     null;
   const ratePack = readRateSearchPack(tripId);
-  const rateQuestion = Boolean(ratePack) && questionUsesRatePack(userRow.content);
   const placeQuestion = isPlaceQuestion(userRow.content);
   const editingTrip =
     !placeQuestion &&
@@ -279,15 +287,29 @@ async function buildStreamTurn(
     );
   const lookupPlace =
     !editingTrip &&
-    !rateQuestion &&
     !isClientQuestion(userRow.content) &&
-    (placeQuestion || questionNeedsPlaceLookup(dossier.placeNames));
+    (placeQuestion ||
+      mightNamePlace(userRow.content) ||
+      questionNeedsPlaceLookup(dossier.placeNames) ||
+      (Boolean(cityHint) && isTripQuestion(userRow.content)));
+  const namedOnly =
+    mightNamePlace(userRow.content) &&
+    !/\d/.test(userRow.content) &&
+    !/\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|start|end)\b/i.test(
+      userRow.content,
+    );
   const atlas = lookupPlace
     ? await answerAtlasStay({
-        question: questionForAtlas(userRow.content, history),
+        question: userRow.content,
         cityHint,
+        earlier: earlierUserText(history),
       })
     : { matched: false, answer: "", hotels: [], place: { city: null, country: null } };
+  const atlasNotes = atlas.matched
+    ? atlas.answer
+    : namedOnly
+      ? "No stored notes matched this name. Say PureLuxe doesn't have that. Do not say file. Do not describe the place or hotel from general knowledge."
+      : null;
 
   async function* chunks(): AsyncGenerator<AgentStreamChunk> {
     yield* streamTripTurn({
@@ -297,7 +319,7 @@ async function buildStreamTurn(
       trip: toTripFacts(detail),
       history,
       clientRequestId: userRow.client_request_id,
-      atlasNotes: atlas.matched ? atlas.answer : null,
+      atlasNotes,
       dossierNotes: dossier.notes,
       ratePackNotes:
         !isClientQuestion(userRow.content) &&

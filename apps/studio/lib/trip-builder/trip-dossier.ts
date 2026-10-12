@@ -57,7 +57,7 @@ export async function getTripDossier(
 
 /**
  * Before a city is saved, a general question can still look the place up.
- * After a city is saved, only a place question opens Atlas again.
+ * After a city is saved, a question about that stay loads its notes in chat.
  */
 export function questionNeedsPlaceLookup(placeNames: string[]): boolean {
   return placeNames.length === 0;
@@ -68,8 +68,12 @@ function known(value: string | null | undefined): string | null {
   return text ? text : null;
 }
 
-function line(label: string, value: string | null | undefined): string {
-  return `${label}: ${known(value) ?? "not on file"}`;
+function line(
+  label: string,
+  value: string | null | undefined,
+  missing = "not on file",
+): string {
+  return `${label}: ${known(value) ?? missing}`;
 }
 
 function documentLine(document: ClientDocument): string {
@@ -196,35 +200,35 @@ async function staySection(detail: TripDetail, stay: TripStaySnapshot): Promise<
   const property = facts?.property;
   return [
     `Stay: ${stay.city}`,
-    line("Hotel", stay.property_name),
-    line("Check-in", stay.check_in),
-    line("Check-out", stay.check_out),
-    line("Adults", stay.adults == null ? null : String(stay.adults)),
-    line("Children", stay.children == null ? null : String(stay.children)),
-    line("Rooms", stay.rooms == null ? null : String(stay.rooms)),
-    line("Property phone", property?.general_phone),
-    line("Reservations email", property?.reservations_email),
-    line("Booking notes", property?.booking_notes),
-    line("VIP notes", property?.vip_contact_notes),
-    line("Check-in time", facts?.checkInTime),
-    line("Check-out time", facts?.checkOutTime),
+    line("Hotel", stay.property_name, "not in PureLuxe"),
+    line("Check-in", stay.check_in, "not in PureLuxe"),
+    line("Check-out", stay.check_out, "not in PureLuxe"),
+    line("Adults", stay.adults == null ? null : String(stay.adults), "not in PureLuxe"),
+    line("Children", stay.children == null ? null : String(stay.children), "not in PureLuxe"),
+    line("Rooms", stay.rooms == null ? null : String(stay.rooms), "not in PureLuxe"),
+    line("Property phone", property?.general_phone, "not in PureLuxe"),
+    line("Reservations email", property?.reservations_email, "not in PureLuxe"),
+    line("Booking notes", property?.booking_notes, "not in PureLuxe"),
+    line("VIP notes", property?.vip_contact_notes, "not in PureLuxe"),
+    line("Check-in time", facts?.checkInTime, "not in PureLuxe"),
+    line("Check-out time", facts?.checkOutTime, "not in PureLuxe"),
     "Cancellation:",
     ...(facts && facts.cancellationLines.length > 0
       ? facts.cancellationLines.map((row) => `- ${row}`)
-      : ["- not on file"]),
+      : ["- not in PureLuxe"]),
     "Payment:",
     ...(facts && facts.paymentLines.length > 0
       ? facts.paymentLines.map((row) => `- ${row}`)
-      : ["- not on file"]),
+      : ["- not in PureLuxe"]),
     facts?.recordNotes?.trim()
       ? `Contract and hotel record:\n${facts.recordNotes.trim()}`
-      : "Contract and hotel record: not on file",
+      : "Contract and hotel record: not in PureLuxe",
     selected
-      ? `Selected rate: ${selected.title}${selected.subtitle ? ` (${selected.subtitle})` : ""} — ${selected.currency ?? ""} ${selected.cost_internal ?? "cost not on file"}`.trim()
-      : "Selected rate: not on file",
+      ? `Selected rate: ${selected.title}${selected.subtitle ? ` (${selected.subtitle})` : ""} — ${selected.currency ?? ""} ${selected.cost_internal ?? "cost not in PureLuxe"}`.trim()
+      : "Selected rate: not in PureLuxe",
     selected?.cancellation_policy?.trim()
       ? `Selected rate cancellation: ${selected.cancellation_policy.trim()}`
-      : "Selected rate cancellation: not on file",
+      : "Selected rate cancellation: not in PureLuxe",
     booking
       ? `Booking: ${booking.status}, confirmation ${booking.supplier_ref?.trim() || "not on file"}`
       : "Booking: not on file",
@@ -248,24 +252,24 @@ async function placeSection(stays: TripStaySnapshot[]): Promise<{ text: string; 
       question: `${hotel} ${city} visa season currency safety hotels rooms amenities dining spa wellness`.trim(),
       cityHint: city || null,
     });
-    blocks.push(atlas.answer.trim() || `Place notes for ${hotel || city}: not on file`);
+    blocks.push(atlas.answer.trim() || `Place notes for ${hotel || city}: not in PureLuxe`);
   }
   return {
-    text: blocks.length > 0 ? blocks.join("\n\n") : "Place notes: not on file",
+    text: blocks.length > 0 ? blocks.join("\n\n") : "Place notes: not in PureLuxe",
     names: [...names],
   };
 }
 
 function rateSection(detail: TripDetail): string {
-  if (detail.rates.candidates.length === 0) return "Rates: not on file";
+  if (detail.rates.candidates.length === 0) return "Rates: not in PureLuxe";
   return [
     "Rates:",
     ...detail.rates.candidates.map((rate) => {
       const cost =
         rate.cost_internal == null
-          ? "cost not on file"
+          ? "cost not in PureLuxe"
           : `${rate.currency ?? ""} ${rate.cost_internal}`.trim();
-      const cancel = rate.cancellation_policy?.trim() || "cancellation not on file";
+      const cancel = rate.cancellation_policy?.trim() || "cancellation not in PureLuxe";
       return `- ${rate.selected ? "Selected" : "Option"}: ${rate.title} — ${cost}. ${cancel}`;
     }),
   ].join("\n");
