@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS public.trips (
   status                  text NOT NULL DEFAULT 'building'
                             CHECK (status IN (
                               'building',
+                              'quote_sent',
                               'waiting_on_client',
                               'booking',
                               'confirmed',
@@ -72,7 +73,7 @@ CREATE TABLE IF NOT EXISTS public.trips (
 COMMENT ON TABLE public.trips IS
   'Canonical journey record for Trip Builder, Trips portfolio, and Client App. Never duplicate as trip_builder_trips.';
 COMMENT ON COLUMN public.trips.status IS
-  'Ops lifecycle — where advisors are in the work.';
+  'Ops lifecycle — where advisors are in the work. quote_sent: quote delivered, no reply yet. waiting_on_client: client replied, waiting on something from them.';
 COMMENT ON COLUMN public.trips.client_visibility IS
   'Guest gate — Client App may open commercial content only when shared.';
 COMMENT ON COLUMN public.trips.cost_total_internal IS

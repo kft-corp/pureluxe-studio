@@ -5,6 +5,7 @@ import { LuX } from "react-icons/lu";
 
 import { studioButtonClass } from "@/components/ui";
 import type { TripDetail, TripRateSnapshot, TripStaySnapshot } from "@/lib/trip-builder";
+import { formatTripStatus } from "@/lib/trips/journey-format";
 import { cn } from "@/lib/utils/cn";
 
 import { OptionsQuotePanel } from "./options-quote-panel";
@@ -85,13 +86,6 @@ function partyLabel(stay: TripStaySnapshot): string | null {
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
-function statusLabel(status: string): string {
-  return status
-    .split("_")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
-
 function selectedRate(detail: TripDetail, legId: string): TripRateSnapshot | null {
   return (
     detail.rates.candidates.find((row) => row.selected && row.leg_id === legId) ?? null
@@ -136,7 +130,7 @@ export function TripBuilderSummaryPanel({
         <div className="flex items-start justify-between gap-2 px-3 pt-3 pb-1.5">
           <div className="min-w-0">
             <span className="inline-flex rounded-full bg-[#ebe8e2] px-1.5 py-0.5 text-[10px] font-semibold text-[#141414]">
-              {detail ? statusLabel(detail.trip.status) : "Optional"}
+              {detail ? formatTripStatus(detail.trip.status) : "Optional"}
             </span>
             <h2 className="mt-1.5 text-sm leading-5 font-semibold break-words text-[#141414]">
               {detail?.client?.display_name?.trim() || "No client yet"}
@@ -262,7 +256,7 @@ export function TripBuilderSummaryPanel({
                 detail={detail}
                 stays={stays}
                 canWrite={canWrite}
-                canChoose={canWrite && !detail.pricing_locked}
+                canChoose={canWrite}
                 busy={busy}
                 onOpen={onOpenOptions}
                 onRegenerate={onRegenerateOptions}

@@ -23,7 +23,7 @@ import { syncTripCommercials } from "./sync-trip-commercials";
 import { syncTripHotelBooking } from "./sync-trip-booking";
 import { getTripDetail } from "./get-trip-detail";
 import { clearTripDossier } from "./trip-dossier";
-import { requireAssignedTrip } from "./require-assigned-trip";
+import { requireAssignedTrip, requireEditableTrip } from "./require-assigned-trip";
 import {
   buildTripDetail,
   parseQuoteNarrative,
@@ -143,7 +143,7 @@ export async function updateTripQuote(
   input: UpdateTripQuoteInput,
   actor: { memberId: string },
 ): Promise<QuoteResult> {
-  const trip = await requireAssignedTrip(tripId, actor.memberId);
+  const trip = await requireEditableTrip(tripId, actor.memberId);
 
   if (
     trip.pricing_locked_at &&
@@ -210,7 +210,7 @@ export async function generateTripQuotePdf(
   input: GenerateTripQuoteInput,
   actor: { memberId: string },
 ): Promise<QuoteResult> {
-  const trip = await requireAssignedTrip(tripId, actor.memberId);
+  const trip = await requireEditableTrip(tripId, actor.memberId);
   let detail = await buildTripDetail(trip);
 
   if (!quoteReady(detail)) {
@@ -270,7 +270,8 @@ export async function generateTripQuotePdf(
       source_fingerprint: fingerprint,
       generated_by_id: actor.memberId,
     });
-    detail = await buildTripDetail(trip);
+    const freshTrip = (await findTripById(tripId)) ?? trip;
+    detail = await buildTripDetail(freshTrip);
     clearTripDossier(tripId);
     return { detail, quote: detail.quote };
   } catch (cause) {

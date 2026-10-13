@@ -1,11 +1,13 @@
 import type { TripDetail, TripStaySnapshot } from "@/lib/trip-builder";
+import { isQuoteAccepted, isQuoteWithClient } from "@/lib/trip-builder/trip-lock";
+import { statusNextStep } from "@/lib/trips/journey-next-step";
 
 export const TRIP_STAGES = [
   "client",
   "stay",
   "rates",
-  "package",
   "quote",
+  "booking",
 ] as const;
 
 export type TripStage = (typeof TRIP_STAGES)[number];
@@ -14,9 +16,20 @@ export const TRIP_STAGE_LABELS: Record<TripStage, string> = {
   client: "Client",
   stay: "Stay",
   rates: "Rates",
-  package: "Package",
   quote: "Quote",
+  booking: "Booking",
 };
+
+/** Stages where rooms, rates, and the client price are worked on. */
+export function isRateStage(stage: TripStage): boolean {
+  return stage === "rates" || stage === "quote" || stage === "booking";
+}
+
+/** Confirmed or completed: every stage is done. */
+export function tripStagesFinished(detail: TripDetail | null): boolean {
+  const status = detail?.trip.status;
+  return status === "confirmed" || status === "completed";
+}
 
 function byCheckIn(a: TripStaySnapshot, b: TripStaySnapshot): number {
   const aIn = a.check_in || "9999-99-99";
@@ -95,12 +108,35 @@ function staysComplete(detail: TripDetail): boolean {
   return stays.length > 0 && stays.every(stayIsComplete);
 }
 
-function ratesComplete(detail: TripDetail): boolean {
+/** Every stay has the client's chosen room. */
+function roomsChosen(detail: TripDetail): boolean {
   const stays = tripStays(detail).filter(stayIsComplete);
   if (stays.length === 0) return false;
   return stays.every((stay) =>
     detail.rates.candidates.some(
       (rate) => rate.selected && rate.leg_id === stay.leg_id,
+    ),
+  );
+}
+
+/** How many stays still need the client's chosen room. */
+export function staysAwaitingRoom(detail: TripDetail): number {
+  return detail.stays.filter(
+    (stay) =>
+      !detail.rates.candidates.some((rate) => rate.selected && rate.leg_id === stay.leg_id),
+  ).length;
+}
+
+/** Every stay has a room with a client price, so the options quote can go out. */
+function roomsPriced(detail: TripDetail): boolean {
+  const stays = tripStays(detail).filter(stayIsComplete);
+  if (stays.length === 0) return false;
+  const tripPriced = detail.trip.sell_total != null;
+  return stays.every((stay) =>
+    detail.rates.candidates.some(
+      (rate) =>
+        rate.leg_id === stay.leg_id &&
+        (rate.sell_amount != null || (rate.selected && tripPriced)),
     ),
   );
 }
@@ -119,14 +155,20 @@ export function partyFromTravellers(detail: TripDetail | null): {
   return { adults, children };
 }
 
-/** Derive the current Phase 1 stage from trip detail. */
+/**
+ * Current stage. Once the quote is with the client or accepted, the trip status decides.
+ * Before that, the plan does.
+ */
 export function resolveTripStage(detail: TripDetail | null): TripStage {
   if (!detail?.client) return "client";
+  const status = detail.trip.status;
+  if (isQuoteAccepted(status)) return "booking";
+  if (isQuoteWithClient(status)) return "quote";
   if (!travellersConfirmed(detail)) return "client";
   if (!tripDatesReady(detail) || !legsConfirmed(detail)) return "stay";
   if (!staysComplete(detail)) return "stay";
-  if (!ratesComplete(detail)) return "rates";
-  return "package";
+  if (!roomsPriced(detail)) return "rates";
+  return "quote";
 }
 
 export function tripDatesReady(detail: TripDetail | null): boolean {
@@ -137,16 +179,26 @@ export function legsConfirmed(detail: TripDetail | null): boolean {
   return Boolean(detail?.trip.legs_confirmed_at);
 }
 
-/** Human next-step copy for the summary. */
+/** Next step for the header. Matches the trip page once the plan is in place. */
 export function resolveNextStep(detail: TripDetail | null): string {
   if (!detail) return "Start a trip";
+  const status = detail.trip.status;
+  const document = detail.options_quote.document;
+  const fromStatus = () =>
+    statusNextStep({
+      status,
+      quoteReady: document?.status === "ready" && Boolean(document.has_file),
+      quoteStale: document?.status === "stale",
+      roomsChosen: roomsChosen(detail),
+    });
+  if (status !== "building") return fromStatus();
   if (!detail.client) return "Select a client";
   if (!travellersConfirmed(detail)) return "Name the travellers";
   if (!tripDatesReady(detail)) return "Set the trip dates";
   if (!legsConfirmed(detail)) return "List each stay";
   if (!staysComplete(detail)) return "Set hotel & party";
-  if (!ratesComplete(detail)) return "Select a rate";
-  return "Review bookings";
+  if (!roomsPriced(detail)) return "Add rooms with a client price";
+  return fromStatus();
 }
 
 /** Earliest check-in through latest check-out. */

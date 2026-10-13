@@ -440,8 +440,9 @@ export function CommercialForm({
       : String(booking.commission_expected),
   );
   const [loading, setLoading] = useState(false);
-  const pricesLocked =
-    tripBuilderOwnsStay(booking) || Boolean(detail.trip?.pricing_locked);
+  const ownedByTripBuilder = tripBuilderOwnsStay(booking);
+  const pricesLocked = ownedByTripBuilder || Boolean(detail.trip?.pricing_locked);
+  const costLocked = ownedByTripBuilder;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -466,8 +467,8 @@ export function CommercialForm({
           : {
               currency: emptyToNull(currency),
               sell_amount: sell,
-              cost_amount: cost,
             }),
+        ...(costLocked ? {} : { cost_amount: cost }),
         commission_expected: expected,
       };
       const patch = dirtyPatch(next, {
@@ -551,9 +552,9 @@ export function CommercialForm({
       </Field>
       {pricesLocked ? (
         <p className="text-xs leading-5 text-ink-muted">
-          {tripBuilderOwnsStay(booking)
+          {ownedByTripBuilder
             ? "Cost and currency come from Trip Builder until this booking is confirmed. Supplier details can still be saved here."
-            : "Pricing is locked on the linked trip. Supplier details can still be saved here."}
+            : "The client accepted this price, so the client price and currency stay as they are. You can still record the team cost the hotel confirmed."}
         </p>
       ) : null}
       <div className="grid gap-4 sm:grid-cols-2">
@@ -589,7 +590,7 @@ export function CommercialForm({
             id="edit-cost"
             inputMode="decimal"
             value={costAmount}
-            disabled={pricesLocked}
+            disabled={costLocked}
             onChange={(event) => setCostAmount(event.target.value)}
             className={cn(modalFieldClassName)}
           />

@@ -1,7 +1,7 @@
 import { findTripById, findTripLegById } from "@pureluxe/db";
 import { AppError, tripMessages } from "@pureluxe/shared";
 
-import { requireAssignedTrip } from "./require-assigned-trip";
+import { requireEditableTrip } from "./require-assigned-trip";
 import { markQuoteStale, removeStayRecord } from "./stay-side-effects";
 import { clearTripDossier } from "./trip-dossier";
 import { buildTripDetail, type TripDetail } from "./trip-detail";
@@ -12,7 +12,7 @@ export async function removeTripLeg(
   legId: string,
   actor: { memberId: string },
 ): Promise<TripDetail> {
-  const trip = await requireAssignedTrip(tripId, actor.memberId);
+  const trip = await requireEditableTrip(tripId, actor.memberId);
 
   if (trip.pricing_locked_at) {
     throw new AppError({

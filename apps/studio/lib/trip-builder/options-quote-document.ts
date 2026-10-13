@@ -83,15 +83,18 @@ export type OptionsQuoteDocument = {
 
 /**
  * Rooms that belong on the options quote.
- * Open options stay listed. After the client chooses, the chosen room stays so the file can be rebuilt.
+ * Every priced room on a stay is listed. After a reopened quote, the client's earlier
+ * choice sits next to the new options, so it comes first.
  */
 export function roomsForOptionsQuote(detail: TripDetail): TripRateSnapshot[] {
   const stays = detail.stays.length > 0 ? detail.stays : detail.stay ? [detail.stay] : [];
   const rooms: TripRateSnapshot[] = [];
   for (const stay of stays) {
     const onStay = detail.rates.candidates.filter((row) => row.leg_id === stay.leg_id);
-    const open = onStay.filter((row) => !row.selected);
-    rooms.push(...(open.length > 0 ? open : onStay.filter((row) => row.selected)));
+    rooms.push(
+      ...onStay.filter((row) => row.selected),
+      ...onStay.filter((row) => !row.selected),
+    );
   }
   return rooms;
 }

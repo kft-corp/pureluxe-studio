@@ -26,8 +26,8 @@ export const TRIP_BUILDER_OWNED_FIELDS = [
   "cancellation_policy",
 ] as const;
 
+/** The client price the client accepted. Team cost stays editable after the hotel confirms. */
 export const PRICING_LOCK_FIELDS = [
-  "cost_amount",
   "currency",
   "sell_amount",
 ] as const;

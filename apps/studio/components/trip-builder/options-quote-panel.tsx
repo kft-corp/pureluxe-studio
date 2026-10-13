@@ -2,6 +2,7 @@
 
 import { studioButtonClass } from "@/components/ui";
 import type { TripDetail, TripRateSnapshot, TripStaySnapshot } from "@/lib/trip-builder";
+import { isQuoteAccepted, isQuoteWithClient } from "@/lib/trip-builder/trip-lock";
 import { cn } from "@/lib/utils/cn";
 
 type OptionsQuotePanelProps = {
@@ -31,12 +32,19 @@ export function OptionsQuotePanel({
   onRegenerate,
   onChoose,
 }: OptionsQuotePanelProps) {
-  const options = detail.rates.candidates.filter((row) => !row.selected);
-  const hasRoom = detail.rates.candidates.length > 0;
+  const candidates = detail.rates.candidates;
+  const options = candidates.filter(
+    (row) =>
+      !row.selected ||
+      candidates.some((other) => !other.selected && other.leg_id === row.leg_id),
+  );
+  const hasRoom = candidates.length > 0;
   const status = detail.options_quote.document?.status;
   const hasFile = Boolean(detail.options_quote.document?.has_file);
   const ready = status === "ready" && hasFile;
   const stale = status === "stale";
+  const accepted = isQuoteAccepted(detail.trip.status);
+  const withClient = isQuoteWithClient(detail.trip.status);
   if (options.length === 0 && !hasFile && !hasRoom) return null;
 
   return (
@@ -45,9 +53,13 @@ export function OptionsQuotePanel({
         Options for the client
       </h3>
       <p className="mb-2 text-[12px] leading-relaxed text-[#6b6b6b]">
-        {detail.pricing_locked
-          ? "Pricing is locked. This options quote can still be opened, regenerated, and edited."
-          : options.length > 0
+        {accepted
+          ? options.length > 0
+            ? "The client accepted this quote. Tap Client chose this on the room they picked. Its client price from the quote becomes the trip price."
+            : "The client accepted this quote. It opens as sent. To change it, reopen the quote on the trip page."
+          : withClient
+            ? "This quote is with the client. Changing or regenerating it moves the trip back to Building."
+            : options.length > 0
             ? "Tap Client chose this only after the client has picked. The other rooms come off and a pending booking is created."
             : "Open or regenerate the options quote to check the rooms saved on this trip."}
       </p>
@@ -57,7 +69,7 @@ export function OptionsQuotePanel({
             key={row.id}
             row={row}
             stays={stays}
-            canWrite={canChoose}
+            canWrite={canChoose && (!detail.pricing_locked || row.sell_amount != null)}
             busy={busy}
             onChoose={onChoose}
           />
@@ -82,7 +94,7 @@ export function OptionsQuotePanel({
       >
         Open options quote
       </button>
-      {canWrite && hasRoom ? (
+      {canWrite && hasRoom && !accepted ? (
         <button
           type="button"
           disabled={busy}
@@ -121,7 +133,9 @@ function OptionRow({
       <p className="text-[12px] text-[#141414]">
         Client price {moneyLabel(row.sell_amount, row.currency)}
       </p>
-      {canWrite ? (
+      {row.selected ? (
+        <p className="mt-1 text-[11px] font-semibold text-[#2a6b3c]">Client&apos;s current choice</p>
+      ) : canWrite ? (
         <button
           type="button"
           disabled={busy}

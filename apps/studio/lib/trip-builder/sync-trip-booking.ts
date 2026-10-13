@@ -368,7 +368,9 @@ async function syncOneStay(
     booking_channel: bookingChannel(property, contract ?? null, line),
     currency: selected?.currency ?? null,
     cost_amount: selected?.cost_internal ?? null,
-    sell_amount: null,
+    sell_amount:
+      selected?.sell_amount ??
+      (existing?.trip_line_item_id === selected?.id ? existing?.sell_amount ?? null : null),
     tax_percentage: tax != null && Number.isFinite(tax) ? tax : null,
     ...(commission != null ? { commission_expected: commission } : {}),
     cancellation_policy: cancellation,
@@ -401,6 +403,20 @@ async function syncOneStay(
         team_member_id: actor.memberId,
         metadata: { source: "trip_builder", trip_id: detail.trip.id },
       },
+      ...(String(existing.sell_amount ?? "") !== String(fields.sell_amount ?? "")
+        ? [
+            {
+              booking_id: existing.id,
+              action: "updated" as const,
+              field_name: "sell_amount",
+              old_value: existing.sell_amount == null ? null : String(existing.sell_amount),
+              new_value: fields.sell_amount == null ? null : String(fields.sell_amount),
+              performed_by: "team" as const,
+              team_member_id: actor.memberId,
+              metadata: { source: "trip_builder", trip_id: detail.trip.id },
+            },
+          ]
+        : []),
     ]);
     return true;
   }

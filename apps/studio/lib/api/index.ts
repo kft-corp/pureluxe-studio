@@ -68,6 +68,13 @@ export {
   type RateSourcesData,
 } from "../rates";
 export {
+  listJourneyCards,
+  getJourneyQuoteUrl,
+  setJourneyStatus,
+  type JourneyCardItem,
+  type JourneyDirectoryData,
+} from "./trips";
+export {
   addTripBuilderLeg,
   removeTripBuilderLeg,
   updateTripBuilderLeg,

@@ -37,10 +37,12 @@ import {
 } from "@/lib/api";
 import { showApiError, showSuccessToast } from "@/lib/feedback";
 import { pageRoutes } from "@/lib/routes";
+import { isQuoteAccepted, isQuoteWithClient, isTripClosed } from "@/lib/trip-builder/trip-lock";
 import type {
   ChatMessage,
   TripDetail,
   TripListItem,
+  TripRateSnapshot,
   TripStaySnapshot,
 } from "@/lib/trip-builder";
 
@@ -104,9 +106,11 @@ import type { TripBuilderChip } from "./trip-builder-action-chip";
 import type { TripBuilderRateCard, TripBuilderStayNotes } from "./trip-builder-rate-card";
 import {
   findOverlappingStay,
+  isRateStage,
   legsConfirmed,
   partyFromTravellers,
   resolveTripStage,
+  staysAwaitingRoom,
   travellersConfirmed,
   stayIsComplete,
   staysOutsideWindow,
@@ -333,6 +337,8 @@ type OptionDraft = {
   title: string;
   currency: string | null;
   costLabel: string;
+  /** Client price on the options quote. Null for search results and unpriced rooms. */
+  sellLabel: string | null;
   option: NormalizedRateOption | null;
   lineItemId: string | null;
 };
@@ -348,6 +354,130 @@ type PartyChoice = {
   party_role: "adult" | "child";
 };
 
+/** Points the advisor to the trip page once the client quote is ready to send. */
+function sendHandoff(detail: TripDetail): string {
+  if (detail.trip.status !== "building") return "";
+  return `\n\nWhen you send it to the client, open the [trip page](${pageRoutes.trip(detail.trip.id)}) and mark **Sent to client** under Update status.`;
+}
+
+const AFTER_ACCEPT_STEPS = [
+  "**Before you book**",
+  "1. Tap **Check availability** to see today's availability and hotel price for this room.",
+  "2. If the hotel price changed, tap **Use today's cost** to update the team cost.",
+  "3. Tap **Set client price** if the client price needs to change.",
+  "4. Book with the hotel, then set the booking to confirmed in **Bookings**.",
+].join("\n");
+
+/** What the room choice did to prices: the room's quoted client price, team cost, and the trip total. */
+function choiceSummary(
+  room: string,
+  row: TripRateSnapshot | null,
+  next: TripDetail,
+): string {
+  const sell = row ? formatMoney(row.sell_amount, row.currency) : "";
+  const cost = row ? formatMoney(row.cost_internal, row.currency) : "";
+  const price = sell
+    ? `Client price **${sell}** from the options quote. Team cost **${cost || "not set"}**.`
+    : `Team cost **${cost || "not set"}**. This room has no client price on the options quote.`;
+  const open = staysAwaitingRoom(next);
+  const total = formatMoney(next.trip.sell_total, next.trip.sell_currency);
+  const trip =
+    open > 0
+      ? `${open === 1 ? "1 more stay needs" : `${open} more stays need`} the client's room before the trip price is set.`
+      : total
+        ? `Every stay has a room. The trip client price is **${total}**.`
+        : "Every stay has a room. Set the trip client price, for example **sell 4500 USD**.";
+  return `**${room}** is the client's room for this stay. ${price} The other options were removed, and a pending hotel booking is in **Bookings**.\n\n${trip}`;
+}
+
+type CostUpdate = {
+  lineItemId: string;
+  room: string;
+  amount: number;
+  currency: string;
+};
+
+const AVAILABILITY_LABELS: Record<NormalizedRateOption["availability_status"], string> = {
+  available: "Available",
+  on_request: "On request",
+  unknown: "Availability not confirmed",
+  unavailable: "Not available",
+};
+
+function roomKey(value: string | null | undefined): string {
+  return (value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+/** Today's result for the chosen room: same room name, either way round. */
+function matchChosenRoom(
+  chosen: TripRateSnapshot,
+  options: NormalizedRateOption[],
+): NormalizedRateOption | null {
+  const want = roomKey(chosen.subtitle) || roomKey(chosen.title);
+  if (!want) return null;
+  return (
+    options.find((option) => roomKey(option.room_name) === want) ??
+    options.find((option) => {
+      const name = roomKey(option.room_name);
+      return Boolean(name) && (name.includes(want) || want.includes(name));
+    }) ??
+    null
+  );
+}
+
+/**
+ * After acceptance a rate search is a price check on the chosen room.
+ * Returns the note and, when today's team cost differs, the cost to offer.
+ */
+function priceCheck(
+  detail: TripDetail,
+  legId: string,
+  options: NormalizedRateOption[],
+): { note: string; update: CostUpdate | null } {
+  const chosen = detail.rates.candidates.find(
+    (rate) => rate.selected && rate.leg_id === legId,
+  );
+  if (!chosen) {
+    return {
+      note: "No room is chosen for this stay yet. Tap **Client chose this** on the room the client picked, then check again.",
+      update: null,
+    };
+  }
+  const room = chosen.subtitle?.trim() || chosen.title;
+  const onFile = formatMoney(chosen.cost_internal, chosen.currency) || "not set";
+  const sell = formatMoney(chosen.sell_amount, chosen.currency);
+  const header = `**Price check · ${room}**\n\nTeam cost on file **${onFile}**${sell ? `. Client price **${sell}**` : ""}.`;
+  const today = matchChosenRoom(chosen, options);
+  if (!today) {
+    return {
+      note: `${header}\n\nThis room is not in today's results, so check availability with the hotel before you book. You can still set the client price.`,
+      update: null,
+    };
+  }
+  const availability = AVAILABILITY_LABELS[today.availability_status];
+  const todayCost = formatMoney(today.cost_internal, today.currency);
+  const sameCurrency =
+    !chosen.currency ||
+    chosen.currency.trim().toUpperCase() === today.currency.trim().toUpperCase();
+  const changed = sameCurrency && today.cost_internal !== chosen.cost_internal;
+  const lines = [header, `Today: **${availability}**, team cost **${todayCost}**.`];
+  if (!sameCurrency) {
+    lines.push("Today's price is in a different currency, so compare it with the hotel before you book.");
+  } else if (!changed) {
+    lines.push("The team cost has not changed. Book with the hotel, then confirm the booking in **Bookings**.");
+  } else {
+    lines.push(
+      `The team cost has changed. Tap **Use today's cost** to update the room and the pending booking, then set the client price if it needs to change.`,
+    );
+  }
+  return {
+    note: lines.join("\n\n"),
+    update: changed
+      ? { lineItemId: chosen.id, room, amount: today.cost_internal, currency: today.currency }
+      : null,
+  };
+}
+
 function clipQuoteLine(text: string): string {
   const clean = text.replace(/\s+/g, " ").trim();
   return clean.length > 140 ? `${clean.slice(0, 140).trim()}…` : clean;
@@ -356,7 +486,7 @@ function clipQuoteLine(text: string): string {
 export function useTripBuilder({
   initialTrips,
   initialDetail,
-  canWrite,
+  canWrite: canWriteProp,
   prefillClientId = null,
 }: UseTripBuilderOptions) {
   const router = useRouter();
@@ -365,6 +495,9 @@ export function useTripBuilder({
 
   const [trips, setTrips] = useState(initialTrips);
   const [detail, setDetail] = useState<TripDetail | null>(initialDetail);
+  const canWrite = canWriteProp && !(detail && isTripClosed(detail.trip.status));
+  /** The client accepted this quote. The options PDF stays as sent until the quote is reopened. */
+  const quoteFrozen = Boolean(detail && isQuoteAccepted(detail.trip.status));
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [chatBusy, setChatBusy] = useState(false);
@@ -437,6 +570,8 @@ export function useTripBuilder({
   const [pendingOptionDraft, setPendingOptionDraft] = useState<OptionDraft | null>(null);
   const [pendingOptionCommit, setPendingOptionCommit] = useState<OptionCommit | null>(null);
   const [pendingOptionSelect, setPendingOptionSelect] = useState<OptionDraft | null>(null);
+  /** Today's hotel price for the client's chosen room, offered after a price check. */
+  const [pendingCostUpdate, setPendingCostUpdate] = useState<CostUpdate | null>(null);
   const [pendingOptionsText, setPendingOptionsText] = useState<{
     field: "title" | "notes";
     value: string;
@@ -1318,7 +1453,7 @@ export function useTripBuilder({
     setConfirmFocus(null);
     setBusy(true);
     try {
-      if (stayFieldsDiffer(party, openStay)) {
+      if (!detail.pricing_locked && stayFieldsDiffer(party, openStay)) {
         const hotel = party.hotel.trim();
         const savedName = openStay.property_name?.trim() ?? "";
         const saved = await setTripBuilderStay(detail.trip.id, {
@@ -1377,17 +1512,21 @@ export function useTripBuilder({
       );
       setRateOptions(options);
       setRateStayNotes(response.data.stay_notes);
-      appendTurn(
-        userLine,
-        describeRateSearch(
-          options,
-          response.data.message,
-          adults,
-          children,
-          party.rooms,
-          response.data.stay_notes?.markup ?? null,
-        ),
+      const found = describeRateSearch(
+        options,
+        response.data.message,
+        adults,
+        children,
+        party.rooms,
+        response.data.stay_notes?.markup ?? null,
       );
+      if (detail.pricing_locked) {
+        const check = priceCheck(detail, legId, options);
+        setPendingCostUpdate(check.update);
+        appendTurn(userLine, `${check.note}\n\n${found}`);
+      } else {
+        appendTurn(userLine, found);
+      }
       await refreshAfterMutation(detail.trip.id);
     } catch (error) {
       showApiError(error);
@@ -1433,6 +1572,7 @@ export function useTripBuilder({
         title: explained.room,
         currency: choice.option.currency?.trim().toUpperCase() || null,
         costLabel: explained.price,
+        sellLabel: null,
         option: choice.option,
         lineItemId: null,
       };
@@ -1442,6 +1582,7 @@ export function useTripBuilder({
       title,
       currency: choice.row.currency?.trim().toUpperCase() || null,
       costLabel: formatMoney(choice.row.cost_internal, choice.row.currency) || "on the card",
+      sellLabel: formatMoney(choice.row.sell_amount, choice.row.currency) || null,
       option: null,
       lineItemId: choice.row.id,
     };
@@ -1468,9 +1609,12 @@ export function useTripBuilder({
     const title = choice.row.subtitle?.trim() || choice.row.title;
     const included = choice.row.inclusions.map((item) => item.trim()).filter(Boolean);
     const cancel = choice.row.cancellation_policy?.trim();
+    const sell = formatMoney(choice.row.sell_amount, choice.row.currency);
     return [
       `**${title}**`,
-      `Team cost **${formatMoney(choice.row.cost_internal, choice.row.currency) || "on the card"}**.`,
+      sell
+        ? `Client price on the options quote **${sell}**. Team cost **${formatMoney(choice.row.cost_internal, choice.row.currency) || "on the card"}**.`
+        : `Team cost **${formatMoney(choice.row.cost_internal, choice.row.currency) || "on the card"}**. No client price is set on the options quote for this room.`,
       included.length > 0 ? `Included: ${included.join(", ")}.` : "Nothing is listed as included.",
       cancel ? `Cancellation: ${cancel}` : "Cancellation is not on file.",
       rateStayNotes?.markup ?? null,
@@ -1618,9 +1762,16 @@ export function useTripBuilder({
   }
 
   function offerChooseSaved(lineItemId: string) {
-    if (!detail || detail.pricing_locked) return;
+    if (!detail) return;
     const row = detail.rates.candidates.find((item) => item.id === lineItemId && !item.selected);
     if (!row) return;
+    if (detail.pricing_locked && row.sell_amount == null) {
+      void appendTurn(
+        "Client chose this",
+        "This room has no client price on the accepted quote, so it cannot be chosen while pricing is locked. Reopen the quote on the trip page to price it.",
+      );
+      return;
+    }
     const choice: ListedRate = {
       title: row.subtitle?.trim() || row.title,
       kind: "saved",
@@ -1635,13 +1786,67 @@ export function useTripBuilder({
     const room = draft.title.length > 32 ? `${draft.title.slice(0, 32).trim()}…` : draft.title;
     void appendTurn(
       "Client chose this",
-      `**${draft.title}** stays. Team cost **${draft.costLabel}**. The other options for this stay come off, and a pending booking is created.\n\nSay **yes** or tap **Client chose · ${room}**. Say **no** to cancel.`,
+      `**${draft.title}** stays. ${
+        draft.sellLabel
+          ? `Client price on the options quote **${draft.sellLabel}**, and that becomes the trip's client price once every stay has a room. Team cost **${draft.costLabel}**.`
+          : `Team cost **${draft.costLabel}**. No client price is set on the options quote for this room, so set the client price after choosing.`
+      } The other options for this stay come off, and a pending booking is created.\n\nSay **yes** or tap **Client chose · ${room}**. Say **no** to cancel.`,
     );
+  }
+
+  /** Ask for a new client price on the client's chosen room. The reply runs the usual price confirm. */
+  function offerRoomPrice(row: SavedRate, userLine: string) {
+    const draft = draftFromChoice({
+      title: row.subtitle?.trim() || row.title,
+      kind: "saved",
+      row,
+    });
+    setPendingOptionSelect(null);
+    setPendingOptionCommit(null);
+    setPendingOptionDraft(draft);
+    setConfirmFocus(null);
+    setQuietChips(false);
+    void appendTurn(
+      userLine,
+      `**${draft.title}**: client price ${draft.sellLabel ? `**${draft.sellLabel}**` : "not set"}. Team cost **${draft.costLabel}**.\n\nSend the new client price, for example **2400 ${draft.currency ?? "USD"}**. The trip price and the pending booking update with it.`,
+    );
+  }
+
+  async function commitCostUpdate(update: CostUpdate) {
+    if (!canWrite || !detail) return;
+    setBusy(true);
+    setPendingCostUpdate(null);
+    const money = formatMoney(update.amount, update.currency);
+    try {
+      const response = await updateTripBuilderStayOption(update.lineItemId, {
+        cost_internal: update.amount,
+      });
+      setDetail(response.data);
+      const row = response.data.rates.candidates.find((item) => item.id === update.lineItemId);
+      const sell = row ? formatMoney(row.sell_amount, row.currency) : "";
+      appendTurn(
+        `Use today's cost · ${money}`,
+        `Team cost for **${update.room}** is now **${money}**. The pending booking and the margin are updated.${
+          sell ? ` The client price stays **${sell}**.` : ""
+        }\n\nTap **Set client price** if the client price needs to change, or book with the hotel and confirm the booking in **Bookings**.`,
+      );
+    } catch (error) {
+      showApiError(error);
+    } finally {
+      setBusy(false);
+    }
   }
 
   function acceptDraftPrice(userLine: string) {
     const draft = pendingOptionDraft;
     if (!draft) return;
+    if (isPriceSkip(userLine) && quoteFrozen) {
+      void appendTurn(
+        userLine,
+        `The client accepted this trip, so **${draft.title}** needs a client price. Send the amount, for example **2400 ${draft.currency ?? "USD"}**.`,
+      );
+      return;
+    }
     if (isPriceSkip(userLine)) {
       armOptionCommit(
         {
@@ -1680,6 +1885,9 @@ export function useTripBuilder({
     setConfirmFocus(null);
     setPendingOptionCommit(null);
     setPendingOptionDraft(null);
+    const backToBuilding = isQuoteWithClient(detail.trip.status)
+      ? "\n\nThe client's copy is now out of date, so the trip is back in **Building**. Regenerate the options quote and send it again."
+      : "";
     try {
       if (commit.mode === "price" && commit.lineItemId) {
         const response = await updateTripBuilderStayOption(commit.lineItemId, {
@@ -1690,9 +1898,19 @@ export function useTripBuilder({
           commit.amount == null
             ? "To be confirmed"
             : formatMoney(commit.amount, commit.currency);
+        if (quoteFrozen) {
+          const total = formatMoney(response.data.trip.sell_total, response.data.trip.sell_currency);
+          appendTurn(
+            userLine,
+            `Client price for **${commit.title}** is **${offer}**. The team cost stays **${commit.costLabel}**.${
+              total ? ` The trip client price is **${total}**.` : ""
+            } The pending booking and the margin are updated, and the trip stays in **Booking**.\n\nBook with the hotel, then confirm the booking in **Bookings**.`,
+          );
+          return;
+        }
         appendTurn(
           userLine,
-          `Client price for **${commit.title}** is **${offer}**. The team cost stays **${commit.costLabel}**.\n\nSay **show the options quote** to see the PDF, or add another room.`,
+          `Client price for **${commit.title}** is **${offer}**. The team cost stays **${commit.costLabel}**.\n\nSay **show the options quote** to see the PDF, or add another room.${backToBuilding}`,
         );
         return;
       }
@@ -1717,7 +1935,7 @@ export function useTripBuilder({
           : formatMoney(commit.amount, commit.currency);
       appendTurn(
         userLine,
-        `Added **${commit.title}** to the options quote. Client price **${offer}**. Team cost **${commit.costLabel}**.\n\nAdd another room the same way, say **show the options quote** to see the PDF, or set the wording with **note:**.`,
+        `Added **${commit.title}** to the options quote. Client price **${offer}**. Team cost **${commit.costLabel}**.\n\nAdd another room the same way, say **show the options quote** to see the PDF, or set the wording with **note:**.${backToBuilding}`,
       );
     } catch (error) {
       showApiError(error);
@@ -1887,9 +2105,15 @@ export function useTripBuilder({
       }
       return;
     }
+    // A sent or accepted quote opens as it is. Rebuilding it would replace the PDF the client has.
+    const keepSent = quoteFrozen || isQuoteWithClient(detail.trip.status);
+    if (keepSent && !doc?.has_file) {
+      if (userLine) void appendTurn(userLine, "There is no options quote file on this trip yet.");
+      return;
+    }
     setBusy(true);
     try {
-      if (canRebuild && !ready) {
+      if (canWrite && canRebuild && !ready && !keepSent) {
         const generated = await generateTripBuilderOptionsQuote(detail.trip.id, {
           force: true,
         });
@@ -1900,7 +2124,9 @@ export function useTripBuilder({
       if (userLine) {
         appendTurn(
           userLine,
-          "The options quote is open. A room with no client price prints as To be confirmed.",
+          keepSent
+            ? "This is the options quote the client has."
+            : `The options quote is open. A room with no client price prints as To be confirmed.${sendHandoff(detail)}`,
         );
       }
     } catch (error) {
@@ -1912,10 +2138,18 @@ export function useTripBuilder({
 
   async function regenerateOptionsQuote(userLine = "Regenerate options quote") {
     if (!canWrite || !detail) return;
+    if (quoteFrozen) {
+      void appendTurn(
+        userLine,
+        `The client accepted this quote, so the PDF stays as sent. To change it, open the [trip page](${pageRoutes.trip(detail.trip.id)}) and choose **Reopen quote** under Update status.`,
+      );
+      return;
+    }
     if (detail.rates.candidates.length === 0) {
       void appendTurn(userLine, "Add a room first. Then the options quote can be rebuilt.");
       return;
     }
+    const wasWithClient = isQuoteWithClient(detail.trip.status);
     setBusy(true);
     setConfirmFocus(null);
     try {
@@ -1923,7 +2157,12 @@ export function useTripBuilder({
       setDetail(generated.data);
       const response = await getTripBuilderOptionsQuoteUrl(detail.trip.id);
       window.open(response.data.url, "_blank", "noopener,noreferrer");
-      appendTurn(userLine, "The options quote is rebuilt and open.");
+      appendTurn(
+        userLine,
+        wasWithClient
+          ? `The options quote is rebuilt and open. The client has the old one, so the trip is back to **Building**.${sendHandoff(generated.data)}`
+          : `The options quote is rebuilt and open.${sendHandoff(generated.data)}`,
+      );
     } catch (error) {
       showApiError(error);
     } finally {
@@ -1967,9 +2206,10 @@ export function useTripBuilder({
     setBusy(true);
     try {
       await selectTripBuilderLineItem(lineItemId);
-      await refreshAfterMutation(detail.trip.id);
+      const next = await refreshAfterMutation(detail.trip.id);
       const row = detail.rates.candidates.find((item) => item.id === lineItemId);
       const money = row ? formatMoney(row.cost_internal, row.currency) : "";
+      const room = row?.subtitle?.trim() || row?.title || "That room";
       appendTurn(
         userLine ??
           (row
@@ -1977,7 +2217,13 @@ export function useTripBuilder({
               ? `Select · ${row.title} · ${money}`
               : `Select · ${row.title}`
             : "Select rate"),
-        `**${row?.title ?? "That room"}** is the room for this stay. The other options were removed. A pending hotel booking is in **Bookings**. The client PDF is the options quote.\n\nOpen **Bookings** and set it to confirmed only after you check the stay.`,
+        `${choiceSummary(room, row ?? null, next)}\n\n${
+          quoteFrozen
+            ? AFTER_ACCEPT_STEPS
+            : isQuoteWithClient(detail.trip.status)
+              ? `The trip keeps its status. When the client agrees to the quote, open the [trip page](${pageRoutes.trip(detail.trip.id)}) and mark **Client accepted** under Update status.`
+              : "The client PDF is the options quote. Open **Bookings** and set it to confirmed only after you check the stay."
+        }`,
       );
     } catch (error) {
       showApiError(error);
@@ -2010,23 +2256,10 @@ export function useTripBuilder({
     }
   }
 
-  async function lockPricing() {
-    if (!canWrite || !detail) return;
-    setBusy(true);
-    try {
-      const response = await updateTripBuilderTrip(detail.trip.id, {
-        lock_pricing: true,
-      });
-      setDetail(response.data);
-      appendTurn(
-        "Lock pricing",
-        "Pricing is locked. This quote is complete. Stay, rate, and sell changes stay blocked.\n\nEach hotel booking for this trip stays **pending**. Open **Bookings**, check the stay details, and set a booking to **confirmed** only after that check.",
-      );
-    } catch (error) {
-      showApiError(error);
-    } finally {
-      setBusy(false);
-    }
+  /** Status changes (sent, accepted, reopen) live on the trip page. */
+  function openTripPage() {
+    if (!detail) return;
+    router.push(pageRoutes.trip(detail.trip.id));
   }
 
   /** Home chat — no trip yet (search_clients / get_client only). */
@@ -2270,6 +2503,7 @@ export function useTripBuilder({
     setPendingOptionDraft(null);
     setPendingOptionCommit(null);
     setPendingOptionSelect(null);
+    setPendingCostUpdate(null);
     setPendingOptionsText(null);
     setPendingPdfEdit(null);
     setConfirmFocus(null);
@@ -2763,7 +2997,7 @@ export function useTripBuilder({
     if (detail.pricing_locked && stayEdit) {
       void appendTurn(
         message,
-        "Pricing is locked on this trip. Unlock it before changing dates or stays.",
+        `Pricing is locked on this trip. To change dates or stays, open the [trip page](${pageRoutes.trip(detail.trip.id)}) and choose **Reopen quote** under Update status.`,
       );
       return;
     }
@@ -3050,7 +3284,7 @@ export function useTripBuilder({
         return;
       }
       const choosingRooms =
-        (stage === "rates" || stage === "package" || stage === "quote") &&
+        isRateStage(stage) &&
         questionUsesRatePack(message) &&
         (rateOptions.length > 0 ||
           detail.rates.candidates.some((row) => !row.selected));
@@ -3065,7 +3299,7 @@ export function useTripBuilder({
       }
     }
 
-    const rateStage = stage === "rates" || stage === "package" || stage === "quote";
+    const rateStage = isRateStage(stage);
     const asking = isTripQuestion(message) && !wantsOptionsPreview(message);
     const optionPrice = parseOptionClientPrice(message);
     if (rateStage && wantsOptionsPreview(message)) {
@@ -3118,24 +3352,41 @@ export function useTripBuilder({
     const openHasRate = detail.rates.candidates.some(
       (rate) => rate.selected && rate.leg_id === (openStay?.leg_id ?? null),
     );
-    if (
-      rateStage &&
-      detail.pricing_locked &&
-      !asking &&
-      (wantsRateSearch(message) ||
-        isSupplierPaste(message) ||
-        sellRequest ||
-        quoteRequest ||
-        matchRateChoice(
+    if (rateStage && detail.pricing_locked && !asking) {
+      const lockedPick =
+        !wantsRateSearch(message) && !isSupplierPaste(message) && !sellRequest && !quoteRequest
+          ? matchRateChoice(
+              splitTrailingPrice(message).text,
+              listedRates([], detail.rates.candidates, activeLegIdRef.current),
+            )
+          : null;
+      if (
+        lockedPick &&
+        lockedPick !== "ambiguous" &&
+        lockedPick.kind === "saved" &&
+        !lockedPick.row.selected &&
+        lockedPick.row.sell_amount != null &&
+        !isOptionsAdd(message)
+      ) {
+        offerSelectRoom(lockedPick, message);
+        return;
+      }
+      if (
+        !wantsRateSearch(message) &&
+        (isSupplierPaste(message) ||
+          sellRequest ||
+          quoteRequest ||
+          matchRateChoice(
+            message,
+            listedRates(rateOptions, detail.rates.candidates, activeLegIdRef.current),
+          ))
+      ) {
+        void appendTurn(
           message,
-          listedRates(rateOptions, detail.rates.candidates, activeLegIdRef.current),
-        ))
-    ) {
-      void appendTurn(
-        message,
-        "Pricing is locked, so rates, the client price, and the quote wording stay as they are.",
-      );
-      return;
+          "The client accepted this quote, so new rooms, the trip total, and the quote wording stay as they are. You can still tap **Check availability** for today's price, or **Set client price** on the client's chosen room. To change anything else, reopen the quote on the trip page.",
+        );
+        return;
+      }
     }
 
     if (
@@ -3190,7 +3441,6 @@ export function useTripBuilder({
     }
     if (
       rateStage &&
-      !detail.pricing_locked &&
       !asking &&
       !isSupplierPaste(message) &&
       !sellRequest &&
@@ -3270,7 +3520,7 @@ export function useTripBuilder({
       );
       return;
     }
-    if (sellRequest && (stage === "package" || stage === "quote" || (stage === "rates" && openHasRate)) && !asking) {
+    if (sellRequest && (stage === "quote" || stage === "booking" || (stage === "rates" && openHasRate)) && !asking) {
       setPendingSell(sellRequest);
       setConfirmFocus("sell");
       setQuietChips(false);
@@ -3624,7 +3874,7 @@ export function useTripBuilder({
     detail &&
     canWrite &&
     !detail.pricing_locked &&
-    (stage === "rates" || stage === "package" || stage === "quote" || pendingStayUpdate)
+    (isRateStage(stage) || pendingStayUpdate)
   ) {
     if (pendingStayUpdate && openStay) {
       chips.push({
@@ -3654,7 +3904,46 @@ export function useTripBuilder({
     }
   }
 
-  if (detail && canWrite && !detail.pricing_locked && (stage === "rates" || stage === "package" || stage === "quote")) {
+  if (
+    detail &&
+    canWrite &&
+    detail.pricing_locked &&
+    isRateStage(stage)
+  ) {
+    const chosenRoom = detail.rates.candidates.find(
+      (rate) => rate.selected && rate.leg_id === (openStay?.leg_id ?? null),
+    );
+    if (pendingCostUpdate) {
+      const update = pendingCostUpdate;
+      chips.push({
+        id: "use-today-cost",
+        label: `Use today's cost · ${formatMoney(update.amount, update.currency)}`,
+        variant: "primary",
+        onClick: () => void commitCostUpdate(update),
+      });
+    }
+    if (!hideReady || pendingRateSearch) {
+      const hotel = chosenRoom?.property_name?.trim() || openStay?.property_name?.trim();
+      chips.push({
+        id: "search-rates",
+        label: chosenRoom && hotel ? `Check availability · ${hotel}` : "Check today's price",
+        variant: pendingRateSearch || (chosenRoom && !pendingCostUpdate) ? "primary" : "secondary",
+        onClick: () => void searchRates(),
+      });
+      if (chosenRoom && quoteFrozen) {
+        const room = chosenRoom.subtitle?.trim() || chosenRoom.title;
+        const short = room.length > 28 ? `${room.slice(0, 28).trim()}…` : room;
+        chips.push({
+          id: "set-room-price",
+          label: `Set client price · ${short}`,
+          variant: "secondary",
+          onClick: () => offerRoomPrice(chosenRoom, `Set client price · ${short}`),
+        });
+      }
+    }
+  }
+
+  if (detail && canWrite && !detail.pricing_locked && isRateStage(stage)) {
     if (pendingRateSearch || (!hideReady && stage === "rates")) {
       const partyLabel = partyReady(stayDraft)
         ? `${stayDraft.adults} adults · ${stayDraft.rooms} ${stayDraft.rooms === 1 ? "room" : "rooms"}`
@@ -3686,7 +3975,7 @@ export function useTripBuilder({
 
   const showRateCards =
     stage === "rates" ||
-    ((stage === "package" || stage === "quote") && rateOptions.length > 0);
+    ((stage === "quote" || stage === "booking") && rateOptions.length > 0);
   const rateCards: TripBuilderRateCard[] =
     detail && canWrite && !detail.pricing_locked && showRateCards
       ? listedRates(rateOptions, detail.rates.candidates, activeLegId).map((choice, index) => {
@@ -3727,7 +4016,7 @@ export function useTripBuilder({
     detail &&
     canWrite &&
     pendingSell &&
-    (stage === "rates" || stage === "package" || stage === "quote")
+    isRateStage(stage)
   ) {
     chips.push({
       id: "apply-sell",
@@ -3805,12 +4094,12 @@ export function useTripBuilder({
     });
   }
 
-  if (detail && canWrite && !hideReady && stage === "package" && !detail.pricing_locked) {
+  if (detail && canWrite && !hideReady && (stage === "quote" || stage === "booking")) {
     chips.push({
-      id: "lock-pricing",
-      label: "Lock pricing",
+      id: "open-trip-page",
+      label: "Open trip page",
       variant: "secondary",
-      onClick: () => void lockPricing(),
+      onClick: openTripPage,
     });
   }
 

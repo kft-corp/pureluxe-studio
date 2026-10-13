@@ -13,9 +13,12 @@ import {
 import { taxPercentageFromRaw } from "@pureluxe/rates";
 import { AppError, rateMessages, tripMessages } from "@pureluxe/shared";
 
-import { requireAssignedTrip } from "@/lib/trip-builder";
+import { requireEditableTrip } from "@/lib/trip-builder";
 import { markQuoteStale } from "@/lib/trip-builder/stay-side-effects";
-import { refreshTripAfterRateChange } from "@/lib/trip-builder/sync-trip-commercials";
+import {
+  refreshTripAfterRateChange,
+  syncClientPriceFromChoices,
+} from "@/lib/trip-builder/sync-trip-commercials";
 
 const AVAILABILITY = new Set<TripLineItemAvailabilityStatus>([
   "unknown",
@@ -50,8 +53,9 @@ export async function selectAccommodationRate(
     });
   }
 
-  const trip = await requireAssignedTrip(existing.trip_id, actor.memberId);
-  if (trip.pricing_locked_at) {
+  const trip = await requireEditableTrip(existing.trip_id, actor.memberId);
+  // After the client accepts, they can still name a room that was priced on the quote.
+  if (trip.pricing_locked_at && existing.sell_amount == null) {
     throw new AppError({
       userMessage: tripMessages.error.pricingLocked,
       code: "trips.pricing_locked",
@@ -120,7 +124,8 @@ export async function selectAccommodationRate(
     });
   }
   await deleteUnselectedStayOptions(selected.trip_id, legId);
-  await markQuoteStale(selected.trip_id);
+  await markQuoteStale(selected.trip_id, { clientChoice: true });
+  await syncClientPriceFromChoices(selected.trip_id);
   await refreshTripAfterRateChange(selected.trip_id, actor);
   return selected;
 }

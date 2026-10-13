@@ -5,7 +5,7 @@ import {
 } from "@pureluxe/db";
 import { AppError, rateMessages } from "@pureluxe/shared";
 
-import { requireAssignedTrip } from "@/lib/trip-builder";
+import { requireEditableTrip } from "@/lib/trip-builder";
 
 async function transitionFromPendingReview(
   lineItemId: string,
@@ -21,7 +21,7 @@ async function transitionFromPendingReview(
     });
   }
 
-  await requireAssignedTrip(existing.trip_id, actor.memberId);
+  await requireEditableTrip(existing.trip_id, actor.memberId);
 
   const updated = await updateTripLineItemStatus(lineItemId, nextStatus, {
     fromStatus: "pending_review",

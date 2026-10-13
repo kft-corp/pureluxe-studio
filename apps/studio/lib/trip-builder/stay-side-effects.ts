@@ -3,6 +3,7 @@ import {
   deleteTripLeg,
   findOpenHotelBookingForTrip,
   findTripDocument,
+  findTripById,
   insertBookingAuditLogs,
   listTripLegs,
   updateBooking,
@@ -12,13 +13,31 @@ import {
 import { AppError, tripMessages } from "@pureluxe/shared";
 
 import { syncTripCommercials } from "./sync-trip-commercials";
+import { isQuoteWithClient } from "./trip-lock";
 import { staysOverlap } from "./trip-window";
 
 const QUOTE_DOC_TYPES = ["rates", "options"] as const;
 
-/** A ready quote no longer matches the trip. Leave drafts and missing files alone. */
-export async function markQuoteStale(tripId: string): Promise<void> {
+/**
+ * A ready quote no longer matches the trip. Leave drafts and missing files alone.
+ * `clientChoice`: the client picked a room from the sent quote, so the trip keeps its status.
+ * Any other change means the client's copy is out of date, even when the PDF was already
+ * marked stale by an earlier client choice, so a sent quote goes back to Building.
+ */
+export async function markQuoteStale(
+  tripId: string,
+  options: { clientChoice?: boolean } = {},
+): Promise<void> {
   await Promise.all(QUOTE_DOC_TYPES.map((type) => markOneQuoteStale(tripId, type)));
+  if (!options.clientChoice) await reopenSentQuote(tripId);
+}
+
+/** The client's options quote changed after it was sent. They need the new one. */
+export async function reopenSentQuote(tripId: string): Promise<void> {
+  const trip = await findTripById(tripId);
+  if (trip && isQuoteWithClient(trip.status)) {
+    await updateTrip(tripId, { status: "building" });
+  }
 }
 
 async function markOneQuoteStale(
@@ -34,20 +53,25 @@ async function markOneQuoteStale(
   });
 }
 
-/** Cancel the open Trip Builder hotel booking for one stay, when one exists. */
+/**
+ * Cancel the open Trip Builder hotel booking for one stay, when one exists.
+ * `pendingOnly`: leave a booking the team already confirmed with the hotel.
+ */
 export async function cancelStayBooking(
   tripId: string,
   legId: string,
   actor: { memberId: string },
+  options: { pendingOnly?: boolean; reason?: string } = {},
 ): Promise<void> {
   const existing = await findOpenHotelBookingForTrip(tripId, legId);
   if (!existing) return;
+  if (options.pendingOnly && existing.status !== "pending") return;
   const now = new Date().toISOString();
   await updateBooking({
     id: existing.id,
     status: "cancelled",
     cancelled_at: existing.cancelled_at ?? now,
-    cancellation_reason: "Stay removed in Trip Builder",
+    cancellation_reason: options.reason ?? "Stay removed in Trip Builder",
   });
   await insertBookingAuditLogs([
     {

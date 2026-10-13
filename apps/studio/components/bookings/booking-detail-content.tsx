@@ -1,13 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import {
-  createElement,
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { createElement } from "react";
 import {
   LuArrowLeft,
   LuCheck,
@@ -21,6 +15,7 @@ import {
   PageToolbar,
   SnapshotCard,
   studioButtonClass,
+  ToolbarMenu,
 } from "@/components/ui";
 import { Modal, ModalButton, modalFieldClassName } from "@/components/ui/modal";
 import type { BookingDetail } from "@/lib/bookings";
@@ -74,68 +69,6 @@ const EDIT_MENU_ITEMS: Array<{ section: BookingEditSection; label: string }> = [
 ];
 
 const LIFECYCLE_STATUSES = new Set(["pending", "on_hold", "confirmed"]);
-
-type ToolbarMenuItem = {
-  key: string;
-  label: string;
-  onClick: () => void;
-  danger?: boolean;
-};
-
-function ToolbarMenu({
-  trigger,
-  items,
-  menuClassName = "min-w-[10rem]",
-}: {
-  trigger: (args: { open: boolean; toggle: () => void }) => ReactNode;
-  items: ToolbarMenuItem[];
-  menuClassName?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function onPointerDown(event: PointerEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    }
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, [open]);
-
-  if (items.length === 0) return null;
-
-  return (
-    <div ref={rootRef} className="relative">
-      {trigger({ open, toggle: () => setOpen((value) => !value) })}
-      {open ? (
-        <div
-          className={cn(
-            "absolute right-0 z-20 mt-1 rounded-lg border border-border bg-surface py-1 shadow-lg",
-            menuClassName,
-          )}
-        >
-          {items.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              className={cn(
-                "block w-full px-3 py-2 text-left text-sm hover:bg-surface-hover",
-                item.danger ? "text-red-700" : "text-ink",
-              )}
-              onClick={() => {
-                setOpen(false);
-                item.onClick();
-              }}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
 
 /** Booking detail — hero, snapshot strip, tabbed sections, section edit. */
 export function BookingDetailContent({

@@ -45,6 +45,11 @@ export const apiRoutes = {
     traveller: (bookingId: string, travellerId: string) =>
       `/api/bookings/${bookingId}/travellers/${travellerId}`,
   },
+  trips: {
+    root: "/api/trips",
+    status: (tripId: string) => `/api/trips/${tripId}/status`,
+    quote: (tripId: string) => `/api/trips/${tripId}/quote`,
+  },
   tripBuilder: {
     trips: "/api/trip-builder/trips",
     trip: (tripId: string) => `/api/trip-builder/trips/${tripId}`,

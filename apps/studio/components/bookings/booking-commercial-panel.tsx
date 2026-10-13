@@ -157,7 +157,9 @@ export function BookingCommercialPanel({
             {tripBuilderOwnsStay(booking)
               ? " Confirm the booking before changing this cost in Bookings."
               : ""}
-            {trip.pricing_locked ? " Pricing is locked on the trip." : ""}
+            {trip.pricing_locked
+              ? " The client accepted this price. Change the client price or a pending cost in Trip Builder."
+              : ""}
           </p>
         ) : null}
       </ContentSection>

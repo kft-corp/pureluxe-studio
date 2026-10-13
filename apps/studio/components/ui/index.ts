@@ -33,6 +33,7 @@ export { PhoneInput } from "./phone-input";
 export { TimeOfDayInput, normalizeTimeOfDay } from "./time-of-day-input";
 export { StudioSearchField } from "./studio-search-field";
 export { ConfirmDialog, type ConfirmDialogConfig } from "./confirm-dialog";
+export { ToolbarMenu, type ToolbarMenuItem } from "./toolbar-menu";
 export {
   SearchableCombobox,
   type SearchableComboboxOption,

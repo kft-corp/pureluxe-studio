@@ -1,6 +1,11 @@
 "use client";
 
+import Link from "next/link";
+
 import type { TripDetail } from "@/lib/trip-builder";
+import { isQuoteAccepted, isQuoteWithClient, isTripClosed } from "@/lib/trip-builder/trip-lock";
+import { formatTripStatus } from "@/lib/trips/journey-format";
+import { pageRoutes } from "@/lib/routes";
 import { cn } from "@/lib/utils/cn";
 
 import {
@@ -9,6 +14,7 @@ import {
   legPillLabel,
   resolveNextStep,
   stayGapNotes,
+  staysAwaitingRoom,
   tripStays,
 } from "./stages";
 
@@ -64,7 +70,44 @@ export function TripBuilderStatusStrip({
       {gaps.length > 0 ? (
         <p className="text-[11px] leading-snug break-words text-ink-muted">{gaps.join(" · ")}</p>
       ) : null}
+      <StatusNotice detail={detail} />
     </div>
+  );
+}
+
+/** Tells the advisor what an edit does once the quote has left Trip Builder. */
+function StatusNotice({ detail }: { detail: TripDetail }) {
+  const status = detail.trip.status;
+  const unchosen = staysAwaitingRoom(detail) > 0;
+  const message = isTripClosed(status)
+    ? "This trip is cancelled. It is read-only."
+    : isQuoteAccepted(status)
+      ? unchosen
+        ? "The client accepted this quote. Tap Client chose this on the room they picked for each stay, then check today's price before booking."
+        : "The client accepted this quote. Check availability and today's price before you book. You can update the team cost or the client price on the chosen room here."
+      : isQuoteWithClient(status)
+        ? `${formatTripStatus(status)}. The client has the options quote. Changing the trip makes it out of date and moves the trip back to Building.`
+        : null;
+  if (!message) return null;
+
+  return (
+    <p
+      role="status"
+      className={cn(
+        "flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded-md px-2.5 py-1.5 text-[11px] leading-snug",
+        isTripClosed(status)
+          ? "bg-stone-100 text-stone-700"
+          : "bg-amber-50 text-amber-900",
+      )}
+    >
+      <span className="min-w-0">{message}</span>
+      <Link
+        href={pageRoutes.trip(detail.trip.id)}
+        className="shrink-0 font-semibold underline underline-offset-2"
+      >
+        Open trip page
+      </Link>
+    </p>
   );
 }
 

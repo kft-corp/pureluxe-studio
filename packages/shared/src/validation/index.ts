@@ -162,6 +162,17 @@ export {
   type UpdateRateSourcesSettingBody,
 } from "./rates";
 export {
+  JOURNEY_DIRECTORY_PAGE_SIZE,
+  JOURNEY_SCOPES,
+  JOURNEY_STAGE_FILTERS,
+  listJourneysQuerySchema,
+  journeyStatusActionSchema,
+  type JourneyScope,
+  type JourneyStageFilter,
+  type JourneyStatusAction,
+  type ListJourneysQuery,
+} from "./journeys";
+export {
   TRIP_STATUSES,
   tripStatusSchema,
   tripIdSchema,

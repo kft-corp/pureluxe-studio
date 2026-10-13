@@ -50,7 +50,11 @@ export function TripBuilderPageContent({
               : "Plan the open stay. You can add a stay, change one, or change the trip dates in chat."
           : stage === "rates"
             ? "Tap Add for the client on a room. Ask if you want help choosing."
-            : "The room is chosen. The booking stays pending until you confirm it in Bookings.";
+            : stage === "quote"
+              ? builder.detail?.trip.status === "building"
+                ? "Check the options quote, then send it and update the status on the trip page."
+                : "When the client picks a room, tap Client chose this. Mark Client accepted on the trip page when they agree."
+              : "Tap Client chose this on the client's room, then check today's price before booking.";
 
   return (
     <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col bg-surface">

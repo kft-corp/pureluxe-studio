@@ -6,6 +6,7 @@ import type {
 
 export type TripStatus =
   | "building"
+  | "quote_sent"
   | "waiting_on_client"
   | "booking"
   | "confirmed"

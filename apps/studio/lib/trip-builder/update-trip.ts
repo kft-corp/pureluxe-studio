@@ -10,7 +10,7 @@ import { AppError, tripMessages, type UpdateTripInput } from "@pureluxe/shared";
 
 import { requireActiveClient } from "@/lib/clients/require-active-client";
 
-import { requireAssignedTrip } from "./require-assigned-trip";
+import { requireEditableTrip } from "./require-assigned-trip";
 import { markQuoteStale, removeStayRecord } from "./stay-side-effects";
 import { syncTripHotelBooking } from "./sync-trip-booking";
 import { clearTripDossier } from "./trip-dossier";
@@ -24,7 +24,7 @@ export async function updateTrip(
   input: UpdateTripInput,
   actor: { memberId: string },
 ): Promise<TripDetail> {
-  const existing = await requireAssignedTrip(tripId, actor.memberId);
+  const existing = await requireEditableTrip(tripId, actor.memberId);
 
   let clientName: string | null = null;
   if (input.primary_client_id) {

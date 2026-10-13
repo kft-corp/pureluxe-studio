@@ -5,8 +5,8 @@ export const TRIP_BUILDER_STAGES = [
   "client",
   "stay",
   "rates",
-  "package",
   "quote",
+  "booking",
 ] as const;
 
 export type TripBuilderStage = (typeof TRIP_BUILDER_STAGES)[number];
@@ -15,8 +15,8 @@ export const TRIP_BUILDER_STAGE_LABELS: Record<TripBuilderStage, string> = {
   client: "Client",
   stay: "Stay",
   rates: "Rates",
-  package: "Package",
   quote: "Quote",
+  booking: "Booking",
 };
 
 /** One saved / selected accommodation rate (lean model fact). */
@@ -46,6 +46,10 @@ export type TripFacts = {
   title: string | null;
   status: string;
   pricing_locked: boolean;
+  /** Stage shown in the Studio header. When set, the model uses it as is. */
+  stage?: TripBuilderStage;
+  /** Next step shown in the Studio header. When set, the model uses it as is. */
+  next_step?: string;
   client: { id: string; display_name: string } | null;
   travellers_confirmed?: boolean;
   travellers?: Array<{ display_name: string; role: string; party_role: string }>;

@@ -11,14 +11,22 @@ import {
 type TripBuilderStagesProps = {
   /** Current stage when a trip is open; null on home (no blink). */
   current: TripStage | null;
+  /** Confirmed or completed trip: every stage shows as done. */
+  finished?: boolean;
+  /** Cancelled trip: the track is greyed out. */
+  muted?: boolean;
 };
 
 /**
- * Stage track — Client · Stay · Rates · Package · Quote.
+ * Stage track — Client · Stay · Rates · Quote · Booking.
  * Small screens: compact pills, every name visible. Wider screens: dots and labels.
  */
-export function TripBuilderStages({ current }: TripBuilderStagesProps) {
-  const currentIndex = current ? TRIP_STAGES.indexOf(current) : -1;
+export function TripBuilderStages({ current, finished = false, muted = false }: TripBuilderStagesProps) {
+  const currentIndex = current
+    ? finished
+      ? TRIP_STAGES.length
+      : TRIP_STAGES.indexOf(current)
+    : -1;
   const tripOpen = currentIndex >= 0;
 
   return (
@@ -30,7 +38,7 @@ export function TripBuilderStages({ current }: TripBuilderStagesProps) {
       }
       className={cn(
         "transition-opacity",
-        !tripOpen && "pointer-events-none select-none opacity-40",
+        (!tripOpen || muted) && "pointer-events-none select-none opacity-40",
       )}
     >
       <ol

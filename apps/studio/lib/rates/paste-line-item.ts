@@ -12,7 +12,7 @@ import {
 } from "@pureluxe/rates";
 import { AppError, rateMessages, type PasteLineItemBody } from "@pureluxe/shared";
 
-import { requireAssignedTrip } from "@/lib/trip-builder";
+import { requireEditableTrip } from "@/lib/trip-builder";
 
 /**
  * Paste → parse → normalize → trip_line_items pending_review.
@@ -22,7 +22,7 @@ export async function pasteTripLineItem(
   input: PasteLineItemBody,
   actor: { memberId: string },
 ): Promise<TripLineItem> {
-  await requireAssignedTrip(input.trip_id, actor.memberId);
+  await requireEditableTrip(input.trip_id, actor.memberId);
 
   if (input.leg_id) {
     const leg = await findTripLegById(input.leg_id);

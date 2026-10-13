@@ -60,6 +60,17 @@ export {
   type TripChatMessagePage,
 } from "./trip-chat-messages";
 export {
+  listJourneyPieces,
+  type JourneyBookingRow,
+  type JourneyLineItemRow,
+} from "./journey";
+export {
+  listJourneys,
+  type JourneyCard,
+  type ListJourneysInput,
+  type ListJourneysResult,
+} from "./list-journeys";
+export {
   findTripById,
   insertTrip,
   listAssignedTrips,

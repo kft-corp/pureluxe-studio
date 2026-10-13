@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const TRIP_STATUSES = [
   "building",
+  "quote_sent",
   "waiting_on_client",
   "booking",
   "confirmed",

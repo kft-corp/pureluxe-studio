@@ -243,6 +243,7 @@ export async function updateStayOption(
   lineItemId: string,
   patch: {
     sell_amount?: number | null;
+    cost_internal?: number;
     cancellation_policy?: string | null;
     inclusions?: string[];
   },
@@ -254,7 +255,6 @@ export async function updateStayOption(
       .update(patch)
       .eq("id", lineItemId)
       .eq("category", "accommodation")
-      .eq("selected", false)
       .select("*")
       .maybeSingle(),
   );

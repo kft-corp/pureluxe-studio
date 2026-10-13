@@ -23,10 +23,16 @@ import {
   type OptionsQuoteHotel,
 } from "./options-quote-document";
 import { applyQuoteEdits, listQuoteLines, quoteLineBlocked } from "./options-quote-lines";
+import { refreshTripAfterRateChange, syncClientPriceFromChoices } from "./sync-trip-commercials";
 import { clearTripDossier } from "./trip-dossier";
 import { getTripDetail } from "./get-trip-detail";
-import { requireAssignedTrip } from "./require-assigned-trip";
-import { markQuoteStale } from "./stay-side-effects";
+import {
+  requireAssignedTrip,
+  requireEditableTrip,
+  requireOpenQuoteTrip,
+} from "./require-assigned-trip";
+import { isQuoteAccepted } from "./trip-lock";
+import { markQuoteStale, reopenSentQuote } from "./stay-side-effects";
 import { parseLineEdits, parseQuoteNarrative, type TripDetail } from "./trip-detail";
 
 const OPTIONS_DOC_TYPE = "options" as const;
@@ -167,7 +173,7 @@ export async function updateOptionsQuote(
   },
   actor: { memberId: string },
 ): Promise<TripDetail> {
-  await requireAssignedTrip(tripId, actor.memberId);
+  await requireOpenQuoteTrip(tripId, actor.memberId);
   const detail = await getTripDetail(tripId, actor);
   const existing = await findTripDocument(tripId, OPTIONS_DOC_TYPE);
   const previous = parseQuoteNarrative(existing?.narrative_json);
@@ -218,6 +224,7 @@ export async function updateOptionsQuote(
     },
     status: existing?.status === "ready" ? "stale" : (existing?.status ?? "generating"),
   });
+  if (existing?.status === "ready") await reopenSentQuote(tripId);
   const priceEdits = detail.pricing_locked
     ? []
     : incoming.filter(
@@ -244,26 +251,42 @@ function moneyFromQuoteLine(text: string): number | null | undefined {
   return Number.isFinite(amount) ? amount : undefined;
 }
 
-/** Edit the client price, inclusions, or cancellation on a saved option. */
+/**
+ * Edit the client price, team cost, inclusions, or cancellation on a saved option.
+ * After the client accepts, only the chosen room's prices can change. The accepted PDF
+ * stays as sent and the trip stays in Booking.
+ */
 export async function updateSavedStayOption(
   lineItemId: string,
   input: {
     sell_amount?: number | null;
+    cost_internal?: number;
     cancellation_policy?: string | null;
     inclusions?: string[];
   },
   actor: { memberId: string },
 ): Promise<TripDetail> {
   const row = await findTripLineItemById(lineItemId);
-  if (!row || row.category !== "accommodation" || isStayShellLineItem(row) || row.selected) {
+  if (!row || row.category !== "accommodation" || isStayShellLineItem(row)) {
     throw new AppError({
       userMessage: tripMessages.error.notFound,
       code: "trips.option_not_found",
       status: 404,
     });
   }
-  const trip = await requireAssignedTrip(row.trip_id, actor.memberId);
-  if (trip.pricing_locked_at) {
+  const trip = await requireEditableTrip(row.trip_id, actor.memberId);
+  const accepted = isQuoteAccepted(trip.status);
+  if (accepted) {
+    const wordingChange =
+      input.cancellation_policy !== undefined || input.inclusions !== undefined;
+    if (!row.selected || wordingChange) {
+      throw new AppError({
+        userMessage: tripMessages.error.acceptedRoomOnly,
+        code: "trips.accepted_room_only",
+        status: 409,
+      });
+    }
+  } else if (trip.pricing_locked_at) {
     throw new AppError({
       userMessage: tripMessages.error.pricingLocked,
       code: "trips.pricing_locked",
@@ -272,6 +295,7 @@ export async function updateSavedStayOption(
   }
   const updated = await updateStayOption(lineItemId, {
     ...(input.sell_amount !== undefined ? { sell_amount: input.sell_amount } : {}),
+    ...(input.cost_internal !== undefined ? { cost_internal: input.cost_internal } : {}),
     ...(input.cancellation_policy !== undefined
       ? { cancellation_policy: input.cancellation_policy }
       : {}),
@@ -284,8 +308,14 @@ export async function updateSavedStayOption(
       status: 404,
     });
   }
-  if (input.sell_amount !== undefined) await clearPriceLineEdit(row.trip_id, lineItemId);
-  await markQuoteStale(row.trip_id);
+  if (!accepted && input.sell_amount !== undefined) {
+    await clearPriceLineEdit(row.trip_id, lineItemId);
+  }
+  if (row.selected && (input.sell_amount !== undefined || input.cost_internal !== undefined)) {
+    await syncClientPriceFromChoices(row.trip_id);
+    await refreshTripAfterRateChange(row.trip_id, actor);
+  }
+  if (!accepted) await markQuoteStale(row.trip_id);
   clearTripDossier(row.trip_id);
   return getTripDetail(row.trip_id, actor);
 }
@@ -309,6 +339,7 @@ async function clearPriceLineEdit(tripId: string, lineItemId: string) {
     },
     status: existing?.status === "ready" ? "stale" : existing?.status,
   });
+  if (existing?.status === "ready") await reopenSentQuote(tripId);
 }
 
 /** Build the options quote PDF from the rooms saved for the client. */
@@ -317,7 +348,7 @@ export async function generateOptionsQuotePdf(
   input: { force?: boolean },
   actor: { memberId: string },
 ): Promise<TripDetail> {
-  await requireAssignedTrip(tripId, actor.memberId);
+  await requireOpenQuoteTrip(tripId, actor.memberId);
   let detail = await getTripDetail(tripId, actor);
   if (!optionsReady(detail)) {
     throw new AppError({
@@ -361,6 +392,7 @@ export async function generateOptionsQuotePdf(
       source_fingerprint: fingerprint,
       generated_by_id: actor.memberId,
     });
+    await reopenSentQuote(tripId);
     detail = await getTripDetail(tripId, actor);
     clearTripDossier(tripId);
     return detail;

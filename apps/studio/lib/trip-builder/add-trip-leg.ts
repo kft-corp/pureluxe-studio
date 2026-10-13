@@ -1,7 +1,7 @@
 import { findTripById, insertTripLeg, listTripLegs } from "@pureluxe/db";
 import { AppError, tripMessages, type AddTripLegInput } from "@pureluxe/shared";
 
-import { requireAssignedTrip } from "./require-assigned-trip";
+import { requireEditableTrip } from "./require-assigned-trip";
 import { assertNoUnconfirmedOverlap, markQuoteStale } from "./stay-side-effects";
 import { clearTripDossier } from "./trip-dossier";
 import { buildTripDetail, type TripDetail } from "./trip-detail";
@@ -16,7 +16,7 @@ export async function addTripLeg(
   input: AddTripLegInput,
   actor: { memberId: string },
 ): Promise<{ detail: TripDetail; leg_id: string }> {
-  const trip = await requireAssignedTrip(tripId, actor.memberId);
+  const trip = await requireEditableTrip(tripId, actor.memberId);
 
   if (trip.pricing_locked_at) {
     throw new AppError({

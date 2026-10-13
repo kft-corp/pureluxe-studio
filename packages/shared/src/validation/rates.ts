@@ -194,11 +194,13 @@ export type AddRateOptionInput = z.output<typeof addRateOptionBodySchema>;
 export const updateStayOptionSchema = z
   .object({
     sell_amount: z.number().finite().nonnegative().nullable().optional(),
+    /** Team cost for the room, for example today's hotel price after the client accepted. */
+    cost_internal: z.number().finite().positive().optional(),
     cancellation_policy: z.string().trim().max(2000).nullable().optional(),
     inclusions: z.array(z.string().trim().min(1).max(200)).max(30).optional(),
   })
   .refine((body) => Object.values(body).some((value) => value !== undefined), {
-    message: "Provide a price, inclusions, or cancellation to update.",
+    message: "Provide a price, cost, inclusions, or cancellation to update.",
   });
 
 export type UpdateStayOptionBody = z.input<typeof updateStayOptionSchema>;

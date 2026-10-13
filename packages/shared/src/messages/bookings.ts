@@ -38,7 +38,7 @@ export const bookingMessages = {
     tripBuilderOwned:
       "This stay is still planned in Trip Builder. Confirm the booking before changing the hotel, dates, guests, cost, or cancellation policy.",
     pricingLocked:
-      "Pricing is locked on the linked trip. Cost and currency stay as they are.",
+      "The client accepted this price, so the client price and currency stay as they are. Change the client price in Trip Builder.",
     tripLinkOwned:
       "This booking was created from Trip Builder. Keep it linked until the booking is confirmed.",
   },

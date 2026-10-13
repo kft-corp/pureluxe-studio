@@ -16,6 +16,7 @@ export const pageRoutes = {
   clientNew: "/clients/new",
   client: (clientId: string) => `/clients/${clientId}`,
   trips: "/trips",
+  trip: (tripId: string) => `/trips/${tripId}`,
   trainer: "/trainer",
   tasks: "/tasks",
   commissions: "/commissions",

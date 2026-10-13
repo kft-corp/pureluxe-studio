@@ -7,8 +7,12 @@ import {
 } from "@pureluxe/db";
 import { AppError, tripMessages, type UpdateTripLegInput } from "@pureluxe/shared";
 
-import { requireAssignedTrip } from "./require-assigned-trip";
-import { assertNoUnconfirmedOverlap, markQuoteStale } from "./stay-side-effects";
+import { requireEditableTrip } from "./require-assigned-trip";
+import {
+  assertNoUnconfirmedOverlap,
+  cancelStayBooking,
+  markQuoteStale,
+} from "./stay-side-effects";
 import { syncTripCommercials } from "./sync-trip-commercials";
 import { syncTripHotelBooking } from "./sync-trip-booking";
 import { clearTripDossier } from "./trip-dossier";
@@ -22,7 +26,7 @@ export async function reviseTripLeg(
   input: UpdateTripLegInput,
   actor: { memberId: string },
 ): Promise<TripDetail> {
-  const trip = await requireAssignedTrip(tripId, actor.memberId);
+  const trip = await requireEditableTrip(tripId, actor.memberId);
 
   if (trip.pricing_locked_at) {
     throw new AppError({
@@ -57,6 +61,10 @@ export async function reviseTripLeg(
     existing.destination.trim().toLowerCase() !== input.city.trim().toLowerCase();
   if (datesChanged || cityChanged) {
     await clearSelectedAccommodationForLeg(trip.id, existing.id);
+    await cancelStayBooking(trip.id, existing.id, actor, {
+      pendingOnly: true,
+      reason: "Stay changed in Trip Builder",
+    });
   }
 
   await updateTripLeg(existing.id, {

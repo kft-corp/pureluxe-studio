@@ -16,7 +16,7 @@ import { AppError, tripMessages } from "@pureluxe/shared";
 
 import { requireActiveClient } from "@/lib/clients/require-active-client";
 
-import { requireAssignedTrip } from "./require-assigned-trip";
+import { requireEditableTrip } from "./require-assigned-trip";
 import { markQuoteStale } from "./stay-side-effects";
 import { syncTripCommercials } from "./sync-trip-commercials";
 import { syncTripHotelBooking } from "./sync-trip-booking";
@@ -67,7 +67,7 @@ async function finish(
   tripId: string,
   actor: { memberId: string },
 ): Promise<TripDetail> {
-  const trip = await requireAssignedTrip(tripId, actor.memberId);
+  const trip = await requireEditableTrip(tripId, actor.memberId);
   const detail = await buildTripDetail(trip);
   await syncTripHotelBooking(detail, actor);
   clearTripDossier(tripId);
@@ -84,7 +84,7 @@ export async function changeTripLead(
   clientId: string,
   actor: { memberId: string },
 ): Promise<TripDetail> {
-  const trip = await requireAssignedTrip(tripId, actor.memberId);
+  const trip = await requireEditableTrip(tripId, actor.memberId);
   if (trip.pricing_locked_at) {
     throw new AppError({
       userMessage: tripMessages.error.pricingLocked,
@@ -119,7 +119,7 @@ export async function addTripTraveller(
   input: { client_id: string; party_role: TripPartyRole },
   actor: { memberId: string },
 ): Promise<TripDetail> {
-  const trip = await requireAssignedTrip(tripId, actor.memberId);
+  const trip = await requireEditableTrip(tripId, actor.memberId);
   if (trip.pricing_locked_at) {
     throw new AppError({
       userMessage: tripMessages.error.pricingLocked,
@@ -166,7 +166,7 @@ export async function removeTripTraveller(
   clientId: string,
   actor: { memberId: string },
 ): Promise<TripDetail> {
-  const trip = await requireAssignedTrip(tripId, actor.memberId);
+  const trip = await requireEditableTrip(tripId, actor.memberId);
   if (trip.pricing_locked_at) {
     throw new AppError({
       userMessage: tripMessages.error.pricingLocked,
@@ -204,7 +204,7 @@ export async function removeTripTravellerByName(
   name: string,
   actor: { memberId: string },
 ): Promise<TripDetail> {
-  const trip = await requireAssignedTrip(tripId, actor.memberId);
+  const trip = await requireEditableTrip(tripId, actor.memberId);
   const rows = await listTripTravellers(trip.id);
   const match = rows.find((row) => sameName(row.display_name, name));
   if (!match) {
@@ -222,7 +222,7 @@ export async function confirmTripTravellers(
   tripId: string,
   actor: { memberId: string },
 ): Promise<TripDetail> {
-  const trip = await requireAssignedTrip(tripId, actor.memberId);
+  const trip = await requireEditableTrip(tripId, actor.memberId);
   if (!trip.primary_client_id) {
     throw new AppError({
       userMessage: tripMessages.error.clientRequired,

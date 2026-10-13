@@ -70,6 +70,39 @@ export async function syncTripCommercials(tripId: string): Promise<void> {
   });
 }
 
+/**
+ * The client price is what the options quote offered for the chosen rooms.
+ * Written only when every stay has a chosen room with a client price in one currency,
+ * so a half-chosen trip never shows a partial total.
+ */
+export async function syncClientPriceFromChoices(tripId: string): Promise<void> {
+  const trip = await findTripById(tripId);
+  if (!trip) return;
+  const detail = await buildTripDetail(trip);
+  if (detail.stays.length === 0) return;
+
+  const chosen = detail.stays.map(
+    (stay) =>
+      detail.rates.candidates.find((rate) => rate.selected && rate.leg_id === stay.leg_id) ??
+      null,
+  );
+  const priced: { amount: number; currency: string }[] = [];
+  for (const row of chosen) {
+    const amount = asNumber(row?.sell_amount);
+    if (!row || amount == null) return;
+    priced.push({ amount, currency: row.currency?.trim().toUpperCase() ?? "" });
+  }
+  const currencies = new Set(priced.map((row) => row.currency));
+  if (currencies.size !== 1) return;
+
+  const total = money(priced.reduce((sum, row) => sum + row.amount, 0));
+  const currency = priced[0]?.currency || null;
+  const current = asNumber(trip.sell_total);
+  const currentCurrency = trip.sell_currency?.trim().toUpperCase() || null;
+  if (current === total && currentCurrency === currency) return;
+  await updateTrip(tripId, { sell_total: total, sell_currency: currency });
+}
+
 /** Recompute trip totals, then refresh hotel bookings when a client is on the trip. */
 export async function refreshTripAfterRateChange(
   tripId: string,

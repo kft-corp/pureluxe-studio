@@ -5,7 +5,11 @@
 export { answerAtlasStay, type AtlasHotelChoice, type AtlasStayAnswer } from "./atlas-stay";
 export { createTrip } from "./create-trip";
 export { listTripBuilderTrips, type TripListItem, type TripListResult } from "./list-trips";
-export { requireAssignedTrip } from "./require-assigned-trip";
+export {
+  requireAssignedTrip,
+  requireEditableTrip,
+  requireOpenQuoteTrip,
+} from "./require-assigned-trip";
 export { addTripLeg } from "./add-trip-leg";
 export { removeTripLeg } from "./remove-trip-leg";
 export { reviseTripLeg } from "./revise-trip-leg";

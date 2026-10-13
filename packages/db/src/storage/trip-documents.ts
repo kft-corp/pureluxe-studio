@@ -31,15 +31,20 @@ export async function uploadTripDocumentPdf(
   }
 }
 
-/** Short-lived signed URL to view/download a generated PDF. */
+/** Short-lived signed URL to view or download a generated PDF. */
 export async function createTripDocumentDownloadUrl(
   path: string,
   expiresInSeconds = 120,
+  downloadName?: string,
 ): Promise<string> {
   const supabase = getServiceClient();
   const { data, error } = await supabase.storage
     .from(TRIP_DOCUMENTS_BUCKET)
-    .createSignedUrl(path, expiresInSeconds);
+    .createSignedUrl(
+      path,
+      expiresInSeconds,
+      downloadName ? { download: downloadName } : undefined,
+    );
 
   if (error || !data?.signedUrl) {
     throw dbQueryError(

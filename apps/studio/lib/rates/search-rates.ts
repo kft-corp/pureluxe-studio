@@ -3,7 +3,7 @@ import { searchRatesForLeg, type SearchRatesResult } from "@pureluxe/rates";
 import type { SearchRatesBody } from "@pureluxe/shared";
 
 import { loadHotelStayFacts } from "@/lib/trip-builder/hotel-contract-facts";
-import { loadTripStay, requireAssignedTrip } from "@/lib/trip-builder";
+import { loadTripStay, requireEditableTrip } from "@/lib/trip-builder";
 
 import { matchPropertyByName } from "./match-property";
 import {
@@ -39,7 +39,7 @@ export async function searchTripRates(
   actor: { memberId: string },
 ): Promise<TripRateSearchResult> {
   if (input.trip_id) {
-    await requireAssignedTrip(input.trip_id, actor.memberId);
+    await requireEditableTrip(input.trip_id, actor.memberId);
   }
 
   let propertyId = input.property_id;

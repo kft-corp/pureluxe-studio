@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils/cn";
 
 import { TripBuilderStages } from "./trip-builder-stages";
 import { TripBuilderTripsMenu } from "./trip-builder-trips-menu";
-import { resolveTripStage } from "./stages";
+import { resolveTripStage, tripStagesFinished } from "./stages";
 
 type TripBuilderHeaderProps = {
   trips: TripListItem[];
@@ -87,7 +87,11 @@ export function TripBuilderHeader({
     <header className="w-full shrink-0 border-b border-border bg-surface-raised">
       <div className="flex w-full flex-col gap-1 px-2 py-1.5 lg:flex-row lg:items-center lg:gap-3 lg:px-4 lg:py-2.5">
         <div className="order-2 min-w-0 lg:order-1 lg:flex-1">
-          <TripBuilderStages current={stage} />
+          <TripBuilderStages
+            current={stage}
+            finished={tripStagesFinished(detail)}
+            muted={detail?.trip.status === "cancelled"}
+          />
         </div>
 
         <div className="order-1 flex items-center justify-end gap-0.5 lg:order-2 lg:shrink-0">

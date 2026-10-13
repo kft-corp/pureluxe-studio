@@ -391,7 +391,18 @@ function stageCueFor(
       ? `Stay set for ${hotel}. Ask me to search rates, or paste a supplier quote. I'll confirm before I search. Switch stays from the row under the header. A date or hotel change clears the selected rate.`
       : "Ask me to search rates for the open stay, or paste a supplier quote. I'll confirm before I search.";
   }
-  return "The room is chosen. A pending booking is in Bookings. The client PDF is the options quote. Open Bookings and set the booking to confirmed only after you check the stay.";
+  const status = detail.trip.status;
+  if (status === "cancelled") return "This trip is cancelled. It is read-only.";
+  if (status === "confirmed" || status === "completed") {
+    return "This trip is confirmed. Bookings hold the stays. Open the trip page for the full journey.";
+  }
+  if (stage === "booking") {
+    return "The client accepted the quote. Tap **Client chose this** on the room they picked for each stay. Then tap **Check availability** for today's price. If the hotel price changed, tap **Use today's cost**, and **Set client price** if the client price needs to change. Book with the hotel and confirm the booking in **Bookings**.";
+  }
+  if (status === "quote_sent" || status === "waiting_on_client") {
+    return "The options quote is with the client. When they pick a room, tap **Client chose this**. When they agree, mark **Client accepted** on the trip page.";
+  }
+  return "Every stay has a room with a client price. Say **show the options quote** to check the PDF. When you send it, mark **Sent to client** on the trip page.";
 }
 
 function formatMsgTime(iso: string) {

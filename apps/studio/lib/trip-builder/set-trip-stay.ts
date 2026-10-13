@@ -21,8 +21,12 @@ import {
   type PropertyNameMatch,
 } from "@/lib/rates/match-property";
 
-import { requireAssignedTrip } from "./require-assigned-trip";
-import { assertNoUnconfirmedOverlap, markQuoteStale } from "./stay-side-effects";
+import { requireEditableTrip } from "./require-assigned-trip";
+import {
+  assertNoUnconfirmedOverlap,
+  cancelStayBooking,
+  markQuoteStale,
+} from "./stay-side-effects";
 import { syncTripCommercials } from "./sync-trip-commercials";
 import { clearTripDossier } from "./trip-dossier";
 import { buildTripDetail, type TripDetail } from "./trip-detail";
@@ -45,7 +49,7 @@ export async function setTripStay(
   input: SetTripStayInput,
   actor: { memberId: string },
 ): Promise<{ detail: TripDetail; property_match: StayPropertyMatch }> {
-  const trip = await requireAssignedTrip(tripId, actor.memberId);
+  const trip = await requireEditableTrip(tripId, actor.memberId);
 
   if (trip.pricing_locked_at) {
     throw new AppError({
@@ -139,6 +143,12 @@ export async function setTripStay(
       Boolean(previousHotel.trim()) && !namesLooselyMatch(previousHotel, hotelName);
     if (datesChanged || cityChanged || hotelChanged) {
       await clearSelectedAccommodationForLeg(trip.id, existing.id);
+      if (selected) {
+        await cancelStayBooking(trip.id, existing.id, actor, {
+          pendingOnly: true,
+          reason: "Stay changed in Trip Builder",
+        });
+      }
     }
     leg = await updateTripLeg(existing.id, {
       destination: city,

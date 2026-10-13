@@ -1,5 +1,6 @@
 import type { TripFacts } from "@pureluxe/ai";
 
+import { resolveNextStep, resolveTripStage } from "@/components/trip-builder/stages";
 import type { TripDetail, TripRateSnapshot } from "@/lib/trip-builder";
 
 function toRateFact(rate: TripRateSnapshot) {
@@ -51,6 +52,8 @@ export function toTripFacts(detail: TripDetail): TripFacts {
     title: detail.trip.title,
     status: detail.trip.status,
     pricing_locked: detail.pricing_locked,
+    stage: resolveTripStage(detail),
+    next_step: resolveNextStep(detail),
     client: detail.client
       ? { id: detail.client.id, display_name: detail.client.display_name }
       : null,

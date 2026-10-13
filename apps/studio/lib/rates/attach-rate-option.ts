@@ -13,7 +13,7 @@ import {
   type AddRateOptionInput,
 } from "@pureluxe/shared";
 
-import { requireAssignedTrip } from "@/lib/trip-builder";
+import { requireEditableTrip } from "@/lib/trip-builder";
 import { markQuoteStale } from "@/lib/trip-builder/stay-side-effects";
 
 import { selectAccommodationRate } from "./select-accommodation-rate";
@@ -26,7 +26,7 @@ export async function attachRateOption(
   input: AddRateOptionInput,
   actor: { memberId: string },
 ): Promise<TripLineItem> {
-  const trip = await requireAssignedTrip(input.trip_id, actor.memberId);
+  const trip = await requireEditableTrip(input.trip_id, actor.memberId);
   if (trip.pricing_locked_at) {
     throw new AppError({
       userMessage: tripMessages.error.pricingLocked,
