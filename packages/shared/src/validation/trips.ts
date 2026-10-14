@@ -100,6 +100,18 @@ export const updateTripSchema = z
 export type UpdateTripBody = z.input<typeof updateTripSchema>;
 export type UpdateTripInput = z.output<typeof updateTripSchema>;
 
+/** POST /api/trip-builder/trips/[id]/shift — move the trip and every stay by the same days. */
+export const shiftTripDatesSchema = z.object({
+  days: z
+    .number()
+    .int()
+    .min(-365)
+    .max(365)
+    .refine((value) => value !== 0, { message: "Shift by at least one day." }),
+});
+
+export type ShiftTripDatesBody = z.input<typeof shiftTripDatesSchema>;
+
 /**
  * POST /api/trip-builder/trips/[id]/stay
  * Hotel + city + dates on one stay.

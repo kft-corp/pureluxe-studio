@@ -99,7 +99,7 @@ export function buildTripContext(trip: TripFacts): string {
     "",
     "Client:",
     trip.client
-      ? `- Lead: ${trip.client.display_name}`
+      ? `- Lead: ${trip.client.display_name} (client_id ${trip.client.id})`
       : "- Lead: missing",
     `Travellers confirmed: ${trip.travellers_confirmed ? "yes" : "no"}`,
     ...(trip.travellers ?? []).map(
@@ -177,6 +177,26 @@ export function buildTripContext(trip: TripFacts): string {
     `- Document status: ${trip.quote.document_status ?? "none"}`,
     `- PDF file ready: ${trip.quote.has_file ? "yes" : "no"}`,
   );
+
+  if (trip.price) {
+    lines.push(
+      "",
+      "Price (advisor only, already calculated):",
+      `- Hotel net: ${trip.price.hotel_net ?? "missing"}`,
+      `- Tax: ${trip.price.tax ?? "missing"}`,
+      `- Margin: ${trip.price.margin ?? "missing"}${trip.price.margin_percent ? ` (${trip.price.margin_percent} of the client price)` : ""}`,
+      `- Client price: ${trip.price.client_price ?? "missing"}`,
+      ...(trip.price.note ? [`- Note: ${trip.price.note}`] : []),
+    );
+  }
+
+  if (trip.readiness) {
+    lines.push(
+      "",
+      "Before booking (already checked):",
+      ...(trip.readiness.length > 0 ? trip.readiness.map((item) => `- ${item}`) : ["- nothing flagged"]),
+    );
+  }
 
   return lines.join("\n");
 }

@@ -47,6 +47,7 @@ export {
   findClientTierBySlug,
   findDefaultClientTier,
   findSimilarClients,
+  getClientActivityStats,
   getClientProfileSignals,
   refreshClientProfileCompletenessRpc,
   clearFamilyPrimary,

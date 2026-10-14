@@ -2,10 +2,13 @@ import { z } from "zod";
 
 import { aiError } from "../errors";
 
-import { executeClientTool, type ClientToolHandlers } from "./clients";
+import { executeClientTool } from "./clients";
+import type { DeskToolHandlers } from "./handlers";
+import { executeHistoryTool } from "./history";
+import { executeHotelTool } from "./hotels";
 import { executeTripTool, type TripToolHandlers } from "./trip";
 
-type ToolHandlers = ClientToolHandlers | TripToolHandlers;
+type ToolHandlers = DeskToolHandlers | TripToolHandlers;
 
 function userMessageFromError(cause: unknown): string | null {
   if (
@@ -34,13 +37,21 @@ export async function executeTool(
       case "get_client":
         return executeClientTool(name, input, handlers);
 
+      case "search_trips":
+      case "search_bookings":
+      case "get_booking":
+        return executeHistoryTool(name, input, handlers);
+
+      case "get_hotel":
+        return executeHotelTool(input, handlers);
+
       case "get_trip":
         return executeTripTool(input, handlers);
 
       default:
         return {
           error:
-            "Unknown tool. Available: get_trip (on-trip only), search_clients, get_client.",
+            "Unknown tool. Available: get_trip (on-trip only), search_clients, get_client, search_trips, search_bookings, get_booking, get_hotel.",
         };
     }
   } catch (cause) {

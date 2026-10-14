@@ -7,17 +7,17 @@ import {
   type ClaudeChatMessage,
 } from "../providers";
 
-import type { ClientToolHandlers } from "./clients";
 import { executeTool } from "./execute";
+import type { DeskToolHandlers } from "./handlers";
 import type { AgentStreamChunk } from "./stream-chunk";
 import type { TripToolHandlers } from "./trip";
 
-const DEFAULT_MAX_ROUNDS = 3;
+const DEFAULT_MAX_ROUNDS = 4;
 
 export type RunAgentLoopInput = {
   system: string;
   messages: ClaudeChatMessage[];
-  handlers: ClientToolHandlers | TripToolHandlers;
+  handlers: DeskToolHandlers | TripToolHandlers;
   toolSchemas: Anthropic.Tool[];
   maxRounds?: number;
   apiKey?: string;
@@ -41,7 +41,7 @@ function wantsTools(response: Anthropic.Message): boolean {
 async function runToolCalls(
   messages: Anthropic.MessageParam[],
   response: Anthropic.Message,
-  handlers: ClientToolHandlers | TripToolHandlers,
+  handlers: DeskToolHandlers | TripToolHandlers,
 ): Promise<void> {
   const toolUses = response.content.filter(
     (block): block is Anthropic.ToolUseBlock => block.type === "tool_use",

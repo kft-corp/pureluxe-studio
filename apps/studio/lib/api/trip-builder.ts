@@ -24,6 +24,7 @@ import {
   type SearchRatesBody,
   type AddTripLegBody,
   type SetTripStayBody,
+  type ShiftTripDatesBody,
   type UpdateTripLegBody,
   type TripBuilderChatSendBody,
   type TripBuilderPreTripChatSendBody,
@@ -78,6 +79,13 @@ export function getTripBuilderTrip(tripId: string) {
   });
 }
 
+/** Things to sort out before booking, for the summary panel. */
+export function getTripBuilderReadiness(tripId: string) {
+  return fetchApi<{ readiness: string[] }>(apiRoutes.tripBuilder.readiness(tripId), {
+    cache: "no-store",
+  });
+}
+
 /** Create a trip assigned to the current member. */
 export function createTripBuilderTrip(input: CreateTripBody) {
   return fetchApi<TripDetail>(apiRoutes.tripBuilder.trips, {
@@ -116,6 +124,16 @@ export function removeTripBuilderTraveller(tripId: string, clientId: string) {
 export function updateTripBuilderTrip(tripId: string, input: UpdateTripBody) {
   return fetchApi<TripDetail>(apiRoutes.tripBuilder.trip(tripId), {
     method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+    cache: "no-store",
+  });
+}
+
+/** Move the trip and every stay by the same number of days. */
+export function shiftTripBuilderDates(tripId: string, input: ShiftTripDatesBody) {
+  return fetchApi<TripDetail>(apiRoutes.tripBuilder.shift(tripId), {
+    method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
     cache: "no-store",

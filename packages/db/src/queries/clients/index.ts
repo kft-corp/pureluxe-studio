@@ -50,6 +50,7 @@ export {
   findClientHealth,
   findClientPreferenceById,
   findClientRelationshipById,
+  getClientActivityStats,
   getClientProfileSignals,
   refreshClientProfileCompletenessRpc,
   insertClientDocument,

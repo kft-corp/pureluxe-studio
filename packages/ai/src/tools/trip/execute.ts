@@ -1,9 +1,9 @@
-import type { ClientToolHandlers } from "../clients";
+import type { DeskToolHandlers } from "../handlers";
 
 import type { TripToolHandlers } from "./types";
 
 function canGetTrip(
-  handlers: ClientToolHandlers | TripToolHandlers,
+  handlers: DeskToolHandlers | TripToolHandlers,
 ): handlers is TripToolHandlers {
   return "getTrip" in handlers && typeof handlers.getTrip === "function";
 }
@@ -14,7 +14,7 @@ function canGetTrip(
  */
 export async function executeTripTool(
   input: unknown,
-  handlers: ClientToolHandlers | TripToolHandlers,
+  handlers: DeskToolHandlers | TripToolHandlers,
 ): Promise<unknown> {
   void input;
   if (!canGetTrip(handlers)) {

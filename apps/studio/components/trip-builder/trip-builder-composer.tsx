@@ -21,6 +21,9 @@ type TripBuilderComposerProps = {
   onSend: (text: string) => void;
 };
 
+/** Chips shown before the rest fold behind "More". */
+const VISIBLE_CHIPS = 4;
+
 /** Chat composer — prior input control (textarea + arrow send). */
 export function TripBuilderComposer({
   placeholder,
@@ -31,7 +34,22 @@ export function TripBuilderComposer({
   onSend,
 }: TripBuilderComposerProps) {
   const [value, setValue] = useState("");
+  const [runningChipId, setRunningChipId] = useState<string | null>(null);
+  const [expandedFor, setExpandedFor] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const chipSet = chips.map((chip) => chip.id).join("|");
+  const folded = chips.length > VISIBLE_CHIPS + 1 && expandedFor !== chipSet;
+  const visibleChips: TripBuilderChip[] = folded
+    ? [
+        ...chips.slice(0, VISIBLE_CHIPS),
+        {
+          id: "more-chips",
+          label: `More (${chips.length - VISIBLE_CHIPS})`,
+          onClick: () => setExpandedFor(chipSet),
+        },
+      ]
+    : chips;
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -43,6 +61,7 @@ export function TripBuilderComposer({
   function submit() {
     const text = value.trim();
     if (!text || disabled) return;
+    setRunningChipId(null);
     onSend(text);
     setValue("");
   }
@@ -60,9 +79,19 @@ export function TripBuilderComposer({
             "lg:[-ms-overflow-style:none] lg:[scrollbar-width:none] lg:[&::-webkit-scrollbar]:hidden",
           )}
         >
-          {chips.map((chip) => (
+          {visibleChips.map((chip) => (
             <div key={chip.id} className="max-w-full lg:shrink-0">
-              <TripBuilderActionChip chip={chip} disabled={disabled} />
+              <TripBuilderActionChip
+                chip={{
+                  ...chip,
+                  onClick: () => {
+                    setRunningChipId(chip.id);
+                    chip.onClick();
+                  },
+                }}
+                disabled={disabled}
+                running={disabled && runningChipId === chip.id}
+              />
             </div>
           ))}
         </div>

@@ -17,6 +17,8 @@ export type HotelStayFacts = {
   property: Property | null;
   /** Contract on the selected rate, or the only contract that covers the stay. */
   contract: PropertyContract | null;
+  /** Active contracts on file for the hotel, any dates. */
+  contractCount: number;
   checkInTime: string | null;
   checkOutTime: string | null;
   /** Advisor chat. Omits bank account numbers. */
@@ -384,6 +386,7 @@ export async function loadHotelStayFacts(input: {
   return {
     property,
     contract: selected ?? null,
+    contractCount: allContracts.length,
     checkInTime,
     checkOutTime,
     chatBrief: [intro, ...chatBlocks].filter(Boolean).join("\n\n") || null,

@@ -4,11 +4,15 @@ export type QuoteBreakup = {
   hotelNet: string | null;
   tax: string | null;
   margin: string | null;
+  /** Margin as a share of the client price, for example "18.5%". */
+  marginPercent: string | null;
   clientPrice: string | null;
   /** Set when at least one stay has no selected net, for example "2 of 3 stays priced". */
   pricedLabel: string | null;
   /** How margin was calculated, or why it cannot be shown. */
   note: string | null;
+  /** Hotel net plus tax as a number, when every figure is in one currency. */
+  teamCostAmount: number | null;
 };
 
 export function stayNightCount(
@@ -102,26 +106,25 @@ export function buildQuoteBreakup(input: {
   const sellCurrency = currencyCode(input.sellCurrency);
   const clientPrice =
     input.sellTotal == null ? null : money(input.sellTotal, sellCurrency);
+  const empty = {
+    hotelNet: null,
+    tax: null,
+    margin: null,
+    marginPercent: null,
+    clientPrice,
+    pricedLabel,
+    note: null,
+    teamCostAmount: null,
+  };
 
   if (priced.length === 0) {
-    return {
-      hotelNet: null,
-      tax: null,
-      margin: null,
-      clientPrice,
-      pricedLabel,
-      note: null,
-    };
+    return empty;
   }
 
   const currencies = new Set(priced.map((row) => row.currency));
   if (currencies.size > 1) {
     return {
-      hotelNet: null,
-      tax: null,
-      margin: null,
-      clientPrice,
-      pricedLabel,
+      ...empty,
       note: "Selected stays use more than one currency, so the totals are not added.",
     };
   }
@@ -143,39 +146,34 @@ export function buildQuoteBreakup(input: {
       : taxPercents.length === 1
         ? `${money(taxAmount, netCurrency)} (${percentLabel(taxPercents[0] ?? 0)})`
         : money(taxAmount, netCurrency);
+  const teamCostAmount = hotelNetAmount + (taxAmount ?? 0);
 
   if (input.sellTotal == null) {
-    return {
-      hotelNet,
-      tax,
-      margin: null,
-      clientPrice,
-      pricedLabel,
-      note: null,
-    };
+    return { ...empty, hotelNet, tax, teamCostAmount };
   }
 
   if (sellCurrency && netCurrency && sellCurrency !== netCurrency) {
     return {
+      ...empty,
       hotelNet,
       tax,
-      margin: null,
-      clientPrice,
-      pricedLabel,
       note: "Client price and hotel net use different currencies, so margin is not calculated.",
     };
   }
 
-  const marginAmount = input.sellTotal - hotelNetAmount - (taxAmount ?? 0);
+  const marginAmount = input.sellTotal - teamCostAmount;
   const marginCurrency = sellCurrency || netCurrency;
   return {
     hotelNet,
     tax,
     margin: money(marginAmount, marginCurrency),
+    marginPercent:
+      input.sellTotal > 0 ? percentLabel((marginAmount / input.sellTotal) * 100) : null,
     clientPrice,
     pricedLabel,
     note: taxReady
       ? "Margin is the client price minus the hotel net and tax."
       : "Margin is the client price minus the hotel net. Tax is not set.",
+    teamCostAmount,
   };
 }

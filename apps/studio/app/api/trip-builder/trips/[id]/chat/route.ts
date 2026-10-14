@@ -64,6 +64,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     const prepared = await prepareChatTurn(tripId, body, {
       memberId: session.memberId,
+      permissions: session.permissions,
     });
 
     return new Response(createChatStream(prepared), {

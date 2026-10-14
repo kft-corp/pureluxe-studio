@@ -10,15 +10,16 @@ export const dynamic = "force-dynamic";
 const NO_STORE = "no-store, no-cache, must-revalidate";
 
 /**
- * Pre-trip home chat — real agent with search_clients / get_client only.
+ * Pre-trip home chat — real agent with client, history, and hotel tools.
  * Ephemeral (no trip row, no message persistence).
  */
 export async function POST(request: Request) {
   try {
-    await requireApiPermission("trip_builder.write");
+    const session = await requireApiPermission("trip_builder.write");
     const body = tripBuilderPreTripChatSendSchema.parse(await request.json());
 
-    return new Response(createPreTripChatStream(body), {
+    const actor = { memberId: session.memberId, permissions: session.permissions };
+    return new Response(createPreTripChatStream(body, actor), {
       status: 200,
       headers: {
         "Content-Type": "application/x-ndjson; charset=utf-8",

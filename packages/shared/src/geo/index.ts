@@ -1,4 +1,5 @@
 export {
+  countryCodeFrom,
   getCountryName,
   isValidCountryCode,
   listCountryOptions,

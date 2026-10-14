@@ -352,7 +352,11 @@ export async function listBookingAuditLogs(
 
 /** Directory list — search, Mine/All, type, work, status, ops filters, paginate. */
 export async function listBookings(
-  query: ListBookingsQuery & { actorMemberId?: string | null },
+  query: ListBookingsQuery & {
+    actorMemberId?: string | null;
+    /** Only bookings whose lead client is this client. */
+    clientId?: string | null;
+  },
 ): Promise<ListBookingsResult> {
   const supabase = getServiceClient();
   const {
@@ -370,6 +374,7 @@ export async function listBookings(
     limit,
     offset,
     actorMemberId,
+    clientId,
   } = query;
 
   const today = todayUtcDate();
@@ -401,6 +406,10 @@ export async function listBookings(
 
     if (scope === "mine" && actorMemberId) {
       request = request.eq("relationship_owner_id", actorMemberId);
+    }
+
+    if (clientId) {
+      request = request.eq("client_id", clientId);
     }
 
     if (owner === "unassigned") {

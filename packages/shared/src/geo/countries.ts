@@ -48,3 +48,12 @@ export function normalizeCountryCode(
   const upper = trimmed.toUpperCase();
   return countries.isValid(upper) ? upper : null;
 }
+
+/** Alpha-2 from an alpha-2, alpha-3, or English country name ("Maldives" → MV). */
+export function countryCodeFrom(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  const upper = trimmed.toUpperCase();
+  if (upper.length === 2) return countries.isValid(upper) ? upper : null;
+  return countries.alpha3ToAlpha2(upper) ?? countries.getAlpha2Code(trimmed, "en") ?? null;
+}

@@ -4,6 +4,7 @@ import {
   findClientHealth,
   findClientTierById,
   findTeamMemberById,
+  getClientActivityStats,
   listClientAuditLogs,
   listClientDocuments,
   listClientMergeCandidates,
@@ -63,7 +64,7 @@ export type ClientProfile = {
   trips: [];
 };
 
-/** Full Studio profile — nested lists are capped; bookings/trips empty until those modules ship. */
+/** Full Studio profile — nested lists are capped; bookings/trips lists stay empty (stats carry the counts). */
 export async function getClientProfile(
   clientId: string,
 ): Promise<ClientProfile> {
@@ -79,6 +80,7 @@ export async function getClientProfile(
     relationships,
     mergeCandidates,
     recentAudit,
+    activity,
   ] = await Promise.all([
     client.relationship_owner_id
       ? findTeamMemberById(client.relationship_owner_id)
@@ -99,6 +101,7 @@ export async function getClientProfile(
       limit: PROFILE_LIST_LIMITS.mergeCandidates,
     }),
     listClientAuditLogs(clientId, PROFILE_LIST_LIMITS.audit),
+    getClientActivityStats(clientId),
   ]);
 
   const tier: ClientTierSummary = tierRow
@@ -141,9 +144,7 @@ export async function getClientProfile(
         : null,
       stats: {
         total_spend_usd: 0,
-        booking_count: 0,
-        last_booking_date: null,
-        open_trip_count: 0,
+        ...activity,
       },
       family: family
         ? {

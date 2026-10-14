@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { LuX } from "react-icons/lu";
 
 import { studioButtonClass } from "@/components/ui";
+import { getTripBuilderReadiness } from "@/lib/api";
 import type { TripDetail, TripRateSnapshot, TripStaySnapshot } from "@/lib/trip-builder";
 import { formatTripStatus } from "@/lib/trips/journey-format";
 import { cn } from "@/lib/utils/cn";
@@ -92,6 +93,42 @@ function selectedRate(detail: TripDetail, legId: string): TripRateSnapshot | nul
   );
 }
 
+/** Changes when travellers, dates, or hotels change, so the checks reload. */
+function readinessKey(detail: TripDetail): string {
+  return [
+    detail.trip.id,
+    detail.trip.updated_at,
+    detail.trip.starts_on,
+    detail.trip.ends_on,
+    ...detail.travellers.map((person) => `${person.client_id}:${person.party_role}`),
+    ...detail.stays.map((stay) => `${stay.leg_id}:${stay.check_in}:${stay.check_out}:${stay.property_id}`),
+  ].join("|");
+}
+
+/** Before-booking checks for the open trip. Null until loaded. */
+function useReadiness(detail: TripDetail | null, open: boolean): string[] | null {
+  const [loaded, setLoaded] = useState<{ key: string; items: string[] } | null>(null);
+  const tripId = detail?.trip.id ?? null;
+  const key = detail ? readinessKey(detail) : null;
+
+  useEffect(() => {
+    if (!open || !tripId || !key) return;
+    let live = true;
+    getTripBuilderReadiness(tripId)
+      .then((response) => {
+        if (live) setLoaded({ key, items: response.data.readiness });
+      })
+      .catch(() => {
+        if (live) setLoaded({ key, items: [] });
+      });
+    return () => {
+      live = false;
+    };
+  }, [open, tripId, key]);
+
+  return loaded?.key === key ? loaded.items : null;
+}
+
 /**
  * Optional sidebar, laid out like the trip-builder mock:
  * Summary holds the trip and one card per stay. Quote holds rates and the PDF.
@@ -109,6 +146,7 @@ export function TripBuilderSummaryPanel({
   onChooseSavedOption,
 }: TripBuilderSummaryPanelProps) {
   const [tab, setTab] = useState<SummaryTab>("summary");
+  const readiness = useReadiness(detail, open);
   if (!open) return null;
 
   const stays = detail ? tripStays(detail) : [];
@@ -209,6 +247,20 @@ export function TripBuilderSummaryPanel({
                   </div>
                 )}
               </Block>
+
+              {readiness && detail.travellers.length > 0 ? (
+                <Block title="Before booking">
+                  {readiness.length === 0 ? (
+                    <p className="text-[12px] text-[#6b6b6b]">Nothing flagged.</p>
+                  ) : (
+                    <ul className="space-y-1 rounded-[10px] bg-[#f7f1e6] px-2.5 py-2 text-[11px] leading-relaxed text-[#5c4a32]">
+                      {readiness.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  )}
+                </Block>
+              ) : null}
 
               <Block title="Stays">
                 {gaps.length > 0 ? (
@@ -364,7 +416,7 @@ function PriceBreakup({
   const rows = [
     ["Hotel net", price.hotelNet],
     ["Tax", price.tax],
-    ["Margin", price.margin],
+    ["Margin", price.margin && price.marginPercent ? `${price.margin} (${price.marginPercent})` : price.margin],
     ["Client price", price.clientPrice],
   ] as const;
 

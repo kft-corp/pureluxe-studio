@@ -1,6 +1,7 @@
 import { streamPreTripTurn } from "@pureluxe/ai";
 import { AppError, tripMessages, type TripBuilderPreTripChatSendInput } from "@pureluxe/shared";
 
+import type { DeskActor } from "@/lib/ai/create-desk-tools";
 import { createPreTripTools } from "@/lib/ai/create-pre-trip-tools";
 
 import type { ChatMessage, ChatStreamEvent } from "./chat";
@@ -26,6 +27,7 @@ function makeLocalMessage(
  */
 export function createPreTripChatStream(
   input: TripBuilderPreTripChatSendInput,
+  actor: DeskActor,
 ): ReadableStream<Uint8Array> {
   const user = makeLocalMessage(
     "user",
@@ -49,7 +51,7 @@ export function createPreTripChatStream(
         for await (const chunk of streamPreTripTurn({
           message: input.message,
           history,
-          handlers: createPreTripTools((clients) => {
+          handlers: createPreTripTools(actor, (clients) => {
             send({ type: "clients", clients });
           }),
         })) {

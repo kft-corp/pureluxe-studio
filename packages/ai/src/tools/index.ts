@@ -2,6 +2,8 @@
  * Read-only tools for Trip Builder AI.
  *
  *   clients/  — search_clients, get_client
+ *   history/  — search_trips, search_bookings, get_booking
+ *   hotels/   — get_hotel
  *   trip/     — get_trip
  *   tool-sets — composed lists for home vs trip chat
  *   execute   — routes by tool name to a domain module
@@ -15,6 +17,21 @@ export type {
   ClientSearchHit,
   ClientToolHandlers,
 } from "./clients";
+
+export { HISTORY_TOOLS, executeHistoryTool } from "./history";
+export type {
+  BookingBrief,
+  BookingHistoryRow,
+  HistoryToolHandlers,
+  SearchBookingsInput,
+  SearchTripsInput,
+  TripHistoryRow,
+} from "./history";
+
+export { HOTEL_TOOLS, executeHotelTool } from "./hotels";
+export type { HotelBrief, HotelToolHandlers } from "./hotels";
+
+export type { DeskToolHandlers } from "./handlers";
 
 export { TRIP_TOOLS, executeTripTool } from "./trip";
 export type { TripToolHandlers } from "./trip";

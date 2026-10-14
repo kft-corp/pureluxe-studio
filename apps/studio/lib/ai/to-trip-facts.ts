@@ -1,6 +1,7 @@
 import type { TripFacts } from "@pureluxe/ai";
 
-import { resolveNextStep, resolveTripStage } from "@/components/trip-builder/stages";
+import { buildQuoteBreakup } from "@/components/trip-builder/quote-price";
+import { resolveNextStep, resolveTripStage, tripStays } from "@/components/trip-builder/stages";
 import type { TripDetail, TripRateSnapshot } from "@/lib/trip-builder";
 
 function toRateFact(rate: TripRateSnapshot) {
@@ -34,8 +35,14 @@ function stayFact(
 }
 
 /** Map Studio trip aggregate → lean AI trip facts. */
-export function toTripFacts(detail: TripDetail): TripFacts {
+export function toTripFacts(detail: TripDetail, readiness?: string[]): TripFacts {
   const selected = detail.rates.selected;
+  const price = buildQuoteBreakup({
+    stays: tripStays(detail),
+    rates: detail.rates.candidates,
+    sellTotal: detail.quote.sell_total,
+    sellCurrency: detail.quote.sell_currency,
+  });
   const stays = (detail.stays.length > 0
     ? detail.stays
     : detail.stay
@@ -94,5 +101,14 @@ export function toTripFacts(detail: TripDetail): TripFacts {
       document_status: detail.quote.document?.status ?? null,
       has_file: detail.quote.document?.has_file ?? false,
     },
+    price: {
+      hotel_net: price.hotelNet,
+      tax: price.tax,
+      margin: price.margin,
+      margin_percent: price.marginPercent,
+      client_price: price.clientPrice,
+      note: price.pricedLabel ?? price.note,
+    },
+    readiness,
   };
 }

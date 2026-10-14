@@ -109,6 +109,27 @@ export function wantsChangeTripDates(message: string): boolean {
   return CHANGE_TRIP_DATES.test(message);
 }
 
+/**
+ * "shift the trip by 2 days", "move everything 3 days later", "push all dates back a day",
+ * "bring the trip forward a week". Needs "by" or a direction word, so
+ * "move the trip to a week in Bali" is not a shift.
+ * Returns signed days (negative = earlier), or null. Without a direction it means later.
+ */
+export function parseTripShift(message: string): number | null {
+  const text = message.toLowerCase();
+  if (!/\b(?:shift|move|push|bring|pull|slide|delay)\b/.test(text)) return null;
+  if (!/\b(?:trip|everything|all\s+(?:the\s+)?(?:dates|stays)|whole|entire)\b/.test(text)) {
+    return null;
+  }
+  if (!/\b(?:by|later|earlier|sooner|back|forward|delay)\b/.test(text)) return null;
+  const match = text.match(/\b(\d{1,3}|a|one)\s+(day|night|week)s?\b/);
+  if (!match) return null;
+  const count = /^\d/.test(match[1]!) ? Number(match[1]) : 1;
+  const days = match[2] === "week" ? count * 7 : count;
+  if (days === 0) return null;
+  return /\b(?:earlier|sooner|forward)\b/.test(text) ? -days : days;
+}
+
 /** Advisor asked to append another stay on this trip. */
 export function wantsAddStay(message: string): boolean {
   if (ADD_STAY.test(message)) return true;

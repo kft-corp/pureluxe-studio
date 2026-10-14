@@ -88,6 +88,8 @@ export {
   updateTripBuilderStayOption,
   getTripBuilderQuote,
   getTripBuilderQuoteUrl,
+  getTripBuilderReadiness,
+  shiftTripBuilderDates,
   getTripBuilderTrip,
   listTripChatMessages,
   listTripBuilderTrips,

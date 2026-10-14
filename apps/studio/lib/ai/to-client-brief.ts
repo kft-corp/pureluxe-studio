@@ -88,9 +88,7 @@ export function toClientBrief(profile: ClientProfile): ClientBrief {
       issuing_country: d.issuing_country,
     })),
     guest_notes: client.guest_notes,
-    note:
-      profile.bookings.length === 0 && profile.trips.length === 0
-        ? "Booking and trip history lists are not loaded yet; counts.bookings / counts.open_trips come from client stats."
-        : null,
+    last_booking_date: client.stats.last_booking_date,
+    note: "For the trips or bookings themselves (hotels, dates, prices, status), call search_trips or search_bookings with this client_id.",
   };
 }

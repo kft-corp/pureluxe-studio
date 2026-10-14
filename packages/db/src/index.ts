@@ -73,6 +73,7 @@ export {
   upsertStayShellLineItem,
   upsertTripDocumentDraft,
   STAY_SHELL_MARKER,
+  getClientActivityStats,
   getClientProfileSignals,
   getKnowledgeBaseSetting,
   getRateSourcesSetting,

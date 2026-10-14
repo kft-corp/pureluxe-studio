@@ -9,6 +9,8 @@ export type PricedRoom = {
 export type TripSell = {
   amount: number | null;
   currency: string | null;
+  /** Hotel net plus tax, same currency as amount. */
+  teamCost?: number | null;
 };
 
 /** "Minimum markup 25%." → 25. Null when no percent is written. */
@@ -191,7 +193,11 @@ export function answerPriceQuestion(
       return `${percent}% of the trip client price ${current} is **${result}**.`;
     }
     const way = direction === "down" ? "less" : "more";
-    return `Trip client price ${current}. ${percent}% ${way} is **${result}**. That figure is not saved.`;
+    const margin =
+      trip.teamCost != null && next > 0
+        ? ` Margin at that price: ${formatRoomMoney(next - trip.teamCost, trip.currency)} (${(((next - trip.teamCost) / next) * 100).toFixed(1)}%).`
+        : "";
+    return `Trip client price ${current}. ${percent}% ${way} is **${result}**.${margin} That figure is not saved.`;
   }
 
   if (named === "ambiguous") {

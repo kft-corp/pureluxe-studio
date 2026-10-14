@@ -63,4 +63,6 @@ export {
   type ChatStreamEvent,
 } from "./chat";
 export { createChatStream, encodeChatStreamEvent } from "./chat-stream";
+export { getTripReadiness } from "./trip-dossier";
+export { shiftTripDates } from "./shift-trip-dates";
 export { createPreTripChatStream } from "./pre-trip-chat";

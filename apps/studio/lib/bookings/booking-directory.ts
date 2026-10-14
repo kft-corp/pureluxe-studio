@@ -5,6 +5,8 @@ export { BOOKING_DIRECTORY_PAGE_SIZE } from "./booking-limits";
 
 type ListDirectoryOptions = ListBookingsQuery & {
   actorMemberId?: string | null;
+  /** Only bookings whose lead client is this client. */
+  clientId?: string | null;
 };
 
 /** Directory list for the Bookings page. */

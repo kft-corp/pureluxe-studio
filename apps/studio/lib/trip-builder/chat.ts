@@ -162,6 +162,9 @@ type ReplayTurn = {
 
 export type PreparedChatTurn = StreamTurn | ReplayTurn;
 
+/** The signed-in advisor. Permissions gate the history tools. */
+type ChatActor = { memberId: string; permissions: readonly string[] };
+
 /** Store chat lines on the trip. Does not call the agent. */
 export async function saveTripChatLines(
   tripId: string,
@@ -190,7 +193,7 @@ export async function saveTripChatLines(
 export async function prepareChatTurn(
   tripId: string,
   input: TripBuilderChatSendInput,
-  actor: { memberId: string },
+  actor: ChatActor,
 ): Promise<PreparedChatTurn> {
   await requireAssignedTrip(tripId, actor.memberId);
 
@@ -228,7 +231,7 @@ export async function prepareChatTurn(
 async function resumeFromExistingUser(
   tripId: string,
   existing: TripChatMessage,
-  actor: { memberId: string },
+  actor: ChatActor,
 ): Promise<PreparedChatTurn> {
   if (existing.role !== "user") {
     throw new AppError({
@@ -264,7 +267,7 @@ async function resumeFromExistingUser(
 async function buildStreamTurn(
   tripId: string,
   userRow: TripChatMessage,
-  actor: { memberId: string },
+  actor: ChatActor,
   draftAssistant: TripChatMessage | null,
 ): Promise<StreamTurn> {
   const detail = await getTripDetail(tripId, actor);
@@ -319,7 +322,7 @@ async function buildStreamTurn(
       tripId,
       memberId: actor.memberId,
       message: userRow.content,
-      trip: toTripFacts(detail),
+      trip: toTripFacts(detail, dossier.readiness),
       history,
       clientRequestId: userRow.client_request_id,
       atlasNotes,
@@ -333,6 +336,8 @@ async function buildStreamTurn(
       tools: createTripTools({
         tripId,
         memberId: actor.memberId,
+        permissions: actor.permissions,
+        readiness: dossier.readiness,
       }),
     });
   }

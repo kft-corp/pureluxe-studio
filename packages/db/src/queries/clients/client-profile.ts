@@ -884,6 +884,64 @@ export async function getClientProfileSignals(clientId: string): Promise<{
   };
 }
 
+const OPEN_TRIP_STATUSES = ["building", "quote_sent", "waiting_on_client", "booking"];
+
+/** Live booking and open-trip counts for a client. Cancelled and superseded bookings do not count. */
+export async function getClientActivityStats(clientId: string): Promise<{
+  booking_count: number;
+  last_booking_date: string | null;
+  open_trip_count: number;
+}> {
+  const supabase = getServiceClient();
+
+  const [bookings, latest, trips] = await Promise.all([
+    runSupabaseQuery(() =>
+      supabase
+        .from("bookings")
+        .select("id", { count: "exact", head: true })
+        .eq("client_id", clientId)
+        .eq("is_demo", false)
+        .is("deleted_at", null)
+        .not("status", "in", "(cancelled,superseded)"),
+    ),
+    runSupabaseQuery(() =>
+      supabase
+        .from("bookings")
+        .select("start_date")
+        .eq("client_id", clientId)
+        .eq("is_demo", false)
+        .is("deleted_at", null)
+        .not("status", "in", "(cancelled,superseded)")
+        .not("start_date", "is", null)
+        .order("start_date", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ),
+    runSupabaseQuery(() =>
+      supabase
+        .from("trips")
+        .select("id", { count: "exact", head: true })
+        .eq("primary_client_id", clientId)
+        .eq("is_demo", false)
+        .is("archived_at", null)
+        .in("status", OPEN_TRIP_STATUSES),
+    ),
+  ]);
+
+  for (const result of [bookings, latest, trips]) {
+    if (result.error) {
+      throw dbQueryError(result.error);
+    }
+  }
+
+  return {
+    booking_count: bookings.count ?? 0,
+    last_booking_date:
+      (latest.data as { start_date: string | null } | null)?.start_date ?? null,
+    open_trip_count: trips.count ?? 0,
+  };
+}
+
 /**
  * Recompute and persist profile_completeness in one DB round-trip.
  * Returns the new score, or null if the client is missing/inactive.

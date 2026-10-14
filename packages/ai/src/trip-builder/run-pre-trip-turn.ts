@@ -3,7 +3,7 @@ import {
   PRE_TRIP_READ_TOOLS,
   streamAgentLoop,
   type AgentStreamChunk,
-  type ClientToolHandlers,
+  type DeskToolHandlers,
 } from "../tools";
 import type { ChatHistoryMessage } from "../types";
 
@@ -12,12 +12,12 @@ import { buildModelMessages } from "./build-model-messages";
 export type PreTripTurnInput = {
   message: string;
   history?: ChatHistoryMessage[];
-  handlers: ClientToolHandlers;
+  handlers: DeskToolHandlers;
   apiKey?: string;
   model?: string;
 };
 
-/** Home chat turn — client tools only. Yields status + text chunks. */
+/** Home chat turn — client, history, and hotel tools. Yields status + text chunks. */
 export async function* streamPreTripTurn(
   input: PreTripTurnInput,
 ): AsyncGenerator<AgentStreamChunk, void, unknown> {

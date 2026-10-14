@@ -8,6 +8,7 @@ export const tripMessages = {
     legAdded: "Stay added.",
     legUpdated: "Stay updated.",
     legRemoved: "Stay removed.",
+    datesShifted: "Trip dates and stays moved.",
     quoteLoaded: "Quote loaded.",
     quoteSaved: "Quote draft saved.",
     quoteGenerated: "Quote PDF generated.",
@@ -30,6 +31,8 @@ export const tripMessages = {
     hotelRequired: "Choose a hotel (or enter a hotel name) for the stay.",
     dateRange: "Check-out must be after check-in.",
     tripDatesRequired: "Set the full trip dates before adding a stay.",
+    shiftConfirmedBooking:
+      "A stay on this trip has a confirmed hotel booking. Amend it in Bookings first, then shift the trip.",
     legOutsideTrip:
       "That stay sits outside the trip dates. Keep every stay inside the trip.",
     stayOverlap:

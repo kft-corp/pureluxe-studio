@@ -71,6 +71,8 @@ export type ClientBrief = {
     issuing_country: string | null;
   }>;
   guest_notes: string | null;
+  /** Start date of the latest live booking. Null when there is none. */
+  last_booking_date: string | null;
   note: string | null;
 };
 

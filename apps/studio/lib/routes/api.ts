@@ -54,6 +54,8 @@ export const apiRoutes = {
     trips: "/api/trip-builder/trips",
     trip: (tripId: string) => `/api/trip-builder/trips/${tripId}`,
     stay: (tripId: string) => `/api/trip-builder/trips/${tripId}/stay`,
+    readiness: (tripId: string) => `/api/trip-builder/trips/${tripId}/readiness`,
+    shift: (tripId: string) => `/api/trip-builder/trips/${tripId}/shift`,
     legs: (tripId: string) => `/api/trip-builder/trips/${tripId}/legs`,
     travellers: (tripId: string) => `/api/trip-builder/trips/${tripId}/travellers`,
     traveller: (tripId: string, clientId: string) =>

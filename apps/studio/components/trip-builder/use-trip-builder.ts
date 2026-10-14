@@ -26,6 +26,7 @@ import {
   searchTripBuilderRates,
   selectTripBuilderLineItem,
   setTripBuilderStay,
+  shiftTripBuilderDates,
   streamPreTripChat,
   streamTripChat,
   updateTripBuilderQuote,
@@ -62,6 +63,7 @@ import {
   parseRemoveStay,
   parseTravellerCommand,
   parseTripDates,
+  parseTripShift,
   wantsAddStay,
   wantsChangeTripDates,
   wantsAssignClient,
@@ -102,6 +104,7 @@ import {
   type MoneyReply,
 } from "./options-quote-guide";
 import { isOptionsAdd, matchRateChoice } from "./parse-rate-choice";
+import { buildQuoteBreakup, nightsLabel, stayNightCount } from "./quote-price";
 import type { TripBuilderChip } from "./trip-builder-action-chip";
 import type { TripBuilderRateCard, TripBuilderStayNotes } from "./trip-builder-rate-card";
 import {
@@ -234,10 +237,22 @@ function shortStayDate(iso: string): string {
   });
 }
 
+/** "12 Oct – 20 Oct · 8 nights". */
+function stayRangeLabel(checkIn: string, checkOut: string): string {
+  const nights = stayNightCount(checkIn, checkOut);
+  return `${shortStayDate(checkIn)} – ${shortStayDate(checkOut)}${nights ? ` · ${nightsLabel(nights)}` : ""}`;
+}
+
+function shiftIsoDate(iso: string, days: number): string {
+  const [year, month, day] = iso.split("-").map(Number);
+  return new Date(Date.UTC(year!, month! - 1, day! + days)).toISOString().slice(0, 10);
+}
+
 function formatMoney(amount: number | null, currency: string | null) {
   if (amount == null) return "";
   const code = currency?.trim() || "";
-  return code ? `${code} ${amount}` : String(amount);
+  const figure = amount.toLocaleString("en-US", { maximumFractionDigits: 2 });
+  return code ? `${code} ${figure}` : figure;
 }
 
 function stayFieldsDiffer(
@@ -311,8 +326,30 @@ function parseSellMessage(
   return { sell_total: amount, sell_currency: currency };
 }
 
+function shiftLabel(days: number): string {
+  const count = Math.abs(days);
+  return `${count} day${count === 1 ? "" : "s"} ${days > 0 ? "later" : "earlier"}`;
+}
+
+/**
+ * One chip leads (the first primary or danger); other primaries become secondary.
+ * The "no" chip sits right after the lead so yes and no are side by side.
+ */
+function rankChips(chips: TripBuilderChip[], decline: TripBuilderChip | null): TripBuilderChip[] {
+  const leadIndex = chips.findIndex(
+    (chip) => chip.variant === "primary" || chip.variant === "danger",
+  );
+  const declines = decline ? [decline] : [];
+  if (leadIndex < 0) return [...chips, ...declines];
+  const rest = chips
+    .filter((_, index) => index !== leadIndex)
+    .map((chip) => (chip.variant === "primary" ? { ...chip, variant: "secondary" as const } : chip));
+  return [chips[leadIndex]!, ...declines, ...rest];
+}
+
 type ConfirmFocus =
   | "trip-dates"
+  | "shift-trip"
   | "date-drop"
   | "remove-stay"
   | "revise-stay"
@@ -332,6 +369,30 @@ type ConfirmFocus =
   | "options-text"
   | "options-preview"
   | "options-edit";
+
+/** Label for the chip that says "no" to the pending confirmation. */
+const DECLINE_LABELS: Partial<Record<ConfirmFocus, string>> = {
+  "trip-dates": "Keep current dates",
+  "shift-trip": "Keep current dates",
+  "date-drop": "Keep current dates",
+  "remove-stay": "Keep this stay",
+  "revise-stay": "Keep stay as is",
+  "add-stay": "Don't add",
+  "stay-overlap": "Don't save",
+  "stay-update": "Keep stay as is",
+  lead: "Keep current lead",
+  traveller: "Don't add",
+  role: "Keep as is",
+  "rate-search": "Don't search",
+  assign: "Don't add",
+  paste: "Don't use",
+  sell: "Keep current price",
+  "add-option": "Don't save",
+  "select-room": "Not yet",
+  "options-text": "Keep wording",
+  "options-preview": "Not now",
+  "options-edit": "Keep as is",
+};
 
 type OptionDraft = {
   title: string;
@@ -539,6 +600,8 @@ export function useTripBuilder({
     checkIn: string;
     checkOut: string;
   } | null>(null);
+  const [pendingShift, setPendingShift] = useState<number | null>(null);
+  const [offerReopen, setOfferReopen] = useState(false);
   const [pendingLeg, setPendingLeg] = useState<{
     city: string;
     checkIn: string;
@@ -2491,6 +2554,8 @@ export function useTripBuilder({
     setClientHits([]);
     setPendingAssign(null);
     setPendingTripDates(null);
+    setPendingShift(null);
+    setOfferReopen(false);
     setPendingDateDrop(null);
     setPendingLeg(null);
     setPendingRevise(null);
@@ -2516,10 +2581,12 @@ export function useTripBuilder({
     setPendingRemove(null);
     setPendingDateDrop(null);
     setPendingTripDates(null);
+    setPendingShift(null);
     setPendingStayOverlap(false);
     setPendingStayUpdate(false);
     setConfirmFocus((current) =>
       current === "trip-dates" ||
+      current === "shift-trip" ||
       current === "date-drop" ||
       current === "remove-stay" ||
       current === "revise-stay" ||
@@ -2689,6 +2756,32 @@ export function useTripBuilder({
     }
   }
 
+  async function commitShift(days: number) {
+    if (!canWrite || !detail) return;
+    const quoteNote = quoteRefreshNote();
+    const label = shiftLabel(days);
+    clearStayPrompts();
+    setBusy(true);
+    try {
+      const response = await shiftTripBuilderDates(detail.trip.id, { days });
+      const saved = response.data;
+      setDetail(saved);
+      hydrateStayDraft(saved, activeLegIdRef.current);
+      setRateOptions([]);
+      const lines = tripStays(saved)
+        .map((stay) => `- **${stay.city}**: ${stay.check_in} to ${stay.check_out}`)
+        .join("\n");
+      appendTurn(
+        `Shift every stay ${label}`,
+        `Moved the trip ${label}: **${saved.trip.starts_on}** to **${saved.trip.ends_on}**.${lines ? `\n\n${lines}` : ""}\n\nHotels stay the same. Selected rates were cleared, so search rates again for the new dates.${quoteNote}`,
+      );
+    } catch (error) {
+      showApiError(error);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function confirmLegs() {
     if (!canWrite || !detail) return;
     setBusy(true);
@@ -2765,7 +2858,8 @@ export function useTripBuilder({
         Boolean(parseOptionsWording(message)) ||
         looksLikeOptionsPdfEdit(message) ||
         wantsOptionsPreview(message) ||
-        isSupplierPaste(message);
+        isSupplierPaste(message) ||
+        parseTripShift(message) != null;
       setQuietChips(isTripQuestion(message) && !writing && !holdDraft);
     } else {
       setQuietChips(false);
@@ -2815,9 +2909,10 @@ export function useTripBuilder({
       const confirming = isConfirmReply(message);
       setConfirmFocus(null);
       if (!confirming) {
-        if (focus === "trip-dates" || focus === "date-drop") {
+        if (focus === "trip-dates" || focus === "date-drop" || focus === "shift-trip") {
           setPendingTripDates(null);
           setPendingDateDrop(null);
+          setPendingShift(null);
           void appendTurn(message, "Okay. The trip dates stay as they are.");
           return;
         }
@@ -2912,6 +3007,10 @@ export function useTripBuilder({
         void saveTripDates(pendingTripDates);
         return;
       }
+      if (focus === "shift-trip" && pendingShift) {
+        void commitShift(pendingShift);
+        return;
+      }
       if (focus === "date-drop" && pendingDateDrop) {
         void saveTripDates(pendingDateDrop, true);
         return;
@@ -2993,11 +3092,25 @@ export function useTripBuilder({
       Boolean(parseRemoveStay(message)) ||
       Boolean(parseCityOnly(message)) ||
       wantsChangeTripDates(message) ||
-      wantsAddStay(message);
+      wantsAddStay(message) ||
+      parseTripShift(message) != null;
     if (detail.pricing_locked && stayEdit) {
+      setOfferReopen(true);
       void appendTurn(
         message,
         `Pricing is locked on this trip. To change dates or stays, open the [trip page](${pageRoutes.trip(detail.trip.id)}) and choose **Reopen quote** under Update status.`,
+      );
+      return;
+    }
+
+    const shift = windowStart && windowEnd ? parseTripShift(message) : null;
+    if (shift) {
+      clearStayPrompts();
+      setPendingShift(shift);
+      setConfirmFocus("shift-trip");
+      void appendTurn(
+        message,
+        `Move the whole trip and every stay **${shiftLabel(shift)}**? Hotels stay the same. Selected rates clear and pending bookings are cancelled, because prices depend on dates.\n\nSay **yes** or tap **Shift every stay**. Say **no** to cancel.`,
       );
       return;
     }
@@ -3338,7 +3451,16 @@ export function useTripBuilder({
         message,
         roomsForPriceMath(),
         markupPercentFromNotes(rateStayNotes?.markup ?? null),
-        { amount: detail.trip.sell_total, currency: detail.trip.sell_currency },
+        {
+          amount: detail.trip.sell_total,
+          currency: detail.trip.sell_currency,
+          teamCost: buildQuoteBreakup({
+            stays,
+            rates: detail.rates.candidates,
+            sellTotal: detail.trip.sell_total,
+            sellCurrency: detail.trip.sell_currency,
+          }).teamCostAmount,
+        },
         pendingOptionDraft?.title ?? null,
       );
       if (mathReply) {
@@ -3587,6 +3709,8 @@ export function useTripBuilder({
       pendingAssign ||
       clientHits.length > 0 ||
       pendingTripDates ||
+      pendingShift ||
+      offerReopen ||
       pendingDateDrop ||
       pendingLeg ||
       pendingRevise ||
@@ -3696,13 +3820,24 @@ export function useTripBuilder({
             ),
         });
       }
+      const travellersLabel =
+        detail.travellers.length > 1
+          ? "Travellers are set"
+          : `Only ${detail.client.display_name} is travelling`;
       chips.push({
         id: "travellers-set",
-        label: detail.travellers.length > 1 ? "Travellers are set" : "Just them",
+        label: travellersLabel,
         variant: detail.family_suggestions.length === 0 ? "primary" : "secondary",
-        onClick: () => void confirmTravellers("Just them"),
+        onClick: () => void confirmTravellers(travellersLabel),
       });
     }
+    const clientName = detail.client.display_name;
+    chips.push({
+      id: "past-trips",
+      label: `Past trips for ${clientName}`,
+      variant: "secondary",
+      onClick: () => void sendTripChat(`Show past trips and bookings for ${clientName}.`),
+    });
   }
 
   if (
@@ -3733,7 +3868,7 @@ export function useTripBuilder({
     if (pendingAssign) {
       chips.push({
         id: `confirm-client-${pendingAssign.id}`,
-        label: `Confirm add ${pendingAssign.display_name}`,
+        label: `Add ${pendingAssign.display_name} as the client`,
         variant: "primary",
         onClick: () => void assignClient(pendingAssign.id),
       });
@@ -3741,7 +3876,7 @@ export function useTripBuilder({
       for (const hit of clientHits.slice(0, 6)) {
         chips.push({
           id: `client-${hit.id}`,
-          label: `Add ${hit.display_name}?`,
+          label: `Choose ${hit.display_name}`,
           variant: "secondary",
           onClick: () => {
             setPendingAssign(hit);
@@ -3757,9 +3892,32 @@ export function useTripBuilder({
     const dates = pendingTripDates;
     chips.push({
       id: "save-trip-dates",
-      label: `Save trip dates · ${dates.checkIn} – ${dates.checkOut}`,
+      label: `Save trip dates · ${stayRangeLabel(dates.checkIn, dates.checkOut)}`,
       variant: "primary",
       onClick: () => void saveTripDates(dates),
+    });
+  }
+
+  if (detail && canWrite && pendingShift && !detail.pricing_locked) {
+    const days = pendingShift;
+    const { starts_on: start, ends_on: end } = detail.trip;
+    chips.push({
+      id: "shift-trip",
+      label:
+        start && end
+          ? `Shift every stay · ${stayRangeLabel(shiftIsoDate(start, days), shiftIsoDate(end, days))}`
+          : `Shift every stay · ${shiftLabel(days)}`,
+      variant: "danger",
+      onClick: () => void commitShift(days),
+    });
+  }
+
+  if (detail && canWrite && offerReopen && detail.pricing_locked) {
+    chips.push({
+      id: "reopen-quote",
+      label: "Reopen quote on trip page",
+      variant: "primary",
+      onClick: openTripPage,
     });
   }
 
@@ -3768,7 +3926,7 @@ export function useTripBuilder({
     chips.push({
       id: "drop-outside-stays",
       label: "Remove outside stays and save dates",
-      variant: "primary",
+      variant: "danger",
       onClick: () => void saveTripDates(dates, true),
     });
   }
@@ -3779,7 +3937,7 @@ export function useTripBuilder({
       id: "confirm-add-stay",
       label: draft.confirmOverlap
         ? `Add ${draft.city} anyway`
-        : `Add ${draft.city} · ${draft.checkIn}`,
+        : `Add ${draft.city} · ${stayRangeLabel(draft.checkIn, draft.checkOut)}`,
       variant: "primary",
       onClick: () => void commitAddLeg(draft),
     });
@@ -3800,7 +3958,7 @@ export function useTripBuilder({
     chips.push({
       id: "confirm-remove-stay",
       label: `Remove ${target.city}`,
-      variant: "primary",
+      variant: "danger",
       onClick: () => void commitRemove(target),
     });
   }
@@ -3947,10 +4105,15 @@ export function useTripBuilder({
     if (pendingRateSearch || (!hideReady && stage === "rates")) {
       const partyLabel = partyReady(stayDraft)
         ? `${stayDraft.adults} adults · ${stayDraft.rooms} ${stayDraft.rooms === 1 ? "room" : "rooms"}`
-        : "need party";
+        : null;
       chips.push({
         id: "search-rates",
-        label: stage === "rates" ? `Search rates · ${partyLabel}` : "Search rates",
+        label:
+          stage !== "rates"
+            ? "Search rates"
+            : partyLabel
+              ? `Search rates · ${partyLabel}`
+              : "Add party to search rates",
         variant: "primary",
         onClick: () => void searchRates(),
       });
@@ -4020,7 +4183,7 @@ export function useTripBuilder({
   ) {
     chips.push({
       id: "apply-sell",
-      label: `Set sell ${pendingSell.sell_currency} ${pendingSell.sell_total}`,
+      label: `Set client price · ${formatMoney(pendingSell.sell_total, pendingSell.sell_currency)}`,
       variant: "secondary",
       onClick: () => void applySell(),
     });
@@ -4096,12 +4259,24 @@ export function useTripBuilder({
 
   if (detail && canWrite && !hideReady && (stage === "quote" || stage === "booking")) {
     chips.push({
+      id: "ask-readiness",
+      label: "What's missing before booking?",
+      variant: "secondary",
+      onClick: () => void sendTripChat("What's missing before booking?"),
+    });
+    chips.push({
       id: "open-trip-page",
       label: "Open trip page",
       variant: "secondary",
       onClick: openTripPage,
     });
   }
+
+  const declineLabel = detail && canWrite && confirmFocus ? DECLINE_LABELS[confirmFocus] : undefined;
+  const declineChip: TripBuilderChip | null = declineLabel
+    ? { id: "decline", label: declineLabel, variant: "secondary", onClick: () => void handleSend("No") }
+    : null;
+  const rankedChips = rankChips(chips, declineChip);
 
   return {
     trips,
@@ -4117,7 +4292,7 @@ export function useTripBuilder({
     hasMoreMessages,
     streamingContent,
     agentPhase,
-    chips,
+    chips: rankedChips,
     rateCards,
     stayNotes: rateOptions.length > 0 ? rateStayNotes : null,
     activeLegId,

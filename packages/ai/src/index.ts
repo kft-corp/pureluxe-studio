@@ -5,7 +5,7 @@
  *   context/      — trip facts → stage + gaps
  *   prompts/      — system prompts (home + trip)
  *   providers/    — Claude API
- *   tools/        — domain tools (clients/, trip/) + agent loop
+ *   tools/        — domain tools (clients/, history/, hotels/, trip/) + agent loop
  */
 
 export {
@@ -43,11 +43,20 @@ export {
   streamAgentLoop,
   type AgentPhase,
   type AgentStreamChunk,
+  type BookingBrief,
+  type BookingHistoryRow,
   type ClientBrief,
   type ClientLookupHandlers,
   type ClientSearchHit,
   type ClientToolHandlers,
+  type DeskToolHandlers,
+  type HistoryToolHandlers,
+  type HotelBrief,
+  type HotelToolHandlers,
   type RunAgentLoopInput,
+  type SearchBookingsInput,
+  type SearchTripsInput,
+  type TripHistoryRow,
   type TripToolHandlers,
 } from "./tools";
 

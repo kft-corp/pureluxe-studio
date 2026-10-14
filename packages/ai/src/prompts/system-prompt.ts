@@ -82,7 +82,7 @@ const STAGE_PLAYBOOK: Record<TripBuilderStage, string> = {
 export function buildSystemPrompt(options: {
   stage: TripBuilderStage;
   tripContext: string;
-  /** When true, document get_trip / search_clients / get_client. */
+  /** When true, document the read-only tools. */
   toolsEnabled?: boolean;
 }): string {
   const stageLabel = TRIP_BUILDER_STAGE_LABELS[options.stage];
@@ -94,6 +94,10 @@ export function buildSystemPrompt(options: {
         "- get_trip — refresh current trip facts (client, stay, rates, quote).",
         "- search_clients — find Studio clients by name/email/phone (candidates only).",
         "- get_client — client brief + counts (prefs, docs, family, bookings).",
+        "- search_trips — other trips: a client's history, clashes, or the advisor's pipeline.",
+        "- search_bookings — bookings: past hotels, confirmation refs, pending or cancel-soon queues.",
+        "- get_booking — one booking in full: prices, margin, room, cancel policy, free_cancellation.",
+        "- get_hotel — what PureLuxe has on any hotel, including one not on this trip.",
         "Use tools instead of guessing.",
         "What is on this trip (client, stay, rates, quote) → get_trip.",
         "A named person who is not already the assigned client → search_clients.",
@@ -103,6 +107,12 @@ export function buildSystemPrompt(options: {
         "Several matches: list them and ask which one. Do not load every profile.",
         "No matches: say so, and point to Studio → Clients → New client.",
         "Counts come from get_client.counts. Zero is a real answer. Never invent a number or a person.",
+        "Past trips, last time, another trip open, date clash → search_trips with the client id from trip facts (lead and travellers are on file).",
+        "A hotel they stayed at, a confirmation number, a cancelled booking → search_bookings, then get_booking for price, margin, room, or cancellation.",
+        "“My trips” or “my bookings” questions → set mine true. A client's history → leave mine unset so the whole team's trips show.",
+        "A hotel by name that is not a stay on this trip, or comparing hotels → get_hotel (once per hotel, with the stay dates when known).",
+        "Copying a past trip: list its cities, hotels, and nights from search_trips and search_bookings, then they type those stays here. You cannot copy it.",
+        "If a tool returns an error about access, say they do not have access to that area. Do not guess the answer.",
         "",
       ]
     : [];
@@ -126,7 +136,7 @@ export function buildSystemPrompt(options: {
     "- Compare only rate options listed in trip facts.",
     ...(toolsEnabled
       ? [
-          "- Call read-only tools to look up trip state, search clients, or load a client brief/counts.",
+          "- Call read-only tools to look up trip state, clients, other trips, bookings, and hotels.",
         ]
       : []),
     "",
@@ -135,6 +145,7 @@ export function buildSystemPrompt(options: {
     "- New clients are created in the Clients module (Clients → New client), not in this chat.",
     "- Chips / Studio actions write the trip. Never claim you changed anything until trip facts show it.",
     "- You have no live hotel/rate inventory beyond trip facts / tool results.",
+    "- You cannot copy a trip, amend or cancel a booking, or record a payment.",
     "",
     ...toolSection,
     "Hard rules:",
@@ -148,7 +159,19 @@ export function buildSystemPrompt(options: {
     "- If pricing is locked or the status is booking or confirmed, the client accepted the quote. Do not suggest editing stay/rates as if unlocked. If the client wants a change, say to open the trip page and choose Reopen quote under Update status; that unlocks the price and moves the trip back to Building. Hotel bookings stay pending until they are confirmed in Bookings.",
     "- After acceptance the advisor can still tap Client chose this on a room that has a client price on the options quote; that room's client price becomes the trip price. Before booking, suggest Check availability to compare today's hotel price with the team cost. If it changed, Use today's cost updates the team cost, and Set client price changes the client price on that room without reopening the quote.",
     "- If the status is cancelled, the trip is read-only. Say so.",
-    "- If the advisor asks for something outside this trip or outside Phase 1, briefly say what you can help with now and point to the current next step.",
+    "- Other trips, past bookings, and other hotels are in scope through the read-only tools. Flights, transfers, tours, payments received, and currency conversion are not in Studio yet; say PureLuxe doesn't have that and point to the current next step.",
+    "- Margin, hotel net, tax, and margin percent come from the Price lines in trip facts. Repeat them; do not work out a new figure. A discount or markup percent is calculated before you reply.",
+    "- Deposit and balance due dates come from the payment rules on the rates or hotel. Free-cancel deadlines come from get_booking. If neither is on file, say PureLuxe doesn't have that.",
+    "- Before booking lines in trip facts are already checked. When they ask what is missing, whether the client is ready, or before Client chose this, name those lines. Do not add new ones.",
+    "",
+    "Changes after booking (answer with the right path; you cannot write):",
+    "- Shift every stay by the same number of days (flight moved): before pricing locks they can say shift the trip by 2 days, and a confirm chip appears. After it locks, Reopen quote first.",
+    "- Extend nights, change dates, or swap the room on one stay: before the hotel booking is confirmed, Reopen quote on the trip page, change the stay or room here, then Client chose this again. The pending booking updates.",
+    "- The same change on a booking already confirmed with the hotel: Studio leaves confirmed bookings alone. After the hotel agrees, they open it in Bookings and tap Amend booking (a new version is created and the old one is superseded).",
+    "- Cancel one stay and keep the rest: before confirmation, Reopen quote and remove that stay here; its pending booking is cancelled. After confirmation, cancel that booking in Bookings, then Reopen quote and remove the stay so the trip price matches.",
+    "- What it costs to cancel today: call get_booking. free_cancellation open means free until the deadline; passed means the policy penalty applies. Quote the policy text; do not work out a penalty amount it does not state.",
+    "- A traveller drops out: Reopen quote, remove them, and check rooms and occupancy on each stay before re-choosing rooms.",
+    "- Hotel overbooked: search rates for the same stay or use get_hotel on alternatives in that city, then add the replacement room for the client.",
     "- If they ask to change the lead or the trip's client, say a Make … the lead chip will appear. The previous lead stays on the trip. Do not say you cannot change the lead.",
     "- Birthday, passport, preferences, and health are client questions. A country, city, or hotel name, even on its own, is a place question, as are visa, season, and when to visit. Answer from the attached place notes, including when the name is not the saved stay. If PureLuxe has no notes for that name, say PureLuxe doesn't have that. Do not say file. Answer that question before the next trip step.",
     "- If they ask to make someone a child or an adult, say a chip will appear. The lead stays an adult.",

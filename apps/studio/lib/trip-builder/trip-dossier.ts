@@ -16,14 +16,20 @@ import { answerAtlasStay } from "./atlas-stay";
 import { getTripDetail } from "./get-trip-detail";
 import { loadHotelStayFacts } from "./hotel-contract-facts";
 import type { TripDetail, TripStaySnapshot } from "./trip-detail";
+import { buildTripReadiness, type ReadinessPerson } from "./trip-readiness";
 
 /** How long a pack is reused. A write clears it sooner. */
 const PACK_TTL_MS = 30 * 60 * 1000;
 
-type TripPack = {
-  expiresAt: number;
+export type TripDossier = {
   notes: string;
   placeNames: string[];
+  /** Things to sort out before booking. Empty when nothing is flagged. */
+  readiness: string[];
+};
+
+type TripPack = TripDossier & {
+  expiresAt: number;
 };
 
 const packs = new Map<string, TripPack>();
@@ -45,14 +51,33 @@ export async function getTripDossier(
   tripId: string,
   actor: { memberId: string },
   detail?: TripDetail,
-): Promise<{ notes: string; placeNames: string[] }> {
+): Promise<TripDossier> {
   const hit = packs.get(tripId);
   if (hit && hit.expiresAt > Date.now()) {
-    return { notes: hit.notes, placeNames: hit.placeNames };
+    return { notes: hit.notes, placeNames: hit.placeNames, readiness: hit.readiness };
   }
   const loaded = await loadTripDossier(tripId, actor, detail);
   packs.set(tripId, { ...loaded, expiresAt: Date.now() + PACK_TTL_MS });
   return loaded;
+}
+
+/**
+ * Before-booking checks for an assigned trip. Not cached: passport or profile
+ * edits on the client page must show the next time the panel loads.
+ */
+export async function getTripReadiness(
+  tripId: string,
+  actor: { memberId: string },
+): Promise<string[]> {
+  const detail = await getTripDetail(tripId, actor);
+  const people = await Promise.all(
+    peopleOf(detail).map((person) => loadPerson(person.clientId, person.role)),
+  );
+  return buildTripReadiness(
+    detail,
+    staysOf(detail),
+    people.flatMap((row) => (row ? [row.person] : [])),
+  );
 }
 
 /**
@@ -110,17 +135,33 @@ function healthLines(health: ClientHealthProfile | null): string[] {
   ];
 }
 
-async function clientSection(
-  clientId: string,
-  role: string,
-): Promise<string> {
+/** One traveller's profile rows. Null when the client is gone. */
+async function loadPerson(clientId: string, role: string) {
   const [client, preferences, health, documents] = await Promise.all([
     findClientById(clientId),
     listClientPreferences(clientId, { limit: 50 }),
     findClientHealth(clientId),
     listClientDocuments(clientId, { limit: 20 }),
   ]);
-  if (!client) return `${role}: not on file`;
+  if (!client) return null;
+  const person: ReadinessPerson = {
+    name: client.display_name,
+    child: role === "Child",
+    nationality: client.nationality,
+    documents,
+    preferences,
+    health,
+  };
+  return { client, preferences, health, documents, person };
+}
+
+async function clientSection(
+  clientId: string,
+  role: string,
+): Promise<{ text: string; person: ReadinessPerson | null }> {
+  const loaded = await loadPerson(clientId, role);
+  if (!loaded) return { text: `${role}: not on file`, person: null };
+  const { client, preferences, health, documents, person } = loaded;
   const tier = await findClientTierById(client.tier_id);
   const dates = Array.isArray(client.important_dates) ? client.important_dates : [];
   const dateLines =
@@ -141,7 +182,7 @@ async function clientSection(
     .filter(Boolean)
     .join(", ");
 
-  return [
+  const text = [
     `${role}: ${client.display_name}`,
     line("Title", client.title),
     line("Legal name", client.legal_name),
@@ -170,6 +211,11 @@ async function clientSection(
       ? documents.map((document) => `- ${documentLine(document)}`)
       : ["- not on file"]),
   ].join("\n");
+  return { text, person };
+}
+
+function staysOf(detail: TripDetail): TripStaySnapshot[] {
+  return detail.stays.length > 0 ? detail.stays : detail.stay ? [detail.stay] : [];
 }
 
 function peopleOf(detail: TripDetail): Array<{ clientId: string; role: string }> {
@@ -230,7 +276,7 @@ async function staySection(detail: TripDetail, stay: TripStaySnapshot): Promise<
       ? `Selected rate cancellation: ${selected.cancellation_policy.trim()}`
       : "Selected rate cancellation: not in PureLuxe",
     booking
-      ? `Booking: ${booking.status}, confirmation ${booking.supplier_ref?.trim() || "not on file"}`
+      ? `Booking: ${booking.status}, confirmation ${booking.supplier_ref?.trim() || "not on file"}, free cancellation until ${booking.cancellation_deadline ?? "not on file"}`
       : "Booking: not on file",
   ].join("\n");
 }
@@ -296,14 +342,19 @@ async function loadTripDossier(
   tripId: string,
   actor: { memberId: string },
   detail?: TripDetail,
-): Promise<{ notes: string; placeNames: string[] }> {
+): Promise<TripDossier> {
   const loaded = detail ?? (await getTripDetail(tripId, actor));
-  const stays = loaded.stays.length > 0 ? loaded.stays : loaded.stay ? [loaded.stay] : [];
+  const stays = staysOf(loaded);
   const [clients, stayTexts, places] = await Promise.all([
     Promise.all(peopleOf(loaded).map((person) => clientSection(person.clientId, person.role))),
     Promise.all(stays.map((stay) => staySection(loaded, stay))),
     placeSection(stays),
   ]);
+  const readiness = await buildTripReadiness(
+    loaded,
+    stays,
+    clients.flatMap((row) => (row.person ? [row.person] : [])),
+  );
 
   const notes = [
     `Trip: ${loaded.trip.title?.trim() || "not on file"}`,
@@ -311,12 +362,12 @@ async function loadTripDossier(
     line("Trip start", loaded.trip.starts_on),
     line("Trip end", loaded.trip.ends_on),
     `Pricing locked: ${loaded.pricing_locked ? "yes" : "no"}`,
-    clients.length > 0 ? clients.join("\n\n") : "Client: not on file",
+    clients.length > 0 ? clients.map((row) => row.text).join("\n\n") : "Client: not on file",
     stayTexts.length > 0 ? stayTexts.join("\n\n") : "Stays: not on file",
     places.text,
     rateSection(loaded),
     quoteSection(loaded),
   ].join("\n\n");
 
-  return { notes, placeNames: places.names };
+  return { notes, placeNames: places.names, readiness };
 }

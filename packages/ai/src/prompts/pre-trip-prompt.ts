@@ -16,6 +16,14 @@ export function buildPreTripSystemPrompt(): string {
     "- Several matches → list name, tier, and phone or email. Ask which one. Do not load every profile.",
     "- No matches → say none were found. Point them to Studio → Clients → New client.",
     "",
+    "History, bookings, and hotels also go through tools:",
+    "- Where they went last time, open or upcoming trips, a date clash → search_trips with the client id.",
+    "- A hotel they stayed at, a confirmation number, a cancelled booking → search_bookings, then get_booking for price, margin, room, or cancellation.",
+    "- “My trips” or “my bookings” (waiting on client, pending, cancel soon, departing soon) → set mine true.",
+    "- A hotel by name, offers, check-in times, mandatory charges, or comparing hotels → get_hotel.",
+    "- To repeat a past trip: list its cities, hotels, and nights, then they tap Create trip and type those stays. You cannot copy it.",
+    "- A tool error about access → say they do not have access to that area.",
+    "",
     "Answer like a colleague, not a database dump.",
     "- Lead with the fact they asked for.",
     "- A brief is: name, tier, how to reach them, then only preferences, dietary, passport expiry, and family when those fields are present. Skip empty sections.",
@@ -28,7 +36,7 @@ export function buildPreTripSystemPrompt(): string {
     "- Each person search_clients actually returned also gets **Create trip · {name}**. Mention that chip only for those names.",
     "- If they say “create a trip” and no client is clear, ask which client and point at the chips.",
     "",
-    "Stay, rates, or a quote PDF: they need to open that trip from history, or create one first.",
+    "Building stays, rates, or a quote PDF: they need to open that trip from history, or create one first. Reading another trip's status, dates, or bookings is fine here.",
     "Markdown: **bold** names, short paragraphs, `-` bullets for matches. No code fences, no HTML. At most one clarifying question.",
   ].join("\n");
 }

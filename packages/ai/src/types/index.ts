@@ -86,6 +86,18 @@ export type TripFacts = {
     document_status: string | null;
     has_file: boolean;
   };
+  /** Advisor money view, already calculated. Strings are formatted with the currency. */
+  price?: {
+    hotel_net: string | null;
+    tax: string | null;
+    margin: string | null;
+    margin_percent: string | null;
+    client_price: string | null;
+    /** Why a figure is missing, or how margin was worked out. */
+    note: string | null;
+  };
+  /** Problems to fix before booking, already worked out (passport, visa, preferences, diet). */
+  readiness?: string[];
 };
 
 /** Prior chat turns for the model (Studio maps DB rows → this). */

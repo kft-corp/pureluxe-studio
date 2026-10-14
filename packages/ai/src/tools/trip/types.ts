@@ -1,8 +1,8 @@
 import type { TripFacts } from "../../types";
 
-import type { ClientToolHandlers } from "../clients";
+import type { DeskToolHandlers } from "../handlers";
 
-/** Host callbacks when a trip is open (client tools + get_trip). */
-export type TripToolHandlers = ClientToolHandlers & {
+/** Host callbacks when a trip is open (desk tools + get_trip). */
+export type TripToolHandlers = DeskToolHandlers & {
   getTrip: () => Promise<TripFacts>;
 };

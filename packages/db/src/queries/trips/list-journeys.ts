@@ -26,6 +26,7 @@ const TRIP_COLUMNS = [
   "client_visibility",
   "sell_total",
   "sell_currency",
+  "margin_internal",
   "pricing_locked_at",
   "updated_at",
 ].join(", ");
@@ -41,6 +42,7 @@ type TripListRow = {
   client_visibility: TripClientVisibility;
   sell_total: number | string | null;
   sell_currency: string | null;
+  margin_internal: number | string | null;
   pricing_locked_at: string | null;
   updated_at: string;
 };
@@ -97,6 +99,8 @@ export type JourneyCard = {
   destinations: string[];
   sell_total: number | null;
   sell_currency: string | null;
+  /** Client price minus team cost, in the sell currency. Null until priced. */
+  margin_internal: number | null;
   pricing_locked: boolean;
   /** A proposal PDF exists and is out of date. */
   proposal_stale: boolean;
@@ -112,6 +116,8 @@ export type ListJourneysResult = {
 
 export type ListJourneysInput = ListJourneysQuery & {
   actorMemberId?: string | null;
+  /** Only trips where this client is the lead or a traveller. */
+  clientId?: string | null;
   /** Override the calendar day. Tests and previews pass this; the board uses today. */
   today?: string;
 };
@@ -198,6 +204,29 @@ async function findTripIdsByDestination(q: string): Promise<string[]> {
   ];
 }
 
+/** Trip ids where this client is the lead or a traveller. */
+async function findTripIdsForClient(clientId: string): Promise<string[]> {
+  const supabase = getServiceClient();
+  const [leadResult, travellerResult] = await Promise.all([
+    runSupabaseQuery(() =>
+      supabase.from("trips").select("id").eq("primary_client_id", clientId).limit(500),
+    ),
+    runSupabaseQuery(() =>
+      supabase.from("trip_clients").select("trip_id").eq("client_id", clientId).limit(500),
+    ),
+  ]);
+  if (leadResult.error) throw dbQueryError(leadResult.error);
+  if (travellerResult.error) throw dbQueryError(travellerResult.error);
+  return [
+    ...new Set([
+      ...((leadResult.data as Array<{ id: string }> | null) ?? []).map((row) => row.id),
+      ...((travellerResult.data as Array<{ trip_id: string }> | null) ?? []).map(
+        (row) => row.trip_id,
+      ),
+    ]),
+  ];
+}
+
 function earliest(values: Array<string | null>): string | null {
   const dates = values.filter((value): value is string => Boolean(value)).sort();
   return dates[0] ?? null;
@@ -246,13 +275,18 @@ export async function listJourneys(
   const q = input.q.trim();
   const needsClientTier = input.client_tier === "vip" || input.client_tier === "standard";
   const needsQuote = input.quote === "stale" || input.quote === "current";
-  const [clientIds, destinationTripIds, vipClientIds, staleTripIds] = await Promise.all([
-    q ? findClientIdsByDisplayName(q) : Promise.resolve([]),
-    q ? findTripIdsByDestination(q) : Promise.resolve([]),
-    needsClientTier ? findVipClientIds() : Promise.resolve([]),
-    needsQuote ? findStaleTripIds() : Promise.resolve([]),
-  ]);
+  const [clientIds, destinationTripIds, vipClientIds, staleTripIds, clientTripIds] =
+    await Promise.all([
+      q ? findClientIdsByDisplayName(q) : Promise.resolve([]),
+      q ? findTripIdsByDestination(q) : Promise.resolve([]),
+      needsClientTier ? findVipClientIds() : Promise.resolve([]),
+      needsQuote ? findStaleTripIds() : Promise.resolve([]),
+      input.clientId ? findTripIdsForClient(input.clientId) : Promise.resolve([]),
+    ]);
 
+  if (input.clientId && clientTripIds.length === 0) {
+    return emptyResult(input);
+  }
   if (input.client_tier === "vip" && vipClientIds.length === 0) {
     return emptyResult(input);
   }
@@ -277,6 +311,10 @@ export async function listJourneys(
 
     if (q) {
       request = request.or(ilikeOr(q, clientIds, destinationTripIds));
+    }
+
+    if (input.clientId) {
+      request = request.in("id", clientTripIds);
     }
 
     if (input.stage === "working") {
@@ -553,6 +591,7 @@ function toCard(trip: TripListRow, facts: CardFacts, today: string): JourneyCard
     destinations: routeFromLegs(legs),
     sell_total: money(trip.sell_total),
     sell_currency: trip.sell_currency,
+    margin_internal: money(trip.margin_internal),
     pricing_locked: Boolean(trip.pricing_locked_at),
     proposal_stale: facts.staleTripIds.has(trip.id),
     updated_at: trip.updated_at,
