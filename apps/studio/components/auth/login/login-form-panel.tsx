@@ -6,9 +6,9 @@ export function LoginFormPanel() {
   return (
     <section
       aria-labelledby="login-heading"
-      className="relative flex min-h-screen w-full flex-1 flex-col bg-surface lg:w-2/5"
+      className="relative flex h-full min-h-0 w-full flex-1 flex-col bg-surface lg:w-2/5"
     >
-      <div className="flex flex-1 flex-col items-center justify-center px-5 py-10 pt-[max(2.5rem,env(safe-area-inset-top))] sm:px-8 sm:py-12">
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-5 py-6 pt-[max(1.5rem,env(safe-area-inset-top))] sm:px-8 lg:py-8">
         <div
           className="flex w-full max-w-sm flex-col items-center text-center"
           role="region"
@@ -28,13 +28,13 @@ export function LoginFormPanel() {
             Invite-only · Sign in with your KFT Google account
           </p>
 
-          <div className="mt-8 flex w-full flex-col items-center gap-4 sm:mt-10">
+          <div className="mt-6 flex w-full flex-col items-center gap-4 sm:mt-8">
             <GoogleSignInButton aria-describedby={signInDescribedBy} />
           </div>
         </div>
       </div>
 
-      <p className="pb-[max(1.5rem,env(safe-area-inset-bottom))] text-center text-xs text-ink-subtle sm:pb-8">
+      <p className="shrink-0 pb-[max(1rem,env(safe-area-inset-bottom))] text-center text-xs text-ink-subtle sm:pb-6">
         No public registration
       </p>
     </section>

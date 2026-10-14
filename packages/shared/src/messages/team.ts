@@ -7,6 +7,7 @@ export const teamMessages = {
     roleUpdated: "Role updated.",
     memberDeactivated: "Member deactivated.",
     memberReactivated: "Member reactivated.",
+    permissionsUpdated: "Role permissions saved.",
   },
   error: {
     memberNotFound: "We couldn't find that team member.",
@@ -16,5 +17,6 @@ export const teamMessages = {
     cannotDeactivateSelf: "You can't deactivate your own account.",
     cannotChangeOwnRole: "You can't change your own role.",
     manageRequired: "You don't have permission to manage team members.",
+    roleNotFound: "That role is not available.",
   },
 } as const;

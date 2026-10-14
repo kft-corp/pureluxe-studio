@@ -6,9 +6,13 @@ Database for PureLuxe (Studio + Client later). One project, SQL migrations in th
 
 ```
 supabase/
-├── migrations/     # Numbered SQL — apply in order
+├── migrations/          # Numbered SQL — apply in order (db push)
+│   └── seeds/           # Optional inserts — NOT applied by db push
+│       └── README.md    # What belongs in seeds vs migrations
 └── README.md
 ```
+
+See [`migrations/seeds/README.md`](migrations/seeds/README.md) for the full seed policy.
 
 ## Apply the Studio auth tables
 
@@ -37,7 +41,116 @@ Seeds default permissions and grants for `advisor`, `ops`, `finance`, and `admin
 
 Also adds reusable `set_updated_at()` trigger helper, enables RLS (server `service_role` only), and grants `service_role` table access (needed when auto-expose is off).
 
-Run **001** before **002**. Apply both in order (Dashboard paste or `npx supabase db push` from repo root).
+Migration: `migrations/003_studio_clients.sql`
+
+Creates:
+
+| Object | Purpose |
+|---|---|
+| `pg_trgm` extension | Directory search + dedup similarity |
+| `clients` | Core client identity (CRM anchor) |
+
+Migration: `migrations/004_studio_client_profiles.sql`
+
+Creates:
+
+| Object | Purpose |
+|---|---|
+| `client_preferences` | Structured taste with guest-confirm workflow |
+| `client_health_profiles` | One-to-one health record per client |
+| `client_documents` | Passports and travel docs with verification |
+| `client_relationships` | Non-household links between clients |
+| `client_merge_candidates` | Persisted dedup suggestions |
+| `client_audit_log` | Append-only change history |
+| `find_similar_clients()` | pg_trgm RPC for dedup on profile and create |
+
+Migration: `migrations/005_studio_families_guest.sql`
+
+Creates:
+
+| Table | Purpose |
+|---|---|
+| `families` | Household grouping |
+| `family_members` | Client ↔ family membership (one family per client) |
+| `family_booking_members` | Travellers on a booking (`booking_id` has no FK yet) |
+| `guest_users` | Guest Client App login (invite-before-login) |
+
+Deferred FKs (add when `bookings` / `trips` exist): [`docs/studio/client_deferred_fks.md`](../docs/studio/client_deferred_fks.md).
+
+Migration: `migrations/008_client_documents_storage.sql`
+
+Creates private Storage bucket `client-documents` for passport / visa / insurance uploads (signed URLs only).
+
+Migration: `migrations/009_client_household_perf_indexes.sql`
+
+Household / relationship search indexes.
+
+Migration: `migrations/010_client_perf_lifecycle.sql`
+
+Directory/search indexes, `pending_upload` document status, `refresh_client_profile_completeness()` RPC, and purge helpers for stale uploads / old audit / inactive preferences.
+
+Adds indexes for household name search (`families.name` trigram) and related-people lookups (`client_relationships` from/to).
+
+Migration: `migrations/011_rate_layer.sql`
+
+Creates Rate Layer **Layers 1–4** schema. Seeds only system defaults that must exist in every environment: `company_settings` (`rate_sources`, `knowledge_base`), Layer 3 `destination_type_defaults`, and rate/knowledge permissions.
+
+| Object | Purpose |
+|---|---|
+| `company_settings` | Seeds `rate_sources` (incl. channel enable flags) + `knowledge_base` |
+| `destination_type_defaults` | Layer 3 type → pattern (seeded) |
+| `destination_profiles` | Canonical destinations + aliases (empty until optional seed) |
+| `destination_routing_overrides` | Layer 2 patterns (empty until optional seed) |
+| `destination_wholesalers` | Dest ↔ wholesaler adapter bindings |
+| `rate_peak_windows` | Ski peak dates (empty until optional seed) |
+| `negotiated_rate_codes` | Consortia/chain code registry (empty until ops or optional seed) |
+| `properties` | Thin hotel master (`curated_hotel_id` FK added in 016) |
+| `property_supplier_codes` | Generic Sabre/Hotelbeds/wholesale codes |
+| `property_contracts` | Offline contract headers (`policies` / `benefits` / `payout` jsonb) |
+| `property_contracted_rates` | Layer 1 room/package rates |
+| `property_rate_addons` | Transfers, tax, meals, drinks, festive |
+| `property_contract_offers` | % off / free HB / family-style offers |
+| `rate_search_events` | Optional resolveRates audit |
+| Permissions | `rates.search`, `settings.rate_sources`, `knowledge.*`, `settings.knowledge_base` |
+
+Optional Rate Layer rows: [`migrations/seeds/011_rate_layer.sql`](migrations/seeds/011_rate_layer.sql).  
+Optional Kanuhura contracts/rates: [`migrations/seeds/011_rate_layer_kanuhura.sql`](migrations/seeds/011_rate_layer_kanuhura.sql) (run Maldives profile seed first).  
+Optional PDF branding: [`migrations/seeds/015_trip_builder_flow.sql`](migrations/seeds/015_trip_builder_flow.sql).  
+`db push` does not apply `seeds/`.
+
+Drops obsolete Path tables (`offline_trip_types`, `wholesaler_destinations`, `high_value_routing`).  
+Spec: [`docs/studio/rate-layer.md`](../docs/studio/rate-layer.md). Recreate notes: [`docs/studio/rate-layer-deferred.md`](../docs/studio/rate-layer-deferred.md).
+
+Migration: `migrations/012_trips_kernel.sql`
+
+Creates the **seven-table trip kernel** (Trip Builder + Trips portfolio + Client App):
+
+| Table | Purpose |
+|---|---|
+| `trips` | Canonical journey record |
+| `trip_clients` | Primary + companions |
+| `trip_legs` | Ordered stops |
+| `trip_itinerary_days` | Day narrative + provenance |
+| `trip_line_items` | Rates/options incl. `pending_review` (no drafts table) |
+| `trip_documents` | Proposal PDFs + STALE |
+| `trip_chat_messages` | Advisor + guest chat (`channel`) |
+
+Also: `clients.is_demo`, storage bucket `trip-documents`, ops/finance Trip Builder grants.
+
+Migration: `migrations/013_bookings.sql`
+
+Creates:
+
+| Object | Purpose |
+|---|---|
+| `bookings` | Confirmed inventory ledger |
+| `booking_travellers` | Named people on a reservation |
+| `booking_audit_log` | Status / money / ref history |
+| `family_booking_members` FK | Deferred Client FK → `bookings` |
+| Storage | `booking-confirmations` bucket |
+| Permissions | Advisor `bookings.read` / `bookings.write` |
+
+Run **001 → … → 013** in order (Dashboard paste or `npx supabase db push` from repo root).
 
 ### Option A — Supabase Dashboard (simplest)
 

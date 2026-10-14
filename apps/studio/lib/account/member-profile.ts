@@ -1,11 +1,11 @@
 import { findTeamMemberById } from "@pureluxe/db";
-import { AppError } from "@pureluxe/shared";
+import { accountMessages, AppError } from "@pureluxe/shared";
 
 import type { AccountProfileData } from "@/lib/api/account";
 
 function profileNotFoundError(): AppError {
   return new AppError({
-    userMessage: "We couldn't load your profile. Please try again.",
+    userMessage: accountMessages.error.profileNotFound,
     code: "account.profile_not_found",
     status: 404,
   });

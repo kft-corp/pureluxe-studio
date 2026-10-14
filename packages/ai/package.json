@@ -1,0 +1,22 @@
+{
+  "name": "@pureluxe/ai",
+  "version": "0.1.0",
+  "description": "PureLuxe AI brain — Trip Builder and (later) Client chat turns.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.67.0",
+    "@pureluxe/shared": "workspace:*",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5"
+  }
+}

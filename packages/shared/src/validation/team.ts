@@ -1,5 +1,15 @@
 import { z } from "zod";
 
+/** Permission slug format — module.action. */
+export const permissionSlugSchema = z
+  .string()
+  .trim()
+  .min(3, { message: "Permission slug is required" })
+  .max(129, { message: "Permission slug is too long" })
+  .regex(/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/, {
+    message: "Permission slug must use module.action format",
+  });
+
 /** Role slug format — must match DB CHECK on studio_roles.slug. */
 export const studioRoleSlugSchema = z
   .string()
@@ -41,3 +51,10 @@ export const updateMemberStatusSchema = z.object({
 });
 
 export type UpdateMemberStatusInput = z.infer<typeof updateMemberStatusSchema>;
+
+/** Replace all grants for one role. */
+export const updateRolePermissionsSchema = z.object({
+  permissionSlugs: z.array(permissionSlugSchema),
+});
+
+export type UpdateRolePermissionsInput = z.infer<typeof updateRolePermissionsSchema>;

@@ -23,6 +23,8 @@ type PendingInvitesTableProps = {
   invites: PendingInviteListItem[];
   roles: TeamOverviewData["roles"];
   canManage: boolean;
+  searchQuery?: string;
+  hasActiveFilters?: boolean;
   onResend: (invite: PendingInviteListItem) => void;
   onRevoke: (invite: PendingInviteListItem) => void;
   loadingInviteId?: string | null;
@@ -55,7 +57,7 @@ function InviteActions({
   return (
     <div className={className}>
       <ActionButton onClick={() => onResend(invite)} disabled={isLoading}>
-        Resend
+        {isLoading ? "Sending…" : "Resend"}
       </ActionButton>
       <ActionButton
         onClick={() => onRevoke(invite)}
@@ -66,6 +68,26 @@ function InviteActions({
       </ActionButton>
     </div>
   );
+}
+
+function EmailCell({ email }: { email: string }) {
+  return (
+    <a
+      href={`mailto:${email}`}
+      onClick={(event) => event.stopPropagation()}
+      className="block max-w-[18rem] truncate font-medium text-ink underline-offset-2 hover:underline"
+      title={email}
+    >
+      {email}
+    </a>
+  );
+}
+
+function emptyMessage(hasActiveFilters: boolean, searchQuery: string): string {
+  const q = searchQuery.trim();
+  if (q) return `No invites match “${q}”.`;
+  if (hasActiveFilters) return "No pending invites for this filter.";
+  return "No pending invites. Invite someone to join your team.";
 }
 
 function InviteRowContent({
@@ -81,15 +103,15 @@ function InviteRowContent({
     return (
       <TableRow>
         <TableCell>
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <UserAvatar email={invite.email} variant="invite" />
-            <span className="text-ink">{invite.email}</span>
+            <EmailCell email={invite.email} />
           </div>
         </TableCell>
         <TableCell>
           <RoleBadge label={roleLabel} role={invite.role} />
         </TableCell>
-        <TableCell className="text-ink-muted">
+        <TableCell className="whitespace-nowrap text-ink-muted">
           {formatRelativeTime(invite.created_at)}
         </TableCell>
         <TableCell>
@@ -116,7 +138,7 @@ function InviteRowContent({
       <div className="flex items-start gap-3">
         <UserAvatar email={invite.email} variant="invite" />
         <div className="min-w-0 flex-1">
-          <p className="truncate font-medium text-ink">{invite.email}</p>
+          <EmailCell email={invite.email} />
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <RoleBadge label={roleLabel} role={invite.role} />
             <StatusBadge status="pending" />
@@ -142,6 +164,8 @@ export function PendingInvitesTable({
   invites,
   roles,
   canManage,
+  searchQuery = "",
+  hasActiveFilters = false,
   onResend,
   onRevoke,
   loadingInviteId,
@@ -150,7 +174,7 @@ export function PendingInvitesTable({
     return (
       <EmptyState
         icon={LuMail}
-        message="No pending invites. Invite someone to join your team."
+        message={emptyMessage(hasActiveFilters, searchQuery)}
       />
     );
   }

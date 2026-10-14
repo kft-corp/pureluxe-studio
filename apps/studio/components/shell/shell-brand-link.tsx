@@ -48,7 +48,7 @@ export function ShellBrandLink({
       </span>
       <span
         className={[
-          "mt-1.5 block font-sans text-[9px] font-medium uppercase tracking-[0.34em]",
+          "mt-0.5 block font-sans text-[9px] font-medium uppercase tracking-[0.28em]",
           isSidebar ? "text-on-dark-subtle" : "text-ink-subtle",
         ].join(" ")}
       >

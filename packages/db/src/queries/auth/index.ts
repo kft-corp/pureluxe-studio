@@ -12,4 +12,5 @@ export {
   findTeamMemberByEmail,
   findTeamMemberById,
   touchTeamMemberLastLogin,
+  updateMemberProfile,
 } from "./team-members";

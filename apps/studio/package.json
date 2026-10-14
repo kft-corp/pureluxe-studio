@@ -10,19 +10,26 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@fontsource/source-sans-3": "^5.3.1",
+    "@pureluxe/ai": "workspace:*",
     "@pureluxe/auth": "workspace:*",
     "@pureluxe/db": "workspace:*",
+    "@pureluxe/rates": "workspace:*",
     "@pureluxe/shared": "workspace:*",
     "iron-session": "^8.0.4",
     "next": "16.3.3",
+    "pdfkit": "^0.20.2",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-icons": "^5.7.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "sonner": "^2.0.8"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pdfkit": "^0.17.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

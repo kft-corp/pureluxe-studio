@@ -1,16 +1,12 @@
+import type { ConfirmDialogConfig } from "@/components/ui";
 import type { PendingInviteListItem, TeamMemberListItem } from "@/lib/api/team";
+
+import { getMemberDisplayName } from "./member-display-name";
 
 export type TeamConfirmState =
   | { type: "deactivate"; member: TeamMemberListItem }
   | { type: "reactivate"; member: TeamMemberListItem }
   | { type: "revoke"; invite: PendingInviteListItem };
-
-type ConfirmDialogConfig = {
-  title: string;
-  description: string;
-  confirmLabel: string;
-  destructive: boolean;
-};
 
 export function getConfirmDialogConfig(
   state: TeamConfirmState | null,
@@ -20,20 +16,24 @@ export function getConfirmDialogConfig(
   }
 
   switch (state.type) {
-    case "deactivate":
+    case "deactivate": {
+      const name = getMemberDisplayName(state.member.name, state.member.email);
       return {
         title: "Deactivate member",
-        description: `${state.member.name} will lose access to Studio immediately.`,
+        description: `${name} will lose access to Studio immediately.`,
         confirmLabel: "Deactivate",
         destructive: true,
       };
-    case "reactivate":
+    }
+    case "reactivate": {
+      const name = getMemberDisplayName(state.member.name, state.member.email);
       return {
         title: "Reactivate member",
-        description: `${state.member.name} will be able to sign in again.`,
+        description: `${name} will be able to sign in again.`,
         confirmLabel: "Reactivate",
         destructive: false,
       };
+    }
     case "revoke":
       return {
         title: "Revoke invite",

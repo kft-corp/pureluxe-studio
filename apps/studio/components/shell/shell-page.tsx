@@ -2,9 +2,30 @@ type ShellPageProps = {
   title: string;
   description?: string;
   children?: React.ReactNode;
+  /**
+   * `page` — standard titled module (Clients, Bookings).
+   * `workspace` — full-height desk (Trip Builder); no page title chrome.
+   */
+  layout?: "page" | "workspace";
 };
 
-export function ShellPage({ title, description, children }: ShellPageProps) {
+export function ShellPage({
+  title,
+  description,
+  children,
+  layout = "page",
+}: ShellPageProps) {
+  if (layout === "workspace") {
+    return (
+      <div
+        data-workspace
+        className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden"
+      >
+        {children}
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-8 md:px-8">
       <header className="mb-6 sm:mb-8">

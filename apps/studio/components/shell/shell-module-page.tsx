@@ -12,6 +12,7 @@ type ShellModulePageProps = {
   title: string;
   description?: string;
   children?: ReactNode;
+  layout?: "page" | "workspace";
 };
 
 /**
@@ -25,6 +26,7 @@ export async function ShellModulePage({
   title,
   description,
   children,
+  layout = "page",
 }: ShellModulePageProps) {
   const session = await requireActiveStudioSession();
   const { permissions } = session;
@@ -33,14 +35,14 @@ export async function ShellModulePage({
 
   if (!canRead) {
     return (
-      <ShellPage title={title} description={description}>
+      <ShellPage title={title} description={description} layout={layout}>
         <AccessDenied feature={title} />
       </ShellPage>
     );
   }
 
   return (
-    <ShellPage title={title} description={description}>
+    <ShellPage title={title} description={description} layout={layout}>
       {children ?? <ComingSoon feature={title} canWrite={canWrite} />}
     </ShellPage>
   );

@@ -10,7 +10,7 @@ export default async function AccountPage() {
   return (
     <ShellPage
       title="Account"
-      description="View your profile, role, and team account details."
+      description="View and update your profile, role, and team account details."
     >
       <AccountProfile {...profile} />
     </ShellPage>

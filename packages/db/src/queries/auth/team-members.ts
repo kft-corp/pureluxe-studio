@@ -1,6 +1,10 @@
+import type { UpdateMemberProfileInput } from "@pureluxe/shared";
+
 import { getServiceClient, runSupabaseQuery } from "../../client";
 import { dbQueryError } from "../../errors";
 import type { TeamMember } from "../../schema";
+
+const PROFILE_COLUMNS = "id, name, email, role, title, phone, active";
 
 /** Find team member by id. Returns null if not found. */
 export async function findTeamMemberById(
@@ -11,7 +15,7 @@ export async function findTeamMemberById(
   const { data, error } = await runSupabaseQuery(() =>
     supabase
       .from("team_members")
-      .select("id, name, email, role, title, phone, active")
+      .select(PROFILE_COLUMNS)
       .eq("id", memberId)
       .maybeSingle(),
   );
@@ -59,4 +63,35 @@ export async function touchTeamMemberLastLogin(memberId: string): Promise<void> 
   if (error) {
     throw dbQueryError(error);
   }
+}
+
+type UpdateMemberProfileDbInput = UpdateMemberProfileInput & {
+  memberId: string;
+};
+
+/** Update a member's self-service profile fields. */
+export async function updateMemberProfile(
+  input: UpdateMemberProfileDbInput,
+): Promise<TeamMember> {
+  const supabase = getServiceClient();
+
+  const { data, error } = await runSupabaseQuery(() =>
+    supabase
+      .from("team_members")
+      .update({
+        name: input.name,
+        title: input.title,
+        phone: input.phone,
+      })
+      .eq("id", input.memberId)
+      .eq("active", true)
+      .select(PROFILE_COLUMNS)
+      .single(),
+  );
+
+  if (error) {
+    throw dbQueryError(error);
+  }
+
+  return data as TeamMember;
 }

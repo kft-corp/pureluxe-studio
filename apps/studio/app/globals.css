@@ -174,3 +174,52 @@ body {
     border-radius: 50%;
   }
 }
+
+/* Trip Builder agent phase label — brief fade on phase change */
+@keyframes agentPhaseFadeIn {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.agent-phase-label {
+  animation: agentPhaseFadeIn 180ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-phase-label {
+    animation: none;
+  }
+}
+
+/* Trip Builder stage stepper — current step blink */
+@keyframes tripStageBlink {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.45;
+    transform: scale(0.92);
+  }
+}
+
+.trip-stage-dot-active {
+  animation: tripStageBlink 1.4s ease-in-out infinite;
+}
+
+.trip-stage-dot-active .trip-stage-dot-halo {
+  animation: tripStageBlink 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trip-stage-dot-active,
+  .trip-stage-dot-active .trip-stage-dot-halo {
+    animation: none;
+  }
+}

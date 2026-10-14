@@ -18,13 +18,36 @@ export class ApiRequestError extends Error {
   }
 }
 
+function apiBodyWasNotJson(response: Response): Error {
+  if (response.status === 401 || response.url.includes("/login")) {
+    return new Error("Your session expired. Please sign in again.");
+  }
+
+  if (response.status === 404) {
+    return new Error(
+      "The server could not find that request. Refresh the page and try again.",
+    );
+  }
+
+  return new Error(
+    "The server returned an unexpected response. Refresh the page and try again.",
+  );
+}
+
 // Fetch and parse { success, data } / { success: false, error }.
 export async function fetchApi<T>(
   input: RequestInfo | URL,
   init?: RequestInit,
 ): Promise<ApiSuccessResponse<T>> {
   const response = await fetch(input, init);
-  const body: unknown = await response.json();
+  const raw = await response.text();
+  let body: unknown;
+
+  try {
+    body = raw ? (JSON.parse(raw) as unknown) : null;
+  } catch {
+    throw apiBodyWasNotJson(response);
+  }
 
   if (
     typeof body === "object" &&

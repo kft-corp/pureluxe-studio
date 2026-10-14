@@ -1,3 +1,5 @@
+import type { UpdateMemberProfileBody } from "@pureluxe/shared";
+
 import { apiRoutes } from "@/lib/routes";
 
 import { fetchApi } from "./client";
@@ -14,6 +16,16 @@ export type AccountProfileData = {
 /** Load the signed-in member profile from the database. */
 export function getAccountProfile() {
   return fetchApi<AccountProfileData>(apiRoutes.account.me, {
+    cache: "no-store",
+  });
+}
+
+/** Update the signed-in member profile (name, designation, phone). */
+export function updateAccountProfile(input: UpdateMemberProfileBody) {
+  return fetchApi<AccountProfileData>(apiRoutes.account.me, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
     cache: "no-store",
   });
 }
