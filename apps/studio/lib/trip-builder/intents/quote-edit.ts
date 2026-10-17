@@ -35,10 +35,3 @@ export function parseQuoteEdit(text: string): QuoteEdit | null {
   }
   return null;
 }
-
-export function quoteEditLabel(edit: QuoteEdit): string {
-  if (edit.field === "highlight") return "Add highlight";
-  if (edit.field === "title") return "Set title";
-  if (edit.field === "intro") return "Set intro";
-  return "Set notes";
-}

@@ -8,6 +8,7 @@
     "build": "pnpm --filter @pureluxe/studio build",
     "build:studio": "pnpm --filter @pureluxe/studio build",
     "lint": "pnpm --filter @pureluxe/studio lint",
+    "test": "pnpm --filter @pureluxe/studio test",
     "start": "pnpm --filter @pureluxe/studio start"
   },
   "engines": {

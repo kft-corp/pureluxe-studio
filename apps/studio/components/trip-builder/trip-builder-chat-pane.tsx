@@ -10,7 +10,7 @@ import type { ChatMessage, TripDetail } from "@/lib/trip-builder";
 import { cn } from "@/lib/utils/cn";
 
 import { ChatMarkdown } from "./chat-markdown";
-import { stayAskText } from "./parse-stay-message";
+import { stayAskText } from "./stay-prompt";
 import { resolveTripStage } from "./stages";
 import type { TripBuilderChip } from "./trip-builder-action-chip";
 import {

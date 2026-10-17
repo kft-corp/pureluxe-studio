@@ -1,3 +1,11 @@
+const RATE_SEARCH =
+  /\b(search|find|check|get|look up)\b[\s\S]{0,40}\b(rates?|prices?)\b|\b(price|prices|rates?)\b[\s\S]{0,24}\b(hotel|stay)\b/i;
+
+/** Advisor asked to price the saved stay. */
+export function wantsRateSearch(message: string): boolean {
+  return RATE_SEARCH.test(message);
+}
+
 export type RateChoice = {
   title: string;
 };

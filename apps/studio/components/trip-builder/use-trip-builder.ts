@@ -38,6 +38,44 @@ import {
 } from "@/lib/api";
 import { showApiError, showSuccessToast } from "@/lib/feedback";
 import { pageRoutes } from "@/lib/routes";
+import {
+  clientNameFromMessage,
+  isConfirmReply,
+  isDeclineReply,
+  isOptionsAdd,
+  isPlaceQuestion,
+  isPriceSkip,
+  isTripQuestion,
+  looksLikeHotelPlan,
+  looksLikeOptionsPdfEdit,
+  matchRateChoice,
+  mergeStayDraft,
+  mightNamePlace,
+  parseAddStay,
+  parseCityOnly,
+  parseLeadChange,
+  parseListedStayEdit,
+  parseMoneyReply,
+  parseOptionClientPrice,
+  parseOptionsWording,
+  parseQuoteEdit,
+  parseRemoveStay,
+  parseStayMessage,
+  parseTravellerCommand,
+  parseTripDates,
+  parseTripShift,
+  partyReady,
+  splitTrailingPrice,
+  stayDraftReady,
+  wantsAddStay,
+  wantsAssignClient,
+  wantsChangeTripDates,
+  wantsHotelSearch,
+  wantsOptionsPreview,
+  wantsRateSearch,
+  type MoneyReply,
+  type StayDraft,
+} from "@/lib/trip-builder/intents";
 import { isQuoteAccepted, isQuoteWithClient, isTripClosed } from "@/lib/trip-builder/trip-lock";
 import type {
   ChatMessage,
@@ -51,39 +89,7 @@ import {
   applyChatStreamEvent,
   makeOptimisticUserMessage,
 } from "./apply-chat-stream-event";
-import {
-  clientNameFromMessage,
-  isConfirmReply,
-  isDeclineReply,
-  parseAddStay,
-  parseCityOnly,
-  looksLikeHotelPlan,
-  parseLeadChange,
-  parseListedStayEdit,
-  parseRemoveStay,
-  parseTravellerCommand,
-  parseTripDates,
-  parseTripShift,
-  wantsAddStay,
-  wantsChangeTripDates,
-  wantsAssignClient,
-  wantsRateSearch,
-  wantsHotelSearch,
-  isPlaceQuestion,
-  mightNamePlace,
-  isTripQuestion,
-} from "./chat-intent";
-import {
-  parseQuoteEdit,
-} from "./parse-quote-edit";
-import {
-  mergeStayDraft,
-  parseStayMessage,
-  partyReady,
-  stayAskText,
-  stayDraftReady,
-  type StayDraft,
-} from "./parse-stay-message";
+import { stayAskText } from "./stay-prompt";
 import { cancellationForStay, explainRate } from "./explain-rate";
 import { questionUsesRatePack } from "@/lib/rates/rate-search-pack";
 import {
@@ -93,17 +99,6 @@ import {
   markupPercentFromNotes,
   type PricedRoom,
 } from "@/lib/rates/price-math";
-import {
-  isPriceSkip,
-  parseMoneyReply,
-  parseOptionClientPrice,
-  parseOptionsWording,
-  looksLikeOptionsPdfEdit,
-  splitTrailingPrice,
-  wantsOptionsPreview,
-  type MoneyReply,
-} from "./options-quote-guide";
-import { isOptionsAdd, matchRateChoice } from "./parse-rate-choice";
 import { buildQuoteBreakup, nightsLabel, stayNightCount } from "./quote-price";
 import type { TripBuilderChip } from "./trip-builder-action-chip";
 import type { TripBuilderRateCard, TripBuilderStayNotes } from "./trip-builder-rate-card";
@@ -2831,15 +2826,32 @@ export function useTripBuilder({
     }
   }
 
+  /**
+   * Routes one typed message. The sections run in this order and the first one that
+   * handles the message returns, so a new intent has to sit in the right section.
+   *  1. No trip open: pre-trip chat.
+   *  2. A room is waiting for its client price.
+   *  3. Any other new message clears the chips on offer.
+   *  4. Yes or no to the pending confirmation.
+   *  5. Trip dates and stays: locked check, shift, trip dates, remove, revise, add.
+   *  6. Hotel and party for the open stay.
+   *  7. Lead and travellers.
+   *  8. Place questions and hotel picks.
+   *  9. Rates, client prices, and quote wording. The client search and the stay draft
+   *     update here without returning.
+   * 10. Anything else goes to the agent.
+   */
   async function handleSend(text: string) {
     const message = text.trim();
     if (!message || !canWrite) return;
 
+    // 1. No trip open: pre-trip chat.
     if (!detail) {
       await sendHomeChat(message);
       return;
     }
 
+    // 2. A room is waiting for its client price.
     if (pendingOptionDraft && !confirmFocus && isDeclineReply(message)) {
       setPendingOptionDraft(null);
       void appendTurn(message, "Okay. I won't add that room.");
@@ -2862,6 +2874,7 @@ export function useTripBuilder({
       return;
     }
 
+    // 3. Any other new message clears the chips on offer.
     const stage = resolveTripStage(detail);
     const openStay = stayOn(detail, activeLegIdRef.current);
     if (!isConfirmReply(message) && !isDeclineReply(message)) {
@@ -2924,6 +2937,7 @@ export function useTripBuilder({
       );
     }
 
+    // 4. Yes or no to the pending confirmation.
     if (confirmFocus && (isDeclineReply(message) || isConfirmReply(message))) {
       const focus = confirmFocus;
       const confirming = isConfirmReply(message);
@@ -3106,6 +3120,7 @@ export function useTripBuilder({
       }
     }
 
+    // 5. Trip dates and stays.
     const stayEdit =
       Boolean(parseAddStay(message)) ||
       Boolean(parseListedStayEdit(message, stays)) ||
@@ -3295,6 +3310,7 @@ export function useTripBuilder({
       }
     }
 
+    // 6. Hotel and party for the open stay.
     if (
       openStay &&
       windowStart &&
@@ -3343,6 +3359,7 @@ export function useTripBuilder({
       }
     }
 
+    // 7. Lead and travellers.
     if (detail.client) {
       const leadChange = parseLeadChange(message);
       if (leadChange) {
@@ -3406,6 +3423,7 @@ export function useTripBuilder({
       }
     }
 
+    // 8. Place questions and hotel picks.
     if (
       travellersConfirmed(detail) &&
       !detail.pricing_locked &&
@@ -3432,6 +3450,7 @@ export function useTripBuilder({
       }
     }
 
+    // 9. Rates, client prices, and quote wording.
     const rateStage = isRateStage(stage);
     const asking = isTripQuestion(message) && !wantsOptionsPreview(message);
     const optionPrice = parseOptionClientPrice(message);
@@ -3560,6 +3579,7 @@ export function useTripBuilder({
       }
     }
 
+    // Does not return: the client search runs and the message still reaches the agent.
     if (stage === "client" && !detail.client) {
       if (pendingAssign && isConfirmReply(message)) {
         // Keep the confirm chip.
@@ -3692,6 +3712,7 @@ export function useTripBuilder({
       if (offered) return;
     }
 
+    // 10. Anything else goes to the agent.
     await sendTripChat(message);
   }
 

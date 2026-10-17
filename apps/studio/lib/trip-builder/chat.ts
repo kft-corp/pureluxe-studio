@@ -32,7 +32,7 @@ import {
   isPlaceQuestion,
   isTripQuestion,
   mightNamePlace,
-} from "./message-intent";
+} from "./intents";
 import { getTripDossier, questionNeedsPlaceLookup } from "./trip-dossier";
 import { requireAssignedTrip } from "./require-assigned-trip";
 

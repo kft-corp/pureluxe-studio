@@ -14,7 +14,7 @@ import {
   type KbEntity,
 } from "@pureluxe/db";
 
-import { wantsHotelSearch } from "./message-intent";
+import { wantsHotelSearch } from "./intents";
 
 export type AtlasHotelChoice = {
   id: string;
