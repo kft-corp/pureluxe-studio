@@ -1,3 +1,5 @@
+import { isTripQuestion } from "./questions";
+
 const RATE_SEARCH =
   /\b(search|find|check|get|look up)\b[\s\S]{0,40}\b(rates?|prices?)\b|\b(price|prices|rates?)\b[\s\S]{0,24}\b(hotel|stay)\b/i;
 
@@ -91,4 +93,33 @@ export function matchRateChoice<T extends RateChoice>(
   if (hits.length === 1) return hits[0];
   if (hits.length > 1) return "ambiguous";
   return null;
+}
+
+function looksLikeSupplierQuote(text: string): boolean {
+  return (
+    /(?:USD|EUR|GBP|CHF|AED|\$|€|£)\s*[0-9]/i.test(text) ||
+    /(?:total|rate|cost|price|amount)\s*[:=]?\s*[0-9]/i.test(text)
+  );
+}
+
+/** A supplier total to save. A question that mentions a price is not one. */
+export function isSupplierPaste(text: string): boolean {
+  if (!looksLikeSupplierQuote(text)) return false;
+  if (isTripQuestion(text)) return false;
+  if (/\?\s*$/.test(text.trim())) return false;
+  return true;
+}
+
+/** "sell 4500 USD" or "sell price: EUR 3200" sets the trip client price. USD when no currency is named. */
+export function parseSellMessage(
+  text: string,
+): { sell_total: number; sell_currency: string } | null {
+  const match = text.match(
+    /\bsell(?:\s*(?:price|total))?\s*[:=]?\s*([A-Z]{3})?\s*([0-9]+(?:\.[0-9]+)?)\s*([A-Z]{3})?\b/i,
+  );
+  if (!match) return null;
+  const amount = Number(match[2]);
+  if (!Number.isFinite(amount)) return null;
+  const currency = (match[1] || match[3] || "USD").toUpperCase();
+  return { sell_total: amount, sell_currency: currency };
 }

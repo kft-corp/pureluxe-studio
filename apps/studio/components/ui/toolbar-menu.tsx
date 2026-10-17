@@ -117,7 +117,7 @@ export function ToolbarMenu({
                 visibility: position ? "visible" : "hidden",
               }}
               className={cn(
-                "z-50 overflow-y-auto rounded-lg border border-border bg-surface py-1 shadow-lg",
+                "z-50 overflow-y-auto rounded-lg border border-border bg-surface-raised py-1 shadow-lg",
                 menuClassName,
               )}
             >
@@ -128,15 +128,20 @@ export function ToolbarMenu({
               ) : null}
               {items.map((item) => (
                 <div key={item.key}>
-                  {item.divider ? <div className="my-1 border-t border-border/80" /> : null}
+                  {item.divider ? <div className="my-1 border-t border-divider" /> : null}
                   <button
                     type="button"
                     role="menuitem"
                     disabled={item.disabled}
                     className={cn(
                       "flex w-full items-start gap-2.5 px-3 py-2 text-left text-sm",
-                      item.disabled ? "cursor-not-allowed opacity-50" : "hover:bg-surface-hover",
-                      item.danger ? "text-red-700" : "text-ink",
+                      item.disabled
+                        ? "cursor-not-allowed opacity-50"
+                        : item.danger
+                          ? "hover:bg-danger-soft focus-visible:bg-danger-soft"
+                          : "hover:bg-surface-hover focus-visible:bg-surface-hover",
+                      "focus-visible:outline-none",
+                      item.danger ? "text-danger-ink" : "text-ink",
                     )}
                     onClick={() => {
                       if (item.disabled) return;
@@ -151,7 +156,7 @@ export function ToolbarMenu({
                         <span
                           className={cn(
                             "mt-0.5 block text-xs font-normal",
-                            item.danger ? "text-red-700/80" : "text-ink-muted",
+                            item.danger ? "text-danger-ink/85" : "text-ink-muted",
                           )}
                         >
                           {item.hint}

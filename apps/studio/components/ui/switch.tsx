@@ -2,6 +2,8 @@
 
 import { cn } from "@/lib/utils/cn";
 
+import { studioFocusRing } from "./studio-control";
+
 type SwitchProps = {
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
@@ -28,7 +30,8 @@ export function Switch({
       onClick={() => onCheckedChange(!checked)}
       className={cn(
         "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors",
-        checked ? "bg-brand-dark" : "bg-stone-300",
+        studioFocusRing,
+        checked ? "bg-accent-strong" : "bg-ink-faint",
         disabled && "cursor-not-allowed opacity-50",
         className,
       )}

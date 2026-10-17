@@ -76,7 +76,7 @@ function ChangeRoleForm({
         <label className="block">
           <span className="text-sm font-medium text-ink">
             Role
-            <span className="ml-0.5 text-red-600" aria-hidden>
+            <span className="ml-0.5 text-danger-ink" aria-hidden>
               *
             </span>
           </span>

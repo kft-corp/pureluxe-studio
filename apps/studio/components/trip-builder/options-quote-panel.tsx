@@ -49,10 +49,10 @@ export function OptionsQuotePanel({
 
   return (
     <section className="mb-3">
-      <h3 className="mb-1 text-[10px] font-medium tracking-[0.05em] text-[#6b6b6b] uppercase">
+      <h3 className="mb-1 text-[10px] font-medium tracking-[0.05em] text-ink-muted uppercase">
         Options for the client
       </h3>
-      <p className="mb-2 text-[12px] leading-relaxed text-[#6b6b6b]">
+      <p className="mb-2 text-[12px] leading-relaxed text-ink-muted">
         {accepted
           ? options.length > 0
             ? "The client accepted this quote. Tap Client chose this on the room they picked. Its client price from the quote becomes the trip price."
@@ -76,13 +76,13 @@ export function OptionsQuotePanel({
         ))}
       </div>
       {detail.options_quote.notes?.trim() ? (
-        <p className="mt-2 text-[12px] leading-relaxed text-[#6b6b6b]">
+        <p className="mt-2 text-[12px] leading-relaxed text-ink-muted">
           Note: {detail.options_quote.notes.trim()}
         </p>
       ) : null}
-      <div className="mt-2 flex items-center justify-between rounded-[10px] border border-[#e8e6e1] bg-white px-2.5 py-2.5">
-        <strong className="text-[12px] text-[#141414]">Options quote PDF</strong>
-        <span className={cn("text-[11px] font-semibold", ready ? "text-[#2a6b3c]" : "text-[#6b6b6b]")}>
+      <div className="mt-2 flex items-center justify-between rounded-[10px] border border-border bg-surface-raised px-2.5 py-2.5">
+        <strong className="text-[12px] text-ink">Options quote PDF</strong>
+        <span className={cn("text-[11px] font-semibold", ready ? "text-success-ink" : stale ? "text-warning-ink" : "text-ink-muted")}>
           {ready ? "Ready" : stale ? "Out of date" : "Not generated"}
         </span>
       </div>
@@ -126,15 +126,15 @@ function OptionRow({
   const room = row.subtitle?.trim() || row.title;
   const team = moneyLabel(row.cost_internal, row.currency);
   return (
-    <div className="rounded-[10px] border border-[#e8e6e1] bg-white px-2.5 py-2">
-      <p className="text-[12px] font-semibold text-[#141414]">{hotel}</p>
-      <p className="text-[12px] text-[#6b6b6b]">{room}</p>
-      <p className="mt-1 text-[12px] text-[#141414]">Team cost {team}</p>
-      <p className="text-[12px] text-[#141414]">
+    <div className="rounded-[10px] border border-border bg-surface-raised px-2.5 py-2">
+      <p className="text-[12px] font-semibold text-ink">{hotel}</p>
+      <p className="text-[12px] text-ink-muted">{room}</p>
+      <p className="mt-1 text-[12px] text-ink">Team cost {team}</p>
+      <p className="text-[12px] text-ink">
         Client price {moneyLabel(row.sell_amount, row.currency)}
       </p>
       {row.selected ? (
-        <p className="mt-1 text-[11px] font-semibold text-[#2a6b3c]">Client&apos;s current choice</p>
+        <p className="mt-1 text-[11px] font-semibold text-success-ink">Client&apos;s current choice</p>
       ) : canWrite ? (
         <button
           type="button"

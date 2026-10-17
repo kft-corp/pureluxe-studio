@@ -2,6 +2,7 @@ import { hasPermission } from "@pureluxe/shared";
 
 import { ClientsPageContent } from "@/components/clients";
 import { ShellModulePage } from "@/components/shell";
+import { pageCopy } from "@/config/page-copy";
 import type { ClientDirectoryData } from "@/lib/api/clients";
 import { requireActiveStudioSession } from "@/lib/auth/session-with-permissions";
 import {
@@ -56,11 +57,7 @@ export default async function ClientsPage() {
   }
 
   return (
-    <ShellModulePage
-      module="clients"
-      title="Clients"
-      description="Find people fast, filter the book, and open a profile."
-    >
+    <ShellModulePage module="clients" {...pageCopy.clients}>
       <ClientsPageContent
         initialDirectory={initialDirectory}
         canWrite={canWrite}

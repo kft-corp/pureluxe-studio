@@ -18,6 +18,7 @@ export {
   studioButtonClass,
   studioChipClass,
   studioControl,
+  studioFocusRing,
   studioTone,
 } from "./studio-control";
 export { Switch } from "./switch";

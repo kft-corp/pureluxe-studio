@@ -8,11 +8,17 @@
     "build": "pnpm --filter @pureluxe/studio build",
     "build:studio": "pnpm --filter @pureluxe/studio build",
     "lint": "pnpm --filter @pureluxe/studio lint",
-    "test": "pnpm --filter @pureluxe/studio test",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run --project \"*:unit\"",
+    "test:studio": "vitest run --project \"studio:*\"",
     "start": "pnpm --filter @pureluxe/studio start"
   },
   "engines": {
     "node": ">=20"
   },
-  "packageManager": "pnpm@10.24.0"
+  "packageManager": "pnpm@10.24.0",
+  "devDependencies": {
+    "vitest": "^4.1.12"
+  }
 }

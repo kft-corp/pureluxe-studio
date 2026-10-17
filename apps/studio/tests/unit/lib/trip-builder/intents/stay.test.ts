@@ -10,7 +10,7 @@ import {
   parseTripShift,
   wantsAddStay,
   wantsChangeTripDates,
-} from "./stay";
+} from "@/lib/trip-builder/intents";
 
 describe("parseTripDates", () => {
   it.each([

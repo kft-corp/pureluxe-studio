@@ -111,11 +111,11 @@ export function PreferenceListItem({
             <p className="wrap-break-word text-sm font-semibold text-ink">
               {pref.label}
             </p>
-            <span className="rounded-full bg-brand-light px-2 py-0.5 text-[11px] font-semibold text-ink">
+            <span className="rounded-full bg-neutral-soft px-2 py-0.5 text-[11px] font-semibold text-neutral-ink ring-1 ring-inset ring-neutral-line">
               {formatSentiment(pref.sentiment)}
             </span>
             {!pref.is_confirmed ? (
-              <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+              <span className="rounded-full bg-warning-soft px-2 py-0.5 text-[11px] font-semibold text-warning-ink ring-1 ring-inset ring-warning-line">
                 Needs confirmation
               </span>
             ) : null}
@@ -174,7 +174,7 @@ export function DocumentListItem({
     <li className="px-5 py-3.5 sm:px-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">
         <div className="flex min-w-0 flex-1 items-start gap-3">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border bg-surface text-ink-muted">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border bg-surface-subtle text-ink-muted">
             <LuFileText className="h-4 w-4" aria-hidden />
           </span>
           <div className="min-w-0 flex-1">
@@ -183,11 +183,11 @@ export function DocumentListItem({
                 {formatDocumentType(doc.document_type)}
               </p>
               {expired ? (
-                <span className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700">
+                <span className="rounded-full bg-danger-soft px-2 py-0.5 text-[11px] font-semibold text-danger-ink ring-1 ring-inset ring-danger-line">
                   Expired
                 </span>
               ) : soon ? (
-                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                <span className="rounded-full bg-warning-soft px-2 py-0.5 text-[11px] font-semibold text-warning-ink ring-1 ring-inset ring-warning-line">
                   Expiring soon
                 </span>
               ) : null}
@@ -251,7 +251,7 @@ export function JumpCard({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full min-w-0 items-center gap-3 rounded-2xl border border-border bg-surface-raised px-4 py-3.5 text-left shadow-sm transition hover:bg-brand-light/50"
+      className="flex w-full min-w-0 items-center gap-3 rounded-2xl border border-border bg-surface-raised px-4 py-3.5 text-left shadow-sm transition hover:border-border-strong hover:bg-surface-hover"
     >
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-ink">{title}</p>

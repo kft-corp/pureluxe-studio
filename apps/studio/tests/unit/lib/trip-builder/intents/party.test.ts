@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { classifyPartyIntent, parseLeadChange, parseTravellerCommand } from "./party";
+import { classifyPartyIntent, parseLeadChange, parseTravellerCommand } from "@/lib/trip-builder/intents";
 
 describe("classifyPartyIntent", () => {
   it.each([

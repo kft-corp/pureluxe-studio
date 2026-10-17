@@ -8,7 +8,7 @@ import {
   parseOptionsWording,
   splitTrailingPrice,
   wantsOptionsPreview,
-} from "./options-quote";
+} from "@/lib/trip-builder/intents";
 
 describe("parseMoneyReply", () => {
   it.each([

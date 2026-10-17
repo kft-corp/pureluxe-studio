@@ -25,26 +25,26 @@ export function LoginHeroPanel() {
       />
       <div
         aria-hidden="true"
-        className="absolute inset-0 bg-linear-to-t from-black/75 via-black/45 to-black/20"
+        className="absolute inset-0 bg-linear-to-t from-brand-sidebar/85 via-brand-sidebar/50 to-brand-sidebar/20"
       />
 
       <div className="relative z-10 flex h-full min-h-0 flex-col items-center justify-center px-8 py-6 text-center text-white lg:px-12 [@media(max-height:800px)]:py-4">
-        <div className="flex w-full max-w-xl flex-col items-center gap-5 lg:gap-6 [@media(max-height:800px)]:gap-4">
-          <p className="text-[11px] font-medium tracking-[0.28em] text-white/75 uppercase sm:text-[13px] [@media(max-height:720px)]:hidden">
+        <div className="flex w-full max-w-lg flex-col items-center gap-4 lg:gap-5 [@media(max-height:800px)]:gap-3.5">
+          <p className="text-[11px] font-medium tracking-[0.24em] text-accent uppercase [@media(max-height:720px)]:hidden">
             Internal operations
           </p>
 
-          <h2 className="font-serif text-2xl leading-tight font-normal tracking-tight sm:text-3xl lg:text-4xl lg:leading-[1.15] xl:text-[2.75rem]">
+          <h2 className="font-serif text-[1.75rem] leading-[1.2] font-normal tracking-[-0.01em] xl:text-[2.125rem]">
             Operate every trip in one place.
           </h2>
 
-          <p className="max-w-md text-sm leading-relaxed text-white/85 sm:text-base lg:text-[15px] xl:text-lg">
+          <p className="max-w-md text-sm leading-relaxed text-white/85 xl:text-[15px]">
             Queue, Trip Builder, bookings, and clients — one shared workspace.
           </p>
 
           <hr
             aria-hidden="true"
-            className="w-full max-w-xs border-0 border-t border-white/25 [@media(max-height:720px)]:hidden"
+            className="w-full max-w-xs border-0 border-t border-accent/40 [@media(max-height:720px)]:hidden"
           />
 
           <ul

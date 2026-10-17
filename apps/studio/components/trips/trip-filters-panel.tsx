@@ -217,7 +217,7 @@ function FiltersForm({
           </div>
         </div>
         {dateRangeInvalid ? (
-          <p className="text-sm text-red-700">Starts to must be on or after starts from.</p>
+          <p className="text-sm text-danger-ink" role="alert">Starts to must be on or after starts from.</p>
         ) : null}
       </div>
     </Modal>

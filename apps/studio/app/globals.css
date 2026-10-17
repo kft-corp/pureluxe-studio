@@ -1,25 +1,97 @@
 @import "tailwindcss";
 
-/* PureLuxe Studio design tokens */
+/*
+ * PureLuxe Studio design tokens — the only place raw colors may live.
+ * Components use the Tailwind utilities generated in @theme below
+ * (bg-surface, text-ink, bg-accent-soft, text-success-ink, …).
+ * Contrast notes (WCAG 2.2 on white): ink 17:1, ink-muted 5.8:1,
+ * ink-subtle 4.8:1, accent-ink 5.8:1, accent-strong 3.8:1 (focus / non-text only).
+ * ink-faint and accent are decorative — never use them for readable text on light surfaces.
+ */
 :root {
-  --brand-dark: #0b0b0c;
-  /* Warm espresso sidebar — softer than flat black, matches cream brand tones */
-  --brand-sidebar: #1f1c18;
-  --brand-sidebar-deep: #161412;
-  --brand-light: #f4f1ea;
-  --surface: #f9f8f6;
+  /* Surfaces */
+  --surface: #f9f9f7;
   --surface-raised: #ffffff;
-  --surface-hover: #f4f3f0;
+  --surface-subtle: #fafaf8;
+  --surface-hover: #f7f5f0;
+
+  /* Lines */
   --border: #e8e6e1;
-  --border-dark: #342f29;
-  --border-muted: #4a443c;
-  --ink: #141414;
-  --ink-muted: #6b6b6b;
-  --ink-subtle: #b0b0b0;
-  --on-dark: #f4f1ea;
-  --on-dark-muted: #d8d4cb;
-  --on-dark-subtle: #a39e93;
-  --on-dark-faint: #7a756c;
+  --border-strong: #d8d5ce;
+  --divider: #f0eee9;
+
+  /* Ink */
+  --ink: #141619;
+  --ink-muted: #63666e;
+  --ink-subtle: #6f737b;
+  --ink-faint: #9ca0a8;
+
+  /* Brand */
+  --brand-dark: #141619;
+  --brand-dark-hover: #2a2d33;
+  --brand-light: #f4f1ea;
+
+  /* Champagne accent */
+  --accent: #c5a880;
+  --accent-hover: #b8996e;
+  --accent-strong: #9e7d54;
+  --accent-soft: #f6f2eb;
+  --accent-line: #e6d9c4;
+  --accent-ink: #7d6139;
+  --accent-ink-strong: #5e4b30;
+
+  /* Navigation sidebar (Fora-style blush) — crisp neutral ink and outline icons on blush */
+  --nav: #f7f0ec;
+  --nav-hover: #f1e5e1;
+  --nav-active: #ffffff;
+  --nav-line: #eadcd7;
+  --nav-ink: #262626;
+  --nav-ink-strong: #111111;
+  --nav-icon: #3f3f3f;
+  --nav-label: #6b6b6b;
+  --nav-muted: #a3a3a3;
+
+  /* Dark chrome (login photo scrim, monogram tiles, text on dark buttons) */
+  --brand-sidebar: #131211;
+  --border-muted: #3a3733;
+  --on-dark: #f7f6f3;
+  --on-dark-subtle: #a19d96;
+
+  /* Avatars */
+  --avatar: #f2efea;
+  --avatar-ink: #5e4b30;
+  --avatar-hero: #1c1b19;
+  --avatar-hero-ink: #c5a880;
+
+  /* Status — soft background / readable ink / 1px line / solid dot or fill */
+  --success-soft: #eef5f1;
+  --success-ink: #2d6a4f;
+  --success-line: #d1e5da;
+  --success: #2d6a4f;
+  --success-hover: #24573f;
+  --success-dot: #3f8f6a;
+
+  --warning-soft: #fdf6ee;
+  --warning-ink: #92400e;
+  --warning-line: #f5deb3;
+  --warning-dot: #c98a2e;
+
+  --danger-soft: #fdf2f2;
+  --danger-ink: #9b2c2c;
+  --danger-line: #f5d0d0;
+  --danger: #9b2c2c;
+  --danger-hover: #822424;
+  --danger-dot: #c53030;
+
+  --info-soft: #eff4fa;
+  --info-ink: #2b4c7e;
+  --info-line: #d3e0f0;
+  --info-dot: #3b6cb5;
+
+  --neutral-soft: #f2f1ed;
+  --neutral-ink: #4b4e55;
+  --neutral-line: #e2e0d8;
+  --neutral-dot: #9ca0a8;
 
   /* Root layout (login gate, etc.) */
   --background: var(--brand-dark);
@@ -27,28 +99,87 @@
 }
 
 @theme inline {
-  --color-brand-dark: var(--brand-dark);
-  --color-brand-sidebar: var(--brand-sidebar);
-  --color-brand-sidebar-deep: var(--brand-sidebar-deep);
-  --color-brand-light: var(--brand-light);
   --color-surface: var(--surface);
   --color-surface-raised: var(--surface-raised);
+  --color-surface-subtle: var(--surface-subtle);
   --color-surface-hover: var(--surface-hover);
+
   --color-border: var(--border);
-  --color-border-dark: var(--border-dark);
-  --color-border-muted: var(--border-muted);
+  --color-border-strong: var(--border-strong);
+  --color-divider: var(--divider);
+
   --color-ink: var(--ink);
   --color-ink-muted: var(--ink-muted);
   --color-ink-subtle: var(--ink-subtle);
+  --color-ink-faint: var(--ink-faint);
+
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-dark-hover: var(--brand-dark-hover);
+  --color-brand-light: var(--brand-light);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-line: var(--accent-line);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-ink-strong: var(--accent-ink-strong);
+
+  --color-nav: var(--nav);
+  --color-nav-hover: var(--nav-hover);
+  --color-nav-active: var(--nav-active);
+  --color-nav-line: var(--nav-line);
+  --color-nav-ink: var(--nav-ink);
+  --color-nav-ink-strong: var(--nav-ink-strong);
+  --color-nav-icon: var(--nav-icon);
+  --color-nav-label: var(--nav-label);
+  --color-nav-muted: var(--nav-muted);
+
+  --color-brand-sidebar: var(--brand-sidebar);
+  --color-border-muted: var(--border-muted);
   --color-on-dark: var(--on-dark);
-  --color-on-dark-muted: var(--on-dark-muted);
   --color-on-dark-subtle: var(--on-dark-subtle);
-  --color-on-dark-faint: var(--on-dark-faint);
+
+  --color-avatar: var(--avatar);
+  --color-avatar-ink: var(--avatar-ink);
+  --color-avatar-hero: var(--avatar-hero);
+  --color-avatar-hero-ink: var(--avatar-hero-ink);
+
+  --color-success-soft: var(--success-soft);
+  --color-success-ink: var(--success-ink);
+  --color-success-line: var(--success-line);
+  --color-success: var(--success);
+  --color-success-hover: var(--success-hover);
+  --color-success-dot: var(--success-dot);
+
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-ink: var(--warning-ink);
+  --color-warning-line: var(--warning-line);
+  --color-warning-dot: var(--warning-dot);
+
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-ink: var(--danger-ink);
+  --color-danger-line: var(--danger-line);
+  --color-danger: var(--danger);
+  --color-danger-hover: var(--danger-hover);
+  --color-danger-dot: var(--danger-dot);
+
+  --color-info-soft: var(--info-soft);
+  --color-info-ink: var(--info-ink);
+  --color-info-line: var(--info-line);
+  --color-info-dot: var(--info-dot);
+
+  --color-neutral-soft: var(--neutral-soft);
+  --color-neutral-ink: var(--neutral-ink);
+  --color-neutral-line: var(--neutral-line);
+  --color-neutral-dot: var(--neutral-dot);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-dm-sans);
   --font-mono: var(--font-geist-mono);
-  --font-serif: var(--font-cormorant);
+  --font-serif: var(--font-fraunces);
+  --font-serif--font-variation-settings: "SOFT" 0, "WONK" 0;
 }
 
 body {
@@ -56,68 +187,99 @@ body {
   color: var(--foreground);
 }
 
-/* Sidebar — warm vertical depth, full column height */
-.studio-sidebar {
-  min-height: 100%;
-  background: linear-gradient(
-    180deg,
-    var(--brand-sidebar) 0%,
-    var(--brand-sidebar-deep) 100%
-  );
+@layer base {
+  /* Fallback keyboard focus for any control that does not style its own. */
+  :where(a, button, input, select, textarea, summary, [role="button"], [tabindex]):focus-visible {
+    outline: 2px solid var(--accent-strong);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: var(--accent-soft);
+    color: var(--ink);
+  }
 }
 
-.studio-sidebar::before {
-  content: "";
-  pointer-events: none;
-  position: absolute;
-  inset: 0;
-  opacity: 0.04;
-  background-image: radial-gradient(
-    ellipse 120% 80% at 50% -20%,
-    #f4f1ea 0%,
-    transparent 55%
-  );
+/* Sidebar motion — labels ease in as the sidebar widens; backdrop fades */
+.studio-nav-reveal {
+  animation: studioFadeIn 200ms cubic-bezier(0.22, 1, 0.36, 1) 60ms both;
 }
 
-/* Sonner — soft toast colors */
+.studio-fade-in {
+  animation: studioFadeIn 200ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studio-nav-reveal,
+  .studio-fade-in {
+    animation: none;
+  }
+}
+
+/* Quiet scrollbar for side panels — thin, only visible on hover */
+.studio-scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.studio-scroll-thin:hover,
+.studio-scroll-thin:focus-within {
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.studio-scroll-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.studio-scroll-thin::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background-color: transparent;
+}
+
+.studio-scroll-thin:hover::-webkit-scrollbar-thumb,
+.studio-scroll-thin:focus-within::-webkit-scrollbar-thumb {
+  background-color: var(--border-strong);
+}
+
+/* Sonner — toasts follow the status tokens */
 [data-sonner-toast][data-type="success"] {
-  background-color: #ecfdf5 !important;
-  border-color: #a7f3d0 !important;
-  color: #064e3b !important;
+  background-color: var(--success-soft) !important;
+  border-color: var(--success-line) !important;
+  color: var(--success-ink) !important;
 }
 
 [data-sonner-toast][data-type="success"] [data-description] {
-  color: #065f46 !important;
+  color: var(--success-ink) !important;
 }
 
 [data-sonner-toast][data-type="error"] {
-  background-color: #fef2f2 !important;
-  border-color: #fecaca !important;
-  color: #991b1b !important;
+  background-color: var(--danger-soft) !important;
+  border-color: var(--danger-line) !important;
+  color: var(--danger-ink) !important;
 }
 
 [data-sonner-toast][data-type="error"] [data-description] {
-  color: #b91c1c !important;
+  color: var(--danger-ink) !important;
 }
 
 [data-sonner-toast][data-type="warning"] {
-  background-color: #fffbeb !important;
-  border-color: #fde68a !important;
-  color: #78350f !important;
+  background-color: var(--warning-soft) !important;
+  border-color: var(--warning-line) !important;
+  color: var(--warning-ink) !important;
 }
 
 [data-sonner-toast][data-type="warning"] [data-description] {
-  color: #92400e !important;
+  color: var(--warning-ink) !important;
 }
 
 [data-sonner-toast][data-type="info"] {
-  background-color: #f0f9ff !important;
-  border-color: #bae6fd !important;
-  color: #0c4a6e !important;
+  background-color: var(--info-soft) !important;
+  border-color: var(--info-line) !important;
+  color: var(--info-ink) !important;
 }
 
 [data-sonner-toast][data-type="info"] [data-description] {
-  color: #075985 !important;
+  color: var(--info-ink) !important;
 }
 
 [data-sonner-toast] [data-close-button] {
@@ -131,47 +293,80 @@ body {
   color: var(--ink) !important;
 }
 
-/* Morphing spinner */
-@keyframes smoothMorph {
-  0% {
-    transform: scale(1) rotate(0deg);
-    border-radius: 50%;
-  }
-
-  20% {
-    transform: scale(0.9) rotate(72deg);
-    border-radius: 35%;
-  }
-
-  40% {
-    transform: scale(1.1) rotate(144deg);
-    border-radius: 15%;
-  }
-
-  60% {
-    transform: scale(0.85) rotate(216deg);
-    border-radius: 8%;
-  }
-
-  80% {
-    transform: scale(1.05) rotate(288deg);
-    border-radius: 25%;
-  }
-
-  100% {
-    transform: scale(1) rotate(360deg);
-    border-radius: 50%;
+/* Loading — ring spinner, delayed reveal, skeleton shimmer */
+@keyframes studioSpin {
+  to {
+    transform: rotate(360deg);
   }
 }
 
-.morphing-spinner-shape {
-  animation: smoothMorph 3s ease-in-out infinite;
+@keyframes studioFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes studioPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@keyframes studioShimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.studio-spinner {
+  animation: studioSpin 0.8s linear infinite;
+}
+
+/* Fast loads finish before this shows, so nothing flashes. */
+.studio-delayed-reveal {
+  opacity: 0;
+  animation: studioFadeIn 200ms ease-out 250ms forwards;
+}
+
+.studio-skeleton {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--divider);
+}
+
+.studio-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--surface-raised) 65%, transparent) 50%,
+    transparent 100%
+  );
+  animation: studioShimmer 1.6s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .morphing-spinner-shape {
+  .studio-spinner {
+    animation: studioPulse 1.6s ease-in-out infinite;
+  }
+
+  .studio-delayed-reveal {
+    animation: studioFadeIn 1ms linear 250ms forwards;
+  }
+
+  .studio-skeleton::after {
     animation: none;
-    border-radius: 50%;
+    opacity: 0;
   }
 }
 

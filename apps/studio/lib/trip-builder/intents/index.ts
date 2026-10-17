@@ -28,7 +28,14 @@ export {
   wantsHotelSearch,
 } from "./questions";
 export { parseQuoteEdit, type QuoteEdit } from "./quote-edit";
-export { isOptionsAdd, matchRateChoice, wantsRateSearch, type RateChoice } from "./rates";
+export {
+  isOptionsAdd,
+  isSupplierPaste,
+  matchRateChoice,
+  parseSellMessage,
+  wantsRateSearch,
+  type RateChoice,
+} from "./rates";
 export { isConfirmReply, isDeclineReply } from "./replies";
 export {
   looksLikeHotelPlan,

@@ -1,14 +1,16 @@
 import { cn } from "@/lib/utils/cn";
 
 const ROLE_BADGE_STYLES: Record<string, string> = {
-  advisor: "bg-amber-50/90 text-amber-900 ring-amber-600/10",
-  ops: "bg-emerald-50/90 text-emerald-900 ring-emerald-600/10",
-  finance: "bg-sky-50/90 text-sky-900 ring-sky-600/10",
-  admin: "bg-stone-100 text-stone-700 ring-stone-500/10",
+  admin: "bg-accent-soft text-accent-ink ring-accent-line",
+  advisor: "bg-neutral-soft text-neutral-ink ring-neutral-line",
+  ops: "bg-success-soft text-success-ink ring-success-line",
+  finance: "bg-info-soft text-info-ink ring-info-line",
 };
 
 export function roleBadgeClassName(role: string): string {
-  return ROLE_BADGE_STYLES[role] ?? "bg-surface text-ink-muted ring-border/60";
+  return (
+    ROLE_BADGE_STYLES[role] ?? "bg-neutral-soft text-neutral-ink ring-neutral-line"
+  );
 }
 
 type RoleBadgeProps = {

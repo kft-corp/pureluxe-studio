@@ -37,12 +37,12 @@ function TableShell({
     <div className="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
       <table className={cn("w-full text-left text-sm", minWidthClassName)}>
         <thead>
-          <tr className="border-b border-border/80 bg-surface/50">
+          <tr className="border-b border-border bg-surface-subtle">
             {columns.map((column, index) => (
               <th
                 key={column || `col-${index}`}
                 className={cn(
-                  "whitespace-nowrap px-4 py-3.5 text-[11px] font-semibold tracking-wide text-ink uppercase first:px-6",
+                  "whitespace-nowrap px-4 py-3 text-[11px] font-semibold tracking-[0.08em] text-ink-subtle uppercase first:px-6",
                   (column === "Actions" || column === "") && "px-6 text-right",
                 )}
               >
@@ -54,13 +54,13 @@ function TableShell({
               </th>
             ))}
             {showActions && !columns.includes("Actions") ? (
-              <th className="whitespace-nowrap px-6 py-3.5 text-right text-[11px] font-semibold tracking-wide text-ink uppercase">
+              <th className="whitespace-nowrap px-6 py-3 text-right text-[11px] font-semibold tracking-[0.08em] text-ink-subtle uppercase">
                 Actions
               </th>
             ) : null}
           </tr>
         </thead>
-        <tbody className="divide-y divide-border/70">{children}</tbody>
+        <tbody className="divide-y divide-divider">{children}</tbody>
       </table>
     </div>
   );
@@ -90,7 +90,7 @@ export function ResponsiveTable({
   const desktopClass =
     breakpoint === "lg" ? "hidden lg:block" : "hidden md:block";
   const mobileClass =
-    breakpoint === "lg" ? "divide-y divide-border/70 lg:hidden" : "divide-y divide-border/70 md:hidden";
+    breakpoint === "lg" ? "divide-y divide-divider lg:hidden" : "divide-y divide-divider md:hidden";
 
   return (
     <>
@@ -121,7 +121,7 @@ export function TableRow({
   return (
     <tr
       className={cn(
-        "transition-colors duration-150 hover:bg-brand-light",
+        "transition-colors duration-150 hover:bg-surface-hover",
         onClick && "cursor-pointer",
         className,
       )}

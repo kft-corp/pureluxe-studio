@@ -160,24 +160,24 @@ export function TripBuilderSummaryPanel({
     <>
       <button
         type="button"
-        className="absolute inset-0 z-20 bg-[#141414]/20 lg:hidden"
+        className="absolute inset-0 z-20 bg-brand-dark/20 lg:hidden"
         aria-label="Close summary"
         onClick={onClose}
       />
-      <aside className="absolute inset-0 z-30 flex w-full flex-col border-l border-[#e8e6e1] bg-[#f9f8f6] pb-[env(safe-area-inset-bottom)] shadow-xl lg:static lg:inset-auto lg:z-0 lg:w-[24rem] lg:shrink-0 lg:pb-0 lg:shadow-none">
+      <aside className="absolute inset-0 z-30 flex w-full flex-col border-l border-border bg-surface pb-[env(safe-area-inset-bottom)] shadow-xl lg:static lg:inset-auto lg:z-0 lg:w-[24rem] lg:shrink-0 lg:pb-0 lg:shadow-none">
         <div className="flex items-start justify-between gap-2 px-3 pt-3 pb-1.5">
           <div className="min-w-0">
-            <span className="inline-flex rounded-full bg-[#ebe8e2] px-1.5 py-0.5 text-[10px] font-semibold text-[#141414]">
+            <span className="inline-flex rounded-full bg-neutral-soft px-1.5 py-0.5 text-[10px] font-semibold text-neutral-ink ring-1 ring-inset ring-neutral-line">
               {detail ? formatTripStatus(detail.trip.status) : "Optional"}
             </span>
-            <h2 className="mt-1.5 text-sm leading-5 font-semibold break-words text-[#141414]">
+            <h2 className="mt-1.5 text-sm leading-5 font-semibold break-words text-ink">
               {detail?.client?.display_name?.trim() || "No client yet"}
             </h2>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-md text-[#6b6b6b] hover:bg-white lg:h-7 lg:w-7"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-md text-ink-muted hover:bg-surface-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-strong lg:h-7 lg:w-7"
             aria-label="Close summary"
           >
             <LuX className="h-5 w-5 lg:h-3.5 lg:w-3.5" aria-hidden />
@@ -185,7 +185,7 @@ export function TripBuilderSummaryPanel({
         </div>
 
         {detail ? (
-          <div role="tablist" aria-label="Summary sections" className="flex gap-0.5 border-b border-[#e8e6e1] px-1.5">
+          <div role="tablist" aria-label="Summary sections" className="flex gap-0.5 border-b border-border px-1.5">
             {(
               [
                 ["summary", "Summary"],
@@ -203,8 +203,8 @@ export function TripBuilderSummaryPanel({
                   className={cn(
                     "min-h-11 border-b-2 px-3 text-[13px] lg:min-h-0 lg:px-1.5 lg:py-2 lg:text-[12px]",
                     on
-                      ? "border-[#0b0b0c] font-semibold text-[#141414]"
-                      : "border-transparent text-[#6b6b6b] hover:text-[#141414]",
+                      ? "border-accent font-semibold text-ink"
+                      : "border-transparent text-ink-muted hover:text-ink",
                   )}
                 >
                   {label}
@@ -216,13 +216,13 @@ export function TripBuilderSummaryPanel({
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-2.5">
           {!detail ? (
-            <p className="text-[12px] leading-relaxed text-[#6b6b6b]">
+            <p className="text-[12px] leading-relaxed text-ink-muted">
               Open a trip to see the client, dates, and each stay. The quote can still be finished in chat.
             </p>
           ) : tab === "summary" ? (
             <div role="tabpanel">
               <Block title="Trip">
-                <div className="rounded-[10px] border border-[#e8e6e1] bg-white px-3 py-1.5">
+                <div className="rounded-[10px] border border-border bg-surface-raised px-3 py-1.5">
                   <Kv
                     label="Dates"
                     value={formatStayDates(detail.trip.starts_on, detail.trip.ends_on)}
@@ -234,9 +234,9 @@ export function TripBuilderSummaryPanel({
 
               <Block title="Travellers">
                 {detail.travellers.length === 0 ? (
-                  <p className="text-[12px] text-[#6b6b6b]">No travellers yet.</p>
+                  <p className="text-[12px] text-ink-muted">No travellers yet.</p>
                 ) : (
-                  <div className="rounded-[10px] border border-[#e8e6e1] bg-white px-3 py-1.5">
+                  <div className="rounded-[10px] border border-border bg-surface-raised px-3 py-1.5">
                     {detail.travellers.map((person) => (
                       <Kv
                         key={person.client_id}
@@ -251,9 +251,9 @@ export function TripBuilderSummaryPanel({
               {readiness && detail.travellers.length > 0 ? (
                 <Block title="Before booking">
                   {readiness.length === 0 ? (
-                    <p className="text-[12px] text-[#6b6b6b]">Nothing flagged.</p>
+                    <p className="text-[12px] text-ink-muted">Nothing flagged.</p>
                   ) : (
-                    <ul className="space-y-1 rounded-[10px] bg-[#f7f1e6] px-2.5 py-2 text-[11px] leading-relaxed text-[#5c4a32]">
+                    <ul className="space-y-1 rounded-[10px] bg-accent-soft px-2.5 py-2 text-[11px] leading-relaxed text-accent-ink">
                       {readiness.map((item) => (
                         <li key={item}>{item}</li>
                       ))}
@@ -264,12 +264,12 @@ export function TripBuilderSummaryPanel({
 
               <Block title="Stays">
                 {gaps.length > 0 ? (
-                  <p className="mb-1.5 rounded-[10px] bg-[#f7f1e6] px-2.5 py-2 text-[11px] leading-relaxed text-[#5c4a32]">
+                  <p className="mb-1.5 rounded-[10px] bg-accent-soft px-2.5 py-2 text-[11px] leading-relaxed text-accent-ink">
                     {gaps.join(" · ")}
                   </p>
                 ) : null}
                 {stays.length === 0 ? (
-                  <p className="text-[12px] text-[#6b6b6b]">No stays yet.</p>
+                  <p className="text-[12px] text-ink-muted">No stays yet.</p>
                 ) : (
                   <div className="space-y-2">
                     {stays.map((stay) => (
@@ -287,7 +287,7 @@ export function TripBuilderSummaryPanel({
               </Block>
 
               {savedOptions > 0 ? (
-                <p className="mt-2 text-[12px] leading-relaxed text-[#6b6b6b]">
+                <p className="mt-2 text-[12px] leading-relaxed text-ink-muted">
                   {savedOptions === 1
                     ? "1 room is saved for the options quote."
                     : `${savedOptions} rooms are saved for the options quote.`}{" "}
@@ -316,7 +316,7 @@ export function TripBuilderSummaryPanel({
               />
               <Block title="Rates">
                 {stays.length === 0 ? (
-                  <p className="text-[12px] text-[#6b6b6b]">
+                  <p className="text-[12px] text-ink-muted">
                     No rates yet. Save a stay, then search or paste a quote.
                   </p>
                 ) : (
@@ -334,30 +334,30 @@ export function TripBuilderSummaryPanel({
                           onClick={() => onSelectStay(stay.leg_id)}
                           aria-pressed={current}
                           className={cn(
-                            "w-full rounded-[10px] bg-white px-2.5 py-2 text-left text-[12px]",
-                            rate ? "border-2 border-[#1a4d3e]" : "border border-[#e8e6e1]",
+                            "w-full rounded-[10px] bg-surface-raised px-2.5 py-2 text-left text-[12px]",
+                            rate ? "border-2 border-accent bg-accent-soft/40" : "border border-border",
                           )}
                         >
                           <span className="flex items-start justify-between gap-2">
-                            <span className="min-w-0 font-semibold break-words text-[#141414]">
+                            <span className="min-w-0 font-semibold break-words text-ink">
                               {stay.property_name?.trim() || stay.city || "Stay"}
                             </span>
                             {current ? (
-                              <span className="shrink-0 rounded-full bg-[#e8f2ee] px-1.5 py-0.5 text-[10px] leading-4 font-semibold tracking-wide text-[#1a4d3e] uppercase">
+                              <span className="shrink-0 rounded-full bg-accent-soft px-1.5 py-0.5 text-[10px] leading-4 font-semibold tracking-wide text-accent-ink uppercase ring-1 ring-inset ring-accent-line">
                                 Current
                               </span>
                             ) : null}
                           </span>
-                          <span className="mt-0.5 block text-[11px] text-[#6b6b6b]">{place}</span>
-                          <span className="mt-0.5 block text-[11px] leading-5 break-words whitespace-normal text-[#6b6b6b]">
+                          <span className="mt-0.5 block text-[11px] text-ink-muted">{place}</span>
+                          <span className="mt-0.5 block text-[11px] leading-5 break-words whitespace-normal text-ink-muted">
                             {rate
                               ? rate.subtitle?.trim() || rate.title
                               : "No rate selected"}
                           </span>
                           {rate ? (
                             <span className="mt-1 grid grid-cols-[3.25rem_1fr] gap-2 text-[11px]">
-                              <span className="text-[#6b6b6b]">Net</span>
-                              <span className="font-semibold text-[#141414]">
+                              <span className="text-ink-muted">Net</span>
+                              <span className="font-semibold text-ink">
                                 {moneyLabel(rate.cost_internal, rate.currency) || "Not set"}
                               </span>
                             </span>
@@ -383,7 +383,7 @@ export function TripBuilderSummaryPanel({
 function Block({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="mb-3">
-      <h3 className="mb-1 text-[10px] font-medium tracking-[0.05em] text-[#6b6b6b] uppercase">
+      <h3 className="mb-1 text-[10px] font-medium tracking-[0.05em] text-ink-muted uppercase">
         {title}
       </h3>
       {children}
@@ -394,8 +394,8 @@ function Block({ title, children }: { title: string; children: ReactNode }) {
 function Kv({ label, value }: { label: string; value: string | null | undefined }) {
   return (
     <div className="grid grid-cols-[4.5rem_1fr] items-baseline gap-2 py-1 text-[13px] leading-5">
-      <span className="font-normal text-[#6b6b6b]">{label}</span>
-      <span className="font-medium break-words text-[#141414]">{value?.trim() || "Not set"}</span>
+      <span className="font-normal text-ink-muted">{label}</span>
+      <span className="font-medium break-words text-ink">{value?.trim() || "Not set"}</span>
     </div>
   );
 }
@@ -421,19 +421,19 @@ function PriceBreakup({
   ] as const;
 
   return (
-    <div className="rounded-[10px] border border-[#e8e6e1] bg-white px-3 py-1.5">
+    <div className="rounded-[10px] border border-border bg-surface-raised px-3 py-1.5">
       {rows.map(([label, value]) => (
         <div
           key={label}
           className={cn(
             "grid grid-cols-[6.25rem_1fr] items-baseline gap-2 py-1 text-[13px] leading-5",
-            label === "Client price" && "mt-0.5 border-t border-[#e8e6e1] pt-1.5",
+            label === "Client price" && "mt-0.5 border-t border-border pt-1.5",
           )}
         >
-          <span className="font-normal text-[#6b6b6b]">{label}</span>
+          <span className="font-normal text-ink-muted">{label}</span>
           <span
             className={cn(
-              "font-medium break-words text-[#141414]",
+              "font-medium break-words text-ink",
               label === "Client price" && "font-semibold",
             )}
           >
@@ -442,10 +442,10 @@ function PriceBreakup({
         </div>
       ))}
       {price.pricedLabel ? (
-        <p className="py-1 text-[11px] leading-relaxed text-[#6b6b6b]">{price.pricedLabel}</p>
+        <p className="py-1 text-[11px] leading-relaxed text-ink-muted">{price.pricedLabel}</p>
       ) : null}
       {price.note ? (
-        <p className="pb-1 text-[11px] leading-relaxed text-[#6b6b6b]">{price.note}</p>
+        <p className="pb-1 text-[11px] leading-relaxed text-ink-muted">{price.note}</p>
       ) : null}
     </div>
   );
@@ -476,16 +476,16 @@ function StayCard({
       onClick={onSelect}
       aria-pressed={active}
       className={cn(
-        "w-full rounded-[10px] bg-white px-3 py-2.5 text-left",
-        active ? "border-2 border-[#1a4d3e]" : "border border-[#e8e6e1]",
+        "w-full rounded-[10px] bg-surface-raised px-3 py-2.5 text-left",
+        active ? "border-2 border-accent bg-accent-soft/40" : "border border-border",
       )}
     >
       <span className="flex items-center justify-between gap-2">
-        <span className="min-w-0 text-[13px] leading-5 font-semibold break-words text-[#141414]">
+        <span className="min-w-0 text-[13px] leading-5 font-semibold break-words text-ink">
           {city}
         </span>
         {active ? (
-          <span className="shrink-0 rounded-full bg-[#e8f2ee] px-1.5 py-0.5 text-[10px] leading-4 font-semibold tracking-wide text-[#1a4d3e] uppercase">
+          <span className="shrink-0 rounded-full bg-accent-soft px-1.5 py-0.5 text-[10px] leading-4 font-semibold tracking-wide text-accent-ink uppercase ring-1 ring-inset ring-accent-line">
             Current
           </span>
         ) : null}
@@ -511,10 +511,10 @@ function CardLine({
 }) {
   return (
     <span className="grid grid-cols-[3.25rem_1fr] items-start gap-2">
-      <span className="text-[11px] leading-5 font-normal text-[#6b6b6b]">{label}</span>
+      <span className="text-[11px] leading-5 font-normal text-ink-muted">{label}</span>
       <span
         className={cn(
-          "text-[12px] leading-5 font-medium text-[#141414]",
+          "text-[12px] leading-5 font-medium text-ink",
           wrap ? "whitespace-normal break-words" : "truncate",
         )}
       >

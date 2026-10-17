@@ -115,7 +115,7 @@ export function BookingTravellersPanel({
                         >
                           {name}
                         </p>
-                        <span className="shrink-0 rounded-full bg-brand-light px-2 py-0.5 text-[11px] font-semibold text-ink">
+                        <span className="shrink-0 rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-semibold text-accent-ink ring-1 ring-inset ring-accent-line">
                           {formatTravellerRole(traveller.role)}
                         </span>
                       </div>
@@ -160,7 +160,7 @@ export function BookingTravellersPanel({
                           }}
                           className={cn(
                             studioButtonClass("ghost", "sm"),
-                            "px-2 text-red-700 disabled:cursor-not-allowed disabled:opacity-40",
+                            "px-2 text-danger-ink disabled:cursor-not-allowed disabled:opacity-40",
                           )}
                         >
                           <LuTrash2 className="h-3.5 w-3.5" aria-hidden />

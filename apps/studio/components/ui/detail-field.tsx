@@ -34,7 +34,7 @@ export function DetailField({
     valueNode = (
       <a
         href={href}
-        className="text-ink underline-offset-2 transition hover:underline"
+        className="text-ink underline decoration-accent/60 underline-offset-2 transition hover:text-accent-ink hover:decoration-accent-ink"
       >
         {displayValue}
       </a>
@@ -48,14 +48,14 @@ export function DetailField({
         className,
       )}
     >
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-surface text-ink-muted">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-surface-subtle text-ink-muted">
         <Icon className="h-4 w-4" strokeWidth={1.75} aria-hidden />
       </span>
       <div className="min-w-0 flex-1">
         <dt className="flex flex-wrap items-center gap-2 text-xs font-medium text-ink-muted">
           <span>{label}</span>
           {badge ? (
-            <span className="rounded-full bg-brand-dark/8 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-ink uppercase">
+            <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-semibold tracking-wide text-accent-ink uppercase ring-1 ring-inset ring-accent-line">
               {badge}
             </span>
           ) : null}

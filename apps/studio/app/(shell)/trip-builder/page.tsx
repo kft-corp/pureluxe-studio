@@ -2,9 +2,9 @@ import { Suspense } from "react";
 
 import { hasPermission } from "@pureluxe/shared";
 
-import { PageLoader } from "@/components/feedback";
 import { ShellModulePage } from "@/components/shell";
-import { TripBuilderPageContent } from "@/components/trip-builder";
+import { TripBuilderPageContent, TripBuilderSkeleton } from "@/components/trip-builder";
+import { pageCopy } from "@/config/page-copy";
 import { requireActiveStudioSession } from "@/lib/auth/session-with-permissions";
 import {
   getTripDetail,
@@ -52,13 +52,8 @@ export default async function TripBuilderPage({
   }
 
   return (
-    <ShellModulePage
-      module="trip_builder"
-      title="Trip Builder"
-      description="Chat desk for hotel quotes — client, stay, rates, sell, quote."
-      layout="workspace"
-    >
-      <Suspense fallback={<PageLoader className="min-h-[50vh]" />}>
+    <ShellModulePage module="trip_builder" {...pageCopy.tripBuilder} layout="workspace">
+      <Suspense fallback={<TripBuilderSkeleton />}>
         <TripBuilderPageContent
           initialTrips={initialTrips}
           initialDetail={initialDetail}

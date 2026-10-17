@@ -79,7 +79,7 @@ export function TripBuilderPageContent({
       />
 
       <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
-        <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[linear-gradient(180deg,#ffffff_0%,#faf9f7_100%)]">
+        <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-raised">
           <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
             <TripBuilderChatPane
               detail={builder.detail}

@@ -9,6 +9,7 @@ import {
   PageToolbar,
   studioButtonClass,
 } from "@/components/ui";
+import { listSectionCopy } from "@/config/page-copy";
 import type { JourneyDirectoryData } from "@/lib/api/trips";
 import { pageRoutes } from "@/lib/routes";
 import type { TripOwnerFilterOption } from "@/lib/trips";
@@ -36,12 +37,12 @@ export function TripsPageContent({
 
   const sectionDescription = directory.hasActiveFilters
     ? "Showing trips that match your search or filters."
-    : "Who is travelling, when, and whether the trip is still being planned.";
+    : listSectionCopy.trips.description;
 
   return (
     <>
       <PageStack>
-      <PageToolbar className="gap-5 bg-[linear-gradient(180deg,var(--surface-raised)_0%,var(--surface)_100%)]">
+      <PageToolbar className="gap-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0 sm:max-w-xl sm:flex-1">
             <p className="mb-1.5 text-xs font-semibold tracking-wide text-ink uppercase">
@@ -105,7 +106,7 @@ export function TripsPageContent({
               <LuListFilter className="h-3.5 w-3.5 shrink-0" aria-hidden />
               <span className="truncate">More filters</span>
               {directory.advancedCount > 0 ? (
-                <span className="rounded bg-white/20 px-1 py-0.5 text-[10px] tabular-nums">
+                <span className="rounded bg-on-dark/20 px-1 py-0.5 text-[10px] tabular-nums">
                   {directory.advancedCount}
                 </span>
               ) : null}
@@ -115,7 +116,7 @@ export function TripsPageContent({
       </PageToolbar>
 
       <ContentSection
-        title="Trip list"
+        title={listSectionCopy.trips.title}
         description={sectionDescription}
         count={directory.total}
         countLabel={directory.total === 1 ? "trip" : "trips"}

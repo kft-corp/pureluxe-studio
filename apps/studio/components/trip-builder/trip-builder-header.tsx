@@ -3,6 +3,7 @@
 import { LuPanelRightClose, LuPanelRightOpen, LuPlus } from "react-icons/lu";
 
 import type { TripDetail, TripListItem } from "@/lib/trip-builder";
+import { studioFocusRing } from "@/components/ui";
 import { cn } from "@/lib/utils/cn";
 
 import { TripBuilderStages } from "./trip-builder-stages";
@@ -53,9 +54,9 @@ function HeaderIconButton({
       onClick={onClick}
       className={cn(
         "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-ink transition lg:h-8 lg:w-8",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-dark/20",
+        studioFocusRing,
         "disabled:cursor-not-allowed disabled:opacity-50",
-        active ? "bg-black/10" : "bg-transparent hover:bg-black/5",
+        active ? "bg-neutral-soft" : "bg-transparent hover:bg-surface-hover",
       )}
     >
       {children}

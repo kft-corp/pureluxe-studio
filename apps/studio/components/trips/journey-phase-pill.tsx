@@ -4,11 +4,11 @@ import { journeyStage, type JourneyStageTone } from "@/lib/trips";
 import type { JourneyCardItem } from "@/lib/api/trips";
 
 const TONES: Record<JourneyStageTone, string> = {
-  neutral: "bg-stone-100 text-stone-700 ring-stone-500/15",
-  waiting: "bg-amber-50 text-amber-800 ring-amber-600/15",
-  active: "bg-sky-50 text-sky-800 ring-sky-600/15",
-  done: "bg-emerald-50 text-emerald-800 ring-emerald-600/15",
-  muted: "bg-stone-100 text-stone-500 ring-stone-500/10",
+  neutral: "bg-neutral-soft text-neutral-ink ring-neutral-line",
+  waiting: "bg-warning-soft text-warning-ink ring-warning-line",
+  active: "bg-info-soft text-info-ink ring-info-line",
+  done: "bg-success-soft text-success-ink ring-success-line",
+  muted: "bg-surface-subtle text-ink-subtle ring-border",
 };
 
 /** Trip stage pill, the same on the list and the trip page. */

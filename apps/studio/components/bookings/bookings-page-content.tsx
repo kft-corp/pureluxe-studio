@@ -9,6 +9,7 @@ import {
   PageToolbar,
   studioButtonClass,
 } from "@/components/ui";
+import { listSectionCopy } from "@/config/page-copy";
 import type { BookingDirectoryData } from "@/lib/api/bookings";
 import { pageRoutes } from "@/lib/routes";
 import type { BookingOwnerFilterOption } from "@/lib/bookings";
@@ -36,12 +37,12 @@ export function BookingsPageContent({
 
   const sectionDescription = directory.hasActiveFilters
     ? "Showing bookings that match your search or filters."
-    : "Confirmed stays and flights — check refs, deadlines, and what needs follow-up.";
+    : listSectionCopy.bookings.description;
 
   return (
     <>
       <PageStack>
-        <PageToolbar className="gap-5 bg-[linear-gradient(180deg,var(--surface-raised)_0%,var(--surface)_100%)]">
+        <PageToolbar className="gap-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0 sm:max-w-xl sm:flex-1">
               <p className="mb-1.5 text-xs font-semibold tracking-wide text-ink uppercase">
@@ -105,7 +106,7 @@ export function BookingsPageContent({
                 <LuListFilter className="h-3.5 w-3.5 shrink-0" aria-hidden />
                 <span className="truncate">More filters</span>
                 {directory.advancedCount > 0 ? (
-                  <span className="rounded bg-white/20 px-1 py-0.5 text-[10px] tabular-nums">
+                  <span className="rounded bg-on-dark/20 px-1 py-0.5 text-[10px] tabular-nums">
                     {directory.advancedCount}
                   </span>
                 ) : null}
@@ -115,7 +116,7 @@ export function BookingsPageContent({
         </PageToolbar>
 
         <ContentSection
-          title="Booking list"
+          title={listSectionCopy.bookings.title}
           description={sectionDescription}
           count={directory.total}
           countLabel={directory.total === 1 ? "booking" : "bookings"}

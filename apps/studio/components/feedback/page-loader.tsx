@@ -1,29 +1,33 @@
 import { cn } from "@/lib/utils/cn";
 
-import { MorphingSpinner } from "./morphing-spinner";
-
-const LOADING_LABEL = "Loading";
+import { Spinner } from "./spinner";
 
 type PageLoaderProps = {
   className?: string;
   size?: "sm" | "md" | "lg";
+  /** What is loading, e.g. "Loading permissions". Shown muted with an ellipsis. */
+  label?: string;
 };
 
-export function PageLoader({ className, size = "md" }: PageLoaderProps) {
+/** Centered spinner for loads with no predictable layout. Fades in after a short delay. */
+export function PageLoader({
+  className,
+  size = "md",
+  label = "Loading",
+}: PageLoaderProps) {
   return (
     <div
       className={cn(
-        "flex min-h-[min(60vh,28rem)] items-center justify-center px-4 py-12",
+        "studio-delayed-reveal flex min-h-[min(60vh,28rem)] items-center justify-center px-4 py-12",
         className,
       )}
       role="status"
       aria-busy="true"
       aria-live="polite"
-      aria-label={LOADING_LABEL}
     >
-      <div className="flex flex-col items-center gap-4">
-        <MorphingSpinner size={size} />
-        <p className="text-sm font-medium text-ink">{LOADING_LABEL}</p>
+      <div className="flex flex-col items-center gap-3">
+        <Spinner size={size} />
+        <p className="text-xs font-medium text-ink-muted">{label}…</p>
       </div>
     </div>
   );

@@ -5,7 +5,7 @@ import { LuX } from "react-icons/lu";
 
 import { cn } from "@/lib/utils/cn";
 
-import { studioControl, studioTone } from "./studio-control";
+import { studioControl, studioFocusRing, studioTone } from "./studio-control";
 
 function useEscapeKey(onClose: () => void) {
   useEffect(() => {
@@ -85,7 +85,10 @@ export function Modal({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-ink-muted transition hover:bg-surface-hover hover:text-ink"
+            className={cn(
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-ink-muted transition hover:bg-surface-hover hover:text-ink",
+              studioFocusRing,
+            )}
             aria-label="Close"
           >
             <LuX className="h-4 w-4" aria-hidden />
@@ -143,7 +146,7 @@ export const ModalButton = forwardRef<HTMLButtonElement, ModalButtonProps>(
           "w-full sm:w-auto",
           variant === "secondary" && studioTone.secondary,
           variant === "primary" && studioTone.primary,
-          variant === "danger" && "bg-red-700 text-on-dark hover:bg-red-800",
+          variant === "danger" && studioTone.danger,
           className,
         )}
       >
@@ -154,4 +157,4 @@ export const ModalButton = forwardRef<HTMLButtonElement, ModalButtonProps>(
 );
 
 export const modalFieldClassName =
-  "mt-1.5 w-full rounded-lg border border-border bg-surface-raised px-3 py-2.5 text-sm text-ink outline-none transition placeholder:text-ink-subtle focus:border-brand-dark/40 focus:ring-2 focus:ring-brand-dark/10";
+  "mt-1.5 w-full rounded-lg border border-border bg-surface-raised px-3 py-2.5 text-sm text-ink outline-none transition placeholder:text-ink-faint hover:border-border-strong focus:border-accent-strong focus:ring-2 focus:ring-accent/25";

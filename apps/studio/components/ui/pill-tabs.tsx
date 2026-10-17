@@ -2,6 +2,8 @@
 
 import { cn } from "@/lib/utils/cn";
 
+import { studioFocusRing } from "./studio-control";
+
 export type PillTabItem<T extends string> = {
   id: T;
   label: string;
@@ -56,15 +58,16 @@ export function PillTabs<T extends string>({
                 if (!isDisabled) onChange(item.id);
               }}
               className={cn(
-                "inline-flex min-h-9 shrink-0 items-center rounded-lg px-3 text-sm font-medium ring-1 transition-colors sm:px-4",
+                "relative inline-flex min-h-9 shrink-0 items-center rounded-lg px-3 text-sm font-medium ring-1 transition-colors sm:px-4",
+                studioFocusRing,
                 isDisabled &&
-                  "cursor-not-allowed text-ink-subtle opacity-55 ring-transparent",
+                  "cursor-not-allowed text-ink-faint ring-transparent",
                 !isDisabled &&
                   isActive &&
-                  "bg-surface-raised text-ink shadow-sm ring-border/80",
+                  "bg-surface-raised text-ink shadow-sm ring-border/80 after:absolute after:inset-x-3 after:bottom-0.5 after:h-0.5 after:rounded-full after:bg-accent",
                 !isDisabled &&
                   !isActive &&
-                  "text-ink-muted ring-transparent hover:text-ink",
+                  "text-ink-muted ring-transparent hover:bg-surface-raised/60 hover:text-ink",
               )}
             >
               {item.label}

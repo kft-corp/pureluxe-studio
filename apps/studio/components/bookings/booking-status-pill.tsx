@@ -3,12 +3,15 @@ import { formatBookingStatus } from "@/lib/bookings";
 
 function statusTone(status: string): string {
   if (status === "confirmed" || status === "completed") {
-    return "bg-emerald-50 text-emerald-800 ring-emerald-600/10";
+    return "bg-success-soft text-success-ink ring-success-line";
   }
   if (status === "pending" || status === "on_hold") {
-    return "bg-amber-50 text-amber-800 ring-amber-600/10";
+    return "bg-warning-soft text-warning-ink ring-warning-line";
   }
-  return "bg-stone-100 text-stone-600 ring-stone-500/10";
+  if (status === "cancelled") {
+    return "bg-danger-soft text-danger-ink ring-danger-line";
+  }
+  return "bg-neutral-soft text-neutral-ink ring-neutral-line";
 }
 
 export function BookingStatusPill({ status }: { status: string }) {
@@ -26,7 +29,7 @@ export function BookingStatusPill({ status }: { status: string }) {
 
 export function BookingVipBadge() {
   return (
-    <span className="shrink-0 rounded-full bg-ink/5 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-ink uppercase">
+    <span className="shrink-0 rounded-full bg-accent-soft px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-accent-ink uppercase ring-1 ring-inset ring-accent-line">
       VIP
     </span>
   );

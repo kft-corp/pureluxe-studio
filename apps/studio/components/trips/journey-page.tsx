@@ -66,7 +66,7 @@ export function JourneyPage({
         </Link>
       </div>
 
-      <PageToolbar className="min-w-0 overflow-hidden bg-[linear-gradient(180deg,var(--surface-raised)_0%,var(--surface)_100%)]">
+      <PageToolbar className="min-w-0 overflow-hidden">
         <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex min-w-0 items-start gap-3 sm:gap-4">
             <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-border bg-surface text-ink shadow-sm sm:h-16 sm:w-16">
@@ -229,9 +229,9 @@ function StopStatus({ status }: { status: NonNullable<JourneyStop["status"]> }) 
     <span
       className={cn(
         "inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset",
-        status === "Confirmed" && "bg-emerald-50 text-emerald-800 ring-emerald-600/10",
-        status === "Pending" && "bg-amber-50 text-amber-800 ring-amber-600/10",
-        status !== "Confirmed" && status !== "Pending" && "bg-stone-100 text-stone-600 ring-stone-500/10",
+        status === "Confirmed" && "bg-success-soft text-success-ink ring-success-line",
+        status === "Pending" && "bg-warning-soft text-warning-ink ring-warning-line",
+        status !== "Confirmed" && status !== "Pending" && "bg-neutral-soft text-neutral-ink ring-neutral-line",
       )}
     >
       {status}
@@ -259,7 +259,7 @@ function DocumentsSection({ journey }: { journey: JourneyPageModel }) {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-ink">{document.label}</p>
                 {document.stale && journey.status === "building" ? (
-                  <p className="text-xs text-amber-800">Out of date · regenerate in Trip Builder</p>
+                  <p className="text-xs text-warning-ink">Out of date · regenerate in Trip Builder</p>
                 ) : (
                   <p className="text-xs text-ink-muted">
                     {journey.status === "building" || journey.status === "cancelled"

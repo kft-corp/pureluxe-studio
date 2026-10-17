@@ -2,7 +2,7 @@
 
 import { LuSearch, LuX } from "react-icons/lu";
 
-import { studioControl } from "@/components/ui";
+import { studioControl, studioFocusRing } from "@/components/ui";
 import { cn } from "@/lib/utils/cn";
 
 type StudioSearchFieldProps = {
@@ -24,7 +24,7 @@ export function StudioSearchField({
   return (
     <div className={cn("relative", className)}>
       <LuSearch
-        className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-ink-muted"
+        className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-ink-faint"
         aria-hidden
       />
       <input
@@ -44,7 +44,10 @@ export function StudioSearchField({
         <button
           type="button"
           onClick={() => onChange("")}
-          className="absolute top-1/2 right-1 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-ink-muted transition hover:bg-surface-hover hover:text-ink"
+          className={cn(
+            "absolute top-1/2 right-1 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-ink-muted transition hover:bg-surface-hover hover:text-ink",
+            studioFocusRing,
+          )}
           aria-label="Clear search"
         >
           <LuX className="h-3.5 w-3.5" aria-hidden />

@@ -191,7 +191,7 @@ function FiltersForm({
                 }
                 className={cn(
                   modalFieldClassName,
-                  dateRangeInvalid && "ring-2 ring-red-400/50",
+                  dateRangeInvalid && "border-danger-ink/60 ring-2 ring-danger-line",
                 )}
                 aria-invalid={dateRangeInvalid}
               />
@@ -211,14 +211,14 @@ function FiltersForm({
                 }
                 className={cn(
                   modalFieldClassName,
-                  dateRangeInvalid && "ring-2 ring-red-400/50",
+                  dateRangeInvalid && "border-danger-ink/60 ring-2 ring-danger-line",
                 )}
                 aria-invalid={dateRangeInvalid}
               />
             </div>
           </div>
           {dateRangeInvalid ? (
-            <p className="text-xs text-red-700" role="alert">
+            <p className="text-xs text-danger-ink" role="alert">
               Start from must be on or before Start to.
             </p>
           ) : null}

@@ -220,7 +220,7 @@ export function SearchableCombobox({
                 className={cn(
                   "flex min-h-10 w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition",
                   active
-                    ? "bg-brand-dark/8 text-ink"
+                    ? "bg-accent-soft text-ink"
                     : "text-ink hover:bg-surface-hover",
                 )}
               >

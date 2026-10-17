@@ -63,8 +63,8 @@ function SelectionCheck({ checked }: { checked: boolean }) {
       className={cn(
         "flex h-5 w-5 shrink-0 items-center justify-center rounded border",
         checked
-          ? "border-brand bg-brand text-white"
-          : "border-border bg-surface text-transparent",
+          ? "border-accent-strong bg-accent-strong text-white"
+          : "border-border-strong bg-surface-raised text-transparent",
       )}
       aria-hidden
     >
@@ -83,7 +83,7 @@ function SelectedSummary({
   onClear: () => void;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-xl border border-brand/40 bg-brand-light/60 px-3 py-2.5">
+    <div className="flex items-start gap-3 rounded-xl border border-accent-line bg-accent-soft px-3 py-2.5">
       <SelectionCheck checked />
       <div className="min-w-0 flex-1">
         <p className="text-xs font-semibold tracking-wide text-ink-muted uppercase">
@@ -409,8 +409,8 @@ export function ClientHouseholdDialog({
                         type="button"
                         onClick={() => setSelectedFamily(hit)}
                         className={cn(
-                          "flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition hover:bg-brand-light/50",
-                          checked && "bg-brand-light",
+                          "flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition hover:bg-surface-hover",
+                          checked && "bg-accent-soft",
                         )}
                       >
                         <SelectionCheck checked={checked} />
@@ -454,8 +454,8 @@ export function ClientHouseholdDialog({
                         type="button"
                         onClick={() => setSelectedClient(hit)}
                         className={cn(
-                          "flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition hover:bg-brand-light/50",
-                          checked && "bg-brand-light",
+                          "flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition hover:bg-surface-hover",
+                          checked && "bg-accent-soft",
                         )}
                       >
                         <SelectionCheck checked={checked} />

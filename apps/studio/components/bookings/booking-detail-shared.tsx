@@ -72,7 +72,7 @@ export function JumpCard({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full min-w-0 items-center gap-3 rounded-2xl border border-border bg-surface-raised px-3.5 py-3 text-left shadow-sm transition hover:bg-brand-light/50 sm:px-4 sm:py-3.5"
+      className="flex w-full min-w-0 items-center gap-3 rounded-2xl border border-border bg-surface-raised px-3.5 py-3 text-left shadow-sm transition hover:border-border-strong hover:bg-surface-hover sm:px-4 sm:py-3.5"
     >
       {Icon ? (
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border bg-surface text-ink-muted sm:h-10 sm:w-10">

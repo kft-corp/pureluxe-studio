@@ -2,44 +2,37 @@
 
 import { useCallback, useSyncExternalStore } from "react";
 
+import { pageRoutes } from "@/lib/routes";
+
+import { useLocalStorageValue } from "./use-local-storage-value";
+
 const STORAGE_KEY = "studio-sidebar-unfoldable";
+const WIDE_QUERY = "(min-width: 1280px)";
 
-const listeners = new Set<() => void>();
-
-function emitChange() {
-  for (const listener of listeners) {
-    listener();
-  }
+function subscribeWide(listener: () => void) {
+  const query = window.matchMedia(WIDE_QUERY);
+  query.addEventListener("change", listener);
+  return () => query.removeEventListener("change", listener);
 }
 
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
-
-function getSnapshot() {
-  return window.localStorage.getItem(STORAGE_KEY) === "true";
-}
-
-function getServerSnapshot() {
-  return false;
-}
-
-export function useSidebarUnfoldable() {
-  const unfoldable = useSyncExternalStore(
-    subscribe,
-    getSnapshot,
-    getServerSnapshot,
+/**
+ * Icon-rail vs full sidebar.
+ * A manual toggle always wins; otherwise smaller laptops and Trip Builder default to the rail.
+ */
+export function useSidebarUnfoldable(pathname: string) {
+  const [stored, setStored] = useLocalStorageValue(STORAGE_KEY);
+  const wide = useSyncExternalStore(
+    subscribeWide,
+    () => window.matchMedia(WIDE_QUERY).matches,
+    () => true,
   );
 
-  const setUnfoldable = useCallback((value: boolean) => {
-    window.localStorage.setItem(STORAGE_KEY, String(value));
-    emitChange();
-  }, []);
+  const autoRail = !wide || pathname.startsWith(pageRoutes.tripBuilder);
+  const unfoldable = stored === "" ? autoRail : stored === "true";
 
   const toggleUnfoldable = useCallback(() => {
-    setUnfoldable(!unfoldable);
-  }, [unfoldable, setUnfoldable]);
+    setStored(String(!unfoldable));
+  }, [unfoldable, setStored]);
 
   return { unfoldable, toggleUnfoldable };
 }

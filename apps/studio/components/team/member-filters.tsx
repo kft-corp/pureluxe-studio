@@ -43,7 +43,7 @@ export function MemberFilters({ value, onChange, counts }: MemberFiltersProps) {
               <span
                 className={cn(
                   "ml-1 min-w-[1.25rem] rounded-md px-1.5 py-0.5 text-center text-[11px] font-semibold tabular-nums",
-                  isActive ? "bg-white/20 text-on-dark" : "bg-surface text-ink-muted",
+                  isActive ? "bg-accent/25 text-accent-ink" : "bg-surface-subtle text-ink-muted",
                   count === 0 && "opacity-40",
                 )}
                 aria-hidden={count === 0}

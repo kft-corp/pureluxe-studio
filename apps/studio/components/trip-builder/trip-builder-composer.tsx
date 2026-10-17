@@ -97,7 +97,7 @@ export function TripBuilderComposer({
         </div>
       ) : null}
 
-      <div className="flex items-end gap-1.5 rounded-lg border border-border bg-surface px-2 py-1 focus-within:border-brand-dark/30 focus-within:ring-1 focus-within:ring-brand-dark/10">
+      <div className="flex items-end gap-1.5 rounded-lg border border-border bg-surface-raised px-2 py-1 shadow-sm transition hover:border-border-strong focus-within:border-accent-strong focus-within:ring-2 focus-within:ring-accent/25">
         <textarea
           ref={textareaRef}
           rows={1}
@@ -114,7 +114,7 @@ export function TripBuilderComposer({
           }}
           className={cn(
             "max-h-28 min-h-11 flex-1 resize-none bg-transparent px-1.5 py-2 text-base leading-5 text-ink outline-none lg:min-h-8 lg:py-1.5 lg:text-[13px]",
-            "placeholder:text-ink-muted disabled:cursor-not-allowed disabled:opacity-60",
+            "placeholder:text-ink-faint disabled:cursor-not-allowed disabled:opacity-60",
           )}
         />
         <button

@@ -48,7 +48,7 @@ export function ChatMarkdown({ content, className }: ChatMarkdownProps) {
               href={href}
               target="_blank"
               rel="noopener noreferrer"
-              className="font-medium text-[#1a4d3e] underline underline-offset-2 hover:text-[#143d32]"
+              className="font-medium text-accent-ink underline decoration-accent underline-offset-2 hover:text-accent-ink-strong"
             >
               {children}
             </a>
@@ -57,24 +57,24 @@ export function ChatMarkdown({ content, className }: ChatMarkdownProps) {
             const isBlock = Boolean(codeClass);
             if (isBlock) {
               return (
-                <code className="block overflow-x-auto rounded-lg bg-[#f4f1ea] px-3 py-2 font-mono text-[12.5px] text-ink">
+                <code className="block overflow-x-auto rounded-lg bg-neutral-soft px-3 py-2 font-mono text-[12.5px] text-ink">
                   {children}
                 </code>
               );
             }
             return (
-              <code className="rounded bg-[#f4f1ea] px-1 py-0.5 font-mono text-[12.5px] text-ink">
+              <code className="rounded bg-neutral-soft px-1 py-0.5 font-mono text-[12.5px] text-ink">
                 {children}
               </code>
             );
           },
           pre: ({ children }) => (
-            <pre className="my-2.5 overflow-x-auto rounded-lg bg-[#f4f1ea] p-0">
+            <pre className="my-2.5 overflow-x-auto rounded-lg bg-neutral-soft p-0">
               {children}
             </pre>
           ),
           blockquote: ({ children }) => (
-            <blockquote className="my-2.5 border-l-2 border-[#1a4d3e]/35 pl-3 text-ink-muted">
+            <blockquote className="my-2.5 border-l-2 border-accent pl-3 text-ink-muted">
               {children}
             </blockquote>
           ),

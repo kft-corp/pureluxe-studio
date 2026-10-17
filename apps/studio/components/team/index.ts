@@ -4,7 +4,7 @@ export { InviteMemberDialog } from "./invite-member-dialog";
 export { MemberFilters, type MemberFilter } from "./member-filters";
 export { MemberSearch } from "./member-search";
 export { MembersTab } from "./members-tab";
-export { MembersTable } from "./members-table";
+export { MembersTable, MembersTableSkeleton } from "./members-table";
 export { PendingInvitesTable } from "./pending-invites-table";
 export { RolePermissionsTab } from "./role-permissions-tab";
 export { TeamPageContent } from "./team-page-content";

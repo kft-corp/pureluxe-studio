@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { clientNameFromMessage, wantsAssignClient } from "./client";
+import { clientNameFromMessage, wantsAssignClient } from "@/lib/trip-builder/intents";
 
 describe("clientNameFromMessage", () => {
   it.each([

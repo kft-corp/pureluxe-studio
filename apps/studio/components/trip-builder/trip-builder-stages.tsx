@@ -60,7 +60,7 @@ export function TripBuilderStages({ current, finished = false, muted = false }: 
                   className={cn(
                     "mx-2.5 hidden h-px w-5 shrink-0 lg:block",
                     tripOpen && index <= currentIndex
-                      ? "bg-[#b7d4c8]"
+                      ? "bg-success-dot/50"
                       : "bg-border",
                   )}
                 />
@@ -70,7 +70,7 @@ export function TripBuilderStages({ current, finished = false, muted = false }: 
                 className={cn(
                   "inline-flex items-center lg:gap-1.5",
                   "h-8 rounded-full px-2.5 lg:h-auto lg:rounded-none lg:px-0",
-                  active && "bg-[#e8f2ee] ring-1 ring-[#1a4d3e]/25 lg:bg-transparent lg:ring-0",
+                  active && "bg-success-soft ring-1 ring-success-line lg:bg-transparent lg:ring-0",
                 )}
                 aria-current={active ? "step" : undefined}
               >
@@ -82,22 +82,22 @@ export function TripBuilderStages({ current, finished = false, muted = false }: 
                   )}
                 >
                   {active ? (
-                    <span className="trip-stage-dot-halo absolute inset-[-4px] rounded-full bg-[#3d8f72]/20" />
+                    <span className="trip-stage-dot-halo absolute inset-[-4px] rounded-full bg-success-dot/20" />
                   ) : null}
                   <span
                     className={cn(
                       "relative h-2 w-2 rounded-full",
-                      active && "bg-[#3d8f72]",
-                      done && !active && "bg-[#7dbaa4]",
-                      !done && !active && "bg-ink-subtle/70",
+                      active && "bg-success",
+                      done && !active && "bg-success-dot",
+                      !done && !active && "bg-ink-faint",
                     )}
                   />
                 </span>
                 <span
                   className={cn(
                     "text-[11px] font-medium tracking-wide sm:text-xs",
-                    active && "font-semibold text-[#1a4d3e] lg:text-[#2f6b56]",
-                    done && !active && "text-[#3f8f74]",
+                    active && "font-semibold text-success-ink",
+                    done && !active && "text-success-ink",
                     !done && !active && "text-ink-subtle",
                   )}
                 >

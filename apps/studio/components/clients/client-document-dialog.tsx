@@ -218,12 +218,12 @@ export function ClientDocumentDialog({
             onChange={(event) => onFileChange(event.target.files?.[0] ?? null)}
             className={cn(
               modalFieldClassName,
-              "mt-1.5 cursor-pointer py-2 file:mr-3 file:rounded-md file:border-0 file:bg-brand-light file:px-2.5 file:py-1 file:text-xs file:font-semibold file:text-ink",
+              "mt-1.5 cursor-pointer py-2 file:mr-3 file:rounded-md file:border-0 file:bg-accent-soft file:px-2.5 file:py-1 file:text-xs file:font-semibold file:text-accent-ink",
             )}
             required
           />
           {fileError ? (
-            <p className="mt-1.5 wrap-break-word text-xs text-red-700">{fileError}</p>
+            <p className="mt-1.5 wrap-break-word text-xs text-danger-ink">{fileError}</p>
           ) : (
             <p className="mt-1.5 wrap-break-word text-xs text-ink-muted">
               PDF or image · max 10 MB

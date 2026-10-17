@@ -86,7 +86,7 @@ function MoreMenu({ onDeactivate }: { onDeactivate: () => void }) {
               setOpen(false);
               onDeactivate();
             }}
-            className="block min-h-9 w-full px-3 py-2 text-left text-xs text-red-700 transition hover:bg-red-50"
+            className="block min-h-9 w-full px-3 py-2 text-left text-xs text-danger-ink transition hover:bg-danger-soft focus-visible:bg-danger-soft focus-visible:outline-none"
           >
             Deactivate client
           </button>
@@ -161,13 +161,14 @@ export function ClientProfileContent({
           </Link>
         </div>
 
-        <PageToolbar className="bg-[linear-gradient(180deg,var(--surface-raised)_0%,var(--surface)_100%)]">
+        <PageToolbar>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex min-w-0 items-start gap-3 sm:gap-4">
               <UserAvatar
                 name={client.display_name}
                 email={client.email ?? undefined}
                 size="lg"
+                variant="hero"
               />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">

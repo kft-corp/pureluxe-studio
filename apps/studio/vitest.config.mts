@@ -9,8 +9,8 @@ export default defineConfig({
     },
   },
   test: {
+    name: "studio:unit",
     environment: "node",
-    include: ["**/*.test.ts"],
-    exclude: ["node_modules/**", ".next/**"],
+    include: ["tests/unit/**/*.test.ts"],
   },
 });

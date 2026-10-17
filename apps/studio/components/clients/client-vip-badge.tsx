@@ -21,8 +21,8 @@ export function ClientVipBadge({ tier }: ClientVipBadgeProps) {
     <span
       className={cn(
         "inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold tracking-wide uppercase ring-1 ring-inset",
-        isVip && "bg-amber-50 text-amber-950 ring-amber-700/20",
-        isVvip && "bg-stone-800 text-stone-50 ring-stone-800/20",
+        isVip && "bg-accent-soft text-accent-ink ring-accent-line",
+        isVvip && "bg-avatar-hero text-avatar-hero-ink ring-avatar-hero",
       )}
     >
       {label}

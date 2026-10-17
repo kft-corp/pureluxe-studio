@@ -7,7 +7,7 @@ import {
   isTripQuestion,
   mightNamePlace,
   wantsHotelSearch,
-} from "./questions";
+} from "@/lib/trip-builder/intents";
 
 describe("isPlaceQuestion", () => {
   it.each([

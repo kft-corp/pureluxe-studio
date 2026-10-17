@@ -3,6 +3,7 @@ import { hasPermission } from "@pureluxe/shared";
 
 import { JourneyPage } from "@/components/trips/journey-page";
 import { ShellModulePage } from "@/components/shell";
+import { pageCopy } from "@/config/page-copy";
 import { requireActiveStudioSession } from "@/lib/auth/session-with-permissions";
 import { getJourney } from "@/lib/trips";
 
@@ -23,11 +24,7 @@ export default async function TripPage({ params }: TripPageProps) {
   }
 
   return (
-    <ShellModulePage
-      module="trips"
-      title="Trip"
-      description="The journey in travel order. Change the plan in Trip Builder."
-    >
+    <ShellModulePage module="trips" {...pageCopy.trip}>
       <JourneyPage journey={journey} canWrite={canWrite} />
     </ShellModulePage>
   );

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { LuChevronRight, LuLuggage } from "react-icons/lu";
 
 import { ClientVipBadge } from "@/components/clients/client-vip-badge";
-import { PageLoader } from "@/components/feedback";
+import { SkeletonRegion, TableSkeleton } from "@/components/feedback";
 import { studioButtonClass } from "@/components/ui";
 import {
   MobileCard,
@@ -25,6 +25,20 @@ import { pageRoutes } from "@/lib/routes";
 import { cn } from "@/lib/utils/cn";
 
 import { JourneyPhasePill } from "./journey-phase-pill";
+
+const COLUMNS = ["Client", "Trip", "Dates", "Stage", "Sell", "Owner", ""];
+const MIN_WIDTH = "min-w-[52rem]";
+
+export function TripsTableSkeleton() {
+  return (
+    <TableSkeleton
+      columns={COLUMNS}
+      lead="text"
+      breakpoint="lg"
+      minWidthClassName={MIN_WIDTH}
+    />
+  );
+}
 
 type TripsTableProps = {
   journeys: JourneyCardItem[];
@@ -125,7 +139,7 @@ function TripDirectoryRow({ journey }: { journey: JourneyCardItem }) {
       <TableCell className="whitespace-nowrap">
         <JourneyPhasePill journey={journey} />
         {journey.proposal_stale && journey.status === "building" ? (
-          <p className="mt-1 text-[11px] text-amber-800">Quote out of date</p>
+          <p className="mt-1 text-[11px] text-warning-ink">Quote out of date</p>
         ) : null}
       </TableCell>
       <TableCell className="whitespace-nowrap text-sm text-ink">
@@ -166,7 +180,11 @@ export function TripsTable({
   onShowAll,
 }: TripsTableProps) {
   if (loading && journeys.length === 0) {
-    return <PageLoader className="min-h-[min(40vh,18rem)]" size="sm" />;
+    return (
+      <SkeletonRegion label="Loading trips">
+        <TripsTableSkeleton />
+      </SkeletonRegion>
+    );
   }
 
   if (!loading && journeys.length === 0) {
@@ -280,8 +298,8 @@ export function TripsTable({
     >
       <ResponsiveTable
         breakpoint="lg"
-        minWidthClassName="min-w-[52rem]"
-        columns={["Client", "Trip", "Dates", "Stage", "Sell", "Owner", ""]}
+        minWidthClassName={MIN_WIDTH}
+        columns={COLUMNS}
         mobile={mobileCards}
       >
         {journeys.map((journey) => (

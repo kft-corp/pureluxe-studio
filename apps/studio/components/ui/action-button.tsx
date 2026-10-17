@@ -2,6 +2,8 @@
 
 import { cn } from "@/lib/utils/cn";
 
+import { studioFocusRing } from "./studio-control";
+
 type ActionButtonProps = {
   children: React.ReactNode;
   onClick: () => void;
@@ -22,12 +24,12 @@ export function ActionButton({
       disabled={disabled}
       className={cn(
         "inline-flex min-h-8 items-center rounded-lg px-2.5 text-xs font-medium transition-colors",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-dark/15",
+        studioFocusRing,
         "disabled:cursor-not-allowed disabled:opacity-40",
         variant === "default" &&
           "text-ink-muted hover:bg-surface-hover hover:text-ink",
         variant === "danger" &&
-          "text-ink-muted hover:bg-red-50 hover:text-red-700",
+          "text-ink-muted hover:bg-danger-soft hover:text-danger-ink",
       )}
     >
       {children}

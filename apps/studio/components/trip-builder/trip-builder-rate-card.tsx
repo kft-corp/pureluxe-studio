@@ -1,5 +1,6 @@
 "use client";
 
+import { studioFocusRing } from "@/components/ui";
 import { cn } from "@/lib/utils/cn";
 
 /** Hotel facts already on file for these dates. Shown once above the rate cards. */
@@ -45,7 +46,7 @@ export function TripBuilderStayNotesCard({ notes }: { notes: TripBuilderStayNote
   ].filter((line): line is string => Boolean(line));
   if (lines.length === 0) return null;
   return (
-    <div className="rounded-[10px] border border-[#ddd6c8] bg-[#faf9f7] px-3 py-2.5 text-[12px] leading-snug break-words text-ink">
+    <div className="rounded-[10px] border border-border bg-surface-subtle px-3 py-2.5 text-[12px] leading-snug break-words text-ink">
       <p className="mb-1 text-[11px] font-bold tracking-wide text-ink-muted uppercase">
         On file for this stay
       </p>
@@ -66,14 +67,14 @@ export function TripBuilderRateCard({
   return (
     <article
       className={cn(
-        "rounded-[10px] border bg-white px-3 py-2.5 text-[13px] leading-snug break-words text-ink",
+        "rounded-[10px] border px-3 py-2.5 text-[13px] leading-snug break-words text-ink",
         card.recommended
-          ? "border-[#1a4d3e] bg-[#e8f2ee]"
-          : "border-[#ddd6c8]",
+          ? "border-accent bg-accent-soft"
+          : "border-border bg-surface-raised",
       )}
     >
       {card.recommended ? (
-        <p className="mb-1 text-[11px] font-bold tracking-wide text-[#1a4d3e] uppercase">
+        <p className="mb-1 text-[11px] font-bold tracking-wide text-accent-ink uppercase">
           Recommended
         </p>
       ) : null}
@@ -112,7 +113,10 @@ export function TripBuilderRateCard({
               type="button"
               disabled={disabled}
               onClick={card.onAddToOptions}
-              className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-[#1a4d3e] px-3 text-[13px] font-medium text-white hover:bg-[#153d32] disabled:cursor-not-allowed disabled:opacity-50 lg:min-h-8 lg:w-auto"
+              className={cn(
+                "inline-flex min-h-11 w-full items-center justify-center rounded-full bg-brand-dark px-3 text-[13px] font-medium text-on-dark hover:bg-brand-dark-hover disabled:cursor-not-allowed disabled:opacity-50 lg:min-h-8 lg:w-auto",
+                studioFocusRing,
+              )}
             >
               Add for the client
             </button>
@@ -124,9 +128,10 @@ export function TripBuilderRateCard({
               onClick={card.onSelect}
               className={cn(
                 "inline-flex min-h-11 w-full items-center justify-center rounded-full px-3 text-[13px] font-medium lg:min-h-8 lg:w-auto",
+                studioFocusRing,
                 card.onAddToOptions
-                  ? "bg-white text-[#1a4d3e] ring-1 ring-[#1a4d3e]/30 hover:bg-[#e8f2ee]"
-                  : "bg-[#1a4d3e] text-white hover:bg-[#153d32]",
+                  ? "bg-surface-raised text-accent-ink ring-1 ring-accent-line hover:bg-accent-soft"
+                  : "bg-brand-dark text-on-dark hover:bg-brand-dark-hover",
                 "disabled:cursor-not-allowed disabled:opacity-50",
               )}
             >

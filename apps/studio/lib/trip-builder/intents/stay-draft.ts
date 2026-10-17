@@ -90,10 +90,11 @@ export function parseStayMessage(
       .replace(ISO_DATE, " ")
       .replace(/\b(to|through|thru|until|–|—|-)\b/gi, " ")
       .replace(/\s+/g, " ")
-      .trim();
+      .replace(/^[\s,;]+|[\s,;]+$/g, "");
     if (
       hotelPart.length >= 2 &&
       hotelPart.length <= 120 &&
+      /\p{L}/u.test(hotelPart) &&
       !looksLikeStayCommand(hotelPart)
     ) {
       next.hotel = hotelPart.replace(/^for\s+/i, "").trim();

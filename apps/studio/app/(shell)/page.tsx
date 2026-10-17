@@ -2,6 +2,7 @@ import { Suspense } from "react";
 
 import { SignedInToast } from "@/components/auth/signed-in-toast";
 import { ShellModulePage } from "@/components/shell";
+import { pageCopy } from "@/config/page-copy";
 
 export default function HomePage() {
   return (
@@ -9,11 +10,7 @@ export default function HomePage() {
       <Suspense fallback={null}>
         <SignedInToast />
       </Suspense>
-      <ShellModulePage
-        module="home"
-        title="Home"
-        description="Your starting point for trips, check-ins, and deadlines."
-      />
+      <ShellModulePage module="home" {...pageCopy.home} />
     </>
   );
 }

@@ -27,7 +27,8 @@ type UserAvatarProps = {
   email?: string;
   size?: keyof typeof SIZE_CLASSES;
   className?: string;
-  variant?: "member" | "invite";
+  /** `member` for tables/lists, `hero` for the large profile header monogram. */
+  variant?: "member" | "invite" | "hero";
 };
 
 export function UserAvatar({
@@ -44,11 +45,13 @@ export function UserAvatar({
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center justify-center rounded-full font-semibold tracking-tight ring-2 ring-surface-raised",
+        "inline-flex shrink-0 items-center justify-center rounded-full tracking-tight ring-2 ring-surface-raised",
         SIZE_CLASSES[size],
-        variant === "member" && "bg-brand-dark text-on-dark shadow-sm",
+        variant === "member" && "bg-avatar font-semibold text-avatar-ink",
+        variant === "hero" &&
+          "bg-avatar-hero font-serif font-medium text-avatar-hero-ink shadow-sm",
         variant === "invite" &&
-          "border border-dashed border-border bg-surface text-ink-muted",
+          "border border-dashed border-border-strong bg-surface-subtle font-semibold text-ink-muted",
         className,
       )}
       aria-hidden

@@ -12,7 +12,7 @@ export function NotFoundContent() {
         <h1 className="font-serif text-7xl font-normal text-brand-dark sm:text-8xl md:text-9xl">
           404
         </h1>
-        <div className="my-5 h-1 w-16 rounded bg-border-dark md:my-7" />
+        <div className="my-5 h-1 w-16 rounded bg-accent md:my-7" />
         <p className="text-xl font-semibold text-ink sm:text-2xl md:text-3xl">
           Page Not Found
         </p>

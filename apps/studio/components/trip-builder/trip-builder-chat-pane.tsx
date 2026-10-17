@@ -19,6 +19,7 @@ import {
   type TripBuilderRateCard as RateCard,
   type TripBuilderStayNotes,
 } from "./trip-builder-rate-card";
+import { ChatSkeleton } from "./trip-builder-skeleton";
 
 type TripBuilderChatPaneProps = {
   detail: TripDetail | null;
@@ -62,7 +63,7 @@ export function TripBuilderChatPane({
   if (chatLoading && !detail) {
     return (
       <div className="flex h-full min-h-0 w-full flex-1 flex-col px-4 pt-4 pb-3 sm:px-6">
-        <ChatLoadingState />
+        <ChatSkeleton />
       </div>
     );
   }
@@ -71,7 +72,7 @@ export function TripBuilderChatPane({
     return (
       <div className="h-full min-h-0 w-full overflow-y-auto">
       <div className="mx-auto flex min-h-full w-full max-w-[440px] flex-col justify-center px-4 py-6 text-center sm:py-16">
-        <h2 className="font-serif text-[1.65rem] leading-tight font-semibold tracking-tight text-ink sm:text-[2.05rem]">
+        <h2 className="font-serif text-[1.65rem] leading-tight font-medium tracking-tight text-ink sm:text-[2.05rem]">
           What do you need?
         </h2>
         <p className="mx-auto mt-2.5 max-w-md text-[14px] leading-relaxed text-ink-muted sm:text-[15px]">
@@ -115,8 +116,9 @@ export function TripBuilderChatPane({
                   disabled={busy || !canWrite}
                   onClick={chip.onClick}
                   className={cn(
-                    "inline-flex min-h-10 max-w-full items-center rounded-full bg-[#faf9f7] px-3 py-2 text-left text-[13px] font-medium leading-snug break-words text-ink ring-1 ring-border transition-colors lg:min-h-7 lg:py-1 lg:leading-none",
-                    "hover:bg-[#e8f2ee]/90 hover:text-[#1a4d3e] hover:ring-[#1a4d3e]/25",
+                    "inline-flex min-h-10 max-w-full items-center rounded-full bg-surface-subtle px-3 py-2 text-left text-[13px] font-medium leading-snug break-words text-ink ring-1 ring-border transition-colors lg:min-h-7 lg:py-1 lg:leading-none",
+                    "hover:bg-accent-soft hover:text-accent-ink hover:ring-accent-line",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-strong",
                     "disabled:cursor-not-allowed disabled:opacity-50",
                   )}
                 >
@@ -173,15 +175,15 @@ function tripWelcomeMessage(
 
 function AgentStatusBanner({ detail }: { detail: TripDetail | null }) {
   return (
-    <div className="mb-3 flex w-full items-start gap-2.5 rounded-xl border border-[#d5e8df] bg-[#e8f2ee] px-3 py-2.5 sm:mb-4">
+    <div className="mb-3 flex w-full items-start gap-2.5 rounded-xl border border-accent-line bg-accent-soft px-3 py-2.5 sm:mb-4">
       <div
-        className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#1a4d3e] text-white"
+        className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-avatar-hero text-avatar-hero-ink"
         aria-hidden
       >
         <LuBotMessageSquare className="h-3.5 w-3.5" strokeWidth={2} />
       </div>
       <div className="min-w-0">
-        <p className="text-[11px] font-semibold text-[#1a4d3e]">
+        <p className="text-[11px] font-semibold text-accent-ink">
           PureLuxe trip builder
         </p>
         <p className="mt-0.5 text-[13px] leading-snug text-ink">
@@ -227,8 +229,14 @@ function ChatScrollArea({
   const endRef = useRef<HTMLDivElement | null>(null);
   const stickToBottomRef = useRef(true);
   const [showJump, setShowJump] = useState(false);
+  const [prevChatLoading, setPrevChatLoading] = useState(chatLoading);
   const scrollAdjustRef = useRef<number | null>(null);
   const olderFetchLockRef = useRef(false);
+
+  if (chatLoading !== prevChatLoading) {
+    setPrevChatLoading(chatLoading);
+    if (chatLoading) setShowJump(false);
+  }
 
   useLayoutEffect(() => {
     const el = scrollRef.current;
@@ -248,7 +256,6 @@ function ChatScrollArea({
   useEffect(() => {
     if (chatLoading) {
       stickToBottomRef.current = true;
-      setShowJump(false);
     }
   }, [chatLoading]);
 
@@ -297,7 +304,7 @@ function ChatScrollArea({
       {banner}
 
       {chatLoading ? (
-        <ChatLoadingState />
+        <ChatSkeleton />
       ) : (
         <ChatMessageList
           messages={messages}
@@ -321,32 +328,15 @@ function ChatScrollArea({
         tabIndex={showJump ? 0 : -1}
         className={cn(
           "absolute bottom-4 left-1/2 z-10 grid h-11 w-11 -translate-x-1/2 place-items-center rounded-full lg:h-8 lg:w-8",
-          "bg-[#e8f2ee] text-[#1a4d3e] ring-1 ring-[#1a4d3e]/30",
-          "shadow-[0_2px_10px_rgba(26,77,62,0.12)] transition-opacity duration-200",
-          "hover:bg-[#dceae3] hover:ring-[#1a4d3e]/45",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a4d3e]/25",
+          "bg-surface-raised text-ink ring-1 ring-border",
+          "shadow-md transition-opacity duration-200",
+          "hover:bg-surface-hover hover:ring-border-strong",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-strong",
           showJump ? "opacity-100" : "pointer-events-none opacity-0",
         )}
       >
         <LuArrowDown className="h-4 w-4" strokeWidth={2.25} aria-hidden />
       </button>
-    </div>
-  );
-}
-
-function ChatLoadingState() {
-  return (
-    <div
-      className="flex flex-1 flex-col items-center justify-center gap-2 py-16"
-      aria-busy
-      aria-live="polite"
-    >
-      <p className="text-[13px] font-medium text-[#1a4d3e]">Loading chat</p>
-      <span className="inline-flex gap-1" aria-hidden>
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#1a4d3e]" />
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#1a4d3e] [animation-delay:150ms]" />
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#1a4d3e] [animation-delay:300ms]" />
-      </span>
     </div>
   );
 }
@@ -511,7 +501,7 @@ function AgentStatusLabel({ label }: { label: string }) {
   const text = label.replace(/…$/, "");
   return (
     <p
-      className="agent-phase-label inline-flex items-center gap-0.5 py-0.5 text-[13px] font-medium text-[#1a4d3e]"
+      className="agent-phase-label inline-flex items-center gap-0.5 py-0.5 text-[13px] font-medium text-accent-ink"
       aria-live="polite"
       aria-label={label}
     >
@@ -571,7 +561,7 @@ function AgentMessage({
   return (
     <div className="mr-auto flex w-full max-w-[min(100%,42rem)] items-start gap-2 self-start sm:gap-2.5">
       <div
-        className="mt-4 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#1a4d3e] text-white sm:mt-5 sm:h-8 sm:w-8"
+        className="mt-4 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-avatar-hero text-avatar-hero-ink sm:mt-5 sm:h-8 sm:w-8"
         aria-hidden
       >
         <LuBotMessageSquare className="h-3 w-3 sm:h-3.5 sm:w-3.5" strokeWidth={2} />
@@ -621,7 +611,7 @@ function YouMessage({
           <span className="font-medium text-ink-muted">{time}</span>
         ) : null}
       </div>
-      <div className="rounded-[14px] rounded-tr-sm border border-[#ddd6c8] bg-brand-light px-3 py-2.5 text-[14px] leading-relaxed break-words text-ink sm:px-3.5">
+      <div className="rounded-[14px] rounded-tr-sm border border-neutral-line bg-neutral-soft px-3 py-2.5 text-[14px] leading-relaxed break-words text-ink sm:px-3.5">
         <p className="whitespace-pre-wrap">{children}</p>
       </div>
     </div>

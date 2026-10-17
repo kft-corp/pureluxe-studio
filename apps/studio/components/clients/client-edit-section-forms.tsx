@@ -774,7 +774,7 @@ export function DatesForm({ profile, onClose, onSuccess }: SectionFormProps) {
               onClick={() =>
                 setDateRows(dateRows.filter((_, i) => i !== index))
               }
-              className="text-xs font-semibold text-red-700 hover:underline"
+              className="text-xs font-semibold text-danger-ink hover:underline"
             >
               Remove
             </button>

@@ -162,7 +162,7 @@ export function BookingDetailContent({
       </div>
 
       {booking.status === "superseded" ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+        <div className="rounded-xl border border-warning-line bg-warning-soft px-4 py-3 text-sm text-warning-ink">
           <p>
             This booking was superseded by an amend. Edits are locked on this
             version.
@@ -175,17 +175,17 @@ export function BookingDetailContent({
               Open current version
             </Link>
           ) : (
-            <p className="mt-2 text-amber-900/80">
+            <p className="mt-2 text-warning-ink">
               Find the current version in the bookings directory.
             </p>
           )}
         </div>
       ) : null}
 
-      <PageToolbar className="min-w-0 overflow-hidden bg-[linear-gradient(180deg,var(--surface-raised)_0%,var(--surface)_100%)]">
+      <PageToolbar className="min-w-0 overflow-hidden">
         <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex min-w-0 items-start gap-3 sm:gap-4">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-border bg-surface text-ink shadow-sm sm:h-16 sm:w-16">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-avatar-hero text-avatar-hero-ink shadow-sm sm:h-16 sm:w-16">
               {createElement(bookingServiceIcon(booking.service_type), {
                 className: "h-5 w-5 sm:h-7 sm:w-7",
                 strokeWidth: 1.5,
@@ -244,12 +244,12 @@ export function BookingDetailContent({
                 <button
                   type="button"
                   onClick={() => setEditSection("commercial")}
-                  className="mt-2 text-pretty text-left text-xs font-medium text-amber-800 underline-offset-2 transition hover:underline"
+                  className="mt-2 text-pretty text-left text-xs font-medium text-warning-ink underline-offset-2 transition hover:underline"
                 >
                   Missing supplier reference — add confirmation / PNR
                 </button>
               ) : (
-                <p className="mt-2 text-pretty text-xs font-medium text-amber-800">
+                <p className="mt-2 text-pretty text-xs font-medium text-warning-ink">
                   Missing supplier reference — add one when you confirm.
                 </p>
               )}
@@ -356,7 +356,7 @@ export function BookingDetailContent({
             hint={deadlineHint(deadline.kind)}
             className={
               deadlineUrgent
-                ? "border-amber-200 bg-amber-50/80 [&_*]:text-amber-950"
+                ? "border-warning-line bg-warning-soft [&_*]:text-warning-ink"
                 : undefined
             }
           />

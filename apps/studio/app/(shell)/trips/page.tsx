@@ -2,6 +2,7 @@ import { hasPermission, listJourneysQuerySchema } from "@pureluxe/shared";
 
 import { TripsPageContent } from "@/components/trips";
 import { ShellModulePage } from "@/components/shell";
+import { pageCopy } from "@/config/page-copy";
 import type { JourneyDirectoryData } from "@/lib/api/trips";
 import { requireActiveStudioSession } from "@/lib/auth/session-with-permissions";
 import { JOURNEY_DIRECTORY_PAGE_SIZE, listJourneyDirectory } from "@/lib/trips";
@@ -39,11 +40,7 @@ export default async function TripsPage() {
   }
 
   return (
-    <ShellModulePage
-      module="trips"
-      title="Trips"
-      description="Who is travelling, when, and whether the trip is still being planned."
-    >
+    <ShellModulePage module="trips" {...pageCopy.trips}>
       <TripsPageContent
         initialDirectory={initialDirectory}
         ownerOptions={ownerOptions}

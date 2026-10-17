@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { LuChevronRight, LuUsers } from "react-icons/lu";
 import { phoneDigitsForHref } from "@pureluxe/shared";
 
-import { PageLoader } from "@/components/feedback";
+import { SkeletonRegion, TableSkeleton } from "@/components/feedback";
 import { EmptyState, StatusBadge, UserAvatar } from "@/components/ui";
 import {
   MobileCard,
@@ -19,6 +19,13 @@ import { pageRoutes } from "@/lib/routes";
 import { cn } from "@/lib/utils/cn";
 
 import { ClientVipBadge } from "./client-vip-badge";
+
+const COLUMNS = ["Client", "Contact", "Last booking", "Profile", ""];
+const MIN_WIDTH = "min-w-[44rem]";
+
+export function ClientsTableSkeleton() {
+  return <TableSkeleton columns={COLUMNS} minWidthClassName={MIN_WIDTH} />;
+}
 
 type ClientsTableProps = {
   clients: ClientDirectoryItem[];
@@ -190,7 +197,11 @@ export function ClientsTable({
   searchQuery = "",
 }: ClientsTableProps) {
   if (loading && clients.length === 0) {
-    return <PageLoader className="min-h-[min(40vh,18rem)]" size="sm" />;
+    return (
+      <SkeletonRegion label="Loading clients">
+        <ClientsTableSkeleton />
+      </SkeletonRegion>
+    );
   }
 
   if (!loading && clients.length === 0) {
@@ -249,8 +260,8 @@ export function ClientsTable({
       aria-busy={loading}
     >
       <ResponsiveTable
-        minWidthClassName="min-w-[44rem]"
-        columns={["Client", "Contact", "Last booking", "Profile", ""]}
+        minWidthClassName={MIN_WIDTH}
+        columns={COLUMNS}
         mobile={mobileCards}
       >
         {clients.map((client) => (

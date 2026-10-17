@@ -61,7 +61,7 @@ function fieldErrorsFromIssues(
 
 function RequiredMark() {
   return (
-    <span className="ml-0.5 font-semibold text-red-600" aria-hidden>
+    <span className="ml-0.5 font-semibold text-danger-ink" aria-hidden>
       *
     </span>
   );
@@ -93,7 +93,7 @@ function Field({
       </label>
       {children}
       {error ? (
-        <p id={errorId} className="text-xs text-red-700" role="alert">
+        <p id={errorId} className="text-xs text-danger-ink" role="alert">
           {error}
         </p>
       ) : hint ? (
@@ -106,7 +106,7 @@ function Field({
 function fieldControlClass(invalid: boolean) {
   return cn(
     modalFieldClassName,
-    invalid && "border-red-400/70 ring-2 ring-red-400/40",
+    invalid && "border-danger-ink/60 ring-2 ring-danger-line",
   );
 }
 
@@ -125,7 +125,7 @@ function FormSection({
     <section className="space-y-4">
       <div className="flex items-start gap-3">
         <span
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-dark text-xs font-semibold text-on-dark"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-avatar-hero text-xs font-semibold text-avatar-hero-ink"
           aria-hidden
         >
           {step}
@@ -167,11 +167,11 @@ function SimilarClientsPanel({
 
   return (
     <div
-      className="space-y-3 rounded-xl border border-amber-700/20 bg-amber-50/90 px-4 py-3.5"
+      className="space-y-3 rounded-xl border border-warning-line bg-warning-soft px-4 py-3.5"
     >
       <div className="flex gap-2.5">
         <LuTriangleAlert
-          className="mt-0.5 h-4 w-4 shrink-0 text-amber-800"
+          className="mt-0.5 h-4 w-4 shrink-0 text-warning-ink"
           aria-hidden
         />
         <div className="min-w-0">
@@ -189,7 +189,7 @@ function SimilarClientsPanel({
           <li key={hit.id}>
             <Link
               href={pageRoutes.client(hit.id)}
-              className="flex flex-col gap-0.5 rounded-lg border border-border/70 bg-surface-raised px-3.5 py-2.5 text-sm transition hover:border-brand-dark/25 hover:bg-surface-hover sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+              className="flex flex-col gap-0.5 rounded-lg border border-border/70 bg-surface-raised px-3.5 py-2.5 text-sm transition hover:border-accent-line hover:bg-surface-hover sm:flex-row sm:items-center sm:justify-between sm:gap-3"
             >
               <span className="min-w-0 truncate font-medium text-ink">
                 {hit.display_name}
@@ -399,7 +399,7 @@ export function ClientRegisterForm({
           noValidate
         >
           <p className="text-xs text-ink-muted">
-            <span className="font-semibold text-red-600">*</span> Required fields
+            <span className="font-semibold text-danger-ink">*</span> Required fields
           </p>
 
           <FormSection
@@ -508,12 +508,12 @@ export function ClientRegisterForm({
                 defaultCountryHint={nationality || null}
                 aria-required
                 className={cn(
-                  fieldErrors.phone && "[&_input]:border-red-400/70 [&_input]:ring-2 [&_input]:ring-red-400/40",
+                  fieldErrors.phone && "[&_input]:border-danger-ink/60 [&_input]:ring-2 [&_input]:ring-danger-line",
                 )}
               />
             </Field>
             {contactHint === "missing" ? (
-              <p className="text-xs text-red-600">
+              <p className="text-xs text-danger-ink">
                 Add an email or phone number so we can reach them.
               </p>
             ) : null}
@@ -571,7 +571,7 @@ export function ClientRegisterForm({
                     defaultCountryHint={nationality || null}
                     className={cn(
                       fieldErrors.whatsapp &&
-                        "[&_input]:border-red-400/70 [&_input]:ring-2 [&_input]:ring-red-400/40",
+                        "[&_input]:border-danger-ink/60 [&_input]:ring-2 [&_input]:ring-danger-line",
                     )}
                   />
                 </Field>

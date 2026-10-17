@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseQuoteEdit } from "./quote-edit";
+import { parseQuoteEdit } from "@/lib/trip-builder/intents";
 
 describe("parseQuoteEdit", () => {
   it.each([

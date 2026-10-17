@@ -29,7 +29,7 @@ function FieldLabel({
     <label htmlFor={htmlFor} className="block text-sm font-medium text-ink">
       {children}
       {required ? (
-        <span className="ml-0.5 text-red-600" aria-hidden>
+        <span className="ml-0.5 text-danger-ink" aria-hidden>
           *
         </span>
       ) : null}

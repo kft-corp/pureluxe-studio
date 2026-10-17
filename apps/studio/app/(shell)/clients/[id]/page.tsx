@@ -3,6 +3,7 @@ import { hasPermission } from "@pureluxe/shared";
 
 import { ClientProfileContent } from "@/components/clients";
 import { ShellModulePage } from "@/components/shell";
+import { pageCopy } from "@/config/page-copy";
 import { requireActiveStudioSession } from "@/lib/auth/session-with-permissions";
 import { getClientProfile, listRelationshipOwnerOptions } from "@/lib/clients";
 
@@ -29,11 +30,7 @@ export default async function ClientProfilePage({
     : [];
 
   return (
-    <ShellModulePage
-      module="clients"
-      title="Client profile"
-      description="Everything your team needs to know about this guest before the next trip."
-    >
+    <ShellModulePage module="clients" {...pageCopy.client}>
       <ClientProfileContent
         initialProfile={profile}
         canWrite={canWrite}

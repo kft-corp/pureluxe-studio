@@ -5,13 +5,16 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { LuEllipsis, LuLogOut, LuUser } from "react-icons/lu";
 
+import { studioFocusRing } from "@/components/ui";
 import { logout } from "@/lib/api";
 import { pageRoutes } from "@/lib/routes";
 import { showApiError, showSuccessToast } from "@/lib/feedback";
+import { cn } from "@/lib/utils/cn";
 
 type SidebarUser = {
   name: string;
   email: string;
+  roleLabel: string;
 };
 
 type SidebarUserMenuProps = {
@@ -39,7 +42,7 @@ export function SidebarUserMenu({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const { name, email } = user;
+  const { name, email, roleLabel } = user;
 
   useEffect(() => {
     if (!open) {
@@ -90,34 +93,34 @@ export function SidebarUserMenu({
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className={[
-          "flex w-full min-h-11 items-center gap-2 rounded-md p-1 text-left transition md:min-h-0",
-          "hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-light/30",
-          unfoldable ? "justify-center" : "gap-2",
-        ].join(" ")}
+        className={cn(
+          "flex w-full min-h-11 items-center rounded-lg text-left transition-colors duration-150 hover:bg-nav-hover",
+          studioFocusRing,
+          unfoldable ? "justify-center p-1" : "gap-2.5 px-2 py-1.5",
+          open && "bg-nav-hover",
+        )}
         aria-expanded={open}
         aria-haspopup="menu"
+        aria-label={unfoldable ? `${name} · account menu` : undefined}
+        title={unfoldable ? name : undefined}
       >
         <span
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-border-dark text-xs font-semibold text-on-dark"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-avatar-hero font-serif text-[13px] font-medium text-avatar-hero-ink"
           aria-hidden
         >
           {initials}
         </span>
         {!unfoldable ? (
           <>
-            <span className="min-w-0 flex-1 text-start">
-              <span className="block truncate text-sm font-semibold text-on-dark">
+            <span className="studio-nav-reveal min-w-0 flex-1 text-start">
+              <span className="block truncate text-[13px] leading-tight font-medium text-nav-ink-strong">
                 {name}
               </span>
-              <span className="block truncate text-xs text-on-dark-subtle">
-                {email}
+              <span className="mt-0.5 block truncate text-xs leading-tight text-nav-label">
+                {roleLabel}
               </span>
             </span>
-            <LuEllipsis
-              className="h-4 w-4 shrink-0 text-on-dark-subtle"
-              aria-hidden
-            />
+            <LuEllipsis className="h-4 w-4 shrink-0 text-nav-icon" strokeWidth={1.5} aria-hidden />
           </>
         ) : null}
       </button>
@@ -125,39 +128,32 @@ export function SidebarUserMenu({
       {open ? (
         <div
           role="menu"
-          className="absolute bottom-full left-0 z-50 mb-2 w-full rounded-lg border border-border-dark bg-brand-sidebar p-1 shadow-lg"
+          className={cn(
+            "absolute bottom-full z-50 mb-2 rounded-xl border border-border bg-surface-raised p-1 shadow-lg",
+            unfoldable ? "left-0 w-60" : "left-0 w-full",
+          )}
         >
-          <div className="flex items-center gap-2 px-2 py-2">
-            <span
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-border-dark text-xs font-semibold text-on-dark"
-              aria-hidden
-            >
-              {initials}
-            </span>
-            <div className="min-w-0 text-start text-sm">
-              <div className="truncate font-semibold text-on-dark">{name}</div>
-              <div className="truncate text-xs text-on-dark-subtle">{email}</div>
-            </div>
+          <div className="px-2.5 py-2">
+            <div className="truncate text-sm font-medium text-ink">{name}</div>
+            <div className="truncate text-xs text-ink-muted">{email}</div>
           </div>
 
-          <div className="my-1 h-px bg-border-dark" />
+          <div className="my-1 h-px bg-divider" />
 
           <button
             type="button"
             role="menuitem"
-            className="flex w-full min-h-11 items-center gap-2 rounded-md px-2 py-2.5 text-sm text-on-dark hover:bg-white/5 md:min-h-0 md:py-2"
+            className="flex w-full min-h-11 items-center gap-2 rounded-lg px-2.5 py-2.5 text-sm text-ink hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:outline-none md:min-h-0 md:py-2"
             onClick={handleAccountClick}
           >
-            <LuUser className="h-4 w-4 shrink-0" aria-hidden />
+            <LuUser className="h-4 w-4 shrink-0 text-ink-subtle" aria-hidden />
             Account
           </button>
 
-          <div className="my-1 h-px bg-border-dark" />
-
           <button
             type="button"
             role="menuitem"
-            className="flex w-full min-h-11 items-center gap-2 rounded-md px-2 py-2.5 text-sm text-on-dark hover:bg-white/5 md:min-h-0 md:py-2"
+            className="flex w-full min-h-11 items-center gap-2 rounded-lg px-2.5 py-2.5 text-sm text-ink hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:outline-none md:min-h-0 md:py-2"
             onClick={handleSignOut}
           >
             <LuLogOut className="h-4 w-4 shrink-0" aria-hidden />

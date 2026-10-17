@@ -34,7 +34,7 @@ export function TeamPageContent({
 
   return (
     <PageStack>
-      <PageToolbar className="gap-5 bg-[linear-gradient(180deg,var(--surface-raised)_0%,var(--surface)_100%)]">
+      <PageToolbar className="gap-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <TeamTabs activeTab={activeTab} onTabChange={setActiveTab} />
 

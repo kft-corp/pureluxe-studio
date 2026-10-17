@@ -15,11 +15,11 @@ export function SnapshotCard({
   return (
     <div
       className={cn(
-        "min-w-0 rounded-xl border border-border/80 bg-surface px-4 py-3",
+        "min-w-0 rounded-xl border border-border bg-surface-subtle px-4 py-3",
         className,
       )}
     >
-      <p className="text-[11px] font-semibold tracking-wide text-ink-muted uppercase">
+      <p className="text-[11px] font-semibold tracking-[0.08em] text-ink-subtle uppercase">
         {label}
       </p>
       <p

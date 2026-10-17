@@ -10,6 +10,7 @@ import {
   tripTitleInitial,
   type TripListItem,
 } from "@/lib/trip-builder";
+import { studioFocusRing } from "@/components/ui";
 import { cn } from "@/lib/utils/cn";
 
 type TripBuilderTripsMenuProps = {
@@ -84,7 +85,6 @@ export function TripBuilderTripsMenu({
   const tooltip = active
     ? `Recent trips · ${displayTripTitle(active)}`
     : "Recent trips";
-  const tripCount = trips.length;
 
   return (
     <div ref={rootRef} className="relative shrink-0">
@@ -95,27 +95,17 @@ export function TripBuilderTripsMenu({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={menuId}
-        aria-label={
-          tripCount > 0 ? `Recent trips (${tripCount})` : "Recent trips"
-        }
+        aria-label="Recent trips"
         title={tooltip}
         onClick={toggleMenu}
         className={cn(
-          "relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-ink transition lg:h-8 lg:w-8",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-dark/20",
+          "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-ink transition lg:h-8 lg:w-8",
+          studioFocusRing,
           "disabled:cursor-not-allowed disabled:opacity-50",
-          open ? "bg-black/10" : "bg-transparent hover:bg-black/5",
+          open ? "bg-neutral-soft" : "bg-transparent hover:bg-surface-hover",
         )}
       >
         <LuHistory className="size-4 lg:size-[18px]" strokeWidth={2} aria-hidden />
-        {tripCount > 0 ? (
-          <span
-            className="absolute -top-0.5 -right-0.5 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-[#1a4d3e] px-1 text-[9px] font-semibold leading-none text-white"
-            aria-hidden
-          >
-            {tripCount > 9 ? "9+" : tripCount}
-          </span>
-        ) : null}
       </button>
 
       {open && menuBox ? (
@@ -152,12 +142,12 @@ export function TripBuilderTripsMenu({
                       className={cn(
                         "flex w-full items-start gap-2.5 px-3 py-3 text-left transition-colors",
                         selected
-                          ? "border-l-2 border-l-[#1a4d3e] bg-[#e8f2ee]/70 pl-[10px]"
-                          : "border-l-2 border-l-transparent hover:bg-black/[0.03]",
+                          ? "border-l-2 border-l-accent bg-accent-soft pl-[10px]"
+                          : "border-l-2 border-l-transparent hover:bg-surface-hover",
                       )}
                     >
                       <span
-                        className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#e8f2ee] text-[11px] font-semibold text-[#1a4d3e]"
+                        className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-avatar text-[11px] font-semibold text-avatar-ink"
                         aria-hidden
                       >
                         {tripTitleInitial(trip)}

@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { mergeStayDraft, parseStayMessage, partyReady, stayDraftReady, type StayDraft } from "./stay-draft";
+import {
+  mergeStayDraft,
+  parseStayMessage,
+  partyReady,
+  stayDraftReady,
+  type StayDraft,
+} from "@/lib/trip-builder/intents";
 
 const EMPTY: StayDraft = {
   hotel: "",
@@ -40,6 +46,15 @@ describe("parseStayMessage", () => {
       children: 0,
       rooms: 1,
     });
+  });
+
+  it.each([
+    ["2 adults, no children, 1 room", undefined],
+    ["2 adults; 1 room", undefined],
+    ["Atlantis, 2 adults, 1 room", "Atlantis"],
+    ["Atlantis 2 adults 1 room", "Atlantis"],
+  ])("does not keep separators as the hotel: %j", (input, hotel) => {
+    expect(parseStayMessage(input).hotel).toBe(hotel);
   });
 
   it("changes only the check-out on a check-out edit", () => {

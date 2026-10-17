@@ -6,6 +6,7 @@ import type { TripDetail } from "@/lib/trip-builder";
 import { isQuoteAccepted, isQuoteWithClient, isTripClosed } from "@/lib/trip-builder/trip-lock";
 import { formatTripStatus } from "@/lib/trips/journey-format";
 import { pageRoutes } from "@/lib/routes";
+import { studioFocusRing } from "@/components/ui";
 import { cn } from "@/lib/utils/cn";
 
 import {
@@ -57,7 +58,7 @@ export function TripBuilderStatusStrip({
           onSelectLeg={onSelectLeg}
           className="hidden min-w-0 lg:flex"
         />
-        <div className="w-fit max-w-full rounded-full bg-[#f7f1e6] px-2.5 py-1 text-[11px] leading-snug font-semibold break-words text-[#5c4a32] sm:ml-auto sm:max-w-[16rem] lg:max-w-none">
+        <div className="w-fit max-w-full rounded-full bg-accent-soft px-2.5 py-1 text-[11px] leading-snug font-semibold break-words text-accent-ink ring-1 ring-inset ring-accent-line sm:ml-auto sm:max-w-[16rem] lg:max-w-none">
           Next: {next}
         </div>
       </div>
@@ -96,8 +97,8 @@ function StatusNotice({ detail }: { detail: TripDetail }) {
       className={cn(
         "flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded-md px-2.5 py-1.5 text-[11px] leading-snug",
         isTripClosed(status)
-          ? "bg-stone-100 text-stone-700"
-          : "bg-amber-50 text-amber-900",
+          ? "bg-neutral-soft text-neutral-ink"
+          : "bg-warning-soft text-warning-ink",
       )}
     >
       <span className="min-w-0">{message}</span>
@@ -145,9 +146,10 @@ function LegPills({
             aria-pressed={on}
             className={cn(
               "inline-flex min-h-10 shrink-0 items-center rounded-md border px-2.5 text-[12px] leading-none lg:min-h-8 lg:rounded-full lg:py-1",
+              studioFocusRing,
               on
-                ? "border-[#1a4d3e] bg-[#e8f2ee] font-semibold text-[#1a4d3e]"
-                : "border-border bg-white font-medium text-ink hover:bg-[#faf9f7]",
+                ? "border-accent bg-accent-soft font-semibold text-accent-ink"
+                : "border-border bg-surface-raised font-medium text-ink hover:bg-surface-hover",
             )}
           >
             {legPillLabel(stay)}

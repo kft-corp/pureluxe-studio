@@ -1,25 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import type { TripStaySnapshot } from "@/lib/trip-builder";
+import { findOverlappingStay, stayGapNotes, staysOutsideWindow } from "@/components/trip-builder/stages";
+import { makeStay } from "@/tests/factories/trips";
 
-import { findOverlappingStay, stayGapNotes, staysOutsideWindow } from "./stages";
-
-function stay(partial: Partial<TripStaySnapshot> & { leg_id: string; city: string }): TripStaySnapshot {
-  return {
-    check_in: null,
-    check_out: null,
-    property_id: null,
-    property_name: null,
-    destination_profile_id: null,
-    adults: null,
-    children: null,
-    rooms: null,
-    ...partial,
-  };
-}
-
-const dubai = stay({ leg_id: "a", city: "Dubai", check_in: "2026-10-10", check_out: "2026-10-14" });
-const maldives = stay({ leg_id: "b", city: "Maldives", check_in: "2026-10-16", check_out: "2026-10-20" });
+const dubai = makeStay({ leg_id: "a", city: "Dubai", check_in: "2026-10-10", check_out: "2026-10-14" });
+const maldives = makeStay({ leg_id: "b", city: "Maldives", check_in: "2026-10-16", check_out: "2026-10-20" });
 
 describe("findOverlappingStay", () => {
   it("finds a stay whose nights overlap", () => {
@@ -41,7 +26,7 @@ describe("stayGapNotes", () => {
   });
 
   it("is empty when stays touch", () => {
-    const next = stay({ leg_id: "c", city: "Muscat", check_in: "2026-10-14", check_out: "2026-10-16" });
+    const next = makeStay({ leg_id: "c", city: "Muscat", check_in: "2026-10-14", check_out: "2026-10-16" });
     expect(stayGapNotes([dubai, next])).toEqual([]);
   });
 });

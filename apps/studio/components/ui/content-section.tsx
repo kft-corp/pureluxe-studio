@@ -26,11 +26,10 @@ export function ContentSection({
     <section
       className={cn(
         "overflow-hidden rounded-2xl border border-border bg-surface-raised shadow-sm",
-        "bg-[radial-gradient(ellipse_100%_80%_at_0%_0%,var(--surface-hover),var(--surface-raised)_55%)]",
         className,
       )}
     >
-      <header className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2 border-b border-border/80 px-5 py-4 sm:px-6">
+      <header className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2 border-b border-border px-5 py-4 sm:px-6">
         <div className="min-w-0 flex-1 basis-[min(100%,14rem)]">
           <h2 className="wrap-break-word text-base font-semibold tracking-tight text-ink">
             {title}
@@ -45,7 +44,7 @@ export function ContentSection({
           <div className="flex max-w-full flex-wrap items-center gap-2">
             {action}
             {count !== undefined ? (
-              <span className="rounded-full bg-brand-light/80 px-2.5 py-1 text-xs font-semibold text-ink tabular-nums ring-1 ring-border/80">
+              <span className="rounded-full bg-neutral-soft px-2.5 py-1 text-xs font-semibold text-neutral-ink tabular-nums ring-1 ring-inset ring-neutral-line">
                 {countLabel ? `${count} ${countLabel}` : count}
               </span>
             ) : null}

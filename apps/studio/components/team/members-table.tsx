@@ -2,6 +2,7 @@
 
 import { LuUsers } from "react-icons/lu";
 
+import { TableSkeleton } from "@/components/feedback";
 import {
   ActionButton,
   EmptyState,
@@ -19,6 +20,12 @@ import type { TeamMemberListItem, TeamOverviewData } from "@/lib/api/team";
 import { getMemberDisplayName } from "@/lib/team/member-display-name";
 import { isCurrentMember } from "@/lib/team/is-current-member";
 import { getRoleLabel } from "@/lib/team/role-label";
+
+const MEMBER_COLUMNS = ["Member", "Email", "Role", "Status"];
+
+export function MembersTableSkeleton() {
+  return <TableSkeleton columns={MEMBER_COLUMNS} rows={5} />;
+}
 
 type MembersTableProps = {
   members: TeamMemberListItem[];
@@ -236,7 +243,7 @@ export function MembersTable({
 
   return (
     <ResponsiveTable
-      columns={["Member", "Email", "Role", "Status"]}
+      columns={MEMBER_COLUMNS}
       showActions={canManage}
       mobile={rowProps.map((props) => (
         <MemberRowContent key={props.member.id} {...props} layout="card" />

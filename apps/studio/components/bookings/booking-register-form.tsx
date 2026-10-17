@@ -106,7 +106,7 @@ function fieldErrorsFromIssues(
 
 function RequiredMark() {
   return (
-    <span className="ml-0.5 font-semibold text-red-600" aria-hidden>
+    <span className="ml-0.5 font-semibold text-danger-ink" aria-hidden>
       *
     </span>
   );
@@ -138,7 +138,7 @@ function Field({
       </label>
       {children}
       {error ? (
-        <p id={errorId} className="text-xs text-red-700" role="alert">
+        <p id={errorId} className="text-xs text-danger-ink" role="alert">
           {error}
         </p>
       ) : hint ? (
@@ -152,7 +152,7 @@ function fieldControlClass(invalid: boolean) {
   return cn(
     modalFieldClassName,
     "min-w-0 max-w-full text-base sm:text-sm",
-    invalid && "border-red-400/70 ring-2 ring-red-400/40",
+    invalid && "border-danger-ink/60 ring-2 ring-danger-line",
   );
 }
 
@@ -171,7 +171,7 @@ function FormSection({
     <section className="space-y-4">
       <div className="flex items-start gap-3">
         <span
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-dark text-xs font-semibold text-on-dark"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-avatar-hero text-xs font-semibold text-avatar-hero-ink"
           aria-hidden
         >
           {step}
@@ -515,7 +515,7 @@ export function BookingRegisterForm({
           noValidate
         >
           <p className="text-pretty text-xs leading-relaxed text-ink-muted">
-            <span className="font-semibold text-red-600">*</span> Required ·
+            <span className="font-semibold text-danger-ink">*</span> Required ·
             Primary client is added as lead traveller. Add more guests and
             Confirm on the booking page after create.
           </p>
@@ -907,7 +907,7 @@ export function BookingRegisterForm({
                       clearFieldError("end_date");
                     }
                   }}
-                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-border text-brand-dark focus:ring-brand-dark/30"
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-border accent-accent-strong"
                 />
                 <span>
                   Arrival is the same day as departure
@@ -1513,7 +1513,7 @@ export function BookingRegisterForm({
                 type="checkbox"
                 checked={vipFlag}
                 onChange={(event) => setVipFlag(event.target.checked)}
-                className="mt-0.5 h-4 w-4 shrink-0 rounded border-border text-brand-dark focus:ring-brand-dark/30"
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-border accent-accent-strong"
               />
               <span>Highlight as VIP ops flag</span>
             </label>

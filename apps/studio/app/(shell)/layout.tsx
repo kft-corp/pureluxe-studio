@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { AppShell } from "@/components/shell";
+import { formatRoleLabel } from "@/lib/auth/format-role-label";
 import { loadStudioSessionWithPermissions } from "@/lib/auth/session-with-permissions";
 import { pageRoutes } from "@/lib/routes";
 
@@ -24,6 +25,7 @@ export default async function ShellLayout({
       user={{
         name: session.name,
         email: session.email,
+        roleLabel: formatRoleLabel(session.role),
         permissions: session.permissions ?? [],
       }}
     >

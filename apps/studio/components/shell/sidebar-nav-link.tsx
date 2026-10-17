@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 
+import { studioFocusRing } from "@/components/ui";
 import type { ShellNavItem } from "@/config/navigation";
 import { pageRoutes } from "@/lib/routes";
+import { cn } from "@/lib/utils/cn";
 
 export function isNavItemActive(pathname: string, href: string): boolean {
   if (href === pageRoutes.home) {
@@ -26,30 +28,47 @@ export function SidebarNavLink({
   onNavigate,
 }: SidebarNavLinkProps) {
   const Icon = item.icon;
+  const soon = item.status === "soon";
+  const tooltip = soon ? `${item.label} · Coming soon` : item.label;
 
   return (
     <Link
       href={item.href}
       onClick={onNavigate}
-      className={[
-        "group flex min-h-11 items-center gap-3 rounded-md px-2 py-2.5 text-sm transition md:min-h-0 md:py-2",
+      aria-current={active ? "page" : undefined}
+      aria-label={compact ? tooltip : undefined}
+      title={compact ? tooltip : undefined}
+      className={cn(
+        "group flex min-h-11 items-center gap-3 rounded-lg px-2.5 text-[15px] transition-colors duration-150 md:min-h-9",
+        studioFocusRing,
         active
-          ? "bg-brand-light text-brand-dark"
-          : "text-on-dark-muted hover:bg-white/5 hover:text-on-dark",
-        compact ? "justify-center px-2" : "",
-      ].join(" ")}
-      title={compact ? item.label : undefined}
+          ? "bg-nav-active font-medium text-nav-ink-strong shadow-sm ring-1 ring-nav-line"
+          : soon
+            ? "font-[450] text-nav-label hover:bg-nav-hover"
+            : "font-[450] text-nav-ink hover:bg-nav-hover hover:text-nav-ink-strong",
+        compact && "justify-center px-0",
+      )}
     >
       <Icon
-        className={[
-          "h-[18px] w-[18px] shrink-0",
+        className={cn(
+          "h-4 w-4 shrink-0 transition-colors duration-150",
           active
-            ? "text-brand-dark"
-            : "text-on-dark-subtle group-hover:text-on-dark",
-        ].join(" ")}
+            ? "text-nav-ink-strong"
+            : soon
+              ? "text-nav-muted"
+              : "text-nav-icon group-hover:text-nav-ink-strong",
+        )}
+        strokeWidth={1.5}
         aria-hidden
       />
-      {!compact ? <span className="truncate">{item.label}</span> : null}
+      {!compact ? (
+        <>
+          <span className="studio-nav-reveal min-w-0 flex-1 truncate">{item.label}</span>
+          {soon ? (
+            <span className="studio-nav-reveal shrink-0 text-xs text-nav-muted">soon</span>
+          ) : null}
+        </>
+      ) : null}
     </Link>
   );
 }

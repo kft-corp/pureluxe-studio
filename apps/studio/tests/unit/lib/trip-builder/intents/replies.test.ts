@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isConfirmReply, isDeclineReply } from "./replies";
+import { isConfirmReply, isDeclineReply } from "@/lib/trip-builder/intents";
 
 describe("isConfirmReply", () => {
   it.each(["yes", "Yes!", "okay", " go ahead "])("%j is a yes", (input) => {

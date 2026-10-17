@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { LuShield } from "react-icons/lu";
 
-import { PageLoader } from "@/components/feedback";
+import { CardSkeleton, SkeletonRegion } from "@/components/feedback";
 import { ContentSection, EmptyState, studioButtonClass } from "@/components/ui";
 import { cn } from "@/lib/utils/cn";
 
@@ -40,7 +40,11 @@ export function RolePermissionsTab({ active }: RolePermissionsTabProps) {
   }
 
   if (state.loading && !state.data) {
-    return <PageLoader className="min-h-[min(50vh,24rem)]" />;
+    return (
+      <SkeletonRegion label="Loading permissions">
+        <CardSkeleton rows={6} />
+      </SkeletonRegion>
+    );
   }
 
   if (!state.data) {

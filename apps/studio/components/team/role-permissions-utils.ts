@@ -101,12 +101,12 @@ export function countEnabledInModule(
 
 export function moduleGrantStatusClass(enabled: number, total: number): string {
   if (enabled === total) {
-    return "bg-emerald-50 text-emerald-800";
+    return "bg-success-soft text-success-ink";
   }
   if (enabled > 0) {
-    return "bg-amber-50 text-amber-800";
+    return "bg-warning-soft text-warning-ink";
   }
-  return "bg-stone-100 text-stone-600";
+  return "bg-neutral-soft text-neutral-ink";
 }
 
 export function setsEqual(left: Set<string>, right: Set<string>): boolean {

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LuCalendarDays, LuChevronRight } from "react-icons/lu";
 
-import { PageLoader } from "@/components/feedback";
+import { SkeletonRegion, TableSkeleton } from "@/components/feedback";
 import { studioButtonClass } from "@/components/ui";
 import {
   MobileCard,
@@ -24,6 +24,20 @@ import { pageRoutes } from "@/lib/routes";
 import { cn } from "@/lib/utils/cn";
 
 import { BookingStatusPill, BookingVipBadge } from "./booking-status-pill";
+
+const COLUMNS = ["Client", "Service", "Start", "Status", "Ref", "Deadline", "Owner", ""];
+const MIN_WIDTH = "min-w-[52rem]";
+
+export function BookingsTableSkeleton() {
+  return (
+    <TableSkeleton
+      columns={COLUMNS}
+      lead="text"
+      breakpoint="lg"
+      minWidthClassName={MIN_WIDTH}
+    />
+  );
+}
 
 type BookingsTableProps = {
   bookings: BookingDirectoryItem[];
@@ -181,7 +195,11 @@ export function BookingsTable({
   onShowAll,
 }: BookingsTableProps) {
   if (loading && bookings.length === 0) {
-    return <PageLoader className="min-h-[min(40vh,18rem)]" size="sm" />;
+    return (
+      <SkeletonRegion label="Loading bookings">
+        <BookingsTableSkeleton />
+      </SkeletonRegion>
+    );
   }
 
   if (!loading && bookings.length === 0) {
@@ -318,17 +336,8 @@ export function BookingsTable({
     >
       <ResponsiveTable
         breakpoint="lg"
-        minWidthClassName="min-w-[52rem]"
-        columns={[
-          "Client",
-          "Service",
-          "Start",
-          "Status",
-          "Ref",
-          "Deadline",
-          "Owner",
-          "",
-        ]}
+        minWidthClassName={MIN_WIDTH}
+        columns={COLUMNS}
         mobile={mobileCards}
       >
         {bookings.map((booking) => (

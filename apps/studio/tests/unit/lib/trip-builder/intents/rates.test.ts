@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { isOptionsAdd, matchRateChoice, wantsRateSearch } from "./rates";
+import {
+  isOptionsAdd,
+  isSupplierPaste,
+  matchRateChoice,
+  parseSellMessage,
+  wantsRateSearch,
+} from "@/lib/trip-builder/intents";
 
 describe("wantsRateSearch", () => {
   it.each([
@@ -45,5 +51,28 @@ describe("isOptionsAdd", () => {
     ["client chose 2", false],
   ])("%j", (input, expected) => {
     expect(isOptionsAdd(input)).toBe(expected);
+  });
+});
+
+describe("isSupplierPaste", () => {
+  it.each([
+    ["Atlantis total USD 3000", true],
+    ["Rate: 450 per night", true],
+    ["what is the price for 2 rooms?", false],
+    ["is USD 3000 too high?", false],
+    ["search rates", false],
+  ])("%j", (input, expected) => {
+    expect(isSupplierPaste(input)).toBe(expected);
+  });
+});
+
+describe("parseSellMessage", () => {
+  it.each([
+    ["sell 4500 USD", { sell_total: 4500, sell_currency: "USD" }],
+    ["sell price: EUR 3200", { sell_total: 3200, sell_currency: "EUR" }],
+    ["sell 4500", { sell_total: 4500, sell_currency: "USD" }],
+    ["client price 4500 USD", null],
+  ])("%j", (input, expected) => {
+    expect(parseSellMessage(input)).toEqual(expected);
   });
 });

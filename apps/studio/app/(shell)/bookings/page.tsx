@@ -2,6 +2,7 @@ import { hasPermission, listBookingsQuerySchema } from "@pureluxe/shared";
 
 import { BookingsPageContent } from "@/components/bookings";
 import { ShellModulePage } from "@/components/shell";
+import { pageCopy } from "@/config/page-copy";
 import type { BookingDirectoryData } from "@/lib/api/bookings";
 import { requireActiveStudioSession } from "@/lib/auth/session-with-permissions";
 import {
@@ -48,11 +49,7 @@ export default async function BookingsPage() {
   }
 
   return (
-    <ShellModulePage
-      module="bookings"
-      title="Bookings"
-      description="Confirmed inventory — refs, deadlines, and follow-ups."
-    >
+    <ShellModulePage module="bookings" {...pageCopy.bookings}>
       <BookingsPageContent
         initialDirectory={initialDirectory}
         ownerOptions={ownerOptions}

@@ -13,18 +13,25 @@ export function CompletenessMeter({
 }) {
   const clamped = Math.max(0, Math.min(100, value));
   return (
-    <div className="min-w-0 rounded-xl border border-border/80 bg-surface px-4 py-3">
+    <div className="min-w-0 rounded-xl border border-border bg-surface-subtle px-4 py-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] font-semibold tracking-wide text-ink-muted uppercase">
+        <p className="text-[11px] font-semibold tracking-[0.08em] text-ink-subtle uppercase">
           Profile complete
         </p>
         <p className="shrink-0 text-sm font-semibold text-ink tabular-nums">
           {clamped}%
         </p>
       </div>
-      <div className="mt-2 h-2 overflow-hidden rounded-full bg-border/70">
+      <div
+        className="mt-2 h-2 overflow-hidden rounded-full bg-divider ring-1 ring-inset ring-border"
+        role="progressbar"
+        aria-label="Profile completeness"
+        aria-valuenow={clamped}
+        aria-valuemin={0}
+        aria-valuemax={100}
+      >
         <div
-          className="h-full rounded-full bg-brand-dark transition-[width]"
+          className="h-full rounded-full bg-accent transition-[width]"
           style={{ width: `${clamped}%` }}
         />
       </div>

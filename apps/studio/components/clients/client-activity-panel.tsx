@@ -29,7 +29,7 @@ export function ClientActivityPanel({ client }: { client: ProfileClient }) {
               <li key={candidate.client_id}>
                 <Link
                   href={pageRoutes.client(candidate.client_id)}
-                  className="flex items-center gap-3 px-5 py-3.5 transition hover:bg-brand-light/60 sm:px-6"
+                  className="flex items-center gap-3 px-5 py-3.5 transition hover:bg-surface-hover sm:px-6"
                 >
                   <UserAvatar
                     name={candidate.display_name ?? "Client"}
