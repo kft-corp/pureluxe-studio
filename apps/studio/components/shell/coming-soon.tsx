@@ -1,4 +1,4 @@
-import { LuSparkles } from "react-icons/lu";
+import { LuHourglass } from "react-icons/lu";
 
 type ComingSoonProps = {
   /** Page title — used for a contextual message, e.g. "Bookings". */
@@ -34,7 +34,7 @@ export function ComingSoon({ feature, canWrite = false }: ComingSoonProps) {
 
       <div className="relative px-4 py-10 text-center sm:px-12 sm:py-20">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-border bg-surface-raised shadow-sm ring-4 ring-surface">
-          <LuSparkles
+          <LuHourglass
             className="h-6 w-6 text-ink-muted"
             strokeWidth={1.5}
             aria-hidden

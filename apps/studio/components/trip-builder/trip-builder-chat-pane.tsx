@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { LuArrowDown, LuBotMessageSquare } from "react-icons/lu";
+import { LuArrowDown, LuSparkles } from "react-icons/lu";
 
 import { AGENT_PHASE_LABEL, type AgentPhase } from "@pureluxe/ai";
 
@@ -173,15 +173,39 @@ function tripWelcomeMessage(
   return stageCueFor(detail, stage, activeLegId);
 }
 
+function AgentAvatar({
+  size = "md",
+  thinking = false,
+  className,
+}: {
+  size?: "sm" | "md";
+  thinking?: boolean;
+  className?: string;
+}) {
+  return (
+    <div
+      aria-hidden
+      className={cn(
+        "grid shrink-0 place-items-center rounded-full bg-avatar-hero text-avatar-hero-ink shadow-sm ring-1 ring-inset ring-accent/40",
+        size === "sm" ? "h-7 w-7 sm:h-8 sm:w-8" : "h-8 w-8",
+        className,
+      )}
+    >
+      <LuSparkles
+        className={cn(
+          size === "sm" ? "h-3.5 w-3.5 sm:h-4 sm:w-4" : "h-4 w-4",
+          thinking && "animate-pulse motion-reduce:animate-none",
+        )}
+        strokeWidth={1.75}
+      />
+    </div>
+  );
+}
+
 function AgentStatusBanner({ detail }: { detail: TripDetail | null }) {
   return (
     <div className="mb-3 flex w-full items-start gap-2.5 rounded-xl border border-accent-line bg-accent-soft px-3 py-2.5 sm:mb-4">
-      <div
-        className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-avatar-hero text-avatar-hero-ink"
-        aria-hidden
-      >
-        <LuBotMessageSquare className="h-3.5 w-3.5" strokeWidth={2} />
-      </div>
+      <AgentAvatar className="mt-0.5" />
       <div className="min-w-0">
         <p className="text-[11px] font-semibold text-accent-ink">
           PureLuxe trip builder
@@ -560,12 +584,11 @@ function AgentMessage({
 }) {
   return (
     <div className="mr-auto flex w-full max-w-[min(100%,42rem)] items-start gap-2 self-start sm:gap-2.5">
-      <div
-        className="mt-4 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-avatar-hero text-avatar-hero-ink sm:mt-5 sm:h-8 sm:w-8"
-        aria-hidden
-      >
-        <LuBotMessageSquare className="h-3 w-3 sm:h-3.5 sm:w-3.5" strokeWidth={2} />
-      </div>
+      <AgentAvatar
+        size="sm"
+        thinking={Boolean(statusLabel) || (!content.trim() && !offers)}
+        className="mt-4 sm:mt-5"
+      />
       <div className="min-w-0 flex-1 overflow-hidden">
         <div className="mb-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] font-semibold text-ink">
           PureLuxe Agent

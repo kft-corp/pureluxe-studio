@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LuCompass, LuListFilter } from "react-icons/lu";
+import { LuListFilter, LuSparkles } from "react-icons/lu";
 
 import {
   ContentSection,
@@ -63,7 +63,7 @@ export function TripsPageContent({
                 "w-full shrink-0 sm:w-auto sm:self-end",
               )}
             >
-              <LuCompass className="h-3.5 w-3.5" aria-hidden />
+              <LuSparkles className="h-3.5 w-3.5" aria-hidden />
               New trip
             </Link>
           ) : null}

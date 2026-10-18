@@ -2,8 +2,8 @@ import Link from "next/link";
 import type { IconType } from "react-icons";
 import {
   LuArrowLeft,
-  LuBus,
-  LuCircleDollarSign,
+  LuBanknote,
+  LuCarFront,
   LuCoins,
   LuFileText,
   LuHotel,
@@ -31,7 +31,7 @@ import { cn } from "@/lib/utils/cn";
 const STOP_ICONS: Record<JourneyStopKind, IconType> = {
   flight: LuPlane,
   stay: LuHotel,
-  transfer: LuBus,
+  transfer: LuCarFront,
   gap: LuMinus,
 };
 
@@ -159,7 +159,7 @@ export function JourneyPage({
           <DocumentsSection journey={journey} />
           <ContentSection title="Price" description="Team figures. Guests never see cost or margin.">
             <div className="divide-y divide-border/70">
-              <DetailField icon={LuCircleDollarSign} label="Sell" value={journey.sellLabel} />
+              <DetailField icon={LuBanknote} label="Sell" value={journey.sellLabel} />
               <DetailField icon={LuCoins} label="Cost" value={journey.costLabel ?? "—"} />
               <DetailField icon={LuPercent} label="Margin" value={journey.marginLabel ?? "—"} />
             </div>

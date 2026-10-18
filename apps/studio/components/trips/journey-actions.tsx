@@ -10,12 +10,12 @@ import {
   LuCheck,
   LuChevronDown,
   LuCircleCheck,
-  LuCompass,
   LuDownload,
   LuEye,
   LuHourglass,
   LuRotateCcw,
   LuSend,
+  LuSparkles,
 } from "react-icons/lu";
 
 import {
@@ -199,7 +199,7 @@ export function JourneyHeroActions({
         href={pageRoutes.tripBuilderTrip(tripId)}
         className={cn(studioButtonClass("primary", "sm"), "w-full justify-center sm:w-auto")}
       >
-        <LuCompass className={ICON} aria-hidden />
+        <LuSparkles className={ICON} aria-hidden />
         Trip Builder
       </Link>
       <ToolbarMenu

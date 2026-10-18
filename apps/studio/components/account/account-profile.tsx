@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   LuBriefcase,
-  LuFingerprint,
+  LuHash,
   LuMail,
   LuPencil,
   LuPhone,
@@ -136,7 +136,7 @@ export function AccountProfile(props: AccountProfileProps) {
         <ContentSection title="Account">
           <dl>
             <DetailField
-              icon={LuFingerprint}
+              icon={LuHash}
               label="Member ID"
               value={profileFieldText(memberId)}
               mono
