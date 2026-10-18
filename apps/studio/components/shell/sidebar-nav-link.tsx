@@ -39,13 +39,13 @@ export function SidebarNavLink({
       aria-label={compact ? tooltip : undefined}
       title={compact ? tooltip : undefined}
       className={cn(
-        "group flex min-h-11 items-center gap-3 rounded-lg px-2.5 text-[15px] transition-colors duration-150 md:min-h-9",
+        "group flex min-h-11 items-center gap-2.5 rounded-lg px-2 text-sm transition-colors duration-150 md:min-h-8",
         studioFocusRing,
         active
           ? "bg-nav-active font-medium text-nav-ink-strong shadow-sm ring-1 ring-nav-line"
           : soon
-            ? "font-[450] text-nav-label hover:bg-nav-hover"
-            : "font-[450] text-nav-ink hover:bg-nav-hover hover:text-nav-ink-strong",
+            ? "text-nav-label hover:bg-nav-hover"
+            : "text-nav-ink hover:bg-nav-hover hover:text-nav-ink-strong",
         compact && "justify-center px-0",
       )}
     >

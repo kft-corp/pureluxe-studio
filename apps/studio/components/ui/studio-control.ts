@@ -26,7 +26,7 @@ export const studioControl = {
   ),
   /** Search / text inputs in toolbars — matches toolbar button height. */
   field:
-    "h-8 w-full rounded-md border border-border bg-surface-subtle text-xs text-ink outline-none transition placeholder:text-ink-faint hover:border-border-strong focus:border-accent-strong focus:bg-surface-raised focus:ring-2 focus:ring-accent/25",
+    "h-8 w-full rounded-md border border-field-border bg-surface-subtle text-xs text-ink outline-none transition placeholder:text-ink-faint hover:border-ink-subtle focus:border-accent-strong focus:bg-surface-raised focus:ring-2 focus:ring-accent/25",
 } as const;
 
 export const studioTone = {

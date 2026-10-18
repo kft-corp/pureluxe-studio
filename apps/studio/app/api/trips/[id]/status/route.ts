@@ -1,10 +1,8 @@
 import { journeyStatusActionSchema, tripIdSchema, tripMessages } from "@pureluxe/shared";
 
-import { apiFromError, apiSuccess } from "@/lib/api";
-import { requireApiPermission } from "@/lib/auth/require-api-permission";
+import { apiSuccess } from "@/lib/api";
+import { apiRoute } from "@/lib/api/route-handler";
 import { setJourneyStatus } from "@/lib/trips";
-
-type RouteContext = { params: Promise<{ id: string }> };
 
 const SUCCESS = {
   send: tripMessages.success.quoteSent,
@@ -16,15 +14,12 @@ const SUCCESS = {
 } as const;
 
 /** Change trip status from the trip page. */
-export async function POST(request: Request, context: RouteContext) {
-  try {
-    const session = await requireApiPermission("trips.write");
-    const { id } = await context.params;
-    const tripId = tripIdSchema.parse(id);
+export const POST = apiRoute<{ id: string }>(
+  "trips.write",
+  async ({ request, params, session }) => {
+    const tripId = tripIdSchema.parse(params.id);
     const body = journeyStatusActionSchema.parse(await request.json());
     await setJourneyStatus(tripId, body.action, { memberId: session.memberId });
     return apiSuccess({ ok: true }, { message: SUCCESS[body.action] });
-  } catch (cause) {
-    return apiFromError(cause);
-  }
-}
+  },
+);

@@ -2,7 +2,7 @@
 
 import { studioButtonClass } from "@/components/ui";
 import type { TripDetail, TripRateSnapshot, TripStaySnapshot } from "@/lib/trip-builder";
-import { isQuoteAccepted, isQuoteWithClient } from "@/lib/trip-builder/trip-lock";
+import { isQuoteAccepted, isQuoteWithClient } from "@/lib/trips/trip-status";
 import { cn } from "@/lib/utils/cn";
 
 type OptionsQuotePanelProps = {

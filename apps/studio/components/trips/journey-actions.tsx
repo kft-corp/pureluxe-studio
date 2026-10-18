@@ -27,7 +27,7 @@ import {
 import { getJourneyQuoteUrl, setJourneyStatus } from "@/lib/api/trips";
 import { showApiError, showSuccessToast } from "@/lib/feedback/toast";
 import { pageRoutes } from "@/lib/routes";
-import { isQuoteWithClient } from "@/lib/trip-builder/trip-lock";
+import { isQuoteWithClient } from "@/lib/trips/trip-status";
 import { formatTripStatus } from "@/lib/trips/journey-format";
 import { cn } from "@/lib/utils/cn";
 

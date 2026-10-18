@@ -55,15 +55,11 @@ function NavGroup({
   const { title } = section.group;
 
   return (
-    <div className="mt-5 first:mt-0">
-      {title ? (
-        compact ? (
-          <div className="mx-2 mb-2 h-px bg-nav-line" aria-hidden />
-        ) : (
-          <p className="studio-nav-reveal mb-1.5 truncate px-2.5 text-[13px] text-nav-label">
-            {title}
-          </p>
-        )
+    <div className="mt-4 border-t border-nav-line pt-4 first:mt-0 first:border-t-0 first:pt-0">
+      {title && !compact ? (
+        <p className="studio-nav-reveal mb-1 truncate px-2 text-xs font-medium text-nav-label">
+          {title}
+        </p>
       ) : null}
       <ul className="space-y-0.5">
         {section.items.map((item) => (
@@ -152,9 +148,9 @@ export function SidebarPanel({
           title={compact ? `Search (${searchShortcut})` : undefined}
           aria-keyshortcuts="Control+K Meta+K"
           className={cn(
-            "flex items-center rounded-lg bg-nav-active/70 text-[15px] font-[450] text-nav-label ring-1 ring-nav-line transition-colors duration-150 ring-inset hover:bg-nav-active hover:text-nav-ink",
+            "flex items-center rounded-lg bg-nav-active/70 text-sm text-nav-label ring-1 ring-nav-line transition-colors duration-150 ring-inset hover:bg-nav-active hover:text-nav-ink",
             studioFocusRing,
-            compact ? "h-9 w-9 justify-center" : "h-9 w-full gap-3 px-2.5",
+            compact ? "h-8 w-8 justify-center" : "h-8 w-full gap-2.5 px-2",
           )}
         >
           <LuSearch className="h-4 w-4 shrink-0 text-nav-icon" strokeWidth={1.5} aria-hidden />
@@ -175,9 +171,9 @@ export function SidebarPanel({
             aria-label={compact ? "New trip" : undefined}
             title={compact ? "New trip" : undefined}
             className={cn(
-              "group flex min-h-11 items-center rounded-lg text-[15px] font-[450] text-nav-ink transition-colors duration-150 hover:bg-nav-hover hover:text-nav-ink-strong md:min-h-9",
+              "group flex min-h-11 items-center rounded-lg text-sm text-nav-ink transition-colors duration-150 hover:bg-nav-hover hover:text-nav-ink-strong md:min-h-8",
               studioFocusRing,
-              compact ? "w-9 justify-center" : "w-full gap-3 px-2.5",
+              compact ? "w-8 justify-center" : "w-full gap-2.5 px-2",
             )}
           >
             <LuPlus

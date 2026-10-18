@@ -9,7 +9,7 @@ import {
 } from "@pureluxe/shared";
 
 import { getBookingDetail, listBookingDirectory } from "@/lib/bookings";
-import { loadHotelStayFacts } from "@/lib/trip-builder/hotel-contract-facts";
+import { loadHotelStayFacts } from "@/lib/trip-builder/stays/hotel-contract-facts";
 import { listJourneyDirectory } from "@/lib/trips";
 
 import {

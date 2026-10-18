@@ -6,7 +6,7 @@ import type { NormalizedRateOption } from "@pureluxe/rates";
 
 import { getTripBuilderTrip, listTripBuilderTrips, type ClientSearchHit } from "@/lib/api";
 import type { StayDraft } from "@/lib/trip-builder/intents";
-import { isQuoteAccepted, isTripClosed } from "@/lib/trip-builder/trip-lock";
+import { isQuoteAccepted, isTripClosed } from "@/lib/trips/trip-status";
 import type { TripDetail, TripListItem } from "@/lib/trip-builder";
 
 import {

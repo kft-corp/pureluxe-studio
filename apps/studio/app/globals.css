@@ -4,32 +4,34 @@
  * PureLuxe Studio design tokens — the only place raw colors may live.
  * Components use the Tailwind utilities generated in @theme below
  * (bg-surface, text-ink, bg-accent-soft, text-success-ink, …).
- * Contrast notes (WCAG 2.2 on white): ink 17:1, ink-muted 5.8:1,
- * ink-subtle 4.8:1, accent-ink 5.8:1, accent-strong 3.8:1 (focus / non-text only).
+ * Contrast notes (WCAG 2.2 on white): ink 16:1, ink-muted 5.7:1,
+ * ink-subtle 4.9:1, accent-ink 5.8:1, accent-strong 3.8:1 (focus / non-text only).
  * ink-faint and accent are decorative — never use them for readable text on light surfaces.
  */
 :root {
   /* Surfaces */
-  --surface: #f9f9f7;
+  --surface: #f2f5f6;
   --surface-raised: #ffffff;
-  --surface-subtle: #fafaf8;
-  --surface-hover: #f7f5f0;
+  --surface-subtle: #f7f9fa;
+  --surface-hover: #e9eff1;
 
   /* Lines */
-  --border: #e8e6e1;
-  --border-strong: #d8d5ce;
-  --divider: #f0eee9;
+  --border: #dce4e7;
+  --border-strong: #c5d0d4;
+  --divider: #e5ebed;
+  /* Form field outline — 3.1:1 on white (WCAG non-text minimum is 3:1) */
+  --field-border: #86939a;
 
   /* Ink */
-  --ink: #141619;
-  --ink-muted: #63666e;
-  --ink-subtle: #6f737b;
-  --ink-faint: #9ca0a8;
+  --ink: #1a232a;
+  --ink-muted: #5b6870;
+  --ink-subtle: #66737b;
+  --ink-faint: #98a5ac;
 
   /* Brand */
-  --brand-dark: #141619;
-  --brand-dark-hover: #2a2d33;
-  --brand-light: #f4f1ea;
+  --brand-dark: #13202a;
+  --brand-dark-hover: #1f3140;
+  --brand-light: #f3f6f7;
 
   /* Champagne accent */
   --accent: #c5a880;
@@ -40,27 +42,27 @@
   --accent-ink: #7d6139;
   --accent-ink-strong: #5e4b30;
 
-  /* Navigation sidebar (Fora-style blush) — crisp neutral ink and outline icons on blush */
-  --nav: #f7f0ec;
-  --nav-hover: #f1e5e1;
+  /* Navigation sidebar (Aegean mist) — sea-ink text and outline icons on pale sea mist */
+  --nav: #e6eef0;
+  --nav-hover: #d9e5e8;
   --nav-active: #ffffff;
-  --nav-line: #eadcd7;
-  --nav-ink: #262626;
-  --nav-ink-strong: #111111;
-  --nav-icon: #3f3f3f;
-  --nav-label: #6b6b6b;
-  --nav-muted: #a3a3a3;
+  --nav-line: #cfdde1;
+  --nav-ink: #1f2a30;
+  --nav-ink-strong: #0f171c;
+  --nav-icon: #34474f;
+  --nav-label: #5a6b72;
+  --nav-muted: #94a4ab;
 
   /* Dark chrome (login photo scrim, monogram tiles, text on dark buttons) */
-  --brand-sidebar: #131211;
-  --border-muted: #3a3733;
-  --on-dark: #f7f6f3;
-  --on-dark-subtle: #a19d96;
+  --brand-sidebar: #111a21;
+  --border-muted: #2c3a44;
+  --on-dark: #f4f7f8;
+  --on-dark-subtle: #9aa8b0;
 
   /* Avatars */
   --avatar: #f2efea;
   --avatar-ink: #5e4b30;
-  --avatar-hero: #1c1b19;
+  --avatar-hero: #14202a;
   --avatar-hero-ink: #c5a880;
 
   /* Status — soft background / readable ink / 1px line / solid dot or fill */
@@ -88,10 +90,10 @@
   --info-line: #d3e0f0;
   --info-dot: #3b6cb5;
 
-  --neutral-soft: #f2f1ed;
-  --neutral-ink: #4b4e55;
-  --neutral-line: #e2e0d8;
-  --neutral-dot: #9ca0a8;
+  --neutral-soft: #eef2f4;
+  --neutral-ink: #46535b;
+  --neutral-line: #dae2e6;
+  --neutral-dot: #98a5ac;
 
   /* Root layout (login gate, etc.) */
   --background: var(--brand-dark);
@@ -107,6 +109,7 @@
   --color-border: var(--border);
   --color-border-strong: var(--border-strong);
   --color-divider: var(--divider);
+  --color-field-border: var(--field-border);
 
   --color-ink: var(--ink);
   --color-ink-muted: var(--ink-muted);
@@ -176,7 +179,7 @@
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-dm-sans);
+  --font-sans: var(--font-inter);
   --font-mono: var(--font-geist-mono);
   --font-serif: var(--font-fraunces);
   --font-serif--font-variation-settings: "SOFT" 0, "WONK" 0;

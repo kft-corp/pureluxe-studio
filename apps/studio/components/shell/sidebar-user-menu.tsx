@@ -94,10 +94,12 @@ export function SidebarUserMenu({
         type="button"
         onClick={() => setOpen((value) => !value)}
         className={cn(
-          "flex w-full min-h-11 items-center rounded-lg text-left transition-colors duration-150 hover:bg-nav-hover",
+          "flex w-full min-h-11 items-center rounded-lg text-left transition-colors duration-150",
           studioFocusRing,
-          unfoldable ? "justify-center p-1" : "gap-2.5 px-2 py-1.5",
-          open && "bg-nav-hover",
+          unfoldable
+            ? "justify-center p-1 hover:bg-nav-hover"
+            : "gap-2.5 bg-nav-active/70 px-2 py-1.5 ring-1 ring-nav-line ring-inset hover:bg-nav-active",
+          open && (unfoldable ? "bg-nav-hover" : "bg-nav-active"),
         )}
         aria-expanded={open}
         aria-haspopup="menu"

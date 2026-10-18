@@ -32,7 +32,7 @@ export function ShellPage({
   return (
     <div className={shellPageContainerClass}>
       <header className="mb-6 sm:mb-8">
-        <h1 className="text-xl font-semibold tracking-tight text-ink sm:text-2xl">
+        <h1 className="text-lg font-semibold tracking-tight text-ink sm:text-xl">
           {title}
         </h1>
         {description ? (

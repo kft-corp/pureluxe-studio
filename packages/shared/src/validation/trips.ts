@@ -253,7 +253,7 @@ export const updateTripQuoteSchema = z
 export type UpdateTripQuoteBody = z.input<typeof updateTripQuoteSchema>;
 export type UpdateTripQuoteInput = z.output<typeof updateTripQuoteSchema>;
 
-/** POST /api/trip-builder/trips/[id]/quote/generate */
+/** POST /api/trip-builder/trips/[id]/options/generate */
 export const generateTripQuoteSchema = z.object({
   force: z.boolean().optional().default(false),
 });

@@ -1,5 +1,5 @@
 import type { TripDetail, TripStaySnapshot } from "@/lib/trip-builder";
-import { isQuoteAccepted, isQuoteWithClient } from "@/lib/trip-builder/trip-lock";
+import { isQuoteAccepted, isQuoteWithClient } from "@/lib/trips/trip-status";
 import { statusNextStep } from "@/lib/trips/journey-next-step";
 
 export const TRIP_STAGES = [

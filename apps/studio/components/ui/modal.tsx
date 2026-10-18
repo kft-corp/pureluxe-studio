@@ -157,4 +157,4 @@ export const ModalButton = forwardRef<HTMLButtonElement, ModalButtonProps>(
 );
 
 export const modalFieldClassName =
-  "mt-1.5 w-full rounded-lg border border-border bg-surface-raised px-3 py-2.5 text-sm text-ink outline-none transition placeholder:text-ink-faint hover:border-border-strong focus:border-accent-strong focus:ring-2 focus:ring-accent/25";
+  "mt-1.5 w-full rounded-lg border border-field-border bg-surface-raised px-3 py-2.5 text-sm text-ink outline-none transition placeholder:text-ink-faint hover:border-ink-subtle focus:border-accent-strong focus:ring-2 focus:ring-accent/25";

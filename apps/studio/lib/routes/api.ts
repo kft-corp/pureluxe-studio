@@ -63,9 +63,6 @@ export const apiRoutes = {
     leg: (tripId: string, legId: string) =>
       `/api/trip-builder/trips/${tripId}/legs/${legId}`,
     quote: (tripId: string) => `/api/trip-builder/trips/${tripId}/quote`,
-    quoteGenerate: (tripId: string) =>
-      `/api/trip-builder/trips/${tripId}/quote/generate`,
-    quoteUrl: (tripId: string) => `/api/trip-builder/trips/${tripId}/quote/url`,
     options: (tripId: string) => `/api/trip-builder/trips/${tripId}/options`,
     optionsEdit: (tripId: string) => `/api/trip-builder/trips/${tripId}/options/edit`,
     optionsGenerate: (tripId: string) =>

@@ -4,12 +4,12 @@ import { useEffect, useId, useRef, useState } from "react";
 import { LuHistory } from "react-icons/lu";
 
 import { formatRelativeTime } from "@/lib/team/format-relative-time";
+import type { TripListItem } from "@/lib/trip-builder";
 import {
   displayTripSubtitle,
   displayTripTitle,
   tripTitleInitial,
-  type TripListItem,
-} from "@/lib/trip-builder";
+} from "@/lib/trip-builder/trip/trip-title";
 import { studioFocusRing } from "@/components/ui";
 import { cn } from "@/lib/utils/cn";
 

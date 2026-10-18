@@ -3,7 +3,7 @@
 import Link from "next/link";
 
 import type { TripDetail } from "@/lib/trip-builder";
-import { isQuoteAccepted, isQuoteWithClient, isTripClosed } from "@/lib/trip-builder/trip-lock";
+import { isQuoteAccepted, isQuoteWithClient, isTripClosed } from "@/lib/trips/trip-status";
 import { formatTripStatus } from "@/lib/trips/journey-format";
 import { pageRoutes } from "@/lib/routes";
 import { studioFocusRing } from "@/components/ui";

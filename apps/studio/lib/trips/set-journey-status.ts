@@ -9,7 +9,7 @@ import {
   type JourneyStatusAction,
 } from "@pureluxe/shared";
 
-import { isQuoteWithClient, isTripClosed } from "@/lib/trip-builder/trip-lock";
+import { isQuoteWithClient, isTripClosed } from "./trip-status";
 
 /** A status the database check does not allow yet (migration not applied). */
 async function updateTrip(...args: Parameters<typeof updateTripRow>) {

@@ -19,7 +19,7 @@ import {
   type MoneyReply,
   type StayDraft,
 } from "@/lib/trip-builder/intents";
-import { isQuoteWithClient } from "@/lib/trip-builder/trip-lock";
+import { isQuoteWithClient } from "@/lib/trips/trip-status";
 
 import { priceCheck } from "../price-check";
 import {

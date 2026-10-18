@@ -80,7 +80,7 @@ export function AppShell({ user, children }: AppShellProps) {
   }
 
   return (
-    <div className="flex h-full w-full overflow-hidden bg-surface">
+    <div className="flex h-full w-full overflow-hidden bg-surface md:bg-nav">
       {mobileOpen ? (
         <button
           type="button"
@@ -111,7 +111,7 @@ export function AppShell({ user, children }: AppShellProps) {
           className={cn(
             "flex h-full w-full flex-col bg-nav",
             // Desktop: a layer that can grow past the rail slot, so the hover peek slides over the page.
-            "md:absolute md:inset-y-0 md:left-0 md:border-r md:border-nav-line",
+            "md:absolute md:inset-y-0 md:left-0",
             "md:transition-[width,box-shadow] md:duration-300 md:ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
             peek.peeking ? "md:w-60 md:shadow-xl" : "md:w-full md:shadow-none",
           )}
@@ -131,7 +131,7 @@ export function AppShell({ user, children }: AppShellProps) {
         </div>
       </aside>
 
-      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col bg-surface">
+      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col bg-surface md:my-2 md:mr-2 md:overflow-hidden md:rounded-xl md:bg-surface-raised md:shadow-sm md:ring-1 md:ring-nav-line">
         <header
           className={cn(
             "sticky top-0 z-30 flex w-full shrink-0 items-center gap-2 border-b border-border bg-surface-raised px-2 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] md:hidden",
@@ -163,7 +163,7 @@ export function AppShell({ user, children }: AppShellProps) {
           </button>
         </header>
 
-        <main className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-y-contain bg-surface has-data-workspace:overflow-hidden">
+        <main className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-y-contain bg-surface md:bg-surface-raised has-data-workspace:overflow-hidden">
           {children}
         </main>
       </div>

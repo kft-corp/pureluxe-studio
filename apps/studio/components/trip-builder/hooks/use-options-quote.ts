@@ -8,7 +8,7 @@ import {
 } from "@/lib/api";
 import { showApiError } from "@/lib/feedback";
 import { pageRoutes } from "@/lib/routes";
-import { isQuoteWithClient } from "@/lib/trip-builder/trip-lock";
+import { isQuoteWithClient } from "@/lib/trips/trip-status";
 
 import { clipQuoteLine, sendHandoff } from "../trip-builder-copy";
 import type { OptionsTextEdit } from "../trip-builder-helpers";

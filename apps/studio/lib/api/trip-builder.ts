@@ -270,22 +270,6 @@ export function updateTripBuilderQuote(
   });
 }
 
-/** Generate (or regenerate) the quote PDF. */
-export function generateTripBuilderQuote(
-  tripId: string,
-  input: GenerateTripQuoteBody = {},
-) {
-  return fetchApi<TripQuoteResponse>(
-    apiRoutes.tripBuilder.quoteGenerate(tripId),
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
-      cache: "no-store",
-    },
-  );
-}
-
 /** Edit the client price or wording on a saved options-quote room. */
 export function updateTripBuilderStayOption(
   lineItemId: string,
@@ -351,14 +335,6 @@ export function generateTripBuilderOptionsQuote(
 export function getTripBuilderOptionsQuoteUrl(tripId: string) {
   return fetchApi<{ url: string; expires_in: number }>(
     apiRoutes.tripBuilder.optionsUrl(tripId),
-    { cache: "no-store" },
-  );
-}
-
-/** Short-lived signed URL for the ready quote PDF. */
-export function getTripBuilderQuoteUrl(tripId: string) {
-  return fetchApi<{ url: string; expires_in: number }>(
-    apiRoutes.tripBuilder.quoteUrl(tripId),
     { cache: "no-store" },
   );
 }

@@ -1,27 +1,15 @@
 import { rateMessages, tripLineItemIdSchema } from "@pureluxe/shared";
 
-import { apiFromError, apiSuccess } from "@/lib/api";
-import { requireApiPermission } from "@/lib/auth/require-api-permission";
-import { rejectTripLineItem } from "@/lib/rates";
-
-type RouteContext = {
-  params: Promise<{ id: string }>;
-};
+import { apiSuccess } from "@/lib/api";
+import { apiRoute } from "@/lib/api/route-handler";
+import { rejectTripLineItem } from "@/lib/trip-builder";
 
 /** pending_review → rejected. */
-export async function POST(_request: Request, context: RouteContext) {
-  try {
-    const session = await requireApiPermission("trip_builder.write");
-    const { id } = await context.params;
-    const lineItemId = tripLineItemIdSchema.parse(id);
-    const data = await rejectTripLineItem(lineItemId, {
-      memberId: session.memberId,
-    });
-
-    return apiSuccess(data, {
-      message: rateMessages.success.rejected,
-    });
-  } catch (cause) {
-    return apiFromError(cause);
-  }
-}
+export const POST = apiRoute<{ id: string }>(
+  "trip_builder.write",
+  async ({ params, session }) => {
+    const lineItemId = tripLineItemIdSchema.parse(params.id);
+    const data = await rejectTripLineItem(lineItemId, { memberId: session.memberId });
+    return apiSuccess(data, { message: rateMessages.success.rejected });
+  },
+);

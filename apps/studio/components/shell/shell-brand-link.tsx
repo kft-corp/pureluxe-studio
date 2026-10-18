@@ -30,7 +30,7 @@ export function ShellBrandLink({ compact = false, onNavigate }: ShellBrandLinkPr
         PL
       </span>
       {!compact ? (
-        <span className="studio-nav-reveal min-w-0 truncate font-serif text-[15px] leading-tight font-normal tracking-[-0.01em] text-nav-ink-strong">
+        <span className="studio-nav-reveal min-w-0 truncate font-serif text-base leading-tight font-medium tracking-[-0.01em] text-nav-ink-strong">
           PureLuxe Studio
         </span>
       ) : null}

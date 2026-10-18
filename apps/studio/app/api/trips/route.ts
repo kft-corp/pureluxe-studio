@@ -1,10 +1,8 @@
 import { listJourneysQuerySchema } from "@pureluxe/shared";
 
-import { apiFromError, apiSuccess } from "@/lib/api";
-import { requireApiPermission } from "@/lib/auth/require-api-permission";
+import { apiSuccess } from "@/lib/api";
+import { apiRoute, noStore } from "@/lib/api/route-handler";
 import { listJourneyDirectory } from "@/lib/trips";
-
-const NO_STORE = "no-store, no-cache, must-revalidate";
 
 function queryFromUrl(url: URL) {
   return listJourneysQuerySchema.parse({
@@ -23,18 +21,8 @@ function queryFromUrl(url: URL) {
 }
 
 /** Trip board — who, when, where, and whether the guest is still planning or away. */
-export async function GET(request: Request) {
-  try {
-    const session = await requireApiPermission("trips.read");
-    const query = queryFromUrl(new URL(request.url));
-    const data = await listJourneyDirectory({
-      ...query,
-      actorMemberId: session.memberId,
-    });
-    const response = apiSuccess(data);
-    response.headers.set("Cache-Control", NO_STORE);
-    return response;
-  } catch (cause) {
-    return apiFromError(cause);
-  }
-}
+export const GET = apiRoute("trips.read", async ({ request, session }) => {
+  const query = queryFromUrl(new URL(request.url));
+  const data = await listJourneyDirectory({ ...query, actorMemberId: session.memberId });
+  return noStore(apiSuccess(data));
+});

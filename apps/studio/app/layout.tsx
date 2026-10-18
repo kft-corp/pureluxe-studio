@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { DM_Sans, Fraunces, Geist_Mono } from "next/font/google";
+import { Fraunces, Geist_Mono, Inter } from "next/font/google";
 
 import { AppToaster } from "@/components/feedback";
 import "./globals.css";
@@ -10,10 +10,9 @@ const geistMono = Geist_Mono({
 });
 
 /** Interface font across the app. */
-const dmSans = DM_Sans({
-  variable: "--font-dm-sans",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
-  axes: ["opsz"],
 });
 
 const fraunces = Fraunces({
@@ -53,7 +52,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${dmSans.variable} ${geistMono.variable} ${fraunces.variable} h-dvh overflow-hidden antialiased`}
+      className={`${inter.variable} ${geistMono.variable} ${fraunces.variable} h-dvh overflow-hidden antialiased`}
     >
       <body className="h-dvh overflow-hidden font-sans">
         {children}
