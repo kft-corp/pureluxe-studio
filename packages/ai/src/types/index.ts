@@ -1,5 +1,3 @@
-import type { TripToolHandlers, TurnMeter } from "../tools";
-
 /** Phase 1 Trip Builder stages (matches Studio status strip). */
 export const TRIP_BUILDER_STAGES = [
   "client",
@@ -43,17 +41,26 @@ export type TripRateFact = {
  */
 export type TripFacts = {
   trip_id: string;
+  /** Bumped on every agent change; an approval shown for an older version is refused. */
+  version?: number;
   title: string | null;
   status: string;
   pricing_locked: boolean;
+  /** What the agent assumed rather than asked, e.g. ["year"]. Shown as editable. */
+  assumptions?: string[];
   /** Stage shown in the Studio header. When set, the model uses it as is. */
   stage?: TripBuilderStage;
   /** Next step shown in the Studio header. When set, the model uses it as is. */
   next_step?: string;
   client: { id: string; display_name: string } | null;
   travellers_confirmed?: boolean;
-  travellers?: Array<{ display_name: string; role: string; party_role: string }>;
-  family_suggestions?: Array<{ display_name: string; party_role: string; family_role: string }>;
+  travellers?: Array<{ client_id?: string; display_name: string; role: string; party_role: string }>;
+  family_suggestions?: Array<{
+    client_id?: string;
+    display_name: string;
+    party_role: string;
+    family_role: string;
+  }>;
   starts_on?: string | null;
   ends_on?: string | null;
   legs_confirmed?: boolean;
@@ -104,30 +111,5 @@ export type TripFacts = {
 export type ChatHistoryMessage = {
   role: "user" | "assistant";
   content: string;
-};
-
-/** Input for one Studio Trip Builder chat turn. */
-export type TripTurnInput = {
-  tripId: string;
-  memberId: string;
-  message: string;
-  trip: TripFacts;
-  /** Prior studio messages (not including the current user message). */
-  history?: ChatHistoryMessage[];
-  /** Idempotent send key from the client. */
-  clientRequestId?: string | null;
-  /**
-   * Host tool callbacks (get_trip, search_clients, get_client).
-   * When omitted, turn is prompt + context only (no tool loop).
-   */
-  tools?: TripToolHandlers;
-  /** Private place notes for this turn. The reply must not recite them. */
-  atlasNotes?: string | null;
-  /** Private pack of everything on file for this trip. The reply must not recite it. */
-  dossierNotes?: string | null;
-  /** Filtered rooms and hotel facts from the latest rate search. The reply must not recite it. */
-  ratePackNotes?: string | null;
-  /** Records tokens, rounds, tool timings, and time to first text. */
-  meter?: TurnMeter;
 };
 

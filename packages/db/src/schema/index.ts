@@ -110,6 +110,7 @@ export type {
 } from "./atlas-kb";
 export type {
   Trip,
+  TripAssumptions,
   TripAttachment,
   TripAttachmentPurpose,
   TripAttentionSnooze,

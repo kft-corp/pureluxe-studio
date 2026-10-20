@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { checkStep, type ObservedStep } from "@/tests/ai/eval/checks";
 import { newEvalTrip } from "@/tests/ai/eval/eval-trip";
+import { MEHTA_CLIENT_IDS, MEHTA_MALDIVES_SEED } from "@/tests/ai/fixtures/mehta-maldives";
 
 function observed(partial: Partial<ObservedStep> = {}): ObservedStep {
   return {
@@ -9,6 +10,8 @@ function observed(partial: Partial<ObservedStep> = {}): ObservedStep {
     tools: ["client_search"],
     memory: "",
     trip: newEvalTrip("trip-1"),
+    cards: [],
+    seed: MEHTA_MALDIVES_SEED,
     ...partial,
   };
 }
@@ -72,12 +75,45 @@ describe("checkStep", () => {
 
   it("lists what this build stage can't check instead of failing", () => {
     const { failures, notChecked } = checkStep(
-      { cards: ["client_picker"], approvals: 1, trip: { quoteStatus: "sent" } },
+      { cards: ["rate_compare"], trip: { quoteStatus: "sent" } },
       observed(),
       [],
     );
     expect(failures).toEqual([]);
-    expect(notChecked).toEqual(["trip.quoteStatus", "cards (client_picker)", "approvals"]);
+    expect(notChecked).toEqual(["trip.quoteStatus", "cards (rate_compare)"]);
+  });
+
+  it("checks the cards shown and approvals allowed", () => {
+    const { failures } = checkStep(
+      { cards: ["client_picker", "undo"] },
+      observed({ cards: ["client_picker", "approval"] }),
+      [],
+    );
+    expect(failures).toEqual(["expected a undo card", "showed 1 approval card(s) (allowed 0)"]);
+  });
+
+  it("compares the lead, travellers and assumed year", () => {
+    const trip = {
+      ...newEvalTrip("trip-1"),
+      leadClientId: MEHTA_CLIENT_IDS.aarav,
+      travellerIds: [MEHTA_CLIENT_IDS.aarav],
+      startsOn: "2026-12-10",
+      endsOn: "2026-12-15",
+    };
+    const { failures } = checkStep(
+      {
+        trip: {
+          client: { lead: "Aarav Mehta", travellers: ["Aarav Mehta", "Anika Mehta"], adults: 2, children: 0 },
+          dates: { start: "2026-12-10", end: "2026-12-15", assumed: ["year"] },
+        },
+      },
+      observed({ trip }),
+      [],
+    );
+    expect(failures).toEqual([
+      "trip should mark the year as assumed",
+      'travellers "Aarav Mehta", expected "Aarav Mehta, Anika Mehta"',
+    ]);
   });
 
   it("compares the trip's dates and stays once write tools change them", () => {

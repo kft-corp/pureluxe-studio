@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { DECLINE_LABELS, DECLINE_REPLIES, readReply } from "@/components/trip-builder/offer-reply";
 import type { Offer } from "@/components/trip-builder/trip-builder-helpers";
 
-const DATES: Offer = { type: "trip-dates", dates: { checkIn: "2026-10-10", checkOut: "2026-10-20" } };
+const SEARCH: Offer = { type: "rate-search" };
 
 describe("decline wording", () => {
   it("has a no chip and a no reply for every question", () => {
@@ -20,13 +20,13 @@ describe("readReply", () => {
   });
 
   it.each(["yes", "Okay!", "go ahead"])("%j confirms", (message) => {
-    expect(readReply(DATES, message)).toEqual({ kind: "confirm" });
+    expect(readReply(SEARCH, message)).toEqual({ kind: "confirm" });
   });
 
   it.each(["no", "cancel", "Nope."])("%j declines with the question's reply", (message) => {
-    expect(readReply(DATES, message)).toEqual({
+    expect(readReply(SEARCH, message)).toEqual({
       kind: "decline",
-      reply: "Okay. The trip dates stay as they are.",
+      reply: "Okay. I won't search. Ask again when you want prices, or paste a supplier quote.",
     });
   });
 
@@ -40,7 +40,7 @@ describe("readReply", () => {
   it.each(["okay, what is the visa?", "no thanks, search rates", "add Ravi"])(
     "%j is not a yes or a no",
     (message) => {
-      expect(readReply(DATES, message)).toBeNull();
+      expect(readReply(SEARCH, message)).toBeNull();
     },
   );
 });

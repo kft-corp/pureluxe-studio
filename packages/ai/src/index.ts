@@ -1,12 +1,12 @@
 /**
- * @pureluxe/ai — Trip Builder AI (Claude + read-only tools).
+ * @pureluxe/ai — Trip Builder AI.
  *
- *   agent/        — agent v2 on LangGraph (behind TRIP_AGENT_V2_MEMBER_IDS)
- *   trip-builder/ — agent v1: run / stream a chat turn
+ *   agent/        — trip agent on LangGraph (reads and changes the open trip)
+ *   trip-builder/ — home chat turn (no trip open)
  *   context/      — trip facts → stage + gaps
- *   prompts/      — system prompts (home + trip v1, trip v2)
+ *   prompts/      — system prompts (home, trip agent)
  *   providers/    — Claude API
- *   tools/        — domain tools (clients/, history/, hotels/, trip/) + agent loop
+ *   tools/        — home chat tools (clients/, history/, hotels/) + tool loop + stream chunks
  */
 
 export {
@@ -26,17 +26,21 @@ export {
   type AgentModelOptions,
   type AgentToolRisk,
   type AgentTurnRequest,
+  type ApprovalDecision,
   type CheckpointPool,
+  type PartyRole,
   type PlaceNotes,
   type RateSnapshot,
+  type StayRequest,
+  type ToolCallRef,
   type TripAgentHandlers,
   type TripAgentTurnInput,
+  type TripChange,
 } from "./agent";
 
 export {
   buildModelMessages,
   streamPreTripTurn,
-  streamTripTurn,
   type PreTripTurnInput,
 } from "./trip-builder";
 
@@ -51,7 +55,6 @@ export {
   TRIP_PROMPT_V2_RULES,
   TRIP_PROMPT_V2_VERSION,
   buildPreTripSystemPrompt,
-  buildSystemPrompt,
   buildTripFactsV2,
 } from "./prompts";
 
@@ -69,11 +72,12 @@ export {
 export {
   AGENT_PHASE_LABEL,
   PRE_TRIP_READ_TOOLS,
-  TRIP_BUILDER_READ_TOOLS,
   claudeRoundUsage,
   createTurnMeter,
   executeTool,
   streamAgentLoop,
+  type AgentApproval,
+  type AgentChoice,
   type AgentPhase,
   type AgentToolCallMetric,
   type AgentTurnMetrics,
@@ -94,7 +98,6 @@ export {
   type SearchBookingsInput,
   type SearchTripsInput,
   type TripHistoryRow,
-  type TripToolHandlers,
 } from "./tools";
 
 export {
@@ -112,5 +115,4 @@ export {
   type TripRateFact,
   type TripFacts,
   type ChatHistoryMessage,
-  type TripTurnInput,
 } from "./types";

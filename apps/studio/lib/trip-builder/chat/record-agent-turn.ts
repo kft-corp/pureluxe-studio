@@ -22,7 +22,7 @@ type RecordAgentTurnInput = {
   agentVersion?: AgentVersion;
   /** LangGraph thread (trip:<id>) for v2. */
   threadId?: string | null;
-  /** Instructions version that produced the reply (v2). */
+  /** Instructions version that produced the reply. */
   promptVersion?: string | null;
 };
 

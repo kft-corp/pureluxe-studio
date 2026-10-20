@@ -2,14 +2,14 @@ import type { TripFacts } from "@pureluxe/ai";
 
 import type { ScenarioSeed, SeedClient, TripExpectation } from "../scenario-types";
 
-/** The trip an eval runs on. Held in memory; write tools (Stage 2) will change it. */
+/** The trip an eval runs on. Held in memory; the agent's write tools change it. */
 export type EvalTrip = {
   tripId: string;
   leadClientId: string | null;
   travellerIds: string[];
   startsOn: string | null;
   endsOn: string | null;
-  stays: Array<{ destination: string; checkIn: string; checkOut: string }>;
+  stays: Array<{ destination: string; checkIn: string; checkOut: string; hotel: string | null }>;
   /** Values the agent assumed, e.g. "year". */
   assumed: string[];
 };
@@ -52,7 +52,7 @@ export function fastForwardTrip(
     trip.assumed = [...(expected.dates.assumed ?? [])];
   }
   if (expected.stays) {
-    trip.stays = expected.stays.map((stay) => ({ ...stay }));
+    trip.stays = expected.stays.map((stay) => ({ ...stay, hotel: null }));
   }
 }
 
@@ -81,7 +81,7 @@ export function toEvalTripFacts(trip: EvalTrip, seed: ScenarioSeed, today: strin
     city: stay.destination,
     check_in: stay.checkIn,
     check_out: stay.checkOut,
-    property_name: null,
+    property_name: stay.hotel,
     rate_selected: false,
   }));
 
@@ -90,6 +90,7 @@ export function toEvalTripFacts(trip: EvalTrip, seed: ScenarioSeed, today: strin
     title: lead ? `${lead.displayName} · ${trip.stays[0]?.destination ?? "New trip"}` : null,
     status: "building",
     pricing_locked: false,
+    assumptions: trip.assumed,
     client: lead ? { id: lead.id, display_name: lead.displayName } : null,
     travellers_confirmed: trip.travellerIds.length > 0,
     travellers: trip.travellerIds.flatMap((id) => {
@@ -97,6 +98,7 @@ export function toEvalTripFacts(trip: EvalTrip, seed: ScenarioSeed, today: strin
       if (!person) return [];
       return [
         {
+          client_id: id,
           display_name: person.displayName,
           role: id === trip.leadClientId ? "primary" : "companion",
           party_role: ageOn(person.dateOfBirth, onDate) >= 18 ? "adult" : "child",
@@ -106,7 +108,7 @@ export function toEvalTripFacts(trip: EvalTrip, seed: ScenarioSeed, today: strin
     family_suggestions: household.flatMap((member) => {
       const person = byId.get(member.clientId);
       return person
-        ? [{ display_name: person.displayName, party_role: "adult", family_role: member.relation }]
+        ? [{ client_id: member.clientId, display_name: person.displayName, party_role: "adult", family_role: member.relation }]
         : [];
     }),
     starts_on: trip.startsOn,

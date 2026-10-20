@@ -21,6 +21,8 @@ export const TripAgentState = Annotation.Root({
   action: Annotation<AgentAction | null>({ reducer: replace, default: () => null }),
   /** Tool rounds used in this turn. Reset by every new turn. */
   toolRounds: Annotation<number>({ reducer: replace, default: () => 0 }),
+  /** Ready-made reply for a simple tap (Undo): sent without calling the model. */
+  quickReply: Annotation<string | null>({ reducer: replace, default: () => null }),
 });
 
 export type TripAgentStateValue = typeof TripAgentState.State;

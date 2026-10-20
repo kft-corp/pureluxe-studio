@@ -44,38 +44,6 @@ export function tripStays(detail: TripDetail | null): TripStaySnapshot[] {
   return [...stays].sort(byCheckIn);
 }
 
-/** Nights overlap. A checkout that is the next check-in does not. */
-export function findOverlappingStay(
-  stays: TripStaySnapshot[],
-  checkIn: string,
-  checkOut: string,
-  ignoreLegId?: string | null,
-): TripStaySnapshot | null {
-  return (
-    stays.find(
-      (stay) =>
-        stay.leg_id !== ignoreLegId &&
-        stay.check_in &&
-        stay.check_out &&
-        checkIn < stay.check_out &&
-        checkOut > stay.check_in,
-    ) ?? null
-  );
-}
-
-export function staysOutsideWindow(
-  stays: TripStaySnapshot[],
-  start: string,
-  end: string,
-): TripStaySnapshot[] {
-  return stays.filter(
-    (stay) =>
-      stay.check_in &&
-      stay.check_out &&
-      (stay.check_in < start || stay.check_out > end || stay.check_out <= stay.check_in),
-  );
-}
-
 function daySpan(from: string, to: string): number {
   const [y1, m1, d1] = from.split("-").map(Number);
   const [y2, m2, d2] = to.split("-").map(Number);

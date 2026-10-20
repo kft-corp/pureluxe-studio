@@ -60,6 +60,14 @@ export type TripChatMode = "discover" | "execute";
 /** text = typed or agent reply; action = button tap; event = system line (Undo). */
 export type TripChatKind = "text" | "action" | "event";
 
+/** What the agent assumed when the advisor didn't say it. */
+export type TripAssumptions = {
+  /** The year of the trip dates was worked out (next occurrence after today). */
+  year?: boolean;
+  /** Rooms were set to one per two adults. */
+  rooms?: boolean;
+};
+
 export type TripPendingConfirmStatus =
   | "pending"
   | "consumed"
@@ -100,9 +108,10 @@ export type Trip = {
   archived_by_id: string | null;
   last_studio_message_at: string | null;
   last_studio_message_preview: string | null;
-  /** Agent run holding this trip. Null when no run is in progress. */
-  agent_run_id: string | null;
-  agent_run_expires_at: string | null;
+  /** Bumped on every agent change and Undo; a change against an older version is refused. */
+  version: number;
+  /** Values the agent assumed rather than asked, e.g. { year: true }. */
+  assumptions: TripAssumptions;
   created_at: string;
   updated_at: string;
 };
@@ -238,6 +247,12 @@ export type TripPendingConfirm = {
   tool: string;
   args: Record<string, unknown>;
   status: TripPendingConfirmStatus;
+  /** Agent thread paused on this approval. */
+  thread_id: string | null;
+  /** trips.version when the card was shown. */
+  trip_version: number | null;
+  /** What Confirm will do. */
+  summary: string | null;
   created_at: string;
   expires_at: string;
   consumed_at: string | null;
@@ -265,8 +280,14 @@ export type TripUndoAction = {
   trip_id: string;
   member_id: string;
   action: string;
+  /** Agent tool that made the change. */
+  tool: string | null;
+  args: Record<string, unknown>;
+  /** What changed, shown on the Undo button. */
+  summary: string | null;
   before_payload: Record<string, unknown>;
   after_payload: Record<string, unknown>;
+  idempotency_key: string | null;
   created_at: string;
   expires_at: string;
   consumed_at: string | null;

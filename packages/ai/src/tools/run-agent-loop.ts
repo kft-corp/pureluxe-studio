@@ -10,7 +10,6 @@ import {
 import { executeTool } from "./execute";
 import type { DeskToolHandlers } from "./handlers";
 import type { AgentStreamChunk } from "./stream-chunk";
-import type { TripToolHandlers } from "./trip";
 import { claudeRoundUsage, type TurnMeter } from "./turn-meter";
 
 const DEFAULT_MAX_ROUNDS = 4;
@@ -18,7 +17,7 @@ const DEFAULT_MAX_ROUNDS = 4;
 export type RunAgentLoopInput = {
   system: string;
   messages: ClaudeChatMessage[];
-  handlers: DeskToolHandlers | TripToolHandlers;
+  handlers: DeskToolHandlers;
   toolSchemas: Anthropic.Tool[];
   maxRounds?: number;
   apiKey?: string;
@@ -44,7 +43,7 @@ function wantsTools(response: Anthropic.Message): boolean {
 async function runToolCalls(
   messages: Anthropic.MessageParam[],
   response: Anthropic.Message,
-  handlers: DeskToolHandlers | TripToolHandlers,
+  handlers: DeskToolHandlers,
   meter?: TurnMeter,
 ): Promise<void> {
   const toolUses = response.content.filter(

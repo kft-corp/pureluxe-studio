@@ -2,10 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   isClientQuestion,
-  isFollowUpFragment,
   isPlaceQuestion,
   isTripQuestion,
-  mightNamePlace,
   wantsHotelSearch,
 } from "@/lib/trip-builder/intents";
 
@@ -35,29 +33,6 @@ describe("isTripQuestion", () => {
     ["sell 4500 USD", false],
   ])("%j", (input, expected) => {
     expect(isTripQuestion(input)).toBe(expected);
-  });
-});
-
-describe("mightNamePlace", () => {
-  it.each([
-    ["Maldives", true],
-    ["Soneva Fushi", true],
-    ["sell 4500 USD", false],
-    ["yes", false],
-    ["ok", false],
-  ])("%j", (input, expected) => {
-    expect(mightNamePlace(input)).toBe(expected);
-  });
-});
-
-describe("isFollowUpFragment", () => {
-  it.each([
-    ["and the visa?", true],
-    ["the cheaper one please", true],
-    ["make him a child", false],
-    ["yes", false],
-  ])("%j", (input, expected) => {
-    expect(isFollowUpFragment(input)).toBe(expected);
   });
 });
 

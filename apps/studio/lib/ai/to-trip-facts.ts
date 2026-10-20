@@ -56,9 +56,13 @@ export function toTripFacts(detail: TripDetail, readiness?: string[]): TripFacts
 
   return {
     trip_id: detail.trip.id,
+    version: detail.trip.version,
     title: detail.trip.title,
     status: detail.trip.status,
     pricing_locked: detail.pricing_locked,
+    assumptions: Object.entries(detail.trip.assumptions ?? {})
+      .filter(([, assumed]) => assumed)
+      .map(([key]) => key),
     stage: resolveTripStage(detail),
     next_step: resolveNextStep(detail),
     client: detail.client
@@ -66,11 +70,13 @@ export function toTripFacts(detail: TripDetail, readiness?: string[]): TripFacts
       : null,
     travellers_confirmed: Boolean(detail.trip.travellers_confirmed_at),
     travellers: detail.travellers.map((person) => ({
+      client_id: person.client_id,
       display_name: person.display_name,
       role: person.role,
       party_role: person.party_role,
     })),
     family_suggestions: detail.family_suggestions.map((person) => ({
+      client_id: person.client_id,
       display_name: person.display_name,
       party_role: person.party_role,
       family_role: person.family_role,

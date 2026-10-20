@@ -6,9 +6,6 @@ import { executeClientTool } from "./clients";
 import type { DeskToolHandlers } from "./handlers";
 import { executeHistoryTool } from "./history";
 import { executeHotelTool } from "./hotels";
-import { executeTripTool, type TripToolHandlers } from "./trip";
-
-type ToolHandlers = DeskToolHandlers | TripToolHandlers;
 
 /**
  * Route one tool call to the right domain module.
@@ -17,7 +14,7 @@ type ToolHandlers = DeskToolHandlers | TripToolHandlers;
 export async function executeTool(
   name: string,
   input: unknown,
-  handlers: ToolHandlers,
+  handlers: DeskToolHandlers,
 ): Promise<unknown> {
   try {
     switch (name) {
@@ -33,13 +30,10 @@ export async function executeTool(
       case "get_hotel":
         return executeHotelTool(input, handlers);
 
-      case "get_trip":
-        return executeTripTool(input, handlers);
-
       default:
         return {
           error:
-            "Unknown tool. Available: get_trip (on-trip only), search_clients, get_client, search_trips, search_bookings, get_booking, get_hotel.",
+            "Unknown tool. Available: search_clients, get_client, search_trips, search_bookings, get_booking, get_hotel.",
         };
     }
   } catch (cause) {

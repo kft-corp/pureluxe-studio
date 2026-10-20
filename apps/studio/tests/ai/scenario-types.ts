@@ -2,7 +2,7 @@
  * Golden test conversations for the Trip Builder agent (redesign §10).
  *
  * A scenario is a scripted advisor conversation plus what must be true after
- * each step. The eval runner (`npm run eval:agent`, Stage 1) replays it
+ * each step. The eval runner (`npm run eval:agent`) replays it
  * against the real model on seeded data. Each step names the build stage that
  * makes it checkable, so the runner skips steps the agent can't do yet.
  *
@@ -16,7 +16,7 @@ export type FlowStage = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 /** Build stage from the redesign's order of work that makes a step checkable. */
 export type BuildStage = "stage-1" | "stage-2" | "stage-3" | "stage-5";
 
-/** Agent v2 tool names (redesign §4.3). */
+/** Agent tool names (redesign §4.3). */
 export type AgentToolName =
   | "trip_get"
   | "client_search"

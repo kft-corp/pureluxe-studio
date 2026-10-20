@@ -10,8 +10,8 @@ import type { ChatMessage, TripDetail } from "@/lib/trip-builder";
 import { cn } from "@/lib/utils/cn";
 
 import { ChatMarkdown } from "./chat-markdown";
-import { stayAskText } from "./stay-prompt";
 import { resolveTripStage } from "./stages";
+import { TRIP_START_PROMPT } from "./trip-builder-copy";
 import type { TripBuilderChip } from "./trip-builder-action-chip";
 import {
   TripBuilderRateCard,
@@ -177,9 +177,7 @@ function tripWelcomeMessage(
   stage: ReturnType<typeof resolveTripStage>,
   activeLegId: string | null,
 ): string {
-  if (stage === "client") {
-    return "I've created this trip. Tell me which client it is for, and a confirm chip will appear before they are added.";
-  }
+  if (stage === "client" && !detail.client) return TRIP_START_PROMPT;
   return stageCueFor(detail, stage, activeLegId);
 }
 
@@ -223,7 +221,7 @@ function AgentStatusBanner({ detail }: { detail: TripDetail | null }) {
         <p className="mt-0.5 text-[13px] leading-snug text-ink">
           {!detail
             ? "Hi — I’m your trip builder agent. Chat for client info, or tap Create trip when you’re ready to plan."
-            : "Hi — I’ll help you plan this trip. Ask anything, or use chips to confirm the next step."}
+            : "Hi — I’ll help you plan this trip. Tell me what you need; you can undo any change I make."}
         </p>
       </div>
     </div>
@@ -383,30 +381,25 @@ function stageCueFor(
   stage: ReturnType<typeof resolveTripStage>,
   activeLegId: string | null,
 ): string {
-  if (stage === "client" && detail.client && !detail.trip.travellers_confirmed_at) {
-    const name = detail.client.display_name;
-    return `**${name}** is the lead. Who else is traveling? Add a client, or say **just them**.`;
-  }
   if (stage === "client") {
-    return "Ask about a client anytime. To add someone, say who — a confirm chip appears before they are assigned.";
-  }
-  if (stage === "stay" && !detail.trip.starts_on) {
     const name = detail.client?.display_name;
-    const who = name ? `This trip is for **${name}**. ` : "";
-    return `${who}First, set the trip start and end. Every stay has to sit inside those days. Hotel check-in and check-out come later, on each stay.\n\nStart: 2026-10-10\nEnd: 2026-10-20`;
+    return `${name ? `**${name}** is the lead. ` : ""}Tell me who else is travelling, and where and when.`;
   }
   if (stage === "stay" && !detail.trip.legs_confirmed_at) {
-    return `Trip dates are **${detail.trip.starts_on}** to **${detail.trip.ends_on}**.\n\nList each stay inside those dates:\n\nCity: Maldives\nCheck-in: ${detail.trip.starts_on}\nCheck-out: ${detail.trip.ends_on}\n\nA city on its own uses the full trip for the first stay. When the list is complete, tap **Plan these stays**.`;
+    const name = detail.client?.display_name;
+    const dates = detail.trip.starts_on
+      ? `The trip runs **${detail.trip.starts_on}** to **${detail.trip.ends_on}**. `
+      : "";
+    return `${name ? `This trip is for **${name}**. ` : ""}${dates}Tell me where they're staying, with dates for each stay if there is more than one.`;
   }
   if (stage === "stay") {
     const open =
       detail.stays.find((stay) => stay.leg_id === activeLegId) ??
       detail.stays[0] ??
       detail.stay;
-    const lead = open?.city
-      ? `Plan **${open.city}** (${open.check_in} to ${open.check_out}). Switch stays from the row under the header. You can add a stay, change one, or change the trip dates in chat.`
-      : "This trip needs a stay.";
-    return stayAskText(lead);
+    return open?.city
+      ? `Which hotel for **${open.city}** (${open.check_in} to ${open.check_out})? Name one, or ask for suggestions. Switch stays from the row under the header.`
+      : "Tell me where they're staying.";
   }
   if (stage === "rates") {
     const open =

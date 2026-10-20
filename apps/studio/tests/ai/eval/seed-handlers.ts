@@ -10,6 +10,7 @@ import { AppError } from "@pureluxe/shared";
 import type { ScenarioSeed, SeedClient, SeedHotel } from "../scenario-types";
 
 import { toEvalTripFacts, type EvalTrip } from "./eval-trip";
+import { createSeedTripChanges } from "./seed-trip-changes";
 
 const SEARCH_LIMIT = 8;
 
@@ -196,5 +197,7 @@ export function createSeedHandlers(
     async getRateSnapshot() {
       return { status: "none" };
     },
+
+    ...createSeedTripChanges(seed, trip, today),
   };
 }

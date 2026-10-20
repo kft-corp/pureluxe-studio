@@ -206,12 +206,18 @@ export async function insertTripChatMessage(
 /** Update assistant content / incomplete flag after a stream finishes. */
 export async function updateTripChatMessage(
   messageId: string,
-  patch: { content?: string; incomplete?: boolean; trace_id?: string | null },
+  patch: {
+    content?: string;
+    incomplete?: boolean;
+    payload?: Record<string, unknown> | null;
+    trace_id?: string | null;
+  },
 ): Promise<TripChatMessage> {
   const supabase = getServiceClient();
   const next: Record<string, unknown> = {};
   if (patch.content !== undefined) next.content = patch.content;
   if (patch.incomplete !== undefined) next.incomplete = patch.incomplete;
+  if (patch.payload !== undefined) next.payload = patch.payload;
   if (patch.trace_id !== undefined) next.trace_id = patch.trace_id;
 
   const { data, error } = await runSupabaseQuery(() =>

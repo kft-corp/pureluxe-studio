@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import type { NormalizedRateOption } from "@pureluxe/rates";
 
-import { getTripBuilderTrip, listTripBuilderTrips, type ClientSearchHit } from "@/lib/api";
+import { getTripBuilderTrip, listTripBuilderTrips } from "@/lib/api";
 import type { StayDraft } from "@/lib/trip-builder/intents";
 import { isQuoteAccepted, isTripClosed } from "@/lib/trips/trip-status";
 import type { TripDetail, TripListItem } from "@/lib/trip-builder";
@@ -13,11 +13,9 @@ import {
   draftFromStay,
   withPartyCounts,
   stayOn,
-  type AtlasHotel,
   type CostUpdate,
   type Offer,
   type OptionDraft,
-  type PartyChoice,
 } from "../trip-builder-helpers";
 import type { TripBuilderStayNotes } from "../trip-builder-rate-card";
 
@@ -28,7 +26,7 @@ export type UseTripBuilderOptions = {
   prefillClientId?: string | null;
 };
 
-/** Shared state: the open trip, the open question, the stay draft, and the search hits behind the chips. */
+/** Shared state: the open trip, the open stay, the open question, and the rate search draft. */
 export function useTripCore({
   initialTrips,
   initialDetail,
@@ -44,12 +42,10 @@ export function useTripCore({
   const [busy, setBusy] = useState(false);
   const [rateOptions, setRateOptions] = useState<NormalizedRateOption[]>([]);
   const [rateStayNotes, setRateStayNotes] = useState<TripBuilderStayNotes | null>(null);
-  const [clientHits, setClientHits] = useState<ClientSearchHit[]>([]);
+  /** Clients the home chat found, offered as Create trip chips. */
   const [suggestedClients, setSuggestedClients] = useState<
     { id: string; display_name: string }[]
   >([]);
-  const [leadHits, setLeadHits] = useState<ClientSearchHit[]>([]);
-  const [roleHits, setRoleHits] = useState<PartyChoice[]>([]);
   const [quietChips, setQuietChips] = useState(false);
   const firstLegId =
     initialDetail?.stays?.[0]?.leg_id ?? initialDetail?.stay?.leg_id ?? null;
@@ -60,16 +56,10 @@ export function useTripCore({
   );
   /** The one question waiting on yes or no. */
   const [offer, setOffer] = useState<Offer | null>(null);
-  const [offerReopen, setOfferReopen] = useState(false);
   /** A room waiting for the client price the advisor types next. */
   const [pendingOptionDraft, setPendingOptionDraft] = useState<OptionDraft | null>(null);
   /** Today's hotel price for the client's chosen room, offered after a price check. */
   const [pendingCostUpdate, setPendingCostUpdate] = useState<CostUpdate | null>(null);
-  const [atlasPlace, setAtlasPlace] = useState<{
-    city: string | null;
-    country: string | null;
-  } | null>(null);
-  const [atlasHotels, setAtlasHotels] = useState<AtlasHotel[]>([]);
 
   function closeOffer(...types: Offer["type"][]) {
     setOffer((current) => (current && types.includes(current.type) ? null : current));
@@ -86,6 +76,15 @@ export function useTripCore({
       chooseLeg(stay.leg_id);
     }
     setStayDraft(withPartyCounts(draftFromStay(stay), next));
+  }
+
+  /** Open another stay from the stay row. */
+  function selectLeg(legId: string) {
+    if (!detail || legId === activeLegIdRef.current) return;
+    chooseLeg(legId);
+    setStayDraft(withPartyCounts(draftFromStay(stayOn(detail, legId)), detail));
+    setRateOptions([]);
+    closeOffer("rate-search", "paste");
   }
 
   async function refreshTrips() {
@@ -107,34 +106,10 @@ export function useTripCore({
     return detailResponse.data;
   }
 
-  function quoteRefreshNote(): string {
-    return detail?.quote.document?.status === "ready"
-      ? "\n\nThe quote PDF is out of date. Generate it again when the stays are set."
-      : "";
-  }
-
   function clearOfferedChips() {
-    setLeadHits([]);
-    setRoleHits([]);
-    setClientHits([]);
-    setOfferReopen(false);
     setPendingOptionDraft(null);
     setPendingCostUpdate(null);
     setOffer(null);
-    setAtlasHotels([]);
-  }
-
-  function clearStayPrompts() {
-    closeOffer(
-      "trip-dates",
-      "shift-trip",
-      "date-drop",
-      "remove-stay",
-      "revise-stay",
-      "add-stay",
-      "stay-overlap",
-      "stay-update",
-    );
   }
 
   return {
@@ -153,14 +128,8 @@ export function useTripCore({
     setRateOptions,
     rateStayNotes,
     setRateStayNotes,
-    clientHits,
-    setClientHits,
     suggestedClients,
     setSuggestedClients,
-    leadHits,
-    setLeadHits,
-    roleHits,
-    setRoleHits,
     quietChips,
     setQuietChips,
     activeLegIdRef,
@@ -170,24 +139,17 @@ export function useTripCore({
     setStayDraft,
     offer,
     setOffer,
-    offerReopen,
-    setOfferReopen,
     pendingOptionDraft,
     setPendingOptionDraft,
     pendingCostUpdate,
     setPendingCostUpdate,
-    atlasPlace,
-    setAtlasPlace,
-    atlasHotels,
-    setAtlasHotels,
     closeOffer,
     chooseLeg,
     hydrateStayDraft,
+    selectLeg,
     refreshTrips,
     refreshAfterMutation,
-    quoteRefreshNote,
     clearOfferedChips,
-    clearStayPrompts,
   };
 }
 

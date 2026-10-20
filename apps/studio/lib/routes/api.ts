@@ -55,13 +55,6 @@ export const apiRoutes = {
     trip: (tripId: string) => `/api/trip-builder/trips/${tripId}`,
     stay: (tripId: string) => `/api/trip-builder/trips/${tripId}/stay`,
     readiness: (tripId: string) => `/api/trip-builder/trips/${tripId}/readiness`,
-    shift: (tripId: string) => `/api/trip-builder/trips/${tripId}/shift`,
-    legs: (tripId: string) => `/api/trip-builder/trips/${tripId}/legs`,
-    travellers: (tripId: string) => `/api/trip-builder/trips/${tripId}/travellers`,
-    traveller: (tripId: string, clientId: string) =>
-      `/api/trip-builder/trips/${tripId}/travellers/${clientId}`,
-    leg: (tripId: string, legId: string) =>
-      `/api/trip-builder/trips/${tripId}/legs/${legId}`,
     quote: (tripId: string) => `/api/trip-builder/trips/${tripId}/quote`,
     options: (tripId: string) => `/api/trip-builder/trips/${tripId}/options`,
     optionsEdit: (tripId: string) => `/api/trip-builder/trips/${tripId}/options/edit`,
@@ -72,7 +65,6 @@ export const apiRoutes = {
     chatLines: (tripId: string) => `/api/trip-builder/trips/${tripId}/chat/lines`,
     /** Pre-trip home chat — ephemeral, client lookup tools only. */
     preTripChat: "/api/trip-builder/pre-trip/chat",
-    atlas: "/api/trip-builder/atlas",
     ratesSearch: "/api/trip-builder/rates/search",
     lineItemsPaste: "/api/trip-builder/line-items/paste",
     lineItemsFromRate: "/api/trip-builder/line-items/from-rate",

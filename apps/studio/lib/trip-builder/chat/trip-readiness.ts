@@ -2,6 +2,10 @@ import {
   findActiveKbCountryByCode,
   findActiveKbVisaRule,
   findActivePropertyById,
+  findClientById,
+  findClientHealth,
+  listClientDocuments,
+  listClientPreferences,
   type ClientDocument,
   type ClientHealthProfile,
   type ClientPreference,
@@ -9,9 +13,10 @@ import {
 } from "@pureluxe/db";
 import { countryCodeFrom } from "@pureluxe/shared";
 
+import { getTripDetail } from "../trip/get-trip-detail";
 import type { TripDetail, TripStaySnapshot } from "../trip/trip-detail";
 
-/** One traveller's profile rows, already loaded for the trip dossier. */
+/** One traveller's profile rows. */
 export type ReadinessPerson = {
   name: string;
   child: boolean;
@@ -178,4 +183,55 @@ export async function buildTripReadiness(
     ...visaLines,
     ...people.flatMap(profileLines),
   ];
+}
+
+/** The lead and travellers, each with the role used in readiness lines. */
+function peopleOf(detail: TripDetail): Array<{ clientId: string; child: boolean }> {
+  if (detail.travellers.length > 0) {
+    return detail.travellers.map((person) => ({
+      clientId: person.client_id,
+      child: person.role !== "primary" && person.party_role === "child",
+    }));
+  }
+  return detail.client ? [{ clientId: detail.client.id, child: false }] : [];
+}
+
+/** One traveller's profile rows. Null when the client is gone. */
+async function loadPerson(clientId: string, child: boolean): Promise<ReadinessPerson | null> {
+  const [client, preferences, health, documents] = await Promise.all([
+    findClientById(clientId),
+    listClientPreferences(clientId, { limit: 50 }),
+    findClientHealth(clientId),
+    listClientDocuments(clientId, { limit: 20 }),
+  ]);
+  if (!client) return null;
+  return {
+    name: client.display_name,
+    child,
+    nationality: client.nationality,
+    documents,
+    preferences,
+    health,
+  };
+}
+
+/**
+ * Before-booking checks for an assigned trip. Not cached: passport or profile
+ * edits on the client page must show the next time the panel loads.
+ */
+export async function getTripReadiness(
+  tripId: string,
+  actor: { memberId: string },
+  loaded?: TripDetail,
+): Promise<string[]> {
+  const detail = loaded ?? (await getTripDetail(tripId, actor));
+  const people = await Promise.all(
+    peopleOf(detail).map((person) => loadPerson(person.clientId, person.child)),
+  );
+  const stays = detail.stays.length > 0 ? detail.stays : detail.stay ? [detail.stay] : [];
+  return buildTripReadiness(
+    detail,
+    stays,
+    people.flatMap((person) => (person ? [person] : [])),
+  );
 }

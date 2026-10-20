@@ -6,7 +6,7 @@ import {
   type BaseMessage,
 } from "@langchain/core/messages";
 import { RunnableLambda } from "@langchain/core/runnables";
-import { MemorySaver } from "@langchain/langgraph";
+import { Command, MemorySaver } from "@langchain/langgraph";
 import { describe, expect, it } from "vitest";
 
 import { MAX_TOOL_ROUNDS, buildTripAgentGraph } from "../../../src/agent/graph";
@@ -179,6 +179,83 @@ describe("trip agent graph", () => {
     expect(fallback?.calls).toHaveLength(1);
     expect(state.messages.at(-1)?.text).toBe("Answered by the backup.");
     expect(meter.read().fallbackUsed).toBe(true);
+  });
+
+  it("makes a change straight away and reloads the trip before answering", async () => {
+    const { graph, config, handlers } = setup({
+      withTools: [toolCall("trip_set_dates", { start: "12-10", end: "12-15" }), new AIMessage("Dates set.")],
+    });
+
+    const state = await graph.invoke(
+      { messages: [new HumanMessage("10–15 Dec")], action: null, toolRounds: 0 },
+      config,
+    );
+
+    expect(handlers.setDates).toHaveBeenCalledWith({ start: "12-10", end: "12-15" }, { id: "call_trip_set_dates" });
+    expect(handlers.getTrip).toHaveBeenCalledTimes(2);
+    expect(state.messages.at(-1)?.text).toBe("Dates set.");
+  });
+
+  it("streams a changed event for the chat", async () => {
+    const { graph, config } = setup({
+      withTools: [toolCall("trip_set_dates", { start: "12-10", end: "12-15" }), new AIMessage("Dates set.")],
+    });
+
+    const custom: unknown[] = [];
+    const stream = await graph.stream(
+      { messages: [new HumanMessage("10–15 Dec")], action: null, toolRounds: 0 },
+      { ...config, streamMode: "custom" },
+    );
+    for await (const chunk of stream) custom.push(chunk);
+
+    expect(custom).toEqual([{ kind: "changed", summary: "Dates set to 10 Dec – 15 Dec 2026", undo: true }]);
+  });
+
+  it("pauses a risky change from typed text until the advisor confirms", async () => {
+    const { graph, config, handlers } = setup({
+      withTools: [toolCall("trip_shift_dates", { days: 2 }), new AIMessage("Moved.")],
+    });
+
+    await graph.invoke({ messages: [new HumanMessage("push it 2 days")], action: null, toolRounds: 0 }, config);
+    const paused = await graph.getState(config);
+    expect(paused.next).toEqual(["approval"]);
+    expect(paused.tasks[0]?.interrupts[0]?.value).toMatchObject({
+      tool: "trip_shift_dates",
+      args: { days: 2 },
+      summary: expect.stringMatching(/^Move the whole trip 2 days later\?/),
+    });
+    expect(handlers.shiftDates).not.toHaveBeenCalled();
+
+    const state = await graph.invoke(new Command({ resume: "approve" }), config);
+    expect(handlers.shiftDates).toHaveBeenCalledWith({ days: 2 }, { id: "call_trip_shift_dates" });
+    expect(state.messages.at(-1)?.text).toBe("Moved.");
+  });
+
+  it("tells the model a cancelled change was not made", async () => {
+    const { graph, config, handlers, primary } = setup({
+      withTools: [toolCall("trip_shift_dates", { days: 2 }), new AIMessage("Okay, dates unchanged.")],
+    });
+
+    await graph.invoke({ messages: [new HumanMessage("push it 2 days")], action: null, toolRounds: 0 }, config);
+    const state = await graph.invoke(new Command({ resume: "cancel" }), config);
+
+    expect(handlers.shiftDates).not.toHaveBeenCalled();
+    expect(JSON.stringify(primary.calls[1]!.at(-1)!.content)).toContain("cancelled_by_advisor");
+    expect(state.messages.at(-1)?.text).toBe("Okay, dates unchanged.");
+  });
+
+  it("answers an Undo tap from its result, without the model", async () => {
+    const { graph, config, handlers, primary } = setup({ withTools: [] });
+
+    const state = await graph.invoke(
+      { messages: [], action: { tool: "trip_undo", args: {}, label: "Undo" }, toolRounds: 0 },
+      config,
+    );
+
+    expect(handlers.undo).toHaveBeenCalledOnce();
+    expect(primary.calls).toHaveLength(0);
+    expect(state.messages.at(-1)?.text).toBe("Undone: Dates set to 10 Dec – 15 Dec 2026.");
+    expect(state.quickReply).toBeNull();
   });
 
   it("does not hide a bad request behind the backup model", async () => {

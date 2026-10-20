@@ -4,7 +4,7 @@ import { AppError, tripMessages, type UpdateTripQuoteInput } from "@pureluxe/sha
 import { syncTripCommercials } from "./sync-trip-commercials";
 import { syncTripHotelBooking } from "./sync-trip-booking";
 import { getTripDetail } from "../trip/get-trip-detail";
-import { clearTripDossier } from "../chat/trip-dossier";
+import { closeTripRateSearches } from "@/lib/rates/rate-search-store";
 import { requireEditableTrip } from "../access/require-assigned-trip";
 import {
   buildTripDetail,
@@ -89,6 +89,6 @@ export async function updateTripQuote(
   if (input.sell_total != null) {
     await syncTripHotelBooking(detail, actor);
   }
-  await clearTripDossier(tripId);
+  await closeTripRateSearches(tripId);
   return { detail, quote: detail.quote };
 }

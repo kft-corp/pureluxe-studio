@@ -1,44 +1,27 @@
 import type { NormalizedRateOption } from "@pureluxe/rates";
 
-import type { ClientSearchHit } from "@/lib/api";
-import type { TripDetail } from "@/lib/trip-builder";
-import { partyReady, stayDraftReady, type MoneyReply, type StayDraft } from "@/lib/trip-builder/intents";
+import type { ChatReplyCards, TripDetail } from "@/lib/trip-builder";
+import { partyReady, type MoneyReply, type StayDraft } from "@/lib/trip-builder/intents";
 
 import { cancellationForStay, explainRate } from "./explain-rate";
 import type { TripChatAction } from "./hooks/use-trip-chat";
 import { DECLINE_LABELS } from "./offer-reply";
-import {
-  isRateStage,
-  legsConfirmed,
-  resolveTripStage,
-  travellersConfirmed,
-  tripStays,
-} from "./stages";
+import { isRateStage, resolveTripStage } from "./stages";
 import type { TripBuilderChip } from "./trip-builder-action-chip";
 import {
   formatMoney,
   listedRates,
   optionChipLabel,
-  shiftIsoDate,
-  shiftLabel,
-  stayFieldsDiffer,
   stayOn,
-  stayRangeLabel,
-  type AtlasHotel,
   type CostUpdate,
-  type LegDraft,
-  type LegRevision,
-  type LegTarget,
   type ListedRate,
   type Offer,
   type OptionCommit,
   type OptionDraft,
   type OptionsTextEdit,
-  type PartyChoice,
   type PdfLineEdit,
   type SavedRate,
   type SellDraft,
-  type TripDatesDraft,
 } from "./trip-builder-helpers";
 import type { TripBuilderRateCard } from "./trip-builder-rate-card";
 
@@ -48,24 +31,11 @@ type Run = void | Promise<unknown>;
 export type ComposerChipActions = {
   promptCreateTrip: () => void;
   createTrip: (clientId: string, clientName: string) => Run;
-  changeLead: (person: ClientSearchHit, userLine: string) => Run;
-  setPartyRole: (person: PartyChoice, userLine: string) => Run;
-  addTraveller: (person: PartyChoice, userLine: string) => Run;
-  confirmTravellers: (userLine: string) => Run;
   /** Runs an agent tool directly; the label is all the advisor sees. */
   sendTripAction: (action: TripChatAction) => Run;
-  assignClient: (client: ClientSearchHit) => Run;
-  chooseClient: (hit: ClientSearchHit) => void;
-  saveTripDates: (dates: TripDatesDraft, dropOutside?: boolean) => Run;
-  commitShift: (days: number) => Run;
+  /** Confirm or Cancel on the agent's approval card. */
+  sendApproval: (decision: "approve" | "cancel") => Run;
   openTripPage: () => void;
-  commitAddLeg: (draft: LegDraft) => Run;
-  commitRevise: (draft: LegRevision) => Run;
-  commitRemove: (target: LegTarget) => Run;
-  saveStayFromDraft: (confirmOverlap?: boolean) => Run;
-  updateStay: () => void;
-  confirmLegs: () => Run;
-  pickAtlasHotel: (hotel: AtlasHotel, userLine: string) => Run;
   commitCostUpdate: (update: CostUpdate) => Run;
   offerRoomPrice: (row: SavedRate, userLine: string) => void;
   searchRates: (source?: StayDraft, userLine?: string) => Run;
@@ -91,13 +61,10 @@ export type ComposerChipsInput = {
   stayDraft: StayDraft;
   rateOptions: NormalizedRateOption[];
   suggestedClients: { id: string; display_name: string }[];
-  clientHits: ClientSearchHit[];
-  leadHits: ClientSearchHit[];
-  roleHits: PartyChoice[];
-  atlasHotels: AtlasHotel[];
+  /** Cards on the agent's latest reply. Null while a reply is running. */
+  replyCards: ChatReplyCards | null;
   quietChips: boolean;
   offer: Offer | null;
-  offerReopen: boolean;
   /** A room waiting for the client price the advisor types next. */
   pendingOptionDraft: OptionDraft | null;
   pendingCostUpdate: CostUpdate | null;
@@ -120,6 +87,36 @@ function rankChips(chips: TripBuilderChip[], decline: TripBuilderChip | null): T
   return [chips[leadIndex]!, ...declines, ...rest];
 }
 
+/** The agent's cards: Confirm and Cancel, one button per choice, and Undo. */
+function replyCardChips(
+  cards: ChatReplyCards,
+  actions: Pick<ComposerChipActions, "sendTripAction" | "sendApproval">,
+): TripBuilderChip[] {
+  if (cards.approval) {
+    return [
+      { id: "approve", label: "Confirm", variant: "danger", onClick: () => void actions.sendApproval("approve") },
+      { id: "cancel", label: "Cancel", variant: "secondary", onClick: () => void actions.sendApproval("cancel") },
+    ];
+  }
+  const chips: TripBuilderChip[] = (cards.choices ?? []).slice(0, 6).map((choice, index) => ({
+    id: `choice-${index}`,
+    label: choice.label,
+    variant: index === 0 ? "primary" : "secondary",
+    onClick: () =>
+      void actions.sendTripAction({ action: choice.action, args: choice.args, label: choice.label }),
+  }));
+  if (cards.undo) {
+    chips.push({
+      id: "undo",
+      label: "Undo",
+      variant: "secondary",
+      icon: "undo",
+      onClick: () => void actions.sendTripAction({ action: "trip_undo", label: "Undo" }),
+    });
+  }
+  return chips;
+}
+
 /** The chips under the composer and the rate cards on the last reply, for the current state. */
 export function buildComposerChips(input: ComposerChipsInput): {
   chips: TripBuilderChip[];
@@ -133,36 +130,17 @@ export function buildComposerChips(input: ComposerChipsInput): {
     stayDraft,
     rateOptions,
     suggestedClients,
-    clientHits,
-    leadHits,
-    roleHits,
-    atlasHotels,
+    replyCards,
     quietChips,
     offer,
-    offerReopen,
     pendingOptionDraft,
     pendingCostUpdate,
   } = input;
   const {
     promptCreateTrip,
     createTrip,
-    changeLead,
-    setPartyRole,
-    addTraveller,
-    confirmTravellers,
     sendTripAction,
-    assignClient,
-    chooseClient,
-    saveTripDates,
-    commitShift,
     openTripPage,
-    commitAddLeg,
-    commitRevise,
-    commitRemove,
-    saveStayFromDraft,
-    updateStay,
-    confirmLegs,
-    pickAtlasHotel,
     commitCostUpdate,
     offerRoomPrice,
     searchRates,
@@ -201,123 +179,15 @@ export function buildComposerChips(input: ComposerChipsInput): {
     }
   }
 
-  const hasConfirm = Boolean(
-    offer ||
-      leadHits.length > 0 ||
-      roleHits.length > 0 ||
-      clientHits.length > 0 ||
-      offerReopen ||
-      pendingOptionDraft ||
-      atlasHotels.length > 0,
-  );
+  const agentChips = detail && canWrite && replyCards ? replyCardChips(replyCards, input.actions) : [];
+  chips.push(...agentChips);
+  if (replyCards?.approval) return { chips, rateCards: [] };
+
+  const hasConfirm = Boolean(offer || pendingOptionDraft || agentChips.length > 0);
   const hideReady = quietChips || hasConfirm;
   const rateSearchOffered = offer?.type === "rate-search";
-  const offeredLead = offer?.type === "lead" ? offer.person : null;
-  const offeredRole = offer?.type === "role" ? offer.person : null;
-  const offeredTraveller = offer?.type === "traveller" ? offer.person : null;
-  const offeredClient = offer?.type === "assign" ? offer.client : null;
 
-  if (detail && canWrite && offeredLead && !detail.pricing_locked) {
-    chips.push({
-      id: `make-lead-${offeredLead.id}`,
-      label: `Make ${offeredLead.display_name} the lead`,
-      variant: "primary",
-      onClick: () => void changeLead(offeredLead, `Make ${offeredLead.display_name} the lead`),
-    });
-  }
-
-  if (detail && canWrite && !offeredLead && leadHits.length > 0 && !detail.pricing_locked) {
-    for (const [index, hit] of leadHits.slice(0, 6).entries()) {
-      chips.push({
-        id: `lead-hit-${hit.id}`,
-        label: `Make ${hit.display_name} the lead`,
-        variant: index === 0 ? "primary" : "secondary",
-        onClick: () => void changeLead(hit, `Make ${hit.display_name} the lead`),
-      });
-    }
-  }
-
-  if (detail && canWrite && offeredRole && !detail.pricing_locked) {
-    const kind = offeredRole.party_role === "child" ? "a child" : "an adult";
-    chips.push({
-      id: `set-role-${offeredRole.id}`,
-      label: `Make ${offeredRole.display_name} ${kind}`,
-      variant: "primary",
-      onClick: () =>
-        void setPartyRole(
-          offeredRole,
-          `Make ${offeredRole.display_name} ${kind}`,
-        ),
-    });
-  }
-
-  if (detail && canWrite && !offeredRole && roleHits.length > 0 && !detail.pricing_locked) {
-    for (const [index, person] of roleHits.slice(0, 6).entries()) {
-      const kind = person.party_role === "child" ? "a child" : "an adult";
-      chips.push({
-        id: `role-hit-${person.id}`,
-        label: `Make ${person.display_name} ${kind}`,
-        variant: index === 0 ? "primary" : "secondary",
-        onClick: () =>
-          void setPartyRole(person, `Make ${person.display_name} ${kind}`),
-      });
-    }
-  }
-
-  if (detail && canWrite && offeredTraveller && !detail.pricing_locked) {
-    const child = offeredTraveller.party_role === "child";
-    chips.push({
-      id: `add-traveller-${offeredTraveller.id}`,
-      label: child
-        ? `Add ${offeredTraveller.display_name} as a child`
-        : `Add ${offeredTraveller.display_name}`,
-      variant: "primary",
-      onClick: () =>
-        void addTraveller(
-          offeredTraveller,
-          child
-            ? `Add ${offeredTraveller.display_name} as a child`
-            : `Add ${offeredTraveller.display_name}`,
-        ),
-    });
-  }
-
-  if (
-    detail &&
-    canWrite &&
-    !hideReady &&
-    stage === "client" &&
-    detail.client &&
-    !travellersConfirmed(detail)
-  ) {
-    if (!offeredTraveller) {
-      for (const [index, person] of detail.family_suggestions.slice(0, 6).entries()) {
-        chips.push({
-          id: `family-${person.client_id}`,
-          label: `Add ${person.display_name}`,
-          variant: index === 0 ? "primary" : "secondary",
-          onClick: () =>
-            void addTraveller(
-              {
-                id: person.client_id,
-                display_name: person.display_name,
-                party_role: person.party_role,
-              },
-              `Add ${person.display_name}`,
-            ),
-        });
-      }
-      const travellersLabel =
-        detail.travellers.length > 1
-          ? "Travellers are set"
-          : `Only ${detail.client.display_name} is travelling`;
-      chips.push({
-        id: "travellers-set",
-        label: travellersLabel,
-        variant: detail.family_suggestions.length === 0 ? "primary" : "secondary",
-        onClick: () => void confirmTravellers(travellersLabel),
-      });
-    }
+  if (detail && canWrite && !hideReady && stage === "client" && detail.client) {
     const client = detail.client;
     const pastTripsLabel = `Past trips for ${client.display_name}`;
     chips.push({
@@ -331,225 +201,6 @@ export function buildComposerChips(input: ComposerChipsInput): {
           label: pastTripsLabel,
         }),
     });
-  }
-
-  if (
-    detail &&
-    canWrite &&
-    detail.client &&
-    !detail.pricing_locked &&
-    !offeredTraveller &&
-    !offeredLead &&
-    clientHits.length > 0
-  ) {
-    for (const hit of clientHits.slice(0, 6)) {
-      if (detail.travellers.some((person) => person.client_id === hit.id)) continue;
-      chips.push({
-        id: `companion-${hit.id}`,
-        label: `Add ${hit.display_name}`,
-        variant: "secondary",
-        onClick: () =>
-          void addTraveller(
-            { id: hit.id, display_name: hit.display_name, party_role: "adult" },
-            `Add ${hit.display_name}`,
-          ),
-      });
-    }
-  }
-
-  if (detail && canWrite && stage === "client" && !detail.client) {
-    if (offeredClient) {
-      chips.push({
-        id: `confirm-client-${offeredClient.id}`,
-        label: `Add ${offeredClient.display_name} as the client`,
-        variant: "primary",
-        onClick: () => void assignClient(offeredClient),
-      });
-    } else {
-      for (const hit of clientHits.slice(0, 6)) {
-        chips.push({
-          id: `client-${hit.id}`,
-          label: `Choose ${hit.display_name}`,
-          variant: "secondary",
-          onClick: () => chooseClient(hit),
-        });
-      }
-    }
-  }
-
-  if (detail && canWrite && offer?.type === "trip-dates" && !detail.pricing_locked) {
-    const dates = offer.dates;
-    chips.push({
-      id: "save-trip-dates",
-      label: `Save trip dates · ${stayRangeLabel(dates.checkIn, dates.checkOut)}`,
-      variant: "primary",
-      onClick: () => void saveTripDates(dates),
-    });
-  }
-
-  if (detail && canWrite && offer?.type === "shift-trip" && !detail.pricing_locked) {
-    const days = offer.days;
-    const { starts_on: start, ends_on: end } = detail.trip;
-    chips.push({
-      id: "shift-trip",
-      label:
-        start && end
-          ? `Shift every stay · ${stayRangeLabel(shiftIsoDate(start, days), shiftIsoDate(end, days))}`
-          : `Shift every stay · ${shiftLabel(days)}`,
-      variant: "danger",
-      onClick: () => void commitShift(days),
-    });
-  }
-
-  if (detail && canWrite && offerReopen && detail.pricing_locked) {
-    chips.push({
-      id: "reopen-quote",
-      label: "Reopen quote on trip page",
-      variant: "primary",
-      onClick: openTripPage,
-    });
-  }
-
-  if (detail && canWrite && offer?.type === "date-drop" && !detail.pricing_locked) {
-    const dates = offer.dates;
-    chips.push({
-      id: "drop-outside-stays",
-      label: "Remove outside stays and save dates",
-      variant: "danger",
-      onClick: () => void saveTripDates(dates, true),
-    });
-  }
-
-  if (detail && canWrite && offer?.type === "add-stay" && !detail.pricing_locked) {
-    const draft = offer.leg;
-    chips.push({
-      id: "confirm-add-stay",
-      label: draft.confirmOverlap
-        ? `Add ${draft.city} anyway`
-        : `Add ${draft.city} · ${stayRangeLabel(draft.checkIn, draft.checkOut)}`,
-      variant: "primary",
-      onClick: () => void commitAddLeg(draft),
-    });
-  }
-
-  if (detail && canWrite && offer?.type === "revise-stay" && !detail.pricing_locked) {
-    const draft = offer.leg;
-    chips.push({
-      id: "confirm-revise-stay",
-      label: draft.confirmOverlap ? `Update ${draft.city} anyway` : `Update ${draft.city}`,
-      variant: "primary",
-      onClick: () => void commitRevise(draft),
-    });
-  }
-
-  if (detail && canWrite && offer?.type === "remove-stay" && !detail.pricing_locked) {
-    const target = offer.leg;
-    chips.push({
-      id: "confirm-remove-stay",
-      label: `Remove ${target.city}`,
-      variant: "danger",
-      onClick: () => void commitRemove(target),
-    });
-  }
-
-  if (detail && canWrite && offer?.type === "stay-overlap" && !detail.pricing_locked) {
-    chips.push({
-      id: "save-stay-overlap",
-      label: "Save stay anyway",
-      variant: "primary",
-      onClick: () => void saveStayFromDraft(true),
-    });
-  }
-
-  if (
-    detail &&
-    canWrite &&
-    !detail.pricing_locked &&
-    !hideReady &&
-    detail.trip.starts_on &&
-    !legsConfirmed(detail) &&
-    tripStays(detail).length > 0 &&
-    offer?.type !== "add-stay"
-  ) {
-    chips.push({
-      id: "plan-stays",
-      label: "Plan these stays",
-      variant: "primary",
-      onClick: () => void confirmLegs(),
-    });
-  }
-
-  if (
-    detail &&
-    canWrite &&
-    travellersConfirmed(detail) &&
-    !detail.pricing_locked &&
-    offer?.type !== "stay-overlap" &&
-    atlasHotels.length > 0
-  ) {
-    const openCity = stayOn(detail, activeLegId)?.city.trim().toLowerCase() ?? "";
-    for (const [index, hotel] of atlasHotels.slice(0, 6).entries()) {
-      const hotelCity = hotel.city.trim().toLowerCase();
-      const samePlace =
-        !openCity ||
-        !hotelCity ||
-        openCity === hotelCity ||
-        openCity.includes(hotelCity) ||
-        hotelCity.includes(openCity);
-      if (!samePlace) continue;
-      chips.push({
-        id: `atlas-hotel-${hotel.id}`,
-        label: `Use ${hotel.name}`,
-        variant: index === 0 ? "primary" : "secondary",
-        onClick: () => void pickAtlasHotel(hotel, `Use ${hotel.name}`),
-      });
-    }
-  }
-
-  if (
-    detail &&
-    canWrite &&
-    !hideReady &&
-    stage === "stay" &&
-    legsConfirmed(detail) &&
-    offer?.type !== "stay-overlap"
-  ) {
-    if (stayDraftReady(stayDraft) && !detail.pricing_locked) {
-      chips.push({
-        id: "save-stay",
-        label: `Save stay · ${stayDraft.hotel} · ${stayDraft.city}`,
-        variant: "primary",
-        onClick: () => void saveStayFromDraft(),
-      });
-    }
-  }
-
-  if (
-    detail &&
-    canWrite &&
-    !detail.pricing_locked &&
-    (isRateStage(stage) || offer?.type === "stay-update")
-  ) {
-    if (offer?.type === "stay-update" && openStay) {
-      chips.push({
-        id: "update-stay",
-        label: `Update stay · ${stayDraft.hotel || openStay.property_name || openStay.city}`,
-        variant: "primary",
-        onClick: () => updateStay(),
-      });
-    } else if (
-      !hideReady &&
-      openStay &&
-      stayDraftReady(stayDraft) &&
-      stayFieldsDiffer(stayDraft, openStay)
-    ) {
-      chips.push({
-        id: "update-stay",
-        label: `Update stay · ${stayDraft.hotel}`,
-        variant: "secondary",
-        onClick: () => updateStay(),
-      });
-    }
   }
 
   const chosenRoom =

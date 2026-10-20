@@ -15,7 +15,7 @@ import {
 } from "./stay-side-effects";
 import { syncTripCommercials } from "../pricing/sync-trip-commercials";
 import { syncTripHotelBooking } from "../pricing/sync-trip-booking";
-import { clearTripDossier } from "../chat/trip-dossier";
+import { closeTripRateSearches } from "@/lib/rates/rate-search-store";
 import { buildTripDetail, type TripDetail } from "../trip/trip-detail";
 import { assertStayInsideTrip } from "../trip/trip-window";
 
@@ -77,7 +77,7 @@ export async function reviseTripLeg(
   await markQuoteStale(trip.id);
   await syncTripCommercials(trip.id);
   const fresh = (await findTripById(trip.id)) ?? trip;
-  await clearTripDossier(trip.id);
+  await closeTripRateSearches(trip.id);
   const detail = await buildTripDetail(fresh);
   const stay = detail.stays.find((item) => item.leg_id === existing.id);
   if (stay?.property_name) {

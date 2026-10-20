@@ -92,6 +92,15 @@ describe("advisor rows and agent requests", () => {
     expect(agentRequestFromRow(row(fields))).toEqual({ kind: "resume", decision: "cancel" });
   });
 
+  it("stores how the server settled an approval that went stale", () => {
+    const fields = advisorRowFields(
+      { kind: "resume", decision: "approve", label: "Confirm", client_request_id: "req-12345678" },
+      "expired",
+    );
+    expect(fields.payload).toEqual({ resume: "expired" });
+    expect(agentRequestFromRow(row(fields))).toEqual({ kind: "resume", decision: "expired" });
+  });
+
   it("reads a chip line (no agent action) as plain text", () => {
     expect(
       agentRequestFromRow(row({ kind: "action", content: "Save stay", payload: { via: "chip" } })),

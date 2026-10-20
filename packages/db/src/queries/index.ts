@@ -303,7 +303,14 @@ export {
 } from "./trips";
 export {
   beginAgentRun,
+  closeTripApproval,
   endAgentRun,
+  findLatestTripUndo,
+  findOpenTripApproval,
+  findTripChangeResult,
   insertAgentTurn,
+  insertTripApproval,
+  recordTripChange,
+  recordTripUndo,
   type InsertAgentTurnInput,
 } from "./agent";

@@ -4,7 +4,7 @@ import {
   updateTrip,
 } from "@pureluxe/db";
 
-import { clearTripDossier } from "../chat/trip-dossier";
+import { closeTripRateSearches } from "@/lib/rates/rate-search-store";
 import { syncTripHotelBooking } from "./sync-trip-booking";
 import { buildTripDetail } from "../trip/trip-detail";
 
@@ -109,7 +109,7 @@ export async function refreshTripAfterRateChange(
   actor: { memberId: string },
 ): Promise<void> {
   await syncTripCommercials(tripId);
-  await clearTripDossier(tripId);
+  await closeTripRateSearches(tripId);
   const trip = await findTripById(tripId);
   if (!trip?.primary_client_id) return;
   const detail = await buildTripDetail(trip);

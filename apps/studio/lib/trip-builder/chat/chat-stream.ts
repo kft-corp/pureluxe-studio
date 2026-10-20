@@ -1,6 +1,6 @@
 import { AppError, tripMessages } from "@pureluxe/shared";
 
-import type { ChatStreamEvent, PreparedChatTurn } from "./chat";
+import type { ChatStreamEvent, PreparedChatTurn, ReplyOutcome } from "./chat";
 
 /** Encode one NDJSON chat event. */
 export function encodeChatStreamEvent(event: ChatStreamEvent): Uint8Array {
@@ -47,20 +47,33 @@ export function createChatStream(
         send({ type: "meta", user: prepared.user });
 
         let full = "";
+        const outcome: ReplyOutcome = { undo: false, choices: [], approval: null };
         try {
           for await (const chunk of prepared.chunks) {
-            if (chunk.kind === "status") {
-              send({ type: "status", phase: chunk.phase });
-              continue;
+            switch (chunk.kind) {
+              case "status":
+                send({ type: "status", phase: chunk.phase });
+                break;
+              case "progress":
+                send({ type: "progress", label: chunk.label });
+                break;
+              case "delta":
+                full += chunk.text;
+                send({ type: "delta", text: chunk.text });
+                break;
+              case "changed":
+                outcome.undo = chunk.undo;
+                send({ type: "changed", summary: chunk.summary });
+                break;
+              case "choices":
+                outcome.choices = chunk.choices;
+                break;
+              case "approval":
+                outcome.approval = chunk.approval;
+                break;
             }
-            if (chunk.kind === "progress") {
-              send({ type: "progress", label: chunk.label });
-              continue;
-            }
-            full += chunk.text;
-            send({ type: "delta", text: chunk.text });
           }
-          const assistant = await prepared.complete(full);
+          const assistant = await prepared.complete(full, outcome);
           send({ type: "done", assistant });
           await prepared.finish({ status: "ok" });
         } catch (cause) {

@@ -3,7 +3,7 @@ import { AppError, tripMessages } from "@pureluxe/shared";
 
 import { requireEditableTrip } from "../access/require-assigned-trip";
 import { markQuoteStale, removeStayRecord } from "./stay-side-effects";
-import { clearTripDossier } from "../chat/trip-dossier";
+import { closeTripRateSearches } from "@/lib/rates/rate-search-store";
 import { buildTripDetail, type TripDetail } from "../trip/trip-detail";
 
 /** Remove one stay, cancel its pending booking, and clear its rate. */
@@ -33,7 +33,7 @@ export async function removeTripLeg(
 
   await removeStayRecord(trip.id, existing.id, actor);
   await markQuoteStale(trip.id);
-  await clearTripDossier(trip.id);
+  await closeTripRateSearches(trip.id);
   const fresh = (await findTripById(trip.id)) ?? trip;
   return buildTripDetail(fresh);
 }

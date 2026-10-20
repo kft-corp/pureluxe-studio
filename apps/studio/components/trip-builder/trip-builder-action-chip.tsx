@@ -1,12 +1,12 @@
 "use client";
 
-import { LuPlus } from "react-icons/lu";
+import { LuPlus, LuUndo2 } from "react-icons/lu";
 
 import { Spinner } from "@/components/feedback";
 import { cn } from "@/lib/utils/cn";
 
 export type TripBuilderChipVariant = "primary" | "secondary" | "danger";
-export type TripBuilderChipIcon = "plus";
+export type TripBuilderChipIcon = "plus" | "undo";
 
 export type TripBuilderChip = {
   id: string;
@@ -18,10 +18,8 @@ export type TripBuilderChip = {
 };
 
 function ChipIcon({ icon }: { icon: TripBuilderChipIcon }) {
-  if (icon === "plus") {
-    return <LuPlus className="size-3 shrink-0" strokeWidth={2} aria-hidden />;
-  }
-  return null;
+  const Icon = icon === "plus" ? LuPlus : LuUndo2;
+  return <Icon className="size-3 shrink-0" strokeWidth={2} aria-hidden />;
 }
 
 const VARIANT_CLASS: Record<TripBuilderChipVariant, string> = {

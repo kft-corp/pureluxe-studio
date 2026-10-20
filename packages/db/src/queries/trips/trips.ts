@@ -1,6 +1,6 @@
 import { getServiceClient, runSupabaseQuery } from "../../client";
 import { dbQueryError } from "../../errors";
-import type { Trip, TripStatus } from "../../schema";
+import type { Trip, TripAssumptions, TripStatus } from "../../schema";
 import { escapeIlike } from "../../utils/ilike";
 
 const TRIP_COLUMNS = [
@@ -30,6 +30,8 @@ const TRIP_COLUMNS = [
   "archived_by_id",
   "last_studio_message_at",
   "last_studio_message_preview",
+  "version",
+  "assumptions",
   "created_at",
   "updated_at",
 ].join(", ");
@@ -103,6 +105,7 @@ export type UpdateTripRecord = {
   margin_internal?: number | null;
   pricing_locked_at?: string | null;
   pricing_locked_by_id?: string | null;
+  assumptions?: TripAssumptions;
 };
 
 /** Look up a trip by id (null if missing). */

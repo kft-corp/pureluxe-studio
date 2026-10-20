@@ -24,7 +24,7 @@ import {
 } from "./options-quote-document";
 import { applyQuoteEdits, listQuoteLines, quoteLineBlocked } from "./options-quote-lines";
 import { refreshTripAfterRateChange, syncClientPriceFromChoices } from "../pricing/sync-trip-commercials";
-import { clearTripDossier } from "../chat/trip-dossier";
+import { closeTripRateSearches } from "@/lib/rates/rate-search-store";
 import { getTripDetail } from "../trip/get-trip-detail";
 import {
   requireAssignedTrip,
@@ -238,7 +238,7 @@ export async function updateOptionsQuote(
     await updateStayOption(price[1]!, { sell_amount: amount });
   }
   if (priceEdits.length > 0) await markQuoteStale(tripId);
-  await clearTripDossier(tripId);
+  await closeTripRateSearches(tripId);
   return getTripDetail(tripId, actor);
 }
 
@@ -316,7 +316,7 @@ export async function updateSavedStayOption(
     await refreshTripAfterRateChange(row.trip_id, actor);
   }
   if (!accepted) await markQuoteStale(row.trip_id);
-  await clearTripDossier(row.trip_id);
+  await closeTripRateSearches(row.trip_id);
   return getTripDetail(row.trip_id, actor);
 }
 
@@ -394,7 +394,7 @@ export async function generateOptionsQuotePdf(
     });
     await reopenSentQuote(tripId);
     detail = await getTripDetail(tripId, actor);
-    await clearTripDossier(tripId);
+    await closeTripRateSearches(tripId);
     return detail;
   } catch (cause) {
     if (previousStatus === "ready" || previousStatus === "stale") {

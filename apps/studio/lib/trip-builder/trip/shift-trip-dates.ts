@@ -13,7 +13,7 @@ import { requireEditableTrip } from "../access/require-assigned-trip";
 import { cancelStayBooking, markQuoteStale } from "../stays/stay-side-effects";
 import { syncTripCommercials } from "../pricing/sync-trip-commercials";
 import { syncTripHotelBooking } from "../pricing/sync-trip-booking";
-import { clearTripDossier } from "../chat/trip-dossier";
+import { closeTripRateSearches } from "@/lib/rates/rate-search-store";
 import { buildTripDetail, type TripDetail } from "./trip-detail";
 
 function shiftDay(isoDate: string, days: number): string {
@@ -100,7 +100,7 @@ export async function shiftTripDates(
   await markQuoteStale(trip.id);
   await syncTripCommercials(trip.id);
   const fresh = (await findTripById(trip.id)) ?? trip;
-  await clearTripDossier(trip.id);
+  await closeTripRateSearches(trip.id);
   const detail = await buildTripDetail(fresh);
   if (detail.stays.some((stay) => stay.property_name)) {
     await syncTripHotelBooking(detail, actor);

@@ -14,6 +14,7 @@ import type {
   AdvisorInput,
   AgentScenario,
   BuildStage,
+  CardKind,
   Interruption,
   ScenarioSeed,
   ScenarioStep,
@@ -154,6 +155,8 @@ export async function playStep(run: EvalRun, planned: PlannedStep): Promise<Step
         : "";
   const meter = createTurnMeter();
   let reply = "";
+  let undo = false;
+  const cards = new Set<CardKind>();
   let error: string | null = null;
 
   try {
@@ -166,7 +169,14 @@ export async function playStep(run: EvalRun, planned: PlannedStep): Promise<Step
       meter,
     })) {
       if (chunk.kind === "delta") reply += chunk.text;
+      if (chunk.kind === "changed") undo = chunk.undo;
+      if (chunk.kind === "choices") cards.add("client_picker");
+      if (chunk.kind === "approval") {
+        cards.add("approval");
+        reply ||= chunk.approval.summary;
+      }
     }
+    if (undo) cards.add("undo");
   } catch (cause) {
     error = userMessageOf(cause) ?? errorCodeOf(cause);
   }
@@ -178,7 +188,7 @@ export async function playStep(run: EvalRun, planned: PlannedStep): Promise<Step
     .join("\n");
   const check = checkStep(
     planned.expect,
-    { reply, tools, memory, trip: run.trip },
+    { reply, tools, memory, trip: run.trip, cards: [...cards], seed: run.seed },
     run.scenario.everyReply.mustNot,
   );
   const failures = error ? [`agent failed: ${error}`, ...check.failures] : check.failures;

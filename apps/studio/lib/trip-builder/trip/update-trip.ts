@@ -13,7 +13,7 @@ import { requireActiveClient } from "@/lib/clients/require-active-client";
 import { requireEditableTrip } from "../access/require-assigned-trip";
 import { markQuoteStale, removeStayRecord } from "../stays/stay-side-effects";
 import { syncTripHotelBooking } from "../pricing/sync-trip-booking";
-import { clearTripDossier } from "../chat/trip-dossier";
+import { closeTripRateSearches } from "@/lib/rates/rate-search-store";
 import { buildTripDetail, type TripDetail } from "./trip-detail";
 import { nextTripTitle } from "./trip-title";
 import { stayInsideWindow, tripWindow } from "./trip-window";
@@ -140,6 +140,6 @@ export async function updateTrip(
     await syncTripHotelBooking(await buildTripDetail(fresh), actor);
   }
 
-  await clearTripDossier(trip.id);
+  await closeTripRateSearches(trip.id);
   return buildTripDetail((await findTripById(trip.id)) ?? fresh);
 }

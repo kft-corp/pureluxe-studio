@@ -1,8 +1,8 @@
 /**
- * What an advisor message asks for. Pure string parsing, safe on client and server.
+ * What an advisor message asks for, for the rate and quote chips. Pure string parsing,
+ * safe on client and server. Client, traveller, date and stay changes go to the agent.
  * Import from this path, not from `@/lib/trip-builder`, which pulls in server code.
  */
-export { clientNameFromMessage, wantsAssignClient } from "./client";
 export {
   isPriceSkip,
   looksLikeOptionsPdfEdit,
@@ -14,17 +14,9 @@ export {
   type MoneyReply,
 } from "./options-quote";
 export {
-  classifyPartyIntent,
-  parseLeadChange,
-  parseTravellerCommand,
-  type PartyIntent,
-} from "./party";
-export {
   isClientQuestion,
-  isFollowUpFragment,
   isPlaceQuestion,
   isTripQuestion,
-  mightNamePlace,
   wantsHotelSearch,
 } from "./questions";
 export { parseQuoteEdit, type QuoteEdit } from "./quote-edit";
@@ -38,20 +30,8 @@ export {
 } from "./rates";
 export { isConfirmReply, isDeclineReply } from "./replies";
 export {
-  looksLikeHotelPlan,
-  parseAddStay,
-  parseCityOnly,
-  parseListedStayEdit,
-  parseRemoveStay,
-  parseTripDates,
-  parseTripShift,
-  wantsAddStay,
-  wantsChangeTripDates,
-} from "./stay";
-export {
   mergeStayDraft,
   parseStayMessage,
   partyReady,
-  stayDraftReady,
   type StayDraft,
 } from "./stay-draft";

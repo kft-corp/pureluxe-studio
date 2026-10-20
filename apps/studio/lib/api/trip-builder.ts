@@ -22,14 +22,10 @@ import {
   type ListTripsQuery,
   type PasteLineItemBody,
   type SearchRatesBody,
-  type AddTripLegBody,
   type SetTripStayBody,
-  type ShiftTripDatesBody,
-  type UpdateTripLegBody,
   type TripBuilderChatLinesBody,
   type TripBuilderChatSendBody,
   type TripBuilderPreTripChatSendBody,
-  type UpdateTripBody,
   type UpdateTripQuoteBody,
   type UpdateOptionsQuoteBody,
   type UpdateStayOptionBody,
@@ -97,50 +93,6 @@ export function createTripBuilderTrip(input: CreateTripBody) {
   });
 }
 
-/** Add a companion, confirm the named party, or make another client the lead. */
-export function saveTripBuilderTraveller(
-  tripId: string,
-  input:
-    | { client_id: string; party_role: "adult" | "child" }
-    | { confirm: true }
-    | { lead_client_id: string },
-) {
-  return fetchApi<TripDetail>(apiRoutes.tripBuilder.travellers(tripId), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-    cache: "no-store",
-  });
-}
-
-/** Remove a companion from the trip. */
-export function removeTripBuilderTraveller(tripId: string, clientId: string) {
-  return fetchApi<TripDetail>(apiRoutes.tripBuilder.traveller(tripId, clientId), {
-    method: "DELETE",
-    cache: "no-store",
-  });
-}
-
-/** Patch trip shell fields. */
-export function updateTripBuilderTrip(tripId: string, input: UpdateTripBody) {
-  return fetchApi<TripDetail>(apiRoutes.tripBuilder.trip(tripId), {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-    cache: "no-store",
-  });
-}
-
-/** Move the trip and every stay by the same number of days. */
-export function shiftTripBuilderDates(tripId: string, input: ShiftTripDatesBody) {
-  return fetchApi<TripDetail>(apiRoutes.tripBuilder.shift(tripId), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-    cache: "no-store",
-  });
-}
-
 /** Set one stay (hotel + city + dates). Pass leg_id to update that stay. */
 export function setTripBuilderStay(tripId: string, input: SetTripStayBody) {
   return fetchApi<{ detail: TripDetail; property_match: StayPropertyMatch }>(
@@ -152,65 +104,6 @@ export function setTripBuilderStay(tripId: string, input: SetTripStayBody) {
       cache: "no-store",
     },
   );
-}
-
-/** Change city and dates on one stay. The hotel and party stay put. */
-export function updateTripBuilderLeg(
-  tripId: string,
-  legId: string,
-  input: UpdateTripLegBody,
-) {
-  return fetchApi<TripDetail>(apiRoutes.tripBuilder.leg(tripId, legId), {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-    cache: "no-store",
-  });
-}
-
-/** Remove one stay. Its pending booking is cancelled. */
-export function removeTripBuilderLeg(tripId: string, legId: string) {
-  return fetchApi<TripDetail>(apiRoutes.tripBuilder.leg(tripId, legId), {
-    method: "DELETE",
-    cache: "no-store",
-  });
-}
-
-/** Add another stay. City and dates only — the hotel is saved next. */
-export function addTripBuilderLeg(tripId: string, input: AddTripLegBody) {
-  return fetchApi<{ detail: TripDetail; leg_id: string }>(
-    apiRoutes.tripBuilder.legs(tripId),
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
-      cache: "no-store",
-    },
-  );
-}
-
-export type AtlasStayReply = {
-  matched: boolean;
-  answer: string;
-  place: { city: string | null; country: string | null };
-  hotels: Array<{
-    id: string;
-    name: string;
-    brand: string | null;
-    city: string;
-    propertyId: string | null;
-    contractStatus: "contracted" | "not_yet_contracted" | "unknown";
-  }>;
-};
-
-/** Stay-stage place and hotel questions, answered from Atlas. */
-export function askTripBuilderAtlas(input: { question: string; city?: string | null }) {
-  return fetchApi<AtlasStayReply>(apiRoutes.tripBuilder.atlas, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-    cache: "no-store",
-  });
 }
 
 /** Search rates for the open trip stay. */

@@ -8,7 +8,7 @@ import { showApiError } from "@/lib/feedback";
 import { pageRoutes } from "@/lib/routes";
 import type { ChatMessage, TripDetail } from "@/lib/trip-builder";
 
-import { whoElseText } from "../trip-builder-copy";
+import { TRIP_START_PROMPT } from "../trip-builder-copy";
 import { EMPTY_STAY, stayOn } from "../trip-builder-helpers";
 
 import type { TripChat } from "./use-trip-chat";
@@ -24,7 +24,6 @@ export function useTripSession(core: TripCore, chat: TripChat, prefillClientId: 
     setSummaryOpen,
     setBusy,
     setRateOptions,
-    setClientHits,
     suggestedClients,
     setSuggestedClients,
     setStayDraft,
@@ -156,7 +155,6 @@ export function useTripSession(core: TripCore, chat: TripChat, prefillClientId: 
         primary_client_id: clientId ?? prefillClientId ?? null,
       });
       setDetail(response.data);
-      setClientHits([]);
       setSuggestedClients([]);
       setOffer(null);
       setRateOptions([]);
@@ -214,8 +212,8 @@ export function useTripSession(core: TripCore, chat: TripChat, prefillClientId: 
   function createdTripReply(saved: TripDetail): ChatMessage {
     const name = saved.client?.display_name?.trim();
     const content = name
-      ? `I've created this trip for **${name}**.\n\n${whoElseText(saved)}`
-      : "I've created this trip. Tell me which client it is for, and a confirm chip will appear before they are added.";
+      ? `I've created this trip for **${name}**. Tell me where and when, and who else is travelling.`
+      : TRIP_START_PROMPT;
     return localChatMessage("assistant", content);
   }
 

@@ -28,7 +28,7 @@ import {
   markQuoteStale,
 } from "./stay-side-effects";
 import { syncTripCommercials } from "../pricing/sync-trip-commercials";
-import { clearTripDossier } from "../chat/trip-dossier";
+import { closeTripRateSearches } from "@/lib/rates/rate-search-store";
 import { buildTripDetail, type TripDetail } from "../trip/trip-detail";
 import { syncTripHotelBooking } from "../pricing/sync-trip-booking";
 import { partyCounts } from "../party/trip-party";
@@ -207,7 +207,7 @@ export async function setTripStay(
   const fresh = (await findTripById(trip.id)) ?? trip;
   const detail = await buildTripDetail(fresh);
   await syncTripHotelBooking(detail, actor);
-  await clearTripDossier(trip.id);
+  await closeTripRateSearches(trip.id);
   return {
     detail,
     property_match: propertyMatch,

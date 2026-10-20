@@ -1,6 +1,13 @@
 import { z } from "zod";
 
+import type { ClientSearchHit } from "../../tools";
+
 import { defineAgentTool } from "./define-tool";
+
+function searchHits(result: unknown): ClientSearchHit[] {
+  const clients = (result as { clients?: unknown } | null)?.clients;
+  return Array.isArray(clients) ? (clients as ClientSearchHit[]) : [];
+}
 
 export const clientSearchTool = defineAgentTool({
   name: "client_search",
@@ -9,6 +16,7 @@ export const clientSearchTool = defineAgentTool({
     "Use when the advisor names a person, or pastes an email or phone, and you don't have their client id.",
     "Do not use for the lead client already on the trip (use client_get with no id).",
     "Returns candidates: name, email, phone, tier, review status and whether they have a family. An empty list means no match; never invent one.",
+    "When the trip has no lead yet and several match, a button for each appears under your reply.",
   ].join(" "),
   schema: z
     .object({
@@ -19,6 +27,15 @@ export const clientSearchTool = defineAgentTool({
   risk: "read",
   progress: () => "Searching clients…",
   run: (input, handlers) => handlers.searchClients({ query: input.query, limit: input.limit }),
+  choices: (result, trip) => {
+    const hits = searchHits(result);
+    if (trip?.client || hits.length < 2) return [];
+    return hits.map((hit) => ({
+      label: hit.display_name,
+      action: "trip_set_client",
+      args: { client_id: hit.id },
+    }));
+  },
 });
 
 export const clientGetTool = defineAgentTool({

@@ -63,10 +63,11 @@ export {
   type PreparedChatTurn,
   type ChatMessage,
   type ChatMessagePage,
+  type ChatReplyCards,
   type ChatStreamEvent,
 } from "./chat/chat";
 export { createChatStream, encodeChatStreamEvent } from "./chat/chat-stream";
-export { getTripReadiness } from "./chat/trip-dossier";
+export { getTripReadiness } from "./chat/trip-readiness";
 export { shiftTripDates } from "./trip/shift-trip-dates";
 export { createPreTripChatStream } from "./chat/pre-trip-chat";
 export { attachRateOption } from "./rates/attach-rate-option";

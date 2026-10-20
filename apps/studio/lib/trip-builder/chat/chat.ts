@@ -2,17 +2,23 @@ import {
   TRIP_PROMPT_V2_VERSION,
   createTurnMeter,
   tripThreadId,
+  type AgentApproval,
+  type AgentChoice,
   type AgentPhase,
   type AgentStreamChunk,
+  type ApprovalDecision,
+  type TripFacts,
   type TurnMeter,
 } from "@pureluxe/ai";
 import {
+  closeTripApproval,
   findAssistantReplyAfter,
+  findOpenTripApproval,
   findTripChatMessageByClientRequestId,
+  insertTripApproval,
   insertTripChatMessage,
   listTripChatMessagesPage,
   updateTripChatMessage,
-  type AgentVersion,
   type TripChatKind,
   type TripChatMessage,
 } from "@pureluxe/db";
@@ -26,11 +32,19 @@ import {
 
 import { requireAssignedTrip } from "../access/require-assigned-trip";
 import { holdTripRunLock, type TripRunLock } from "./agent-run-lock";
-import { streamAgentV1Turn } from "./agent-v1-turn";
-import { prefetchAgentV2, streamAgentV2Turn, type AgentV2Prefetch } from "./agent-v2-turn";
-import { tripAgentVersionFor } from "./agent-version";
-import { advisorRowFields } from "./chat-turn-request";
+import { prefetchAgentTurn, streamAgentTurn, type AgentPrefetch } from "./agent-turn";
+import { advisorRowFields, agentRequestFromRow } from "./chat-turn-request";
 import { recordAgentTurn, type AgentTurnOutcome } from "./record-agent-turn";
+
+/** Cards under an agent reply. */
+export type ChatReplyCards = {
+  /** The reply changed the trip and its latest change can be undone. */
+  undo?: true;
+  /** Buttons that run a tool directly, e.g. one per matching client. */
+  choices?: AgentChoice[];
+  /** What Confirm will do. The agent is waiting for Confirm or Cancel. */
+  approval?: string;
+};
 
 /** Lean chat row for Studio APIs / UI (studio channel only). */
 export type ChatMessage = {
@@ -42,6 +56,8 @@ export type ChatMessage = {
   incomplete: boolean;
   client_request_id: string | null;
   created_at: string;
+  /** Agent replies only. */
+  cards?: ChatReplyCards;
 };
 
 export type ChatStreamEvent =
@@ -51,6 +67,8 @@ export type ChatStreamEvent =
   /** What the agent is doing, e.g. "Searching clients…". */
   | { type: "progress"; label: string }
   | { type: "delta"; text: string }
+  /** The agent changed the trip; reload it. */
+  | { type: "changed"; summary: string }
   | { type: "done"; assistant: ChatMessage }
   | {
       type: "replay";
@@ -61,7 +79,24 @@ export type ChatStreamEvent =
   | { type: "busy"; message: string }
   | { type: "error"; message: string };
 
+/** What a finished reply carries besides its text, gathered from the agent's chunks. */
+export type ReplyOutcome = {
+  undo: boolean;
+  choices: AgentChoice[];
+  approval: AgentApproval | null;
+};
+
+function compactCards(cards: ChatReplyCards): ChatReplyCards | null {
+  const compact: ChatReplyCards = {
+    ...(cards.undo ? { undo: true as const } : {}),
+    ...(cards.choices?.length ? { choices: cards.choices } : {}),
+    ...(cards.approval ? { approval: cards.approval } : {}),
+  };
+  return Object.keys(compact).length > 0 ? compact : null;
+}
+
 function toChatMessage(row: TripChatMessage): ChatMessage {
+  const cards = row.role === "assistant" && row.payload ? compactCards(row.payload) : null;
   return {
     id: row.id,
     role: row.role,
@@ -70,6 +105,7 @@ function toChatMessage(row: TripChatMessage): ChatMessage {
     incomplete: row.incomplete,
     client_request_id: row.client_request_id,
     created_at: row.created_at,
+    ...(cards ? { cards } : {}),
   };
 }
 
@@ -126,7 +162,7 @@ type StreamTurn = {
   kind: "stream";
   user: ChatMessage;
   chunks: AsyncIterable<AgentStreamChunk>;
-  complete: (fullText: string) => Promise<ChatMessage>;
+  complete: (fullText: string, outcome: ReplyOutcome) => Promise<ChatMessage>;
   abandon: (partialText: string) => Promise<ChatMessage | null>;
   /** Stop the agent (the advisor left). */
   abort: () => void;
@@ -176,7 +212,7 @@ export async function saveTripChatLines(
 /**
  * Persist (or reuse) the advisor turn, then prepare the agent stream.
  * Idempotent on client_request_id — completed turns replay; unfinished retries re-stream.
- * Agent v2 holds the trip's run lock; a second message while it runs gets a busy reply.
+ * The turn holds the trip's run lock; a second message while it runs gets a busy reply.
  */
 export async function prepareChatTurn(
   tripId: string,
@@ -184,14 +220,6 @@ export async function prepareChatTurn(
   actor: ChatActor,
 ): Promise<PreparedChatTurn> {
   const meter = createTurnMeter();
-  const version = tripAgentVersionFor(actor.memberId);
-  if (input.kind === "resume" && version === "v1") {
-    throw new AppError({
-      userMessage: tripMessages.error.agentNoApproval,
-      code: "trips.chat_no_pending_approval",
-      status: 409,
-    });
-  }
 
   // Independent reads: the send-key lookup is only used once access is confirmed.
   const [, existing] = await Promise.all([
@@ -203,11 +231,9 @@ export async function prepareChatTurn(
   if (replay) return replay;
 
   // The trip loads while the lock is taken and the message is saved.
-  const prefetch = version === "v2" ? prefetchAgentV2(tripId, actor) : null;
-  const lock = version === "v2" ? await holdTripRunLock(tripId) : null;
-  if (version === "v2" && !lock) {
-    return { kind: "busy", message: tripMessages.error.agentBusy };
-  }
+  const prefetch = prefetchAgentTurn(tripId, actor);
+  const lock = await holdTripRunLock(tripId);
+  if (!lock) return { kind: "busy", message: tripMessages.error.agentBusy };
   meter.mark("lock");
 
   try {
@@ -225,7 +251,11 @@ export async function prepareChatTurn(
         meter,
       });
     }
-    const user = await insertAdvisorTurn(tripId, input, actor);
+    const decision =
+      input.kind === "resume"
+        ? await settleApproval(tripId, input.decision, actor, prefetch.trip)
+        : undefined;
+    const user = await insertAdvisorTurn(tripId, input, actor, decision);
     meter.mark("saved");
     return buildStreamTurn({
       tripId,
@@ -238,9 +268,37 @@ export async function prepareChatTurn(
       meter,
     });
   } catch (cause) {
-    await lock?.release();
+    await lock.release();
     throw cause;
   }
+}
+
+/**
+ * Close the approval card this Confirm or Cancel answers. A card that timed out, or
+ * a trip the agent changed since it was shown, resumes as `expired`.
+ */
+async function settleApproval(
+  tripId: string,
+  decision: ApprovalDecision,
+  actor: ChatActor,
+  trip: Promise<TripFacts>,
+): Promise<ApprovalDecision> {
+  const [open, facts] = await Promise.all([findOpenTripApproval(tripId, actor.memberId), trip]);
+  if (!open) {
+    throw new AppError({
+      userMessage: tripMessages.error.agentNoApproval,
+      code: "trips.chat_no_pending_approval",
+      status: 409,
+    });
+  }
+  const stale =
+    Date.parse(open.expires_at) <= Date.now() || open.trip_version !== (facts.version ?? null);
+  await closeTripApproval({
+    id: open.id,
+    status: stale ? "expired" : "consumed",
+    memberId: actor.memberId,
+  });
+  return stale ? "expired" : decision;
 }
 
 /** A finished reply for this send key, replayed instead of running the agent again. */
@@ -263,13 +321,14 @@ async function insertAdvisorTurn(
   tripId: string,
   input: TripBuilderChatSendInput,
   actor: ChatActor,
+  decision: ApprovalDecision | undefined,
 ): Promise<{ row: TripChatMessage; raced: boolean }> {
   try {
     const row = await insertTripChatMessage({
       trip_id: tripId,
       channel: "studio",
       role: "user",
-      ...advisorRowFields(input),
+      ...advisorRowFields(input, decision),
       team_member_id: actor.memberId,
       client_request_id: input.client_request_id,
     });
@@ -288,33 +347,37 @@ function buildStreamTurn(input: {
   draftAssistant: TripChatMessage | null;
   retry: boolean;
   actor: ChatActor;
-  /** Set for agent v2: its handlers and the trip facts already loading. Null runs v1. */
-  prefetch: AgentV2Prefetch | null;
-  lock: TripRunLock | null;
+  /** Handlers and the trip facts already loading. */
+  prefetch: AgentPrefetch;
+  lock: TripRunLock;
   /** Started with the request, so timings include access, lock and saving. */
   meter: TurnMeter;
 }): StreamTurn {
   const { tripId, userRow, draftAssistant, actor, prefetch, lock, meter } = input;
-  const version: AgentVersion = prefetch ? "v2" : "v1";
   const controller = new AbortController();
-  const traceId = lock?.runId ?? null;
+  const traceId = lock.runId;
+  const threadId = tripThreadId(tripId);
 
-  const chunks = prefetch
-    ? streamAgentV2Turn({
-        tripId,
-        userRow,
-        prefetch,
-        meter,
-        retry: input.retry,
-        signal: controller.signal,
-      })
-    : streamAgentV1Turn({ tripId, userRow, message: userRow.content, actor, meter });
+  const chunks = streamAgentTurn({
+    tripId,
+    request: agentRequestFromRow(userRow),
+    userRowId: userRow.id,
+    prefetch,
+    meter,
+    retry: input.retry,
+    signal: controller.signal,
+  });
 
-  async function saveAssistant(content: string, incomplete: boolean): Promise<ChatMessage> {
+  async function saveAssistant(
+    content: string,
+    incomplete: boolean,
+    cards: ChatReplyCards | null = null,
+  ): Promise<ChatMessage> {
     if (draftAssistant) {
       const row = await updateTripChatMessage(draftAssistant.id, {
         content,
         incomplete,
+        payload: cards,
         trace_id: traceId,
       });
       return toChatMessage(row);
@@ -325,6 +388,7 @@ function buildStreamTurn(input: {
       role: "assistant",
       content,
       incomplete,
+      payload: cards,
       trace_id: traceId,
     });
     return toChatMessage(row);
@@ -334,15 +398,36 @@ function buildStreamTurn(input: {
     kind: "stream",
     user: toChatMessage(userRow),
     chunks,
-    complete: (fullText) =>
-      saveAssistant(fullText.trim() || "I couldn't generate a reply. Please try again.", false),
+    complete: async (fullText, outcome) => {
+      if (outcome.approval) {
+        await insertTripApproval({
+          tripId,
+          memberId: actor.memberId,
+          tool: outcome.approval.tool,
+          args: outcome.approval.args,
+          summary: outcome.approval.summary,
+          threadId,
+          tripVersion: outcome.approval.tripVersion,
+        });
+      }
+      const content =
+        fullText.trim() ||
+        outcome.approval?.summary ||
+        "I couldn't generate a reply. Please try again.";
+      const cards = compactCards({
+        undo: outcome.undo || undefined,
+        choices: outcome.choices,
+        approval: outcome.approval?.summary,
+      });
+      return saveAssistant(content, false, cards);
+    },
     abandon: async (partialText) => {
       const content = partialText.trim() || draftAssistant?.content || "";
       return content ? saveAssistant(content, true) : null;
     },
     abort: () => controller.abort(),
     finish: async (outcome) => {
-      await lock?.release();
+      await lock.release();
       await recordAgentTurn({
         meter,
         outcome,
@@ -350,9 +435,9 @@ function buildStreamTurn(input: {
         tripId,
         memberId: actor.memberId,
         clientRequestId: userRow.client_request_id,
-        agentVersion: version,
-        threadId: version === "v2" ? tripThreadId(tripId) : null,
-        promptVersion: version === "v2" ? TRIP_PROMPT_V2_VERSION : null,
+        agentVersion: "v2",
+        threadId,
+        promptVersion: TRIP_PROMPT_V2_VERSION,
       });
     },
   };

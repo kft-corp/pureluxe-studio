@@ -1,5 +1,4 @@
 export { buildPreTripSystemPrompt } from "./pre-trip-prompt";
-export { buildSystemPrompt } from "./system-prompt";
 export {
   TRIP_PROMPT_V2_NO_MORE_TOOLS,
   TRIP_PROMPT_V2_RULES,

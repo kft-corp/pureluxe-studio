@@ -137,17 +137,6 @@ export function mergeStayDraft(
   };
 }
 
-export function stayDraftReady(draft: StayDraft): boolean {
-  return Boolean(
-    draft.hotel.trim() &&
-      draft.city.trim() &&
-      draft.checkIn.trim() &&
-      draft.checkOut.trim() &&
-      draft.checkOut > draft.checkIn &&
-      partyReady(draft),
-  );
-}
-
 export function partyReady(draft: StayDraft): boolean {
   return (
     draft.adults != null &&

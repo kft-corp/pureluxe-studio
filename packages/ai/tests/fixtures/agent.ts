@@ -1,6 +1,6 @@
 import { vi } from "vitest";
 
-import type { TripAgentHandlers } from "../../src/agent/types";
+import type { TripAgentHandlers, TripChange } from "../../src/agent/types";
 import type { TripFacts } from "../../src/types";
 
 export const CLIENT_ID = "6f1c2a1e-4b7d-4c1a-9a51-3c6e2d1b9f10";
@@ -32,6 +32,10 @@ export function makeTripFacts(partial: Partial<TripFacts> = {}): TripFacts {
   };
 }
 
+function changed(summary: string, undo = true) {
+  return vi.fn(async (): Promise<TripChange> => ({ ok: true, summary, undo }));
+}
+
 /** Every handler mocked; each test sets what it reads. */
 export function makeHandlers(trip: TripFacts = makeTripFacts()) {
   return {
@@ -44,5 +48,12 @@ export function makeHandlers(trip: TripFacts = makeTripFacts()) {
     getHotel: vi.fn(async () => ({ hotels: [] })),
     getPlaceNotes: vi.fn(async () => ({ matched: false, notes: null, hotels: [] })),
     getRateSnapshot: vi.fn(async () => ({ status: "none" as const })),
+    setClient: changed("Client set to Aarav Mehta"),
+    setTravellers: changed("Added Anika Mehta"),
+    setDates: changed("Dates set to 10 Dec – 15 Dec 2026"),
+    setStays: changed("Stays: Maldives"),
+    removeStay: changed("Removed Maldives"),
+    shiftDates: changed("Trip moved 2 days later"),
+    undo: changed("Undone: Dates set to 10 Dec – 15 Dec 2026", false),
   } satisfies TripAgentHandlers;
 }

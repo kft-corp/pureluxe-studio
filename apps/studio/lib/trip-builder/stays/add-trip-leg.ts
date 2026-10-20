@@ -3,7 +3,7 @@ import { AppError, tripMessages, type AddTripLegInput } from "@pureluxe/shared";
 
 import { requireEditableTrip } from "../access/require-assigned-trip";
 import { assertNoUnconfirmedOverlap, markQuoteStale } from "./stay-side-effects";
-import { clearTripDossier } from "../chat/trip-dossier";
+import { closeTripRateSearches } from "@/lib/rates/rate-search-store";
 import { buildTripDetail, type TripDetail } from "../trip/trip-detail";
 import { assertStayInsideTrip } from "../trip/trip-window";
 
@@ -44,7 +44,7 @@ export async function addTripLeg(
   });
 
   await markQuoteStale(trip.id);
-  await clearTripDossier(trip.id);
+  await closeTripRateSearches(trip.id);
   const fresh = (await findTripById(trip.id)) ?? trip;
   return {
     detail: await buildTripDetail(fresh),

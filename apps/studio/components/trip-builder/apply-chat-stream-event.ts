@@ -14,6 +14,8 @@ type ApplyOptions = {
   onClients?: (clients: { id: string; display_name: string }[]) => void;
   /** Another reply is still running on this trip. The turn was not saved. */
   onBusy?: (message: string) => void;
+  /** The agent changed the trip. */
+  onChanged?: () => void;
   onError?: () => void;
   showError: (error: unknown) => void;
 };
@@ -35,6 +37,7 @@ export function applyChatStreamEvent(options: ApplyOptions): void {
     setAgentProgress,
     onClients,
     onBusy,
+    onChanged,
     onError,
     showError,
   } = options;
@@ -66,6 +69,10 @@ export function applyChatStreamEvent(options: ApplyOptions): void {
     }
     case "delta": {
       setStreamingContent((prev) => `${prev ?? ""}${event.text}`);
+      return;
+    }
+    case "changed": {
+      onChanged?.();
       return;
     }
     case "done": {

@@ -1,6 +1,6 @@
 import { findAgentTool } from "@pureluxe/ai";
 
-import type { StepExpect } from "../scenario-types";
+import type { CardKind, ScenarioSeed, StepExpect } from "../scenario-types";
 
 import type { EvalTrip } from "./eval-trip";
 
@@ -12,15 +12,21 @@ export type ObservedStep = {
   /** Everything in agent memory after the step, as one text. */
   memory: string;
   trip: EvalTrip;
+  /** Cards shown with the reply. */
+  cards: CardKind[];
+  seed: ScenarioSeed;
 };
 
 export type StepCheck = {
   failures: string[];
-  /** Expectations this build stage can't check yet (cards, approvals, quote state). */
+  /** Expectations this build stage can't check yet (rate cards, quote state). */
   notChecked: string[];
 };
 
-/** Yes/no prompts the old flow used. The new agent should not need them. */
+/** Cards the agent can show so far. */
+const CHECKED_CARDS: readonly CardKind[] = ["undo", "client_picker", "approval"];
+
+/** Yes/no prompts the agent should never need; risky changes use an approval card. */
 const CONFIRMATION_PROMPT =
   /\b(?:say|reply|type)\s+\**yes\**|\byes or no\b|\bare you sure\b|\bshall i (?:go ahead|proceed)\b/gi;
 
@@ -65,8 +71,9 @@ function checkReply(expect: StepExpect, reply: string, everyReply: string[], fai
   }
 }
 
-function checkTrip(expect: StepExpect, trip: EvalTrip, failures: string[], notChecked: string[]) {
+function checkTrip(expect: StepExpect, observed: ObservedStep, failures: string[], notChecked: string[]) {
   const expected = expect.trip;
+  const { trip, seed } = observed;
   if (!expected) return;
   if (expected.dates) {
     if (trip.startsOn !== expected.dates.start || trip.endsOn !== expected.dates.end) {
@@ -74,15 +81,37 @@ function checkTrip(expect: StepExpect, trip: EvalTrip, failures: string[], notCh
         `trip dates ${trip.startsOn ?? "none"} to ${trip.endsOn ?? "none"}, expected ${expected.dates.start} to ${expected.dates.end}`,
       );
     }
+    for (const key of expected.dates.assumed ?? []) {
+      if (!trip.assumed.includes(key)) failures.push(`trip should mark the ${key} as assumed`);
+    }
   }
   if (expected.stays) {
     const seen = trip.stays.map((stay) => `${stay.destination} ${stay.checkIn}–${stay.checkOut}`).join("; ");
     const wanted = expected.stays.map((stay) => `${stay.destination} ${stay.checkIn}–${stay.checkOut}`).join("; ");
-    if (seen !== wanted) failures.push(`stays "${seen || "none"}", expected "${wanted}"`);
+    if (seen.toLowerCase() !== wanted.toLowerCase()) failures.push(`stays "${seen || "none"}", expected "${wanted}"`);
   }
-  if (expected.client && !trip.leadClientId) failures.push("trip has no lead client");
+  if (expected.client) {
+    const name = (id: string | null) => seed.clients.find((client) => client.id === id)?.displayName ?? "none";
+    if (name(trip.leadClientId) !== expected.client.lead) {
+      failures.push(`lead client ${name(trip.leadClientId)}, expected ${expected.client.lead}`);
+    }
+    const travellers = trip.travellerIds.map(name).sort().join(", ");
+    const wanted = [...expected.client.travellers].sort().join(", ");
+    if (travellers !== wanted) failures.push(`travellers "${travellers || "none"}", expected "${wanted}"`);
+  }
   for (const key of ["quoteOptions", "quoteStatus", "chosenOption", "booking", "preArrival"] as const) {
     if (expected[key]) notChecked.push(`trip.${key}`);
+  }
+}
+
+function checkCards(expect: StepExpect, cards: CardKind[], failures: string[], notChecked: string[]) {
+  for (const card of expect.cards ?? []) {
+    if (!CHECKED_CARDS.includes(card)) notChecked.push(`cards (${card})`);
+    else if (!cards.includes(card)) failures.push(`expected a ${card} card`);
+  }
+  const approvals = cards.filter((card) => card === "approval").length;
+  if (approvals > (expect.approvals ?? 0)) {
+    failures.push(`showed ${approvals} approval card(s) (allowed ${expect.approvals ?? 0})`);
   }
 }
 
@@ -97,14 +126,13 @@ export function checkStep(
 
   checkTools(expect, observed.tools, failures);
   checkReply(expect, observed.reply, everyReply, failures);
-  checkTrip(expect, observed.trip, failures, notChecked);
+  checkTrip(expect, observed, failures, notChecked);
+  checkCards(expect, observed.cards, failures, notChecked);
 
   for (const word of expect.memoryMustNot ?? []) {
     if (observed.memory.includes(word)) failures.push(`agent memory must not contain "${word}"`);
   }
-  if (expect.cards?.length) notChecked.push(`cards (${expect.cards.join(", ")})`);
   if (expect.rateCompare) notChecked.push("rateCompare");
-  if (expect.approvals) notChecked.push("approvals");
 
   return { failures, notChecked };
 }

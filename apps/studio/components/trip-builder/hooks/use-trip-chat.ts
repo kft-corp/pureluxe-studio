@@ -34,12 +34,10 @@ export function useTripChat(core: TripCore, initialDetail: TripDetail | null) {
     detail,
     canWrite,
     setRateOptions,
-    setClientHits,
     setSuggestedClients,
-    setLeadHits,
-    setRoleHits,
     setQuietChips,
     setOffer,
+    refreshAfterMutation,
   } = core;
 
   const [chatBusy, setChatBusy] = useState(false);
@@ -66,11 +64,8 @@ export function useTripChat(core: TripCore, initialDetail: TripDetail | null) {
     setStreamingContent(null);
     setAgentPhase(null);
     setAgentProgress(null);
-    setClientHits([]);
     setSuggestedClients([]);
     setRateOptions([]);
-    setLeadHits([]);
-    setRoleHits([]);
     setOffer(null);
     setQuietChips(false);
     tapRef.current = null;
@@ -202,7 +197,7 @@ export function useTripChat(core: TripCore, initialDetail: TripDetail | null) {
     }
   }
 
-  /** Stream one trip turn (typed message or button action) and keep the thread in sync. */
+  /** Stream one trip turn (typed message, button action or approval) and keep the thread in sync. */
   async function streamTripTurn(
     tripId: string,
     body: TripBuilderChatSendBody,
@@ -214,6 +209,7 @@ export function useTripChat(core: TripCore, initialDetail: TripDetail | null) {
     setStreamingContent("");
     setAgentPhase("thinking");
     setAgentProgress(null);
+    let changed = false;
 
     try {
       await streamTripChat(tripId, body, {
@@ -226,6 +222,9 @@ export function useTripChat(core: TripCore, initialDetail: TripDetail | null) {
             setAgentPhase,
             setAgentProgress,
             onBusy,
+            onChanged: () => {
+              changed = true;
+            },
             showError: showApiError,
             onError: () => {
               void loadChatMessages(tripId);
@@ -244,6 +243,8 @@ export function useTripChat(core: TripCore, initialDetail: TripDetail | null) {
     } finally {
       setChatBusy(false);
     }
+    // Also after a failed reply: changes made before it stopped are saved.
+    if (changed) await refreshAfterMutation(tripId).catch(showApiError);
   }
 
   /** Trip chat — persisted messages + full trip tools. */
@@ -283,6 +284,21 @@ export function useTripChat(core: TripCore, initialDetail: TripDetail | null) {
         client_request_id: clientRequestId,
       },
       makeOptimisticUserMessage(action.label, clientRequestId, "action"),
+      (message) => showWarningToast(message),
+    );
+  }
+
+  /** Confirm or Cancel on the agent's approval card: the paused reply continues. */
+  async function sendApproval(decision: "approve" | "cancel") {
+    if (!canWrite || !detail || chatBusy) return;
+    clearTap();
+
+    const label = decision === "approve" ? "Confirm" : "Cancel";
+    const clientRequestId = crypto.randomUUID();
+    await streamTripTurn(
+      detail.trip.id,
+      { kind: "resume", decision, label, client_request_id: clientRequestId },
+      makeOptimisticUserMessage(label, clientRequestId, "action"),
       (message) => showWarningToast(message),
     );
   }
@@ -355,6 +371,7 @@ export function useTripChat(core: TripCore, initialDetail: TripDetail | null) {
     sendHomeChat,
     sendTripChat,
     sendTripAction,
+    sendApproval,
     rememberClients,
     appendTurn,
     localChatMessage,

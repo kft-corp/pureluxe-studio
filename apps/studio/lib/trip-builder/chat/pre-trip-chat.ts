@@ -77,6 +77,7 @@ export function createPreTripChatStream(
             send({ type: "progress", label: chunk.label });
             continue;
           }
+          if (chunk.kind !== "delta") continue;
           fullText += chunk.text;
           send({ type: "delta", text: chunk.text });
         }

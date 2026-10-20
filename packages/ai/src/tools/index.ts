@@ -1,13 +1,12 @@
 /**
- * Read-only tools for Trip Builder AI.
+ * Read-only tools for the home chat, and the chunks every chat streams.
  *
  *   clients/  — search_clients, get_client
  *   history/  — search_trips, search_bookings, get_booking
  *   hotels/   — get_hotel
- *   trip/     — get_trip
- *   tool-sets — composed lists for home vs trip chat
+ *   tool-sets — the home chat tool list
  *   execute   — routes by tool name to a domain module
- *   run-agent-loop — shared Claude tool loop
+ *   run-agent-loop — Claude tool loop for the home chat
  */
 
 export { CLIENT_TOOLS, executeClientTool } from "./clients";
@@ -33,10 +32,7 @@ export type { HotelBrief, HotelToolHandlers } from "./hotels";
 
 export type { DeskToolHandlers } from "./handlers";
 
-export { TRIP_TOOLS, executeTripTool } from "./trip";
-export type { TripToolHandlers } from "./trip";
-
-export { PRE_TRIP_READ_TOOLS, TRIP_BUILDER_READ_TOOLS } from "./tool-sets";
+export { PRE_TRIP_READ_TOOLS } from "./tool-sets";
 
 export { executeTool } from "./execute";
 export {
@@ -45,6 +41,8 @@ export {
 } from "./run-agent-loop";
 export {
   AGENT_PHASE_LABEL,
+  type AgentApproval,
+  type AgentChoice,
   type AgentPhase,
   type AgentStreamChunk,
 } from "./stream-chunk";

@@ -116,12 +116,6 @@ export async function saveTripRateSearch(input: {
   }
 }
 
-/** Notes from the last open search, for a follow-up question. Null when none. */
-export async function readRateSearchPack(tripId: string): Promise<string | null> {
-  const search = await findLatestRateSearch(tripId);
-  return search ? notesOf(search) : null;
-}
-
 /** The last open search as the agent's rates_get_snapshot result. */
 export async function readRateSnapshot(tripId: string): Promise<RateSnapshot> {
   const search = await findLatestRateSearch(tripId);
@@ -137,7 +131,15 @@ export async function readRateSnapshot(tripId: string): Promise<RateSnapshot> {
   };
 }
 
-/** Close the trip's open searches after the trip, a stay, or a rate is written. */
-export async function clearRateSearchPack(tripId: string): Promise<void> {
-  await expireRateSearches(tripId);
+/**
+ * Close the trip's open searches after the trip, a stay, or a rate is written, so
+ * follow-up questions never use stale prices.
+ * Never throws: the write that called this has already succeeded.
+ */
+export async function closeTripRateSearches(tripId: string): Promise<void> {
+  try {
+    await expireRateSearches(tripId);
+  } catch (cause) {
+    console.error("[rate_search_events] expire failed:", errorCodeOf(cause));
+  }
 }

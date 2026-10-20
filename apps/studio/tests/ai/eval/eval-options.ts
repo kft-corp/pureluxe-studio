@@ -1,5 +1,5 @@
 /** The build stage the agent has reached. Raise it as each stage of the redesign lands. */
-export const CURRENT_BUILD_STAGE = 1;
+export const CURRENT_BUILD_STAGE = 2;
 
 export type EvalOptions = {
   /** Steps from later build stages are skipped (and fast-forwarded). */

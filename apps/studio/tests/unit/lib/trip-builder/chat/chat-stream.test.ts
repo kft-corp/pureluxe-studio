@@ -1,3 +1,4 @@
+import type { AgentStreamChunk } from "@pureluxe/ai";
 import { tripMessages } from "@pureluxe/shared";
 import { describe, expect, it, vi } from "vitest";
 
@@ -31,27 +32,52 @@ describe("createChatStream", () => {
   });
 
   it("forwards progress labels and finishes the turn", async () => {
-    async function* chunks() {
-      yield { kind: "status" as const, phase: "looking_up" as const };
-      yield { kind: "progress" as const, label: "Searching clients…" };
-      yield { kind: "delta" as const, text: "Four Mehtas." };
-    }
-    const assistant: ChatMessage = { ...USER, id: "a1", role: "assistant", content: "Four Mehtas." };
-    const prepared: PreparedChatTurn = {
-      kind: "stream",
-      user: USER,
-      chunks: chunks(),
-      complete: vi.fn(async () => assistant),
-      abandon: vi.fn(async () => null),
-      abort: vi.fn(),
-      finish: vi.fn(async () => {}),
-    };
+    const prepared = streamTurn([
+      { kind: "status", phase: "looking_up" },
+      { kind: "progress", label: "Searching clients…" },
+      { kind: "delta", text: "Four Mehtas." },
+    ]);
 
     const events = await readEvents(createChatStream(prepared));
 
     expect(events.map((event) => event.type)).toEqual(["meta", "status", "progress", "delta", "done"]);
     expect(events[2]).toEqual({ type: "progress", label: "Searching clients…" });
-    expect(prepared.complete).toHaveBeenCalledWith("Four Mehtas.");
+    expect(prepared.complete).toHaveBeenCalledWith("Four Mehtas.", { undo: false, choices: [], approval: null });
     expect(prepared.finish).toHaveBeenCalledWith({ status: "ok" });
   });
+
+  it("tells the browser about each change and saves the cards with the reply", async () => {
+    const approval = { tool: "trip_shift_dates", args: { days: 2 }, summary: "Move the trip?", tripVersion: 4 };
+    const prepared = streamTurn([
+      { kind: "changed", summary: "Dates set", undo: true },
+      { kind: "delta", text: "Dates set. Moving the trip needs your OK." },
+      { kind: "approval", approval },
+    ]);
+
+    const events = await readEvents(createChatStream(prepared));
+
+    expect(events.map((event) => event.type)).toEqual(["meta", "changed", "delta", "done"]);
+    expect(events[1]).toEqual({ type: "changed", summary: "Dates set" });
+    expect(prepared.complete).toHaveBeenCalledWith("Dates set. Moving the trip needs your OK.", {
+      undo: true,
+      choices: [],
+      approval,
+    });
+  });
 });
+
+function streamTurn(items: AgentStreamChunk[]) {
+  async function* chunks() {
+    yield* items;
+  }
+  const assistant: ChatMessage = { ...USER, id: "a1", role: "assistant", content: "reply" };
+  return {
+    kind: "stream",
+    user: USER,
+    chunks: chunks(),
+    complete: vi.fn(async () => assistant),
+    abandon: vi.fn(async () => null),
+    abort: vi.fn(),
+    finish: vi.fn(async () => {}),
+  } satisfies PreparedChatTurn;
+}

@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { buildComposerChips } from "@/components/trip-builder/build-composer-chips";
 import type { TripBuilderChip } from "@/components/trip-builder/trip-builder-action-chip";
-import { makeClientHit } from "@/tests/factories/clients";
 import { makeChipInput } from "@/tests/factories/composer-chips";
 import { makeRate, makeStay, makeTripDetail } from "@/tests/factories/trips";
 
@@ -31,16 +30,6 @@ const DUBAI = makeStay({
 const CLIENT_STAGE = makeTripDetail({
   client: SARAH,
   travellers: [SARAH_TRAVELLING],
-  family_suggestions: [
-    { client_id: "c2", display_name: "Ravi Chen", party_role: "child", family_role: "child" },
-  ],
-});
-
-/** Party confirmed, no trip dates yet. */
-const STAY_STAGE = makeTripDetail({
-  client: SARAH,
-  travellers: [SARAH_TRAVELLING],
-  trip: { travellers_confirmed_at: "2026-10-01T00:00:00.000Z" },
 });
 
 /** Dates, stays, and hotel set. No room priced yet. */
@@ -101,23 +90,11 @@ describe("buildComposerChips", () => {
   });
 
   describe("client stage", () => {
-    it("offers household members, then the party-done chip, then past trips", () => {
+    it("offers the client's past trips", () => {
       const input = makeChipInput({ detail: CLIENT_STAGE });
       const { chips } = buildComposerChips(input);
 
-      expect(ids(chips)).toEqual(["family-c2", "travellers-set", "past-trips"]);
-      expect(chips.map((item) => item.label)).toEqual([
-        "Add Ravi Chen",
-        "Only Sarah Chen is travelling",
-        "Past trips for Sarah Chen",
-      ]);
-
-      chip(chips, "family-c2").onClick();
-      expect(input.actions.addTraveller).toHaveBeenCalledWith(
-        { id: "c2", display_name: "Ravi Chen", party_role: "child" },
-        "Add Ravi Chen",
-      );
-
+      expect(ids(chips)).toEqual(["past-trips"]);
       chip(chips, "past-trips").onClick();
       expect(input.actions.sendTripAction).toHaveBeenCalledWith({
         action: "history_search_trips",
@@ -125,107 +102,73 @@ describe("buildComposerChips", () => {
         label: "Past trips for Sarah Chen",
       });
     });
+  });
 
-    it("leads with the party-done chip when there is no household", () => {
-      const { chips } = buildComposerChips(
-        makeChipInput({ detail: { ...CLIENT_STAGE, family_suggestions: [] } }),
-      );
-      expect(ids(chips)).toEqual(["travellers-set", "past-trips"]);
-      expect(chip(chips, "travellers-set").variant).toBe("primary");
+  describe("agent cards", () => {
+    it("shows only Confirm and Cancel while the agent waits for approval", () => {
+      const input = makeChipInput({
+        detail: RATES_STAGE,
+        activeLegId: "leg-dubai",
+        stayDraft: DUBAI_DRAFT,
+        replyCards: { approval: "Move the trip 2 days later." },
+      });
+      const { chips, rateCards } = buildComposerChips(input);
+
+      expect(chips.map((item) => item.label)).toEqual(["Confirm", "Cancel"]);
+      expect(chips[0]!.variant).toBe("danger");
+      expect(rateCards).toEqual([]);
+
+      chips[0]!.onClick();
+      expect(input.actions.sendApproval).toHaveBeenCalledWith("approve");
+      chips[1]!.onClick();
+      expect(input.actions.sendApproval).toHaveBeenCalledWith("cancel");
     });
 
-    it("hands a searched client to chooseClient", () => {
-      const hit = makeClientHit(SARAH);
-      const input = makeChipInput({ detail: makeTripDetail(), clientHits: [hit] });
+    it("turns the agent's choices into buttons that run its tool", () => {
+      const input = makeChipInput({
+        detail: makeTripDetail(),
+        replyCards: {
+          choices: [
+            { label: "Sarah Chen", action: "trip_set_client", args: { client_id: "c1" } },
+            { label: "Sam Chen", action: "trip_set_client", args: { client_id: "c9" } },
+          ],
+        },
+      });
       const { chips } = buildComposerChips(input);
 
-      expect(chip(chips, "client-c1").label).toBe("Choose Sarah Chen");
-      chip(chips, "client-c1").onClick();
-      expect(input.actions.chooseClient).toHaveBeenCalledWith(hit);
+      expect(chips.map((item) => item.label)).toEqual(["Sarah Chen", "Sam Chen"]);
+      expect(leads(chips)).toHaveLength(1);
+      chips[1]!.onClick();
+      expect(input.actions.sendTripAction).toHaveBeenCalledWith({
+        action: "trip_set_client",
+        args: { client_id: "c9" },
+        label: "Sam Chen",
+      });
+    });
+
+    it("offers Undo after a change and hides the ready chips", () => {
+      const input = makeChipInput({ detail: CLIENT_STAGE, replyCards: { undo: true } });
+      const { chips } = buildComposerChips(input);
+
+      expect(ids(chips)).toEqual(["undo"]);
+      chips[0]!.onClick();
+      expect(input.actions.sendTripAction).toHaveBeenCalledWith({ action: "trip_undo", label: "Undo" });
     });
   });
 
   describe("confirmations", () => {
-    it("puts Save trip dates first and its no chip right after", () => {
-      const dates = { checkIn: "2026-10-10", checkOut: "2026-10-20" };
-      const input = makeChipInput({
-        detail: STAY_STAGE,
-        offer: { type: "trip-dates", dates },
-      });
-      const { chips } = buildComposerChips(input);
-
-      expect(chips.map((item) => item.label)).toEqual([
-        "Save trip dates · 10 Oct – 20 Oct · 10 nights",
-        "Keep current dates",
-      ]);
-
-      chips[0]!.onClick();
-      expect(input.actions.saveTripDates).toHaveBeenCalledWith(dates);
-
-      chips[1]!.onClick();
-      expect(input.actions.declineOffer).toHaveBeenCalledOnce();
-    });
-
-    it("labels a trip shift with the new dates and marks it as danger", () => {
-      const input = makeChipInput({ detail: RATES_STAGE, offer: { type: "shift-trip", days: 2 } });
-      const { chips } = buildComposerChips(input);
-
-      expect(ids(chips)).toEqual(["shift-trip", "decline"]);
-      expect(chips[0]).toMatchObject({
-        label: "Shift every stay · 12 Oct – 22 Oct · 10 nights",
-        variant: "danger",
-      });
-
-      chips[0]!.onClick();
-      expect(input.actions.commitShift).toHaveBeenCalledWith(2);
-    });
-
-    it("asks before removing a stay", () => {
-      const target = { legId: "leg-dubai", city: "Dubai" };
+    it("puts the yes chip first and its no chip right after", () => {
       const input = makeChipInput({
         detail: RATES_STAGE,
-        offer: { type: "remove-stay", leg: target },
+        activeLegId: "leg-dubai",
+        stayDraft: DUBAI_DRAFT,
+        offer: { type: "rate-search" },
       });
       const { chips } = buildComposerChips(input);
 
-      expect(chips.map((item) => item.label)).toEqual(["Remove Dubai", "Keep this stay"]);
-      chips[0]!.onClick();
-      expect(input.actions.commitRemove).toHaveBeenCalledWith(target);
-    });
-
-    it("keeps only one lead chip when two primaries are offered", () => {
-      const { chips } = buildComposerChips(
-        makeChipInput({
-          detail: STAY_STAGE,
-          leadHits: [makeClientHit({ id: "c3", display_name: "Ravi Mehta" })],
-          offer: { type: "trip-dates", dates: { checkIn: "2026-10-10", checkOut: "2026-10-20" } },
-        }),
-      );
-
-      expect(ids(chips)).toEqual(["lead-hit-c3", "decline", "save-trip-dates"]);
-      expect(leads(chips)).toHaveLength(1);
-      expect(chip(chips, "save-trip-dates").variant).toBe("secondary");
-    });
-  });
-
-  describe("locked pricing", () => {
-    it("offers to reopen the quote", () => {
-      const input = makeChipInput({ detail: { ...RATES_STAGE, pricing_locked: true }, offerReopen: true });
-      const { chips } = buildComposerChips(input);
-
-      expect(ids(chips)).toEqual(["reopen-quote"]);
-      chips[0]!.onClick();
-      expect(input.actions.openTripPage).toHaveBeenCalled();
-    });
-
-    it("hides stay edits", () => {
-      const { chips } = buildComposerChips(
-        makeChipInput({
-          detail: { ...RATES_STAGE, pricing_locked: true },
-          offer: { type: "shift-trip", days: 2 },
-        }),
-      );
-      expect(ids(chips)).not.toContain("shift-trip");
+      expect(chips.map((item) => item.label)).toEqual(["Search rates · 2 adults · 1 room", "Don't search"]);
+      chips[1]!.onClick();
+      expect(input.actions.declineOffer).toHaveBeenCalledOnce();
     });
   });
 

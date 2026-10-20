@@ -18,7 +18,7 @@ import { redactSensitive, redactText } from "./redact";
 import type { TripAgentStateUpdate } from "./state";
 import { toAgentChunks } from "./stream";
 import { findAgentTool } from "./tools";
-import type { AgentTurnRequest, TripAgentHandlers } from "./types";
+import type { AgentTurnRequest, ApprovalDecision, TripAgentHandlers } from "./types";
 
 /** Graph steps per turn. The tool-round cap ends a turn well before this; it is a safety net. */
 const RECURSION_LIMIT = 25;
@@ -46,8 +46,6 @@ export type TripAgentTurnInput = {
   /** Replaces Claude with other bound models (tests and evals). */
   createModels?: TripAgentDeps["createModels"];
 };
-
-type ApprovalDecision = Extract<AgentTurnRequest, { kind: "resume" }>["decision"];
 
 type GraphInput =
   | TripAgentStateUpdate
@@ -88,6 +86,7 @@ async function toGraphInput(
       messages: [],
       action: { ...request.action, args: redactSensitive(request.action.args) },
       toolRounds: 0,
+      quickReply: null,
     };
   }
 
@@ -95,6 +94,7 @@ async function toGraphInput(
     messages: [new HumanMessage(redactText(request.text))],
     action: null,
     toolRounds: 0,
+    quickReply: null,
   };
 }
 
@@ -130,12 +130,12 @@ export async function* streamTripAgentTurn(
     const graphInput = await toGraphInput(graph, config, input);
     const stream = await graph.stream(graphInput, {
       ...config,
-      streamMode: ["messages", "updates"],
+      streamMode: ["messages", "updates", "custom"],
       recursionLimit: RECURSION_LIMIT,
       signal: input.signal,
     });
     const summary = yield* toAgentChunks(stream, input.meter);
-    if (!summary.sawText) throw aiProviderFailedError();
+    if (!summary.sawText && !summary.paused) throw aiProviderFailedError();
   } catch (cause) {
     if (cause instanceof AppError) throw cause;
     throw aiProviderFailedError(cause);

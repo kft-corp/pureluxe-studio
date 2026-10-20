@@ -34,6 +34,10 @@ function clip(value: string, max = MAX_TEXT): string {
   return `${value.slice(0, max - 1)}…`;
 }
 
+function idPart(clientId: string | undefined): string {
+  return clientId ? `, client_id ${clientId}` : "";
+}
+
 function roomFact(label: string, value: string | null | undefined, empty: string): string {
   const text = value?.trim();
   if (!text) return empty;
@@ -95,6 +99,7 @@ export function buildTripContext(trip: TripFacts): string {
         ? `${trip.starts_on} to ${trip.ends_on}`
         : "missing"
     }`,
+    ...(trip.assumptions?.length ? [`Assumed (shown as editable): ${trip.assumptions.join(", ")}`] : []),
     `Stay list finished: ${trip.legs_confirmed ? "yes" : "no"}`,
     "",
     "Client:",
@@ -104,13 +109,13 @@ export function buildTripContext(trip: TripFacts): string {
     `Travellers confirmed: ${trip.travellers_confirmed ? "yes" : "no"}`,
     ...(trip.travellers ?? []).map(
       (person) =>
-        `- ${person.display_name} (${person.role === "primary" ? "lead" : person.party_role})`,
+        `- ${person.display_name} (${person.role === "primary" ? "lead" : person.party_role}${idPart(person.client_id)})`,
     ),
     ...(trip.family_suggestions?.length
       ? [
           "Household not on the trip yet:",
           ...trip.family_suggestions.map(
-            (person) => `- ${person.display_name} (${person.family_role})`,
+            (person) => `- ${person.display_name} (${person.family_role}${idPart(person.client_id)})`,
           ),
         ]
       : []),

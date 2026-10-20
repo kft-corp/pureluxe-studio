@@ -4,7 +4,6 @@ import {
   mergeStayDraft,
   parseStayMessage,
   partyReady,
-  stayDraftReady,
   type StayDraft,
 } from "@/lib/trip-builder/intents";
 
@@ -77,7 +76,7 @@ describe("mergeStayDraft", () => {
   });
 });
 
-describe("stayDraftReady", () => {
+describe("partyReady", () => {
   const ready: StayDraft = {
     hotel: "Atlantis",
     city: "Dubai",
@@ -88,15 +87,8 @@ describe("stayDraftReady", () => {
     rooms: 1,
   };
 
-  it("is true when every field is set", () => {
-    expect(stayDraftReady(ready)).toBe(true);
-  });
-
-  it("needs check-out after check-in", () => {
-    expect(stayDraftReady({ ...ready, checkOut: "2026-10-10" })).toBe(false);
-  });
-
-  it("needs a full party", () => {
+  it("needs adults, children and rooms", () => {
+    expect(partyReady(ready)).toBe(true);
     expect(partyReady({ ...ready, rooms: null })).toBe(false);
     expect(partyReady({ ...ready, adults: 0 })).toBe(false);
   });

@@ -1,7 +1,7 @@
 import { AIMessage, AIMessageChunk } from "@langchain/core/messages";
 import type { ToolCall } from "@langchain/core/messages/tool";
 
-import type { AgentPhase, AgentStreamChunk, TurnMeter } from "../tools";
+import type { AgentApproval, AgentPhase, AgentStreamChunk, TurnMeter } from "../tools";
 
 import { findAgentTool } from "./tools";
 
@@ -26,30 +26,46 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function toolCallsFromUpdate(update: unknown): ToolCall[] {
-  if (!isRecord(update) || !isRecord(update.agent)) return [];
-  const messages = update.agent.messages;
-  if (!Array.isArray(messages)) return [];
-  return messages.flatMap((message) =>
+function toolCallsFromUpdate(update: Record<string, unknown>): ToolCall[] {
+  const agent = update.agent;
+  if (!isRecord(agent) || !Array.isArray(agent.messages)) return [];
+  return agent.messages.flatMap((message) =>
     AIMessage.isInstance(message) ? (message.tool_calls ?? []) : [],
   );
 }
 
+function approvalFromUpdate(update: Record<string, unknown>): AgentApproval | null {
+  const interrupts = update.__interrupt__;
+  if (!Array.isArray(interrupts) || interrupts.length === 0) return null;
+  const value = (interrupts[0] as { value?: unknown }).value;
+  return isRecord(value) && typeof value.summary === "string" ? (value as AgentApproval) : null;
+}
+
+/** Model tokens from the agent node, and the ready-made reply from the reply node. */
 function textFromMessagesEvent(event: unknown): string {
   if (!Array.isArray(event)) return "";
   const [message, metadata] = event as [unknown, unknown];
-  if (!isRecord(metadata) || metadata.langgraph_node !== "agent") return "";
-  return AIMessageChunk.isInstance(message) ? message.text : "";
+  if (!isRecord(metadata)) return "";
+  if (metadata.langgraph_node === "agent") return AIMessageChunk.isInstance(message) ? message.text : "";
+  if (metadata.langgraph_node === "reply") return AIMessage.isInstance(message) ? message.text : "";
+  return "";
+}
+
+function isChunk(value: unknown): value is AgentStreamChunk {
+  return isRecord(value) && (value.kind === "changed" || value.kind === "choices");
 }
 
 export type AgentStreamSummary = {
-  /** Reply text was streamed. False means the model answered with nothing. */
+  /** Reply text was streamed. */
   sawText: boolean;
+  /** The run paused for an approval. */
+  paused: boolean;
 };
 
 /**
- * Map a LangGraph stream (modes "messages" + "updates") to chat chunks:
- * model tokens → delta, tool calls → looking_up + a progress label.
+ * Map a LangGraph stream (modes "messages", "updates", "custom") to chat chunks:
+ * tokens → delta, tool calls → looking_up + progress, tool events → changed / choices,
+ * an interrupt → approval.
  */
 export async function* toAgentChunks(
   stream: AsyncIterable<unknown>,
@@ -57,6 +73,7 @@ export async function* toAgentChunks(
 ): AsyncGenerator<AgentStreamChunk, AgentStreamSummary, unknown> {
   let phase: AgentPhase = "thinking";
   let sawText = false;
+  let paused = false;
 
   for await (const event of stream) {
     if (!Array.isArray(event) || event.length !== 2) continue;
@@ -75,7 +92,18 @@ export async function* toAgentChunks(
       continue;
     }
 
-    if (mode === "updates") {
+    if (mode === "custom") {
+      if (isChunk(payload)) yield payload;
+      continue;
+    }
+
+    if (mode === "updates" && isRecord(payload)) {
+      const approval = approvalFromUpdate(payload);
+      if (approval) {
+        paused = true;
+        yield { kind: "approval", approval };
+        continue;
+      }
       const calls = toolCallsFromUpdate(payload);
       if (calls.length === 0) continue;
       phase = "looking_up";
@@ -84,5 +112,5 @@ export async function* toAgentChunks(
     }
   }
 
-  return { sawText };
+  return { sawText, paused };
 }

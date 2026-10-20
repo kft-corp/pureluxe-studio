@@ -1,6 +1,6 @@
 /**
  * Trip agent tools, grouped by area (trip_, client_, history_, hotel_, place_, rates_).
- * Stage 1: read-only. Write tools join this list with risk "undo" or "approval".
+ * read tools look things up; the others change the trip (Undo, or approval first).
  */
 import { clientGetTool, clientSearchTool } from "./clients";
 import type { AgentToolSpec } from "./define-tool";
@@ -12,10 +12,26 @@ import {
 import { hotelGetTool } from "./hotels";
 import { placeGetNotesTool } from "./places";
 import { ratesGetSnapshotTool } from "./rates";
-import { tripGetTool } from "./trip";
+import {
+  tripGetTool,
+  tripRemoveStayTool,
+  tripSetClientTool,
+  tripSetDatesTool,
+  tripSetStaysTool,
+  tripSetTravellersTool,
+  tripShiftDatesTool,
+  tripUndoTool,
+} from "./trip";
 
 export const TRIP_AGENT_TOOLS: readonly AgentToolSpec[] = [
   tripGetTool,
+  tripSetClientTool,
+  tripSetTravellersTool,
+  tripSetDatesTool,
+  tripSetStaysTool,
+  tripRemoveStayTool,
+  tripShiftDatesTool,
+  tripUndoTool,
   clientSearchTool,
   clientGetTool,
   historySearchTripsTool,

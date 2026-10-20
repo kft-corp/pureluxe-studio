@@ -25,7 +25,7 @@ describe("planScenario", () => {
     expect(running).toEqual(["trip-request", "pick-client", "visa-question"]);
   });
 
-  it("gives Stage 1 a real set of questions", () => {
+  it("gives the questions scenario a real set of questions", () => {
     const running = planScenario(MEHTA_QUESTIONS, 1).filter((step) => !step.skip);
     expect(running.length).toBeGreaterThanOrEqual(6);
   });
@@ -34,7 +34,7 @@ describe("planScenario", () => {
 describe("skipStep", () => {
   it("fast-forwards the trip a later-stage step would have set up", () => {
     const run = startEvalRun(MEHTA_QUESTIONS, MEHTA_MALDIVES_SEED, { variant: 0, runId: "t" });
-    const pick = planScenario(MEHTA_QUESTIONS, 1)[0]!;
+    const pick = planScenario(MEHTA_QUESTIONS, 1).find((step) => step.id === "pick-client")!;
 
     expect(skipStep(run, pick).status).toBe("skip");
     expect(run.trip).toMatchObject({
@@ -42,7 +42,7 @@ describe("skipStep", () => {
       travellerIds: [MEHTA_CLIENT_IDS.aarav, MEHTA_CLIENT_IDS.anika],
       startsOn: "2026-12-10",
       endsOn: "2026-12-15",
-      stays: [{ destination: "Maldives", checkIn: "2026-12-10", checkOut: "2026-12-15" }],
+      stays: [{ destination: "Maldives", checkIn: "2026-12-10", checkOut: "2026-12-15", hotel: null }],
     });
   });
 });

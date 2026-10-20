@@ -1,39 +1,12 @@
 import type { TripDetail, TripRateSnapshot } from "@/lib/trip-builder";
 import { pageRoutes } from "@/lib/routes";
 
-import { partyFromTravellers, staysAwaitingRoom } from "./stages";
+import { staysAwaitingRoom } from "./stages";
 import { formatMoney } from "./trip-builder-helpers";
 
-export function whoElseText(detail: TripDetail): string {
-  const name = detail.client?.display_name?.trim() || "The lead";
-  const lines = [
-    `**${name}** is the lead.`,
-    "Who else is traveling? Each person has to already be a client.",
-  ];
-  if (detail.family_suggestions.length > 0) {
-    lines.push("From their household:");
-    for (const person of detail.family_suggestions) {
-      const role = person.family_role === "child" ? "child" : person.family_role;
-      lines.push(`- **${person.display_name}** (${role})`);
-    }
-  } else {
-    lines.push("No household is linked to them yet.");
-  }
-  lines.push("Tap a name, type another client, or say **just them** when the list is complete.");
-  return lines.join("\n");
-}
-
-export function partySentence(detail: TripDetail): string {
-  const names = detail.travellers.map((person) => person.display_name).filter(Boolean);
-  const party = partyFromTravellers(detail);
-  const counts = [
-    party.adults === 1 ? "1 adult" : `${party.adults} adults`,
-    party.children === 1 ? "1 child" : party.children > 0 ? `${party.children} children` : null,
-  ]
-    .filter(Boolean)
-    .join(", ");
-  return `${names.join(", ")} · ${counts}`;
-}
+/** A new trip with no client yet. */
+export const TRIP_START_PROMPT =
+  "I've created this trip. Tell me who it's for, where and when, in one line, and I'll set it up. You can undo any change.";
 
 export function staySavedText(input: {
   hotel: string;

@@ -21,50 +21,13 @@ export function isPlaceQuestion(message: string): boolean {
   return PLACE_TOPIC.test(message);
 }
 
-const NAME_COMMAND =
-  /^(?:sell\b|start\b|end\b|yes|no|ok|okay|hotel:|rooms?:|client price|add\b|remove\b|make\b|just them|search rates|lock\b)/i;
-
-/**
- * A short message that may be only a country, city, or hotel name.
- * "Maldives" and "Soneva Fushi" count. A sell price or a date command does not.
- */
-export function mightNamePlace(message: string): boolean {
-  const text = message.trim();
-  if (text.length < 3 || text.length > 60) return false;
-  if (isClientQuestion(text) || NAME_COMMAND.test(text)) return false;
-  return text.split(/\s+/).length <= 5;
-}
-
-const FOLLOW_UP_START =
-  /^(?:and|also|what about|how about|same|that|this|those|him|her|it|them)\b/i;
-
-const FOLLOW_UP_WORD =
-  /\b(?:that one|this one|the other|the cheaper|the cheapest|the second|the first|same dates|same hotel|same room)\b/i;
-
-/**
- * A short line that continues the last topic.
- * "That one", "the cheaper villa", "same dates", and "and the visa?" count.
- * A yes, a sell price, or "make him a child" does not.
- */
-export function isFollowUpFragment(message: string): boolean {
-  const text = message.trim();
-  if (text.length < 2 || text.length > 80) return false;
-  if (isClientQuestion(text) || NAME_COMMAND.test(text)) return false;
-  if (/\b(?:add|remove|make|change|set|sell|lock)\b/i.test(text)) return false;
-  if (FOLLOW_UP_START.test(text)) return true;
-  return FOLLOW_UP_WORD.test(text);
-}
-
 /** They asked for hotels on file, not a rate price. */
 export function wantsHotelSearch(message: string): boolean {
   if (isClientQuestion(message)) return false;
   return HOTEL_SEARCH.test(message);
 }
 
-/**
- * A question to answer. A change such as "search rates" or "sell 4500 USD" is not one.
- * "Can you add Ravi?" is handled as a party change before this is used.
- */
+/** A question to answer. A change such as "search rates" or "sell 4500 USD" is not one. */
 export function isTripQuestion(message: string): boolean {
   if (isClientQuestion(message) || isPlaceQuestion(message)) return true;
   return /^(?:who|what|when|where|why|how|which|is|are|was|were|do|does|did|has|have)\b/i.test(

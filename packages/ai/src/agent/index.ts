@@ -1,9 +1,10 @@
 /**
- * Trip Builder agent v2 (LangGraph).
+ * Trip Builder agent (LangGraph).
  *
  *   run-turn     — stream one turn (message, button tap or approval resume)
- *   graph        — refresh → agent → tools loop; button taps run their tool directly
- *   tools/       — read-only tools by area, bound to Studio handlers per turn
+ *   graph        — refresh → agent → tools loop; taps run their tool directly; risky
+ *                  changes from typed text pause for approval
+ *   tools/       — lookups and trip changes by area, bound to Studio handlers per turn
  *   instructions — cached rules + trip facts (prompts/trip-prompt-v2)
  *   memory       — turn window, pruning, seeding from chat history
  *   redact       — sensitive-data clean-up before anything is saved
@@ -26,7 +27,12 @@ export type {
   AgentAction,
   AgentToolRisk,
   AgentTurnRequest,
+  ApprovalDecision,
+  PartyRole,
   PlaceNotes,
   RateSnapshot,
+  StayRequest,
+  ToolCallRef,
   TripAgentHandlers,
+  TripChange,
 } from "./types";

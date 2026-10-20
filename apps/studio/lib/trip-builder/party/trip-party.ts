@@ -20,7 +20,7 @@ import { requireEditableTrip } from "../access/require-assigned-trip";
 import { markQuoteStale } from "../stays/stay-side-effects";
 import { syncTripCommercials } from "../pricing/sync-trip-commercials";
 import { syncTripHotelBooking } from "../pricing/sync-trip-booking";
-import { clearTripDossier } from "../chat/trip-dossier";
+import { closeTripRateSearches } from "@/lib/rates/rate-search-store";
 import { buildTripDetail, type TripDetail } from "../trip/trip-detail";
 import { nextTripTitle } from "../trip/trip-title";
 
@@ -70,7 +70,7 @@ async function finish(
   const trip = await requireEditableTrip(tripId, actor.memberId);
   const detail = await buildTripDetail(trip);
   await syncTripHotelBooking(detail, actor);
-  await clearTripDossier(tripId);
+  await closeTripRateSearches(tripId);
   return detail;
 }
 

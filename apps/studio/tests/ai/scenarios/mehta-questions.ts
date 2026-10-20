@@ -1,12 +1,12 @@
 import { MEHTA_CLIENT_IDS } from "../fixtures/mehta-maldives";
 import type { AgentScenario } from "../scenario-types";
 
-import { EVERY_REPLY_MUST_NOT, pickClient } from "./mehta-maldives";
+import { EVERY_REPLY_MUST_NOT, askForTrip, pickClient } from "./mehta-maldives";
 
 /**
- * Questions on a set-up trip: what the Stage 1 agent can already do.
+ * Questions on a set-up trip, answered by looking things up.
  * Golden tests §10: #5 (a tap is an action), #8 (malicious paste), #11 (passport).
- * The trip comes from `pick-client`, fast-forwarded until Stage 2 makes it real.
+ * The trip is set up by the same opening as the main scenario.
  */
 export const MEHTA_QUESTIONS: AgentScenario = {
   id: "mehta-questions",
@@ -14,6 +14,7 @@ export const MEHTA_QUESTIONS: AgentScenario = {
   now: "2026-10-19T10:00:00+05:30",
   advisorMemberId: "member-vijay",
   steps: [
+    askForTrip,
     pickClient,
     {
       id: "client-profile",
