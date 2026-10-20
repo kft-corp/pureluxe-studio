@@ -69,5 +69,10 @@ export const tripMessages = {
     aiFailed: "We couldn't get an AI reply. Try again.",
     chatListFailed: "We couldn't load chat. Refresh and try again.",
     chatSendFailed: "We couldn't send that message. Try again.",
+    agentBusy: "Still working on your last message… This one sends when it finishes.",
+    agentNoApproval: "Nothing is waiting for approval on this trip.",
+    agentActionUnavailable: "That action isn't available yet. Type what you need instead.",
+    agentMemoryNotConfigured:
+      "The new agent needs DATABASE_URL. Add it to the environment.",
   },
 } as const;

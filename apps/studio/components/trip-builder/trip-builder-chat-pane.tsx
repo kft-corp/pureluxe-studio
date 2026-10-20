@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { LuArrowDown, LuSparkles } from "react-icons/lu";
 
-import { AGENT_PHASE_LABEL, type AgentPhase } from "@pureluxe/ai";
+import { AGENT_PHASE_LABEL, type AgentPhase } from "@pureluxe/ai/chat-stream";
 
 import { studioButtonClass } from "@/components/ui";
 import type { ChatMessage, TripDetail } from "@/lib/trip-builder";
@@ -31,6 +31,8 @@ type TripBuilderChatPaneProps = {
   hasMoreMessages: boolean;
   streamingContent: string | null;
   agentPhase: AgentPhase | null;
+  /** What the agent is looking up, e.g. "Searching clients…". */
+  agentProgress: string | null;
   homeChips: TripBuilderChip[];
   rateCards: RateCard[];
   stayNotes: TripBuilderStayNotes | null;
@@ -38,6 +40,12 @@ type TripBuilderChatPaneProps = {
   onCreateTrip: () => void;
   onLoadOlder: () => void;
 };
+
+/** The live status line: the lookup in progress, else the phase. */
+function agentStatusLabel(phase: AgentPhase | null, progress: string | null): string | null {
+  if (phase === "looking_up" && progress) return progress;
+  return phase ? AGENT_PHASE_LABEL[phase] : null;
+}
 
 /** Full-width chat thread — agent left, you right. */
 export function TripBuilderChatPane({
@@ -50,6 +58,7 @@ export function TripBuilderChatPane({
   hasMoreMessages,
   streamingContent,
   agentPhase,
+  agentProgress,
   homeChips,
   rateCards,
   stayNotes,
@@ -147,7 +156,8 @@ export function TripBuilderChatPane({
       onLoadOlder={onLoadOlder}
       messages={messages}
       streamingContent={streamingContent}
-      agentPhase={agentPhase}
+      agentStatus={agentStatusLabel(agentPhase, agentProgress)}
+      lookingUp={agentPhase === "looking_up"}
       busy={busy}
       welcomeContent={
         detail && showWelcome
@@ -228,7 +238,8 @@ function ChatScrollArea({
   onLoadOlder,
   messages,
   streamingContent,
-  agentPhase,
+  agentStatus,
+  lookingUp,
   busy,
   welcomeContent,
   rateCards,
@@ -242,7 +253,8 @@ function ChatScrollArea({
   onLoadOlder: () => void;
   messages: ChatMessage[];
   streamingContent: string | null;
-  agentPhase: AgentPhase | null;
+  agentStatus: string | null;
+  lookingUp: boolean;
   busy: boolean;
   welcomeContent: string | null;
   rateCards: RateCard[];
@@ -275,7 +287,7 @@ function ChatScrollArea({
     if (stickToBottomRef.current) {
       endRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
     }
-  }, [messages, streamingContent, agentPhase, busy, chatLoading, welcomeContent, rateCards]);
+  }, [messages, streamingContent, agentStatus, busy, chatLoading, welcomeContent, rateCards]);
 
   useEffect(() => {
     if (chatLoading) {
@@ -333,7 +345,8 @@ function ChatScrollArea({
         <ChatMessageList
           messages={messages}
           streamingContent={streamingContent}
-          agentPhase={agentPhase}
+          agentStatus={agentStatus}
+          lookingUp={lookingUp}
           busy={busy}
           loadingOlder={chatLoadingOlder}
           welcomeContent={welcomeContent}
@@ -433,7 +446,8 @@ function formatMsgTime(iso: string) {
 function ChatMessageList({
   messages,
   streamingContent,
-  agentPhase,
+  agentStatus,
+  lookingUp,
   busy,
   loadingOlder,
   welcomeContent,
@@ -444,7 +458,9 @@ function ChatMessageList({
 }: {
   messages: ChatMessage[];
   streamingContent: string | null;
-  agentPhase: AgentPhase | null;
+  agentStatus: string | null;
+  /** Text already streamed, and the agent went back to look something up. */
+  lookingUp: boolean;
   busy: boolean;
   loadingOlder: boolean;
   welcomeContent: string | null;
@@ -462,11 +478,10 @@ function ChatMessageList({
     return null;
   }
 
-  const phaseLabel = agentPhase ? AGENT_PHASE_LABEL[agentPhase] : null;
   const showPhaseOnly =
     streamingContent != null &&
     streamingContent.length === 0 &&
-    Boolean(phaseLabel);
+    Boolean(agentStatus);
   const lastAssistantId = [...messages]
     .reverse()
     .find((message) => message.role === "assistant")?.id;
@@ -494,6 +509,10 @@ function ChatMessageList({
             content={message.content}
             offers={message.id === lastAssistantId ? offers : null}
           />
+        ) : message.kind === "action" ? (
+          <YouTapped key={message.id} time={formatMsgTime(message.created_at)}>
+            {message.content}
+          </YouTapped>
         ) : (
           <YouMessage key={message.id} time={formatMsgTime(message.created_at)}>
             {message.content}
@@ -507,7 +526,8 @@ function ChatMessageList({
         <AgentMessage
           time="now"
           content={streamingContent}
-          statusLabel={showPhaseOnly ? phaseLabel : null}
+          statusLabel={showPhaseOnly ? agentStatus : null}
+          activityLabel={!showPhaseOnly && lookingUp ? agentStatus : null}
         />
       ) : busy ? (
         <AgentMessage
@@ -573,6 +593,7 @@ function AgentMessage({
   time,
   incomplete,
   statusLabel,
+  activityLabel,
   offers,
 }: {
   content: string;
@@ -580,6 +601,8 @@ function AgentMessage({
   incomplete?: boolean;
   /** Phase label while waiting for the first text delta. */
   statusLabel?: string | null;
+  /** Lookup in progress after some text has already streamed. */
+  activityLabel?: string | null;
   offers?: React.ReactNode;
 }) {
   return (
@@ -607,6 +630,7 @@ function AgentMessage({
               label={AGENT_PHASE_LABEL.thinking}
             />
           )}
+          {activityLabel ? <AgentStatusLabel key={activityLabel} label={activityLabel} /> : null}
           {incomplete ? (
             <p className="mt-2 text-[11px] text-ink-subtle">
               Reply was interrupted.
@@ -638,5 +662,22 @@ function YouMessage({
         <p className="whitespace-pre-wrap">{children}</p>
       </div>
     </div>
+  );
+}
+
+/** A button tap: a quiet line, not a chat bubble, so it never reads as typed text. */
+function YouTapped({
+  children,
+  time,
+}: {
+  children: React.ReactNode;
+  time: string;
+}) {
+  return (
+    <p className="ml-auto max-w-[min(88%,42rem)] self-end text-right text-[12px] leading-snug break-words text-ink-subtle">
+      <span className="sr-only">You tapped: </span>
+      {children}
+      {time ? <span className="ml-1.5">· {time}</span> : null}
+    </p>
   );
 }

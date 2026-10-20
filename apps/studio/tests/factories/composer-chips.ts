@@ -16,7 +16,7 @@ export function makeChipActions(): FakeChipActions {
     setPartyRole: vi.fn(),
     addTraveller: vi.fn(),
     confirmTravellers: vi.fn(),
-    sendTripChat: vi.fn(),
+    sendTripAction: vi.fn(),
     assignClient: vi.fn(),
     chooseClient: vi.fn(),
     saveTripDates: vi.fn(),
@@ -41,7 +41,7 @@ export function makeChipActions(): FakeChipActions {
     commitOptionsText: vi.fn(),
     commitPdfEdits: vi.fn(),
     openOptionsQuote: vi.fn(),
-    handleSend: vi.fn(),
+    declineOffer: vi.fn(),
   };
 }
 

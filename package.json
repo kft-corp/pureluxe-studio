@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "test:unit": "vitest run --project \"*:unit\"",
     "test:studio": "vitest run --project \"studio:*\"",
+    "eval:agent": "pnpm --filter @pureluxe/studio eval:agent",
     "start": "pnpm --filter @pureluxe/studio start"
   },
   "engines": {

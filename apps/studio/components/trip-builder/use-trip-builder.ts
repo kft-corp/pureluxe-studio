@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
+
 import { answerPriceQuestion, markupPercentFromNotes } from "@/lib/rates/price-math";
 import { questionUsesRatePack } from "@/lib/rates/rate-search-pack";
 import { pageRoutes } from "@/lib/routes";
@@ -50,7 +52,7 @@ import { useTripParty } from "./hooks/use-trip-party";
 import { useTripRates } from "./hooks/use-trip-rates";
 import { useTripSession } from "./hooks/use-trip-session";
 import { useTripStays } from "./hooks/use-trip-stays";
-import { readReply } from "./offer-reply";
+import { DECLINE_LABELS, DECLINE_REPLIES, readReply } from "./offer-reply";
 import { buildQuoteBreakup } from "./quote-price";
 import {
   findOverlappingStay,
@@ -111,10 +113,18 @@ export function useTripBuilder(options: UseTripBuilderOptions) {
     hasMoreMessages,
     streamingContent,
     agentPhase,
+    agentProgress,
     loadOlderMessages,
     sendHomeChat,
     sendTripChat,
+    sendTripAction,
     appendTurn,
+    beginTap,
+    clearTap,
+    queuedCount,
+    queuePaused,
+    enqueueMessage,
+    dequeueMessage,
   } = chat;
   const { pending, openTrip, newChat, createTrip, openTripPage, promptCreateTrip } = session;
   const {
@@ -171,6 +181,7 @@ export function useTripBuilder(options: UseTripBuilderOptions) {
   /**
    * Routes one typed message. The sections run in this order and the first one that
    * handles the message returns, so a new intent has to sit in the right section.
+   *  0. A reply is still running: queue it; it is sent when the chat is free.
    *  1. No trip open: pre-trip chat.
    *  2. A room is waiting for its client price.
    *  3. Any other new message clears the chips on offer.
@@ -186,6 +197,13 @@ export function useTripBuilder(options: UseTripBuilderOptions) {
   async function handleSend(text: string) {
     const message = text.trim();
     if (!message || !canWrite) return;
+
+    // 0. A reply is still running.
+    if (chatBusy) {
+      enqueueMessage(message);
+      return;
+    }
+    clearTap();
 
     // 1. No trip open: pre-trip chat.
     if (!detail) {
@@ -953,9 +971,34 @@ export function useTripBuilder(options: UseTripBuilderOptions) {
     await sendTripChat(message);
   }
 
-  // The chip actions read refs only when a chip is tapped, not while rendering.
-  // eslint-disable-next-line react-hooks/refs
-  const { chips, rateCards } = buildComposerChips({
+  /** The "no" chip: closes the open question directly, without reading any text. */
+  function declineOffer() {
+    const open = offer;
+    if (!open) return;
+    setOffer(null);
+    setQuietChips(false);
+    if (open.type === "add-option") setPendingOptionDraft(null);
+    void appendTurn(DECLINE_LABELS[open.type], DECLINE_REPLIES[open.type]);
+  }
+
+  // Send what was typed during a reply once the chat is free, one message at a time.
+  // Runs after every render so the router always sees the latest trip state.
+  const flushingRef = useRef(false);
+  const [, setFlushTick] = useState(0);
+  useEffect(() => {
+    if (flushingRef.current || chatBusy || busy || pending || queuePaused || queuedCount === 0) {
+      return;
+    }
+    const next = dequeueMessage();
+    if (!next) return;
+    flushingRef.current = true;
+    void handleSend(next).finally(() => {
+      flushingRef.current = false;
+      setFlushTick((tick) => tick + 1);
+    });
+  });
+
+  const built = buildComposerChips({
     detail,
     canWrite,
     quoteFrozen,
@@ -979,7 +1022,7 @@ export function useTripBuilder(options: UseTripBuilderOptions) {
       setPartyRole,
       addTraveller,
       confirmTravellers,
-      sendTripChat,
+      sendTripAction,
       assignClient,
       chooseClient,
       saveTripDates,
@@ -1004,9 +1047,32 @@ export function useTripBuilder(options: UseTripBuilderOptions) {
       commitOptionsText,
       commitPdfEdits,
       openOptionsQuote,
-      handleSend,
+      declineOffer,
     },
   });
+  // A tap marks the chat line it writes as a button tap, never as typed text.
+  const chips: TripBuilderChip[] = built.chips.map((chip) => ({
+    ...chip,
+    onClick: () => {
+      beginTap(chip.id);
+      chip.onClick();
+    },
+  }));
+  const rateCards = built.rateCards.map((card) => ({
+    ...card,
+    onAddToOptions: card.onAddToOptions
+      ? () => {
+          beginTap(`${card.id}:add`);
+          card.onAddToOptions?.();
+        }
+      : undefined,
+    onSelect: card.onSelect
+      ? () => {
+          beginTap(`${card.id}:select`);
+          card.onSelect?.();
+        }
+      : undefined,
+  }));
   const homeChips: TripBuilderChip[] = [];
 
   return {
@@ -1023,6 +1089,8 @@ export function useTripBuilder(options: UseTripBuilderOptions) {
     hasMoreMessages,
     streamingContent,
     agentPhase,
+    agentProgress,
+    queuedCount,
     chips,
     rateCards,
     stayNotes: rateOptions.length > 0 ? rateStayNotes : null,

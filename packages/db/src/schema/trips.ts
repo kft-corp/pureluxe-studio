@@ -57,6 +57,9 @@ export type TripChatRole = "user" | "assistant";
 
 export type TripChatMode = "discover" | "execute";
 
+/** text = typed or agent reply; action = button tap; event = system line (Undo). */
+export type TripChatKind = "text" | "action" | "event";
+
 export type TripPendingConfirmStatus =
   | "pending"
   | "consumed"
@@ -97,6 +100,9 @@ export type Trip = {
   archived_by_id: string | null;
   last_studio_message_at: string | null;
   last_studio_message_preview: string | null;
+  /** Agent run holding this trip. Null when no run is in progress. */
+  agent_run_id: string | null;
+  agent_run_expires_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -210,12 +216,17 @@ export type TripChatMessage = {
   channel: TripChatChannel;
   team_member_id: string | null;
   role: TripChatRole;
+  kind: TripChatKind;
   content: string;
+  /** Structured data for action / event rows. */
+  payload: Record<string, unknown> | null;
   tool_calls: unknown | null;
   mode: TripChatMode | null;
   is_demo: boolean;
   incomplete: boolean;
   client_request_id: string | null;
+  /** Agent run behind this reply. */
+  trace_id: string | null;
   created_at: string;
 };
 

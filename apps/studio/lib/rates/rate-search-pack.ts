@@ -2,45 +2,6 @@ import type { NormalizedRateOption } from "@pureluxe/rates";
 
 import { clientPriceAtMarkup, formatRoomMoney, markupPercentFromNotes } from "./price-math";
 
-/** How long the last hotel search stays available for follow-up questions. */
-const PACK_TTL_MS = 30 * 60 * 1000;
-
-type StoredPack = {
-  expiresAt: number;
-  notes: string;
-};
-
-const packs = new Map<string, StoredPack>();
-
-/**
- * Keep the filtered hotel rows from the last rate search.
- * A later question about that hotel reads this instead of searching again.
- */
-export function rememberRateSearchPack(tripId: string, notes: string) {
-  const text = notes.trim();
-  if (!text) {
-    packs.delete(tripId);
-    return;
-  }
-  packs.set(tripId, { notes: text, expiresAt: Date.now() + PACK_TTL_MS });
-}
-
-/** Drop the last search when the trip, stay, or rate is written. */
-export function clearRateSearchPack(tripId: string) {
-  packs.delete(tripId);
-}
-
-/** Notes for a follow-up about the hotel that was just searched. Null when none are warm. */
-export function readRateSearchPack(tripId: string): string | null {
-  const hit = packs.get(tripId);
-  if (!hit) return null;
-  if (hit.expiresAt <= Date.now()) {
-    packs.delete(tripId);
-    return null;
-  }
-  return hit.notes;
-}
-
 /**
  * A question about the hotel, the rooms, or the rules on the last search.
  * A request to search again is not one.

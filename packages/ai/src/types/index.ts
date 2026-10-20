@@ -1,4 +1,4 @@
-import type { TripToolHandlers } from "../tools";
+import type { TripToolHandlers, TurnMeter } from "../tools";
 
 /** Phase 1 Trip Builder stages (matches Studio status strip). */
 export const TRIP_BUILDER_STAGES = [
@@ -127,5 +127,7 @@ export type TripTurnInput = {
   dossierNotes?: string | null;
   /** Filtered rooms and hotel facts from the latest rate search. The reply must not recite it. */
   ratePackNotes?: string | null;
+  /** Records tokens, rounds, tool timings, and time to first text. */
+  meter?: TurnMeter;
 };
 

@@ -33,7 +33,7 @@ export async function removeTripLeg(
 
   await removeStayRecord(trip.id, existing.id, actor);
   await markQuoteStale(trip.id);
-  clearTripDossier(trip.id);
+  await clearTripDossier(trip.id);
   const fresh = (await findTripById(trip.id)) ?? trip;
   return buildTripDetail(fresh);
 }

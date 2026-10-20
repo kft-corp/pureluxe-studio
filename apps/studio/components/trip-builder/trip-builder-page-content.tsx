@@ -31,8 +31,11 @@ export function TripBuilderPageContent({
   });
 
   const stage = resolveTripStage(builder.detail);
-  const composerBusy = builder.busy || builder.chatBusy;
   const tripOpen = Boolean(builder.detail);
+  const queuedNotice =
+    builder.queuedCount > 0
+      ? `${builder.queuedCount === 1 ? "1 message" : `${builder.queuedCount} messages`} queued — sends when the agent finishes.`
+      : undefined;
 
   const helperText = !tripOpen
     ? "Ask about clients anytime. Tap Create trip when ready to build."
@@ -91,6 +94,7 @@ export function TripBuilderPageContent({
               hasMoreMessages={builder.hasMoreMessages}
               streamingContent={builder.streamingContent}
               agentPhase={builder.agentPhase}
+              agentProgress={builder.agentProgress}
               homeChips={builder.homeChips}
               rateCards={builder.rateCards}
               stayNotes={builder.stayNotes}
@@ -107,8 +111,9 @@ export function TripBuilderPageContent({
                 : "Ask about a client — or Create trip when ready…"
             }
             helperText={helperText}
+            notice={queuedNotice}
             chips={builder.chips}
-            disabled={composerBusy || (!canWrite && tripOpen)}
+            disabled={builder.busy || (!canWrite && tripOpen)}
             streaming={builder.chatBusy || builder.busy}
             onSend={(text) => void builder.handleSend(text)}
           />

@@ -46,6 +46,8 @@ export function makeTrip(partial: Partial<Trip> = {}): Trip {
     archived_by_id: null,
     last_studio_message_at: null,
     last_studio_message_preview: null,
+    agent_run_id: null,
+    agent_run_expires_at: null,
     created_at: "2026-10-01T00:00:00.000Z",
     updated_at: "2026-10-01T00:00:00.000Z",
     ...partial,

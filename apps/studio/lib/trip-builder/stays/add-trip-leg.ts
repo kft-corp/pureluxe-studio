@@ -44,7 +44,7 @@ export async function addTripLeg(
   });
 
   await markQuoteStale(trip.id);
-  clearTripDossier(trip.id);
+  await clearTripDossier(trip.id);
   const fresh = (await findTripById(trip.id)) ?? trip;
   return {
     detail: await buildTripDetail(fresh),

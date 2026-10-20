@@ -5,7 +5,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./pg": "./src/client/pg-pool.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
@@ -13,10 +14,12 @@
   "dependencies": {
     "@pureluxe/shared": "workspace:*",
     "@supabase/supabase-js": "^2.57.4",
+    "pg": "8.23.1",
     "zod": "^3.24.2"
   },
   "devDependencies": {
     "@types/node": "^20",
+    "@types/pg": "8.20.0",
     "typescript": "^5"
   }
 }

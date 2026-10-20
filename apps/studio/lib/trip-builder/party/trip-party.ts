@@ -70,7 +70,7 @@ async function finish(
   const trip = await requireEditableTrip(tripId, actor.memberId);
   const detail = await buildTripDetail(trip);
   await syncTripHotelBooking(detail, actor);
-  clearTripDossier(tripId);
+  await clearTripDossier(tripId);
   return detail;
 }
 

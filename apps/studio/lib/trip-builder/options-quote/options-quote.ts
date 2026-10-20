@@ -238,7 +238,7 @@ export async function updateOptionsQuote(
     await updateStayOption(price[1]!, { sell_amount: amount });
   }
   if (priceEdits.length > 0) await markQuoteStale(tripId);
-  clearTripDossier(tripId);
+  await clearTripDossier(tripId);
   return getTripDetail(tripId, actor);
 }
 
@@ -316,7 +316,7 @@ export async function updateSavedStayOption(
     await refreshTripAfterRateChange(row.trip_id, actor);
   }
   if (!accepted) await markQuoteStale(row.trip_id);
-  clearTripDossier(row.trip_id);
+  await clearTripDossier(row.trip_id);
   return getTripDetail(row.trip_id, actor);
 }
 
@@ -394,7 +394,7 @@ export async function generateOptionsQuotePdf(
     });
     await reopenSentQuote(tripId);
     detail = await getTripDetail(tripId, actor);
-    clearTripDossier(tripId);
+    await clearTripDossier(tripId);
     return detail;
   } catch (cause) {
     if (previousStatus === "ready" || previousStatus === "stale") {

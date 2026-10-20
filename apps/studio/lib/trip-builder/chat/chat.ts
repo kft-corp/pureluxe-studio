@@ -1,8 +1,10 @@
 import {
-  streamTripTurn,
+  TRIP_PROMPT_V2_VERSION,
+  createTurnMeter,
+  tripThreadId,
   type AgentPhase,
   type AgentStreamChunk,
-  type ChatHistoryMessage,
+  type TurnMeter,
 } from "@pureluxe/ai";
 import {
   findAssistantReplyAfter,
@@ -10,6 +12,8 @@ import {
   insertTripChatMessage,
   listTripChatMessagesPage,
   updateTripChatMessage,
+  type AgentVersion,
+  type TripChatKind,
   type TripChatMessage,
 } from "@pureluxe/db";
 import {
@@ -20,26 +24,20 @@ import {
   tripMessages,
 } from "@pureluxe/shared";
 
-import { createTripTools, toTripFacts } from "@/lib/ai";
-
-import { questionUsesRatePack, readRateSearchPack } from "@/lib/rates/rate-search-pack";
-
-import { answerAtlasStay } from "../stays/atlas-stay";
-import { getTripDetail } from "../trip/get-trip-detail";
-import {
-  isClientQuestion,
-  isFollowUpFragment,
-  isPlaceQuestion,
-  isTripQuestion,
-  mightNamePlace,
-} from "../intents";
-import { getTripDossier, questionNeedsPlaceLookup } from "./trip-dossier";
 import { requireAssignedTrip } from "../access/require-assigned-trip";
+import { holdTripRunLock, type TripRunLock } from "./agent-run-lock";
+import { streamAgentV1Turn } from "./agent-v1-turn";
+import { prefetchAgentV2, streamAgentV2Turn, type AgentV2Prefetch } from "./agent-v2-turn";
+import { tripAgentVersionFor } from "./agent-version";
+import { advisorRowFields } from "./chat-turn-request";
+import { recordAgentTurn, type AgentTurnOutcome } from "./record-agent-turn";
 
 /** Lean chat row for Studio APIs / UI (studio channel only). */
 export type ChatMessage = {
   id: string;
   role: "user" | "assistant";
+  /** action = a button tap, shown as a small grey line. */
+  kind: TripChatKind;
   content: string;
   incomplete: boolean;
   client_request_id: string | null;
@@ -50,6 +48,8 @@ export type ChatStreamEvent =
   | { type: "meta"; user: ChatMessage }
   | { type: "clients"; clients: { id: string; display_name: string }[] }
   | { type: "status"; phase: AgentPhase }
+  /** What the agent is doing, e.g. "Searching clients…". */
+  | { type: "progress"; label: string }
   | { type: "delta"; text: string }
   | { type: "done"; assistant: ChatMessage }
   | {
@@ -57,44 +57,20 @@ export type ChatStreamEvent =
       user: ChatMessage;
       assistant: ChatMessage;
     }
+  /** Another reply is still running on this trip. Nothing was saved; send again later. */
+  | { type: "busy"; message: string }
   | { type: "error"; message: string };
 
 function toChatMessage(row: TripChatMessage): ChatMessage {
   return {
     id: row.id,
     role: row.role,
+    kind: row.kind,
     content: row.content,
     incomplete: row.incomplete,
     client_request_id: row.client_request_id,
     created_at: row.created_at,
   };
-}
-
-/** Recent user lines, so "what is the visa?" still refers to the name they just gave. */
-function earlierUserText(history: ChatHistoryMessage[]): string {
-  return history
-    .filter((row) => row.role === "user")
-    .slice(-3)
-    .map((row) => row.content.trim())
-    .filter(Boolean)
-    .join("\n");
-}
-
-function toHistory(
-  rows: TripChatMessage[],
-  excludeUserId: string,
-): ChatHistoryMessage[] {
-  return rows
-    .filter(
-      (row) =>
-        row.id !== excludeUserId &&
-        !(row.role === "assistant" && row.incomplete) &&
-        row.content.trim().length > 0,
-    )
-    .map((row) => ({
-      role: row.role,
-      content: row.content,
-    }));
 }
 
 /** Postgres unique_violation — wrapped inside AppError from dbQueryError. */
@@ -152,6 +128,10 @@ type StreamTurn = {
   chunks: AsyncIterable<AgentStreamChunk>;
   complete: (fullText: string) => Promise<ChatMessage>;
   abandon: (partialText: string) => Promise<ChatMessage | null>;
+  /** Stop the agent (the advisor left). */
+  abort: () => void;
+  /** Free the trip and save reply metrics. Call after the last event is sent; never throws. */
+  finish: (outcome: AgentTurnOutcome) => Promise<void>;
 };
 
 type ReplayTurn = {
@@ -160,12 +140,17 @@ type ReplayTurn = {
   assistant: ChatMessage;
 };
 
-export type PreparedChatTurn = StreamTurn | ReplayTurn;
+type BusyTurn = {
+  kind: "busy";
+  message: string;
+};
+
+export type PreparedChatTurn = StreamTurn | ReplayTurn | BusyTurn;
 
 /** The signed-in advisor. Permissions gate the history tools. */
 type ChatActor = { memberId: string; permissions: readonly string[] };
 
-/** Store chat lines on the trip. Does not call the agent. */
+/** Store chat lines on the trip. Does not call the agent. A chip tap is an action line. */
 export async function saveTripChatLines(
   tripId: string,
   lines: TripBuilderChatLinesInput["lines"],
@@ -178,7 +163,9 @@ export async function saveTripChatLines(
       trip_id: tripId,
       channel: "studio",
       role: line.role,
+      kind: line.kind,
       content: line.content,
+      payload: line.kind === "action" ? { action: line.action, via: "chip" } : null,
       team_member_id: actor.memberId,
     });
     saved.push(toChatMessage(row));
@@ -187,52 +174,77 @@ export async function saveTripChatLines(
 }
 
 /**
- * Persist (or reuse) the user message, then prepare a Claude stream.
- * Idempotent on client_request_id — completed turns replay; incomplete retries re-stream.
+ * Persist (or reuse) the advisor turn, then prepare the agent stream.
+ * Idempotent on client_request_id — completed turns replay; unfinished retries re-stream.
+ * Agent v2 holds the trip's run lock; a second message while it runs gets a busy reply.
  */
 export async function prepareChatTurn(
   tripId: string,
   input: TripBuilderChatSendInput,
   actor: ChatActor,
 ): Promise<PreparedChatTurn> {
-  await requireAssignedTrip(tripId, actor.memberId);
-
-  const existing = await findTripChatMessageByClientRequestId(
-    tripId,
-    input.client_request_id,
-  );
-
-  if (existing) {
-    return resumeFromExistingUser(tripId, existing, actor);
+  const meter = createTurnMeter();
+  const version = tripAgentVersionFor(actor.memberId);
+  if (input.kind === "resume" && version === "v1") {
+    throw new AppError({
+      userMessage: tripMessages.error.agentNoApproval,
+      code: "trips.chat_no_pending_approval",
+      status: 409,
+    });
   }
 
-  try {
-    const user = await insertTripChatMessage({
-      trip_id: tripId,
-      channel: "studio",
-      role: "user",
-      content: input.message,
-      team_member_id: actor.memberId,
-      client_request_id: input.client_request_id,
-    });
-    return buildStreamTurn(tripId, user, actor, null);
-  } catch (cause) {
-    if (!isUniqueViolation(cause)) throw cause;
+  // Independent reads: the send-key lookup is only used once access is confirmed.
+  const [, existing] = await Promise.all([
+    requireAssignedTrip(tripId, actor.memberId),
+    findTripChatMessageByClientRequestId(tripId, input.client_request_id),
+  ]);
+  meter.mark("access");
+  const replay = existing ? await findReplay(tripId, existing) : null;
+  if (replay) return replay;
 
-    const raced = await findTripChatMessageByClientRequestId(
+  // The trip loads while the lock is taken and the message is saved.
+  const prefetch = version === "v2" ? prefetchAgentV2(tripId, actor) : null;
+  const lock = version === "v2" ? await holdTripRunLock(tripId) : null;
+  if (version === "v2" && !lock) {
+    return { kind: "busy", message: tripMessages.error.agentBusy };
+  }
+  meter.mark("lock");
+
+  try {
+    if (existing) {
+      const draft = await findAssistantReplyAfter(tripId, "studio", existing.created_at);
+      meter.mark("saved");
+      return buildStreamTurn({
+        tripId,
+        userRow: existing,
+        draftAssistant: draft?.incomplete ? draft : null,
+        retry: true,
+        actor,
+        prefetch,
+        lock,
+        meter,
+      });
+    }
+    const user = await insertAdvisorTurn(tripId, input, actor);
+    meter.mark("saved");
+    return buildStreamTurn({
       tripId,
-      input.client_request_id,
-    );
-    if (!raced) throw cause;
-    return resumeFromExistingUser(tripId, raced, actor);
+      userRow: user.row,
+      draftAssistant: null,
+      retry: user.raced,
+      actor,
+      prefetch,
+      lock,
+      meter,
+    });
+  } catch (cause) {
+    await lock?.release();
+    throw cause;
   }
 }
 
-async function resumeFromExistingUser(
-  tripId: string,
-  existing: TripChatMessage,
-  actor: ChatActor,
-): Promise<PreparedChatTurn> {
+/** A finished reply for this send key, replayed instead of running the agent again. */
+async function findReplay(tripId: string, existing: TripChatMessage): Promise<ReplayTurn | null> {
   if (existing.role !== "user") {
     throw new AppError({
       userMessage: tripMessages.error.chatSendFailed,
@@ -241,153 +253,107 @@ async function resumeFromExistingUser(
     });
   }
 
-  const assistant = await findAssistantReplyAfter(
-    tripId,
-    "studio",
-    existing.created_at,
-  );
-
-  if (assistant && !assistant.incomplete && assistant.content.trim()) {
-    return {
-      kind: "replay",
-      user: toChatMessage(existing),
-      assistant: toChatMessage(assistant),
-    };
-  }
-
-  // Re-stream; reuse incomplete assistant row when present so we don't duplicate.
-  return buildStreamTurn(
-    tripId,
-    existing,
-    actor,
-    assistant?.incomplete ? assistant : null,
-  );
+  const assistant = await findAssistantReplyAfter(tripId, "studio", existing.created_at);
+  if (!assistant || assistant.incomplete || !assistant.content.trim()) return null;
+  return { kind: "replay", user: toChatMessage(existing), assistant: toChatMessage(assistant) };
 }
 
-async function buildStreamTurn(
+/** Insert the advisor row. A concurrent send with the same key reuses the first row. */
+async function insertAdvisorTurn(
   tripId: string,
-  userRow: TripChatMessage,
+  input: TripBuilderChatSendInput,
   actor: ChatActor,
-  draftAssistant: TripChatMessage | null,
-): Promise<StreamTurn> {
-  const detail = await getTripDetail(tripId, actor);
-  const dossier = await getTripDossier(tripId, actor, detail);
-  const { messages: rows } = await listTripChatMessagesPage(tripId, "studio", {
-    limit: 40,
-  });
-  const history = toHistory(rows, userRow.id);
-  const stays = detail.stays.length > 0 ? detail.stays : detail.stay ? [detail.stay] : [];
-  const cityHint =
-    stays.find((stay) => stay.city.trim() && !stay.property_name?.trim())?.city ??
-    stays.find((stay) => stay.city.trim())?.city ??
-    null;
-  const ratePack = readRateSearchPack(tripId);
-  const placeQuestion = isPlaceQuestion(userRow.content);
-  const followUp = isFollowUpFragment(userRow.content);
-  const editingTrip =
-    !placeQuestion &&
-    /\b(?:change|move|update|edit|set|shift|correct|remove|add)\b/i.test(userRow.content) &&
-    /\b(?:dates?|start|end|stay|hotel|city|check[\s-]?in|check[\s-]?out|rooms?)\b/i.test(
-      userRow.content,
-    );
-  const lookupPlace =
-    !editingTrip &&
-    !isClientQuestion(userRow.content) &&
-    (placeQuestion ||
-      mightNamePlace(userRow.content) ||
-      followUp ||
-      questionNeedsPlaceLookup(dossier.placeNames) ||
-      (Boolean(cityHint) && isTripQuestion(userRow.content)));
-  const namedOnly =
-    mightNamePlace(userRow.content) &&
-    !/\d/.test(userRow.content) &&
-    !/\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|start|end)\b/i.test(
-      userRow.content,
-    );
-  const atlas = lookupPlace
-    ? await answerAtlasStay({
-        question: userRow.content,
-        cityHint,
-        earlier: earlierUserText(history),
-      })
-    : { matched: false, answer: "", hotels: [], place: { city: null, country: null } };
-  const atlasNotes = atlas.matched
-    ? atlas.answer
-    : namedOnly
-      ? "No stored notes matched this name. Say PureLuxe doesn't have that. Do not say file. Do not describe the place or hotel from general knowledge."
-      : null;
-
-  async function* chunks(): AsyncGenerator<AgentStreamChunk> {
-    yield* streamTripTurn({
-      tripId,
-      memberId: actor.memberId,
-      message: userRow.content,
-      trip: toTripFacts(detail, dossier.readiness),
-      history,
-      clientRequestId: userRow.client_request_id,
-      atlasNotes,
-      dossierNotes: dossier.notes,
-      ratePackNotes:
-        !isClientQuestion(userRow.content) &&
-        !editingTrip &&
-        (questionUsesRatePack(userRow.content) || placeQuestion || followUp)
-          ? ratePack
-          : null,
-      tools: createTripTools({
-        tripId,
-        memberId: actor.memberId,
-        permissions: actor.permissions,
-        readiness: dossier.readiness,
-      }),
+): Promise<{ row: TripChatMessage; raced: boolean }> {
+  try {
+    const row = await insertTripChatMessage({
+      trip_id: tripId,
+      channel: "studio",
+      role: "user",
+      ...advisorRowFields(input),
+      team_member_id: actor.memberId,
+      client_request_id: input.client_request_id,
     });
+    return { row, raced: false };
+  } catch (cause) {
+    if (!isUniqueViolation(cause)) throw cause;
+    const raced = await findTripChatMessageByClientRequestId(tripId, input.client_request_id);
+    if (!raced) throw cause;
+    return { row: raced, raced: true };
+  }
+}
+
+function buildStreamTurn(input: {
+  tripId: string;
+  userRow: TripChatMessage;
+  draftAssistant: TripChatMessage | null;
+  retry: boolean;
+  actor: ChatActor;
+  /** Set for agent v2: its handlers and the trip facts already loading. Null runs v1. */
+  prefetch: AgentV2Prefetch | null;
+  lock: TripRunLock | null;
+  /** Started with the request, so timings include access, lock and saving. */
+  meter: TurnMeter;
+}): StreamTurn {
+  const { tripId, userRow, draftAssistant, actor, prefetch, lock, meter } = input;
+  const version: AgentVersion = prefetch ? "v2" : "v1";
+  const controller = new AbortController();
+  const traceId = lock?.runId ?? null;
+
+  const chunks = prefetch
+    ? streamAgentV2Turn({
+        tripId,
+        userRow,
+        prefetch,
+        meter,
+        retry: input.retry,
+        signal: controller.signal,
+      })
+    : streamAgentV1Turn({ tripId, userRow, message: userRow.content, actor, meter });
+
+  async function saveAssistant(content: string, incomplete: boolean): Promise<ChatMessage> {
+    if (draftAssistant) {
+      const row = await updateTripChatMessage(draftAssistant.id, {
+        content,
+        incomplete,
+        trace_id: traceId,
+      });
+      return toChatMessage(row);
+    }
+    const row = await insertTripChatMessage({
+      trip_id: tripId,
+      channel: "studio",
+      role: "assistant",
+      content,
+      incomplete,
+      trace_id: traceId,
+    });
+    return toChatMessage(row);
   }
 
   return {
     kind: "stream",
     user: toChatMessage(userRow),
-    chunks: chunks(),
-    complete: async (fullText) => {
-      const content =
-        fullText.trim() || "I couldn't generate a reply. Please try again.";
-
-      if (draftAssistant) {
-        const assistant = await updateTripChatMessage(draftAssistant.id, {
-          content,
-          incomplete: false,
-        });
-        return toChatMessage(assistant);
-      }
-
-      const assistant = await insertTripChatMessage({
-        trip_id: tripId,
-        channel: "studio",
-        role: "assistant",
-        content,
-        incomplete: false,
-      });
-      return toChatMessage(assistant);
-    },
+    chunks,
+    complete: (fullText) =>
+      saveAssistant(fullText.trim() || "I couldn't generate a reply. Please try again.", false),
     abandon: async (partialText) => {
-      const content = partialText.trim();
-      if (!content && !draftAssistant) return null;
-
-      if (draftAssistant) {
-        const assistant = await updateTripChatMessage(draftAssistant.id, {
-          content: content || draftAssistant.content,
-          incomplete: true,
-        });
-        return toChatMessage(assistant);
-      }
-
-      if (!content) return null;
-      const assistant = await insertTripChatMessage({
-        trip_id: tripId,
-        channel: "studio",
-        role: "assistant",
-        content,
-        incomplete: true,
+      const content = partialText.trim() || draftAssistant?.content || "";
+      return content ? saveAssistant(content, true) : null;
+    },
+    abort: () => controller.abort(),
+    finish: async (outcome) => {
+      await lock?.release();
+      await recordAgentTurn({
+        meter,
+        outcome,
+        channel: "trip",
+        tripId,
+        memberId: actor.memberId,
+        clientRequestId: userRow.client_request_id,
+        agentVersion: version,
+        threadId: version === "v2" ? tripThreadId(tripId) : null,
+        promptVersion: version === "v2" ? TRIP_PROMPT_V2_VERSION : null,
       });
-      return toChatMessage(assistant);
     },
   };
 }

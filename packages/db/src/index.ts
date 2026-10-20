@@ -281,6 +281,16 @@ export {
   type UpdateClientDocumentRecord,
   type UpdateClientPreferenceRecord,
   type UpdateClientRecord,
+  beginAgentRun,
+  endAgentRun,
+  insertAgentTurn,
+  type InsertAgentTurnInput,
+  expireRateSearches,
+  findLatestRateSearch,
+  insertRateSearch,
+  type InsertRateSearchEventInput,
+  type InsertRateSearchResultInput,
+  type StoredRateSearch,
 } from "./queries";
 export {
   buildClientDocumentPath,
@@ -296,6 +306,11 @@ export {
 } from "./storage";
 export {
   DEFAULT_STUDIO_ROLE_SLUGS,
+  type AgentTurn,
+  type AgentTurnChannel,
+  type AgentTurnStatus,
+  type AgentTurnToolCall,
+  type AgentVersion,
   type Booking,
   type BookingAuditLog,
   type BookingAuditPerformedBy,
@@ -385,6 +400,9 @@ export {
   type PropertySupplierCode,
   type RatePeakWindow,
   type RateSearchEvent,
+  type RateSearchEventStatus,
+  type RateSearchResult,
+  type RateSearchResultAvailability,
   type RateSourceChannelFlag,
   type RateSourceCode,
   type RateSourcesSetting,
@@ -400,6 +418,7 @@ export {
   type TripAttachmentPurpose,
   type TripAttentionSnooze,
   type TripChatChannel,
+  type TripChatKind,
   type TripChatMessage,
   type TripChatMode,
   type TripChatRole,
@@ -428,7 +447,11 @@ export {
   type TripUndoAction,
 } from "./schema";
 export {
+  databaseEnvSchema,
+  getDatabaseEnv,
   getSupabaseEnv,
+  hasDatabaseUrl,
   supabaseEnvSchema,
+  type DatabaseEnv,
   type SupabaseEnv,
 } from "./validation";

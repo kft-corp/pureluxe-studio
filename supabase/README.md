@@ -110,7 +110,8 @@ Creates Rate Layer **Layers 1–4** schema. Seeds only system defaults that must
 | `property_contracted_rates` | Layer 1 room/package rates |
 | `property_rate_addons` | Transfers, tax, meals, drinks, festive |
 | `property_contract_offers` | % off / free HB / family-style offers |
-| `rate_search_events` | Optional resolveRates audit |
+| `rate_search_events` | Trip rate searches, kept for follow-up questions until `expires_at` (018) |
+| `rate_search_results` | One row per room offer from a search; the id is the agent's `rate_ref` (018) |
 | Permissions | `rates.search`, `settings.rate_sources`, `knowledge.*`, `settings.knowledge_base` |
 
 Optional Rate Layer rows: [`migrations/seeds/011_rate_layer.sql`](migrations/seeds/011_rate_layer.sql).  

@@ -105,9 +105,12 @@ export {
 export {
   computeContractedStayCost,
   contractedRateCoversStay,
+  expireRateSearches,
   findActiveDestinationProfileById,
   findActivePropertyById,
   findActivePropertyWithSupplierCodes,
+  findLatestRateSearch,
+  insertRateSearch,
   searchActivePropertiesByName,
   findActiveRoutingOverride,
   findDestinationProfileByText,
@@ -132,10 +135,13 @@ export {
   upsertRateSourcesSetting,
   type ComputeContractedStayCostInput,
   type FindContractedRateInput,
+  type InsertRateSearchEventInput,
+  type InsertRateSearchResultInput,
   type ListContractRowsForStayInput,
   type ListPeakWindowsInput,
   type KnowledgeBaseSettingPatch,
   type PropertyWithSupplierCodes,
+  type StoredRateSearch,
 } from "./rates";
 export {
   applyKbResolveCandidatesForLeg,
@@ -295,3 +301,9 @@ export {
   type UpsertFirstTripLegInput,
   type UpsertStayShellInput,
 } from "./trips";
+export {
+  beginAgentRun,
+  endAgentRun,
+  insertAgentTurn,
+  type InsertAgentTurnInput,
+} from "./agent";

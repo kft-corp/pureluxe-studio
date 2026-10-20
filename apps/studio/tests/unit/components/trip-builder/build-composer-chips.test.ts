@@ -119,9 +119,11 @@ describe("buildComposerChips", () => {
       );
 
       chip(chips, "past-trips").onClick();
-      expect(input.actions.sendTripChat).toHaveBeenCalledWith(
-        "Show past trips and bookings for Sarah Chen.",
-      );
+      expect(input.actions.sendTripAction).toHaveBeenCalledWith({
+        action: "history_search_trips",
+        args: { client_id: "c1" },
+        label: "Past trips for Sarah Chen",
+      });
     });
 
     it("leads with the party-done chip when there is no household", () => {
@@ -161,7 +163,7 @@ describe("buildComposerChips", () => {
       expect(input.actions.saveTripDates).toHaveBeenCalledWith(dates);
 
       chips[1]!.onClick();
-      expect(input.actions.handleSend).toHaveBeenCalledWith("No");
+      expect(input.actions.declineOffer).toHaveBeenCalledOnce();
     });
 
     it("labels a trip shift with the new dates and marks it as danger", () => {

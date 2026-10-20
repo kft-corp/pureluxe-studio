@@ -1,4 +1,4 @@
-import { streamPreTripTurn } from "@pureluxe/ai";
+import { createTurnMeter, streamPreTripTurn } from "@pureluxe/ai";
 import { AppError, tripMessages, type TripBuilderPreTripChatSendInput } from "@pureluxe/shared";
 
 import type { DeskActor } from "@/lib/ai/create-desk-tools";
@@ -6,6 +6,7 @@ import { createPreTripTools } from "@/lib/ai/create-pre-trip-tools";
 
 import type { ChatMessage, ChatStreamEvent } from "./chat";
 import { encodeChatStreamEvent } from "./chat-stream";
+import { recordAgentTurn, type AgentTurnOutcome } from "./record-agent-turn";
 
 function makeLocalMessage(
   role: "user" | "assistant",
@@ -15,6 +16,7 @@ function makeLocalMessage(
   return {
     id: `pretrip-${crypto.randomUUID()}`,
     role,
+    kind: "text",
     content,
     incomplete: false,
     client_request_id: clientRequestId,
@@ -38,6 +40,17 @@ export function createPreTripChatStream(
     .filter((row) => row.content.trim().length > 0)
     .map((row) => ({ role: row.role, content: row.content }));
 
+  const meter = createTurnMeter();
+  const finish = (outcome: AgentTurnOutcome) =>
+    recordAgentTurn({
+      meter,
+      outcome,
+      channel: "home",
+      tripId: null,
+      memberId: actor.memberId,
+      clientRequestId: input.client_request_id,
+    });
+
   return new ReadableStream<Uint8Array>({
     async start(controller) {
       const send = (event: ChatStreamEvent) => {
@@ -54,9 +67,14 @@ export function createPreTripChatStream(
           handlers: createPreTripTools(actor, (clients) => {
             send({ type: "clients", clients });
           }),
+          meter,
         })) {
           if (chunk.kind === "status") {
             send({ type: "status", phase: chunk.phase });
+            continue;
+          }
+          if (chunk.kind === "progress") {
+            send({ type: "progress", label: chunk.label });
             continue;
           }
           fullText += chunk.text;
@@ -71,6 +89,7 @@ export function createPreTripChatStream(
               "I couldn't generate a reply. Please try again.",
           ),
         });
+        await finish({ status: "ok" });
         controller.close();
       } catch (cause) {
         send({
@@ -80,6 +99,7 @@ export function createPreTripChatStream(
               ? cause.userMessage
               : tripMessages.error.aiFailed,
         });
+        await finish({ status: "error", cause });
         controller.close();
       }
     },

@@ -10,14 +10,21 @@ export function encodeChatStreamEvent(event: ChatStreamEvent): Uint8Array {
 /**
  * Pipe a prepared chat turn into an NDJSON ReadableStream.
  * Pre-stream failures should be handled by the route as JSON errors.
+ * When the advisor leaves mid-reply the agent is stopped; the partial reply is kept.
  */
 export function createChatStream(
   prepared: PreparedChatTurn,
 ): ReadableStream<Uint8Array> {
+  let cancelled = false;
+
   return new ReadableStream<Uint8Array>({
     async start(controller) {
       const send = (event: ChatStreamEvent) => {
+        if (cancelled) return;
         controller.enqueue(encodeChatStreamEvent(event));
+      };
+      const close = () => {
+        if (!cancelled) controller.close();
       };
 
       try {
@@ -27,7 +34,13 @@ export function createChatStream(
             user: prepared.user,
             assistant: prepared.assistant,
           });
-          controller.close();
+          close();
+          return;
+        }
+
+        if (prepared.kind === "busy") {
+          send({ type: "busy", message: prepared.message });
+          close();
           return;
         }
 
@@ -40,11 +53,16 @@ export function createChatStream(
               send({ type: "status", phase: chunk.phase });
               continue;
             }
+            if (chunk.kind === "progress") {
+              send({ type: "progress", label: chunk.label });
+              continue;
+            }
             full += chunk.text;
             send({ type: "delta", text: chunk.text });
           }
           const assistant = await prepared.complete(full);
           send({ type: "done", assistant });
+          await prepared.finish({ status: "ok" });
         } catch (cause) {
           await prepared.abandon(full).catch(() => null);
           send({
@@ -54,9 +72,10 @@ export function createChatStream(
                 ? cause.userMessage
                 : tripMessages.error.aiFailed,
           });
+          await prepared.finish({ status: cancelled ? "aborted" : "error", cause });
         }
 
-        controller.close();
+        close();
       } catch (cause) {
         send({
           type: "error",
@@ -65,8 +84,12 @@ export function createChatStream(
               ? cause.userMessage
               : tripMessages.error.chatSendFailed,
         });
-        controller.close();
+        close();
       }
+    },
+    cancel() {
+      cancelled = true;
+      if (prepared.kind === "stream") prepared.abort();
     },
   });
 }

@@ -77,7 +77,7 @@ export async function reviseTripLeg(
   await markQuoteStale(trip.id);
   await syncTripCommercials(trip.id);
   const fresh = (await findTripById(trip.id)) ?? trip;
-  clearTripDossier(trip.id);
+  await clearTripDossier(trip.id);
   const detail = await buildTripDetail(fresh);
   const stay = detail.stays.find((item) => item.leg_id === existing.id);
   if (stay?.property_name) {

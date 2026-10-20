@@ -46,3 +46,11 @@ export {
   listActivePeakWindowsForStay,
   type ListPeakWindowsInput,
 } from "./rate-peak-windows";
+export {
+  expireRateSearches,
+  findLatestRateSearch,
+  insertRateSearch,
+  type InsertRateSearchEventInput,
+  type InsertRateSearchResultInput,
+  type StoredRateSearch,
+} from "./rate-searches";

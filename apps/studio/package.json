@@ -9,7 +9,8 @@
     "start": "node --require ./scripts/load-root-env.cjs ./node_modules/next/dist/bin/next start --port 3002",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "eval:agent": "node --require ./scripts/load-root-env.cjs ./node_modules/vitest/vitest.mjs run --config agent-eval.config.mts"
   },
   "dependencies": {
     "@fontsource/source-sans-3": "^5.3.1",

@@ -15,6 +15,8 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+/** Seconds. An agent reply with several lookups takes 20–60 s; saved progress covers the rest. */
+export const maxDuration = 60;
 
 /** List a recent page of studio chat messages for an assigned trip. */
 export const GET = apiRoute<{ id: string }>(

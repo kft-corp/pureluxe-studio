@@ -301,31 +301,83 @@ export type TripBuilderChatListQuery = z.output<
   typeof tripBuilderChatListQuerySchema
 >;
 
+const chatClientRequestIdSchema = z
+  .string()
+  .trim()
+  .min(8, { message: "Missing send key." })
+  .max(128, { message: "Send key is too long." });
+
+/** Short text shown in chat for a button tap or an approval. */
+const chatActionLabelSchema = z
+  .string()
+  .trim()
+  .min(1, { message: "Missing button label." })
+  .max(200, { message: "Button label is too long." });
+
+/** Agent action name, e.g. history_search_trips. */
+const chatActionNameSchema = z
+  .string()
+  .trim()
+  .regex(/^[a-z][a-z0-9_]{1,63}$/, { message: "Unknown action." });
+
+const tripBuilderChatSendUnion = z.discriminatedUnion("kind", [
+  /** Typed message: the agent decides what to do. */
+  z.object({
+    kind: z.literal("message"),
+    message: z
+      .string()
+      .trim()
+      .min(1, { message: "Enter a message." })
+      .max(4000, { message: "Keep the message under 4000 characters." }),
+    client_request_id: chatClientRequestIdSchema,
+  }),
+  /** Button tap: runs that action directly, never read as typed text. */
+  z.object({
+    kind: z.literal("action"),
+    action: chatActionNameSchema,
+    args: z.record(z.unknown()).optional().default({}),
+    label: chatActionLabelSchema,
+    client_request_id: chatClientRequestIdSchema,
+  }),
+  /** Confirm or Cancel on an approval card: the paused agent continues. */
+  z.object({
+    kind: z.literal("resume"),
+    decision: z.enum(["approve", "cancel"]),
+    label: chatActionLabelSchema,
+    client_request_id: chatClientRequestIdSchema,
+  }),
+]);
+
 /**
  * POST /api/trip-builder/trips/[id]/chat
- * Persist user message + stream assistant reply (Slice 2).
+ * Persist the advisor turn + stream the assistant reply (NDJSON).
+ * A body without `kind` is a typed message (older clients).
  */
-export const tripBuilderChatSendSchema = z.object({
-  message: z
-    .string()
-    .trim()
-    .min(1, { message: "Enter a message." })
-    .max(4000, { message: "Keep the message under 4000 characters." }),
-  client_request_id: z
-    .string()
-    .trim()
-    .min(8, { message: "Missing send key." })
-    .max(128, { message: "Send key is too long." }),
-});
+export const tripBuilderChatSendSchema = z.preprocess(
+  (value) =>
+    value && typeof value === "object" && !("kind" in value)
+      ? { ...value, kind: "message" }
+      : value,
+  tripBuilderChatSendUnion,
+);
 
-const tripChatLineSchema = z.object({
-  role: z.enum(["user", "assistant"]),
-  content: z
-    .string()
-    .trim()
-    .min(1, { message: "Enter a message." })
-    .max(8000, { message: "Keep the message under 8000 characters." }),
-});
+const tripChatLineSchema = z
+  .object({
+    role: z.enum(["user", "assistant"]),
+    /** action = a chip tap; content is its label. */
+    kind: z.enum(["text", "action"]).optional().default("text"),
+    /** Chip or action id for an action line. */
+    action: z.string().trim().min(1).max(64).optional(),
+    content: z
+      .string()
+      .trim()
+      .min(1, { message: "Enter a message." })
+      .max(8000, { message: "Keep the message under 8000 characters." }),
+  })
+  .refine((line) => line.kind === "text" || (line.role === "user" && Boolean(line.action)), {
+    message: "An action line needs the advisor role and an action id.",
+    path: ["action"],
+  });
 
 /** Save chat lines onto a trip without starting an agent turn. */
 export const tripBuilderChatLinesSchema = z.object({
@@ -335,10 +387,8 @@ export const tripBuilderChatLinesSchema = z.object({
 export type TripBuilderChatLinesBody = z.input<typeof tripBuilderChatLinesSchema>;
 export type TripBuilderChatLinesInput = z.output<typeof tripBuilderChatLinesSchema>;
 
-export type TripBuilderChatSendBody = z.input<typeof tripBuilderChatSendSchema>;
-export type TripBuilderChatSendInput = z.output<
-  typeof tripBuilderChatSendSchema
->;
+export type TripBuilderChatSendBody = z.input<typeof tripBuilderChatSendUnion>;
+export type TripBuilderChatSendInput = z.output<typeof tripBuilderChatSendUnion>;
 
 const chatHistoryMessageSchema = z.object({
   role: z.enum(["user", "assistant"]),

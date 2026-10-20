@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 
-import type { AgentPhase } from "@pureluxe/ai";
+import type { AgentPhase } from "@pureluxe/ai/chat-stream";
 
 import type { ChatMessage, ChatStreamEvent } from "@/lib/trip-builder";
 
@@ -10,17 +10,18 @@ type ApplyOptions = {
   setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
   setStreamingContent: Dispatch<SetStateAction<string | null>>;
   setAgentPhase: Dispatch<SetStateAction<AgentPhase | null>>;
+  setAgentProgress?: Dispatch<SetStateAction<string | null>>;
   onClients?: (clients: { id: string; display_name: string }[]) => void;
+  /** Another reply is still running on this trip. The turn was not saved. */
+  onBusy?: (message: string) => void;
   onError?: () => void;
   showError: (error: unknown) => void;
 };
 
-function endStream(
-  setStreamingContent: ApplyOptions["setStreamingContent"],
-  setAgentPhase: ApplyOptions["setAgentPhase"],
-) {
-  setStreamingContent(null);
-  setAgentPhase(null);
+function endStream(options: ApplyOptions) {
+  options.setStreamingContent(null);
+  options.setAgentPhase(null);
+  options.setAgentProgress?.(null);
 }
 
 /** Apply one NDJSON chat event to local UI state. */
@@ -31,7 +32,9 @@ export function applyChatStreamEvent(options: ApplyOptions): void {
     setMessages,
     setStreamingContent,
     setAgentPhase,
+    setAgentProgress,
     onClients,
+    onBusy,
     onError,
     showError,
   } = options;
@@ -54,6 +57,11 @@ export function applyChatStreamEvent(options: ApplyOptions): void {
     }
     case "status": {
       setAgentPhase(event.phase);
+      if (event.phase === "writing") setAgentProgress?.(null);
+      return;
+    }
+    case "progress": {
+      setAgentProgress?.(event.label);
       return;
     }
     case "delta": {
@@ -61,7 +69,7 @@ export function applyChatStreamEvent(options: ApplyOptions): void {
       return;
     }
     case "done": {
-      endStream(setStreamingContent, setAgentPhase);
+      endStream(options);
       setMessages((prev) =>
         prev.some((row) => row.id === event.assistant.id)
           ? prev
@@ -70,7 +78,7 @@ export function applyChatStreamEvent(options: ApplyOptions): void {
       return;
     }
     case "replay": {
-      endStream(setStreamingContent, setAgentPhase);
+      endStream(options);
       setMessages((prev) => {
         const without = prev.filter(
           (row) =>
@@ -82,8 +90,14 @@ export function applyChatStreamEvent(options: ApplyOptions): void {
       });
       return;
     }
+    case "busy": {
+      endStream(options);
+      setMessages((prev) => prev.filter((row) => row.id !== optimisticId));
+      onBusy?.(event.message);
+      return;
+    }
     case "error": {
-      endStream(setStreamingContent, setAgentPhase);
+      endStream(options);
       showError(new Error(event.message));
       onError?.();
       return;
@@ -92,13 +106,15 @@ export function applyChatStreamEvent(options: ApplyOptions): void {
 }
 
 export function makeOptimisticUserMessage(
-  message: string,
+  content: string,
   clientRequestId: string,
+  kind: ChatMessage["kind"] = "text",
 ): ChatMessage {
   return {
     id: `local-${clientRequestId}`,
     role: "user",
-    content: message,
+    kind,
+    content,
     incomplete: false,
     client_request_id: clientRequestId,
     created_at: new Date().toISOString(),

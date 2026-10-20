@@ -26,6 +26,7 @@ import {
   type SetTripStayBody,
   type ShiftTripDatesBody,
   type UpdateTripLegBody,
+  type TripBuilderChatLinesBody,
   type TripBuilderChatSendBody,
   type TripBuilderPreTripChatSendBody,
   type UpdateTripBody,
@@ -416,10 +417,10 @@ async function consumeChatNdjsonStream(
   }
 }
 
-/** Persist chat lines on a trip. No agent turn. */
+/** Persist chat lines on a trip. No agent turn. A chip tap is an action line. */
 export function saveTripBuilderChatLines(
   tripId: string,
-  lines: { role: "user" | "assistant"; content: string }[],
+  lines: TripBuilderChatLinesBody["lines"],
 ) {
   return fetchApi<ChatMessage[]>(apiRoutes.tripBuilder.chatLines(tripId), {
     method: "POST",
@@ -429,6 +430,7 @@ export function saveTripBuilderChatLines(
   });
 }
 
+/** Send a typed message, a button action, or an approval resume, and stream the reply. */
 export async function streamTripChat(
   tripId: string,
   input: TripBuilderChatSendBody,

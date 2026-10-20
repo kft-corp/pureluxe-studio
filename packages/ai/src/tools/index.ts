@@ -48,3 +48,11 @@ export {
   type AgentPhase,
   type AgentStreamChunk,
 } from "./stream-chunk";
+export {
+  claudeRoundUsage,
+  createTurnMeter,
+  type AgentToolCallMetric,
+  type AgentTurnMetrics,
+  type ModelRoundUsage,
+  type TurnMeter,
+} from "./turn-meter";

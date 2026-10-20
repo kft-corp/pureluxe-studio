@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { aiError } from "../errors";
+import { aiError, userMessageOf } from "../errors";
 
 import { executeClientTool } from "./clients";
 import type { DeskToolHandlers } from "./handlers";
@@ -9,18 +9,6 @@ import { executeHotelTool } from "./hotels";
 import { executeTripTool, type TripToolHandlers } from "./trip";
 
 type ToolHandlers = DeskToolHandlers | TripToolHandlers;
-
-function userMessageFromError(cause: unknown): string | null {
-  if (
-    cause &&
-    typeof cause === "object" &&
-    "userMessage" in cause &&
-    typeof (cause as { userMessage: unknown }).userMessage === "string"
-  ) {
-    return (cause as { userMessage: string }).userMessage;
-  }
-  return null;
-}
 
 /**
  * Route one tool call to the right domain module.
@@ -58,7 +46,7 @@ export async function executeTool(
     if (cause instanceof z.ZodError) {
       return { error: cause.issues[0]?.message ?? "Invalid tool input." };
     }
-    const userMessage = userMessageFromError(cause);
+    const userMessage = userMessageOf(cause);
     if (userMessage) return { error: userMessage };
     throw aiError({
       userMessage: "A tool failed while answering. Try again.",

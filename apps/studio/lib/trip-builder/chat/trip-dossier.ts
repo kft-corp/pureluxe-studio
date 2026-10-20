@@ -1,3 +1,4 @@
+import { errorCodeOf } from "@pureluxe/ai";
 import {
   findClientById,
   findClientHealth,
@@ -10,7 +11,7 @@ import {
   type ClientPreference,
 } from "@pureluxe/db";
 
-import { clearRateSearchPack } from "@/lib/rates/rate-search-pack";
+import { clearRateSearchPack } from "@/lib/rates/rate-search-store";
 
 import { answerAtlasStay } from "../stays/atlas-stay";
 import { getTripDetail } from "../trip/get-trip-detail";
@@ -35,12 +36,17 @@ type TripPack = TripDossier & {
 const packs = new Map<string, TripPack>();
 
 /**
- * Drop the cached pack after the trip, client, stay, or rate changes.
- * The next question loads a full pack from the database.
+ * Drop the cached pack and close the last rate search after the trip, client,
+ * stay, or rate changes. The next question loads fresh facts.
+ * Never throws: the write that called this has already succeeded.
  */
-export function clearTripDossier(tripId: string) {
+export async function clearTripDossier(tripId: string): Promise<void> {
   packs.delete(tripId);
-  clearRateSearchPack(tripId);
+  try {
+    await clearRateSearchPack(tripId);
+  } catch (cause) {
+    console.error("[rate_search_events] expire failed:", errorCodeOf(cause));
+  }
 }
 
 /**
@@ -68,8 +74,9 @@ export async function getTripDossier(
 export async function getTripReadiness(
   tripId: string,
   actor: { memberId: string },
+  loaded?: TripDetail,
 ): Promise<string[]> {
-  const detail = await getTripDetail(tripId, actor);
+  const detail = loaded ?? (await getTripDetail(tripId, actor));
   const people = await Promise.all(
     peopleOf(detail).map((person) => loadPerson(person.clientId, person.role)),
   );

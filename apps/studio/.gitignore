@@ -12,6 +12,7 @@
 
 # testing
 /coverage
+/tests/ai/results/
 
 # next.js
 /.next/

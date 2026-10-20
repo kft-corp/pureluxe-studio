@@ -207,7 +207,7 @@ export async function setTripStay(
   const fresh = (await findTripById(trip.id)) ?? trip;
   const detail = await buildTripDetail(fresh);
   await syncTripHotelBooking(detail, actor);
-  clearTripDossier(trip.id);
+  await clearTripDossier(trip.id);
   return {
     detail,
     property_match: propertyMatch,

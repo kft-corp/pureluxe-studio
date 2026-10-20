@@ -2,6 +2,7 @@ import { getServiceClient, runSupabaseQuery } from "../../client";
 import { dbQueryError } from "../../errors";
 import type {
   TripChatChannel,
+  TripChatKind,
   TripChatMessage,
   TripChatMode,
   TripChatRole,
@@ -13,12 +14,15 @@ const MESSAGE_COLUMNS = [
   "channel",
   "team_member_id",
   "role",
+  "kind",
   "content",
+  "payload",
   "tool_calls",
   "mode",
   "is_demo",
   "incomplete",
   "client_request_id",
+  "trace_id",
   "created_at",
 ].join(", ");
 
@@ -151,13 +155,17 @@ export type InsertTripChatMessageInput = {
   trip_id: string;
   channel: TripChatChannel;
   role: TripChatRole;
+  /** Defaults to text. A button tap is an action row with its { action, args } payload. */
+  kind?: TripChatKind;
   content: string;
+  payload?: Record<string, unknown> | null;
   team_member_id?: string | null;
   tool_calls?: unknown;
   mode?: TripChatMode | null;
   is_demo?: boolean;
   incomplete?: boolean;
   client_request_id?: string | null;
+  trace_id?: string | null;
 };
 
 /** Insert one chat message row. */
@@ -173,13 +181,16 @@ export async function insertTripChatMessage(
         trip_id: input.trip_id,
         channel: input.channel,
         role: input.role,
+        kind: input.kind ?? "text",
         content: input.content,
+        payload: input.payload ?? null,
         team_member_id: input.team_member_id ?? null,
         tool_calls: input.tool_calls ?? null,
         mode: input.mode ?? null,
         is_demo: input.is_demo ?? false,
         incomplete: input.incomplete ?? false,
         client_request_id: input.client_request_id ?? null,
+        trace_id: input.trace_id ?? null,
       })
       .select(MESSAGE_COLUMNS)
       .single(),
@@ -195,12 +206,13 @@ export async function insertTripChatMessage(
 /** Update assistant content / incomplete flag after a stream finishes. */
 export async function updateTripChatMessage(
   messageId: string,
-  patch: { content?: string; incomplete?: boolean },
+  patch: { content?: string; incomplete?: boolean; trace_id?: string | null },
 ): Promise<TripChatMessage> {
   const supabase = getServiceClient();
   const next: Record<string, unknown> = {};
   if (patch.content !== undefined) next.content = patch.content;
   if (patch.incomplete !== undefined) next.incomplete = patch.incomplete;
+  if (patch.trace_id !== undefined) next.trace_id = patch.trace_id;
 
   const { data, error } = await runSupabaseQuery(() =>
     supabase

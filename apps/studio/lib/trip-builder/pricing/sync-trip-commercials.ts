@@ -109,7 +109,7 @@ export async function refreshTripAfterRateChange(
   actor: { memberId: string },
 ): Promise<void> {
   await syncTripCommercials(tripId);
-  clearTripDossier(tripId);
+  await clearTripDossier(tripId);
   const trip = await findTripById(tripId);
   if (!trip?.primary_client_id) return;
   const detail = await buildTripDetail(trip);

@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 
-import { aiProviderFailedError } from "../errors";
+import { aiProviderFailedError, errorCodeOf } from "../errors";
 import {
   streamClaudeMessage,
   textFromClaudeMessage,
@@ -11,6 +11,7 @@ import { executeTool } from "./execute";
 import type { DeskToolHandlers } from "./handlers";
 import type { AgentStreamChunk } from "./stream-chunk";
 import type { TripToolHandlers } from "./trip";
+import { claudeRoundUsage, type TurnMeter } from "./turn-meter";
 
 const DEFAULT_MAX_ROUNDS = 4;
 
@@ -22,6 +23,8 @@ export type RunAgentLoopInput = {
   maxRounds?: number;
   apiKey?: string;
   model?: string;
+  /** Records tokens, rounds, tool timings, and time to first text. */
+  meter?: TurnMeter;
 };
 
 function toClaudeMessages(
@@ -42,6 +45,7 @@ async function runToolCalls(
   messages: Anthropic.MessageParam[],
   response: Anthropic.Message,
   handlers: DeskToolHandlers | TripToolHandlers,
+  meter?: TurnMeter,
 ): Promise<void> {
   const toolUses = response.content.filter(
     (block): block is Anthropic.ToolUseBlock => block.type === "tool_use",
@@ -51,7 +55,27 @@ async function runToolCalls(
 
   const results: Anthropic.ToolResultBlockParam[] = [];
   for (const toolUse of toolUses) {
-    const result = await executeTool(toolUse.name, toolUse.input, handlers);
+    const started = Date.now();
+    let result: unknown;
+    try {
+      result = await executeTool(toolUse.name, toolUse.input, handlers);
+    } catch (cause) {
+      meter?.addToolCall({
+        name: toolUse.name,
+        ms: Date.now() - started,
+        ok: false,
+        error_code: errorCodeOf(cause),
+      });
+      throw cause;
+    }
+    const failed =
+      result !== null && typeof result === "object" && "error" in result;
+    meter?.addToolCall({
+      name: toolUse.name,
+      ms: Date.now() - started,
+      ok: !failed,
+      error_code: failed ? "tool_error" : null,
+    });
     results.push({
       type: "tool_result",
       tool_use_id: toolUse.id,
@@ -70,27 +94,35 @@ async function* streamModelRound(
     tools?: Anthropic.Tool[];
     apiKey?: string;
     model?: string;
+    meter?: TurnMeter;
   },
 ): AsyncGenerator<AgentStreamChunk, Anthropic.Message, unknown> {
-  const iterator = streamClaudeMessage({
-    system: input.system,
-    messages: input.messages,
-    tools: input.tools,
-    apiKey: input.apiKey,
-    model: input.model,
-  });
+  const stopModel = input.meter?.startModelCall();
+  try {
+    const iterator = streamClaudeMessage({
+      system: input.system,
+      messages: input.messages,
+      tools: input.tools,
+      apiKey: input.apiKey,
+      model: input.model,
+    });
 
-  let firstDelta = true;
-  let step = await iterator.next();
-  while (!step.done) {
-    if (firstDelta) {
-      yield { kind: "status", phase: "writing" };
-      firstDelta = false;
+    let firstDelta = true;
+    let step = await iterator.next();
+    while (!step.done) {
+      if (firstDelta) {
+        input.meter?.markText();
+        yield { kind: "status", phase: "writing" };
+        firstDelta = false;
+      }
+      yield { kind: "delta", text: step.value };
+      step = await iterator.next();
     }
-    yield { kind: "delta", text: step.value };
-    step = await iterator.next();
+    input.meter?.addRound(claudeRoundUsage(step.value));
+    return step.value;
+  } finally {
+    stopModel?.();
   }
-  return step.value;
 }
 
 const TOOL_LIMIT_NOTE =
@@ -114,6 +146,7 @@ export async function* streamAgentLoop(
       tools: input.toolSchemas,
       apiKey: input.apiKey,
       model: input.model,
+      meter: input.meter,
     });
 
     if (!wantsTools(response)) {
@@ -122,7 +155,7 @@ export async function* streamAgentLoop(
     }
 
     yield { kind: "status", phase: "looking_up" };
-    await runToolCalls(messages, response, input.handlers);
+    await runToolCalls(messages, response, input.handlers, input.meter);
   }
 
   const fallback = yield* streamModelRound({
@@ -130,6 +163,7 @@ export async function* streamAgentLoop(
     messages,
     apiKey: input.apiKey,
     model: input.model,
+    meter: input.meter,
   });
 
   if (!textFromClaudeMessage(fallback)) throw aiProviderFailedError();

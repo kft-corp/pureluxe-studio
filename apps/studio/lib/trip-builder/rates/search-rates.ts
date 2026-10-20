@@ -7,10 +7,8 @@ import { requireEditableTrip } from "../access/require-assigned-trip";
 import { loadTripStay } from "../trip/trip-detail";
 
 import { matchPropertyByName } from "@/lib/rates/match-property";
-import {
-  buildRateSearchNotes,
-  rememberRateSearchPack,
-} from "@/lib/rates/rate-search-pack";
+import { buildRateSearchNotes } from "@/lib/rates/rate-search-pack";
+import { saveTripRateSearch } from "@/lib/rates/rate-search-store";
 
 /** Facts already stored for this hotel and these dates. Shown with the rate cards. */
 export type RateStayNotes = {
@@ -106,7 +104,15 @@ export async function searchTripRates(
     payment_summary: option.payment_summary ?? payment,
   }));
   const rateContext = buildRateSearchNotes(options, hotelBrief, stayNotes?.markup ?? null);
-  if (input.trip_id) rememberRateSearchPack(input.trip_id, rateContext);
+  await saveTripRateSearch({
+    search: input,
+    propertyId: propertyId ?? null,
+    memberId: actor.memberId,
+    result,
+    options,
+    hotelBrief,
+    markup: stayNotes?.markup ?? null,
+  });
 
   if (propertyId && result.status === "stub") {
     return {

@@ -140,6 +140,6 @@ export async function updateTrip(
     await syncTripHotelBooking(await buildTripDetail(fresh), actor);
   }
 
-  clearTripDossier(trip.id);
+  await clearTripDossier(trip.id);
   return buildTripDetail((await findTripById(trip.id)) ?? fresh);
 }

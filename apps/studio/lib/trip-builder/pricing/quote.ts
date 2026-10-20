@@ -89,6 +89,6 @@ export async function updateTripQuote(
   if (input.sell_total != null) {
     await syncTripHotelBooking(detail, actor);
   }
-  clearTripDossier(tripId);
+  await clearTripDossier(tripId);
   return { detail, quote: detail.quote };
 }

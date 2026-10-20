@@ -1,8 +1,10 @@
 import { buildTripContext, resolveTripStage } from "../context";
+import { aiProviderFailedError } from "../errors";
 import { buildSystemPrompt } from "../prompts";
-import { streamClaudeText } from "../providers";
+import { streamClaudeMessage, textFromClaudeMessage } from "../providers";
 import {
   TRIP_BUILDER_READ_TOOLS,
+  claudeRoundUsage,
   streamAgentLoop,
   type AgentStreamChunk,
 } from "../tools";
@@ -91,18 +93,30 @@ export async function* streamTripTurn(
       messages,
       handlers: input.tools,
       toolSchemas: TRIP_BUILDER_READ_TOOLS,
+      meter: input.meter,
     });
     return stage;
   }
 
   yield { kind: "status", phase: "thinking" };
-  let firstDelta = true;
-  for await (const text of streamClaudeText({ system, messages })) {
-    if (firstDelta) {
-      yield { kind: "status", phase: "writing" };
-      firstDelta = false;
+  const stopModel = input.meter?.startModelCall();
+  try {
+    const iterator = streamClaudeMessage({ system, messages });
+    let firstDelta = true;
+    let step = await iterator.next();
+    while (!step.done) {
+      if (firstDelta) {
+        input.meter?.markText();
+        yield { kind: "status", phase: "writing" };
+        firstDelta = false;
+      }
+      yield { kind: "delta", text: step.value };
+      step = await iterator.next();
     }
-    yield { kind: "delta", text };
+    input.meter?.addRound(claudeRoundUsage(step.value));
+    if (!textFromClaudeMessage(step.value)) throw aiProviderFailedError();
+    return stage;
+  } finally {
+    stopModel?.();
   }
-  return stage;
 }

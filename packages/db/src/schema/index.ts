@@ -1,3 +1,10 @@
+export type {
+  AgentTurn,
+  AgentTurnChannel,
+  AgentTurnStatus,
+  AgentTurnToolCall,
+  AgentVersion,
+} from "./agent";
 export type { InviteStatus, StudioInvite } from "./studio-invites";
 export {
   type StudioPermissionRecord,
@@ -57,6 +64,9 @@ export type {
   PropertySupplierCode,
   RatePeakWindow,
   RateSearchEvent,
+  RateSearchEventStatus,
+  RateSearchResult,
+  RateSearchResultAvailability,
   RateSourceChannelFlag,
   RateSourceCode,
   RateSourcesSetting,
@@ -104,6 +114,7 @@ export type {
   TripAttachmentPurpose,
   TripAttentionSnooze,
   TripChatChannel,
+  TripChatKind,
   TripChatMessage,
   TripChatMode,
   TripChatRole,

@@ -351,6 +351,13 @@ export type PropertyContractOffer = {
   updated_at: string;
 };
 
+export type RateSearchEventStatus =
+  | "ok"
+  | "empty"
+  | "stub"
+  | "consultant_required"
+  | "error";
+
 /** Row from public.rate_search_events. */
 export type RateSearchEvent = {
   id: string;
@@ -364,5 +371,42 @@ export type RateSearchEvent = {
   sources_tried: unknown[];
   outcome: string | null;
   meta: Record<string, unknown>;
+  check_in: string | null;
+  check_out: string | null;
+  adults: number | null;
+  children: number | null;
+  rooms: number | null;
+  status: RateSearchEventStatus | null;
+  /** Follow-up questions read this search until then. */
+  expires_at: string | null;
+  created_at: string;
+};
+
+export type RateSearchResultAvailability =
+  | "available"
+  | "on_request"
+  | "unknown"
+  | "unavailable";
+
+/** Row from public.rate_search_results — one room offer. The id is the rate_ref. */
+export type RateSearchResult = {
+  id: string;
+  search_event_id: string;
+  rank: number;
+  property_id: string | null;
+  property_name: string | null;
+  room_title: string;
+  board: string | null;
+  /** Advisor cost. Never shown to the client. */
+  team_cost: number;
+  currency: string;
+  rate_source_code: string;
+  availability_status: RateSearchResultAvailability;
+  recommended: boolean;
+  cancellation: string | null;
+  payment: string | null;
+  inclusions: string[];
+  offer_rules: unknown[];
+  raw: Record<string, unknown>;
   created_at: string;
 };

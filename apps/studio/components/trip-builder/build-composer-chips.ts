@@ -5,6 +5,7 @@ import type { TripDetail } from "@/lib/trip-builder";
 import { partyReady, stayDraftReady, type MoneyReply, type StayDraft } from "@/lib/trip-builder/intents";
 
 import { cancellationForStay, explainRate } from "./explain-rate";
+import type { TripChatAction } from "./hooks/use-trip-chat";
 import { DECLINE_LABELS } from "./offer-reply";
 import {
   isRateStage,
@@ -51,7 +52,8 @@ export type ComposerChipActions = {
   setPartyRole: (person: PartyChoice, userLine: string) => Run;
   addTraveller: (person: PartyChoice, userLine: string) => Run;
   confirmTravellers: (userLine: string) => Run;
-  sendTripChat: (message: string) => Run;
+  /** Runs an agent tool directly; the label is all the advisor sees. */
+  sendTripAction: (action: TripChatAction) => Run;
   assignClient: (client: ClientSearchHit) => Run;
   chooseClient: (hit: ClientSearchHit) => void;
   saveTripDates: (dates: TripDatesDraft, dropOutside?: boolean) => Run;
@@ -76,7 +78,8 @@ export type ComposerChipActions = {
   commitOptionsText: (edit: OptionsTextEdit, userLine: string) => Run;
   commitPdfEdits: (matches: PdfLineEdit[], userLine: string) => Run;
   openOptionsQuote: (userLine?: string) => Run;
-  handleSend: (text: string) => Run;
+  /** Says no to the open question without reading any text. */
+  declineOffer: () => Run;
 };
 
 export type ComposerChipsInput = {
@@ -147,7 +150,7 @@ export function buildComposerChips(input: ComposerChipsInput): {
     setPartyRole,
     addTraveller,
     confirmTravellers,
-    sendTripChat,
+    sendTripAction,
     assignClient,
     chooseClient,
     saveTripDates,
@@ -172,7 +175,7 @@ export function buildComposerChips(input: ComposerChipsInput): {
     commitOptionsText,
     commitPdfEdits,
     openOptionsQuote,
-    handleSend,
+    declineOffer,
   } = input.actions;
 
   const stage = resolveTripStage(detail);
@@ -315,12 +318,18 @@ export function buildComposerChips(input: ComposerChipsInput): {
         onClick: () => void confirmTravellers(travellersLabel),
       });
     }
-    const clientName = detail.client.display_name;
+    const client = detail.client;
+    const pastTripsLabel = `Past trips for ${client.display_name}`;
     chips.push({
       id: "past-trips",
-      label: `Past trips for ${clientName}`,
+      label: pastTripsLabel,
       variant: "secondary",
-      onClick: () => void sendTripChat(`Show past trips and bookings for ${clientName}.`),
+      onClick: () =>
+        void sendTripAction({
+          action: "history_search_trips",
+          args: { client_id: client.id },
+          label: pastTripsLabel,
+        }),
     });
   }
 
@@ -745,7 +754,7 @@ export function buildComposerChips(input: ComposerChipsInput): {
       id: "ask-readiness",
       label: "What's missing before booking?",
       variant: "secondary",
-      onClick: () => void sendTripChat("What's missing before booking?"),
+      onClick: () => void sendTripAction({ action: "trip_get", label: "What's missing before booking?" }),
     });
     chips.push({
       id: "open-trip-page",
@@ -757,7 +766,7 @@ export function buildComposerChips(input: ComposerChipsInput): {
 
   const declineLabel = detail && canWrite && offer ? DECLINE_LABELS[offer.type] : undefined;
   const declineChip: TripBuilderChip | null = declineLabel
-    ? { id: "decline", label: declineLabel, variant: "secondary", onClick: () => void handleSend("No") }
+    ? { id: "decline", label: declineLabel, variant: "secondary", onClick: () => void declineOffer() }
     : null;
 
   return { chips: rankChips(chips, declineChip), rateCards };

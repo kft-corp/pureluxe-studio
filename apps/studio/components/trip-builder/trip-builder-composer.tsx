@@ -14,6 +14,8 @@ import {
 type TripBuilderComposerProps = {
   placeholder: string;
   helperText?: string;
+  /** Shown in place of the helper, even while a reply streams (e.g. queued messages). */
+  notice?: string;
   chips?: TripBuilderChip[];
   disabled?: boolean;
   /** When true, hide chips and the helper — typing status lives in the thread only. */
@@ -28,6 +30,7 @@ const VISIBLE_CHIPS = 4;
 export function TripBuilderComposer({
   placeholder,
   helperText = "Type in chat — confirm actions with chips. Rate cards stay on the reply.",
+  notice,
   chips = [],
   disabled,
   streaming = false,
@@ -67,7 +70,7 @@ export function TripBuilderComposer({
   }
 
   const showChips = !streaming && chips.length > 0;
-  const showHelper = !streaming && Boolean(helperText);
+  const helper = notice ?? (streaming ? undefined : helperText);
 
   return (
     <div className="shrink-0 border-t border-border bg-surface-raised px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:px-4 sm:pb-2">
@@ -127,9 +130,12 @@ export function TripBuilderComposer({
           <LuArrowUp className="h-3.5 w-3.5" aria-hidden />
         </button>
       </div>
-      {showHelper ? (
-        <p className="mt-1.5 line-clamp-2 text-[11px] leading-snug text-ink-subtle sm:line-clamp-none">
-          {helperText}
+      {helper ? (
+        <p
+          className="mt-1.5 line-clamp-2 text-[11px] leading-snug text-ink-subtle sm:line-clamp-none"
+          aria-live={notice ? "polite" : undefined}
+        >
+          {helper}
         </p>
       ) : null}
     </div>

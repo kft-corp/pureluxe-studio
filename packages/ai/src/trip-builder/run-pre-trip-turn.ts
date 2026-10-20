@@ -4,6 +4,7 @@ import {
   streamAgentLoop,
   type AgentStreamChunk,
   type DeskToolHandlers,
+  type TurnMeter,
 } from "../tools";
 import type { ChatHistoryMessage } from "../types";
 
@@ -15,6 +16,8 @@ export type PreTripTurnInput = {
   handlers: DeskToolHandlers;
   apiKey?: string;
   model?: string;
+  /** Records tokens, rounds, tool timings, and time to first text. */
+  meter?: TurnMeter;
 };
 
 /** Home chat turn — client, history, and hotel tools. Yields status + text chunks. */
@@ -28,5 +31,6 @@ export async function* streamPreTripTurn(
     toolSchemas: PRE_TRIP_READ_TOOLS,
     apiKey: input.apiKey,
     model: input.model,
+    meter: input.meter,
   });
 }
