@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { LuArrowDown, LuSparkles } from "react-icons/lu";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { LuArrowDown, LuCheck, LuCopy } from "react-icons/lu";
 
 import { AGENT_PHASE_LABEL, type AgentPhase } from "@pureluxe/ai/chat-stream";
 
+import { studioFocusRing } from "@/components/ui";
+import { showWarningToast } from "@/lib/feedback";
 import type { ChatMessage, TripDetail } from "@/lib/trip-builder";
 import { cn } from "@/lib/utils/cn";
 
+import { AgentSparkle } from "./agent-sparkle";
 import { ChatMarkdown } from "./chat-markdown";
 import { resolveTripStage } from "./stages";
 import { TRIP_START_PROMPT } from "./trip-builder-copy";
@@ -17,7 +20,7 @@ import {
   type TripBuilderRateCard as RateCard,
   type TripBuilderStayNotes,
 } from "./trip-builder-rate-card";
-import { CHAT_COLUMN_CLASS } from "./trip-builder-helpers";
+import { CHAT_COLUMN_CLASS, chatDayKey, chatDayLabel, plainReplyText } from "./trip-builder-helpers";
 import { ChatSkeleton } from "./trip-builder-skeleton";
 
 /** How long "Jump to latest" stays after the advisor stops scrolling. */
@@ -127,14 +130,7 @@ function tripWelcomeMessage(
 
 /** The agent's mark on the empty start screen. */
 function AgentAvatar() {
-  return (
-    <div
-      aria-hidden
-      className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-avatar-hero text-avatar-hero-ink shadow-sm ring-1 ring-inset ring-accent/40"
-    >
-      <LuSparkles className="h-4 w-4" strokeWidth={1.75} />
-    </div>
-  );
+  return <AgentSparkle className="h-7 w-7" />;
 }
 
 function ChatScrollArea({
@@ -365,17 +361,6 @@ function stageCueFor(
   return "Every stay has a room with a client price. Say **show the options quote** to check the PDF. When you send it, mark **Sent to client** on the trip page.";
 }
 
-function formatMsgTime(iso: string) {
-  try {
-    return new Date(iso).toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  } catch {
-    return "";
-  }
-}
-
 function ChatMessageList({
   messages,
   streamingContent,
@@ -410,10 +395,13 @@ function ChatMessageList({
     return null;
   }
 
-  const lookingUp = agentPhase === "looking_up" && agentSteps.length > 0;
-  /** Before any text: the phase ("Thinking…"), unless a lookup is shimmering in the steps. */
-  const phaseLabel =
-    streamingContent === "" && !lookingUp ? AGENT_PHASE_LABEL[agentPhase ?? "thinking"] : null;
+  /** The live line: the latest step while the agent looks something up, else the phase until the first words. */
+  const liveStatus =
+    agentPhase === "looking_up" && agentSteps.length > 0
+      ? agentSteps.at(-1)!
+      : streamingContent === ""
+        ? AGENT_PHASE_LABEL[agentPhase ?? "thinking"]
+        : null;
   const lastAssistantId = [...messages]
     .reverse()
     .find((message) => message.role === "assistant")?.id;
@@ -430,71 +418,57 @@ function ChatMessageList({
         </p>
       ) : null}
       {showWelcome && welcomeContent ? (
-        <AgentMessage time="" content={welcomeContent} offers={offers} />
+        <AgentMessage content={welcomeContent} offers={offers} />
       ) : null}
-      {messages.map((message) =>
-        message.role === "assistant" ? (
-          <AgentMessage
-            key={message.id}
-            time={formatMsgTime(message.created_at)}
-            incomplete={message.incomplete}
-            content={message.content}
-            offers={message.id === lastAssistantId ? offers : null}
-          />
-        ) : message.kind === "action" ? (
-          <YouTapped key={message.id} time={formatMsgTime(message.created_at)}>
-            {message.content}
-          </YouTapped>
-        ) : (
-          <YouMessage key={message.id} time={formatMsgTime(message.created_at)}>
-            {message.content}
-          </YouMessage>
-        ),
-      )}
-      {!showWelcome && !lastAssistantId && offers ? (
-        <AgentMessage time="" content="" offers={offers} />
-      ) : null}
+      {messages.map((message, index) => {
+        const day = chatDayKey(message.created_at);
+        const newDay = day !== null && day !== chatDayKey(messages[index - 1]?.created_at ?? "");
+        return (
+          <Fragment key={message.id}>
+            {newDay ? <DaySeparator label={chatDayLabel(message.created_at)} /> : null}
+            {message.role === "assistant" ? (
+              <AgentMessage
+                incomplete={message.incomplete}
+                content={message.content}
+                offers={message.id === lastAssistantId ? offers : null}
+                copyable
+              />
+            ) : message.kind === "action" ? (
+              <YouTapped>{message.content}</YouTapped>
+            ) : (
+              <YouMessage>{message.content}</YouMessage>
+            )}
+          </Fragment>
+        );
+      })}
+      {!showWelcome && !lastAssistantId && offers ? <AgentMessage content="" offers={offers} /> : null}
       {streamingContent != null ? (
-        <AgentMessage
-          time="now"
-          content={streamingContent}
-          steps={agentSteps}
-          lookingUp={lookingUp}
-          statusLabel={phaseLabel}
-        />
+        <AgentMessage content={streamingContent} status={liveStatus} />
       ) : busy ? (
-        <AgentMessage
-          time="now"
-          content=""
-          statusLabel={AGENT_PHASE_LABEL.thinking}
-        />
+        <AgentMessage content="" status={AGENT_PHASE_LABEL.thinking} />
       ) : null}
       <div ref={endRef} />
     </div>
   );
 }
 
-function AgentStatusLabel({ label }: { label: string }) {
+/** A quiet label where the conversation moves to a new day ("Today", "Mon 20 Oct"). */
+function DaySeparator({ label }: { label: string }) {
+  return (
+    <div role="separator" aria-label={label} className="flex items-center gap-3 text-[12px] text-ink-muted">
+      <span aria-hidden className="h-px flex-1 bg-divider" />
+      <span>{label}</span>
+      <span aria-hidden className="h-px flex-1 bg-divider" />
+    </div>
+  );
+}
+
+/** What the agent is doing, on one line that changes in place ("Thinking…" → "Finding the client…"). */
+function AgentStatusLine({ label }: { label: string }) {
   return (
     <p className="agent-phase-label py-0.5 text-[13px] font-medium text-accent-ink" aria-live="polite">
       <span className="agent-phase-shimmer">{label}</span>
     </p>
-  );
-}
-
-/** This reply's steps, one per line in order; the one still running shimmers. */
-function AgentSteps({ steps, lookingUp }: { steps: string[]; lookingUp: boolean }) {
-  return (
-    <ol className="mb-2 space-y-0.5" aria-label="What the agent is doing">
-      {steps.map((step, index) => {
-        const running = lookingUp && index === steps.length - 1;
-        return (
-          <li key={step} className="agent-phase-label text-[13px] leading-5 text-ink-muted">
-            {running ? <span className="agent-phase-shimmer font-medium">{step}</span> : step.replace(/…$/, "")}
-          </li>
-        );
-      })}
-    </ol>
   );
 }
 
@@ -529,58 +503,69 @@ function MessageOffers({
 
 function AgentMessage({
   content,
-  time,
   incomplete,
-  steps = [],
-  lookingUp = false,
-  statusLabel,
+  status,
   offers,
+  copyable = false,
 }: {
   content: string;
-  time: string;
   incomplete?: boolean;
-  /** Lookups made while this reply was written (live replies only). */
-  steps?: string[];
-  /** The last step is still running. */
-  lookingUp?: boolean;
-  /** Phase label while waiting for the first text delta. */
-  statusLabel?: string | null;
+  /** Live replies only: what the agent is doing now. */
+  status?: string | null;
   offers?: React.ReactNode;
+  /** A finished reply: show Copy under it. */
+  copyable?: boolean;
 }) {
   return (
-    <div
-      className="w-full self-start text-[15px] leading-[1.6] break-words text-ink"
-      title={timeTooltip(time)}
-    >
+    <div className="w-full self-start text-[15px] leading-[1.6] break-words text-ink">
       <span className="sr-only">PureLuxe Agent: </span>
-      {steps.length > 0 ? <AgentSteps steps={steps} lookingUp={lookingUp} /> : null}
-      {statusLabel ? (
-        <AgentStatusLabel key={statusLabel} label={statusLabel} />
-      ) : content.trim() ? (
-        <ChatMarkdown content={content} />
-      ) : offers || lookingUp ? null : (
-        <AgentStatusLabel key={AGENT_PHASE_LABEL.thinking} label={AGENT_PHASE_LABEL.thinking} />
-      )}
+      {content.trim() ? <ChatMarkdown content={content} /> : null}
+      {status ? <AgentStatusLine key={status} label={status} /> : null}
       {incomplete ? <p className="mt-2 text-[11px] text-ink-subtle">Reply was interrupted.</p> : null}
       {offers}
+      {copyable && content.trim() ? <CopyReplyButton content={content} /> : null}
     </div>
   );
 }
 
-/** Message times show on hover only, so the thread stays content first. */
-function timeTooltip(time: string): string | undefined {
-  return time && time !== "now" ? time : undefined;
+/** Copies a reply as plain text, so it can go straight into a message to the client. */
+function CopyReplyButton({ content }: { content: string }) {
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!copied) return;
+    const timer = window.setTimeout(() => setCopied(false), 1500);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(plainReplyText(content));
+      setCopied(true);
+    } catch {
+      showWarningToast("Couldn't copy. Select the text and copy it instead.");
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => void copy()}
+      aria-label={copied ? "Reply copied" : "Copy reply"}
+      className={cn(
+        "mt-1.5 inline-flex h-7 items-center gap-1 rounded-md px-1.5 text-[12px] text-ink-subtle transition-colors hover:bg-surface-hover hover:text-ink",
+        studioFocusRing,
+      )}
+    >
+      {copied ? <LuCheck className="h-3.5 w-3.5" aria-hidden /> : <LuCopy className="h-3.5 w-3.5" aria-hidden />}
+      {copied ? "Copied" : "Copy"}
+    </button>
+  );
 }
 
-function YouMessage({
-  children,
-  time,
-}: {
-  children: React.ReactNode;
-  time: string;
-}) {
+function YouMessage({ children }: { children: React.ReactNode }) {
   return (
-    <div className="ml-auto flex max-w-[85%] justify-end self-end" title={timeTooltip(time)}>
+    <div className="ml-auto flex max-w-[85%] justify-end self-end">
       <div className="w-fit rounded-[14px] rounded-tr-sm border border-neutral-line bg-neutral-soft px-3 py-2.5 text-[14.5px] leading-relaxed break-words text-ink sm:px-3.5">
         <span className="sr-only">You: </span>
         <p className="whitespace-pre-wrap">{children}</p>
@@ -590,18 +575,9 @@ function YouMessage({
 }
 
 /** A button tap: a quiet line, not a chat bubble, so it never reads as typed text. */
-function YouTapped({
-  children,
-  time,
-}: {
-  children: React.ReactNode;
-  time: string;
-}) {
+function YouTapped({ children }: { children: React.ReactNode }) {
   return (
-    <p
-      className="ml-auto max-w-[85%] self-end text-right text-[12px] leading-snug break-words text-ink-subtle"
-      title={timeTooltip(time)}
-    >
+    <p className="ml-auto max-w-[85%] self-end text-right text-[12px] leading-snug break-words text-ink-subtle">
       <span className="sr-only">You tapped: </span>
       {children}
     </p>

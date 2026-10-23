@@ -198,6 +198,35 @@ export const MEHTA_FAMILY_SEED: ScenarioSeed = {
 };
 
 /**
+ * A small client base for questions about all clients: the four Mehtas (added 2025),
+ * Omar Haddad (VIP, Sept 2026) and Sarah Chen (VVIP, newest, pending review).
+ * 6 clients, 2 VIPs, 1 VVIP, 1 pending review.
+ */
+export const CLIENT_BASE_SEED: ScenarioSeed = {
+  ...MEHTA_FAMILY_SEED,
+  clients: [
+    ...MEHTA_FAMILY_SEED.clients.map((client) => ({ ...client, addedOn: "2025-03-10" })),
+    {
+      id: "c2000000-0000-4000-8000-000000000001",
+      displayName: "Omar Haddad",
+      email: "omar.haddad@example.com",
+      tier: "VIP",
+      dateOfBirth: "1975-11-20",
+      addedOn: "2026-09-28",
+    },
+    {
+      id: "c2000000-0000-4000-8000-000000000002",
+      displayName: "Sarah Chen",
+      email: "sarah.chen@example.com",
+      tier: "VVIP",
+      dateOfBirth: "1988-02-14",
+      addedOn: "2026-10-18",
+      reviewStatus: "pending",
+    },
+  ],
+};
+
+/**
  * The same household with two upcoming trips and none travelled yet: a confirmed
  * Maldives trip that overlaps 15–20 Dec, and a Dubai trip still being built.
  */

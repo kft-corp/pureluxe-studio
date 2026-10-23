@@ -50,6 +50,7 @@ export function makeHandlers(trip: TripFacts = makeTripFacts()) {
   return {
     getTrip: vi.fn(async () => trip),
     searchClients: vi.fn(async () => ({ clients: [] })),
+    listClients: vi.fn(async () => ({ clients: [], total: 0 })),
     getClient: vi.fn(),
     searchTrips: vi.fn(async () => ({ trips: [], total: 0 })),
     searchBookings: vi.fn(async () => ({ bookings: [], total: 0 })),
@@ -75,6 +76,7 @@ export function makeHomeHandlers() {
   return {
     searchClients: desk.searchClients,
     getClient: desk.getClient,
+    listClients: desk.listClients,
     searchTrips: desk.searchTrips,
     searchBookings: desk.searchBookings,
     getBooking: desk.getBooking,

@@ -69,19 +69,22 @@ export type ComposerChipsInput = {
 };
 
 /**
- * One chip leads (the first primary or danger); other primaries become secondary.
+ * Among ready actions, one leads (the first primary or danger); other primaries become secondary.
  * The "no" chip sits right after the lead so yes and no are side by side.
+ * The agent's cards keep their own order ahead of the ready actions.
  */
 function rankChips(chips: TripBuilderChip[], decline: TripBuilderChip | null): TripBuilderChip[] {
-  const leadIndex = chips.findIndex(
+  const cards = chips.filter((chip) => chip.kind);
+  const ready = chips.filter((chip) => !chip.kind);
+  const leadIndex = ready.findIndex(
     (chip) => chip.variant === "primary" || chip.variant === "danger",
   );
   const declines = decline ? [decline] : [];
-  if (leadIndex < 0) return [...chips, ...declines];
-  const rest = chips
+  if (leadIndex < 0) return [...cards, ...ready, ...declines];
+  const rest = ready
     .filter((_, index) => index !== leadIndex)
     .map((chip) => (chip.variant === "primary" ? { ...chip, variant: "secondary" as const } : chip));
-  return [chips[leadIndex]!, ...declines, ...rest];
+  return [...cards, ready[leadIndex]!, ...declines, ...rest];
 }
 
 /** The agent's cards: Confirm and Cancel, one button per choice, and Undo. */
@@ -91,13 +94,26 @@ function replyCardChips(
 ): TripBuilderChip[] {
   if (cards.approval) {
     return [
-      { id: "approve", label: "Confirm", variant: "danger", onClick: () => void actions.sendApproval("approve") },
-      { id: "cancel", label: "Cancel", variant: "secondary", onClick: () => void actions.sendApproval("cancel") },
+      {
+        id: "approve",
+        label: "Confirm",
+        kind: "confirm",
+        variant: "danger",
+        onClick: () => void actions.sendApproval("approve"),
+      },
+      {
+        id: "cancel",
+        label: "Cancel",
+        kind: "cancel",
+        variant: "secondary",
+        onClick: () => void actions.sendApproval("cancel"),
+      },
     ];
   }
   const chips: TripBuilderChip[] = (cards.choices ?? []).slice(0, 6).map((choice, index) => ({
     id: `choice-${index}`,
     label: choice.label,
+    kind: "choice",
     variant: index === 0 ? "primary" : "secondary",
     onClick: () => void actions.sendAction({ action: choice.action, args: choice.args, label: choice.label }),
   }));
@@ -105,6 +121,7 @@ function replyCardChips(
     chips.push({
       id: "undo",
       label: "Undo",
+      kind: "undo",
       variant: "secondary",
       icon: "undo",
       onClick: () => void actions.sendAction({ action: "trip_undo", label: "Undo" }),

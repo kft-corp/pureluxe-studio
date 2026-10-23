@@ -64,6 +64,8 @@ export function TripBuilderPageContent({
         summaryOpen={builder.summaryOpen}
         canWrite={builder.canWrite}
         busy={builder.busy}
+        activeLegId={builder.activeLegId}
+        onSelectLeg={builder.selectLeg}
         onOpenTrip={builder.openTrip}
         onNewChat={builder.newChat}
         onToggleSummary={() =>
@@ -71,12 +73,7 @@ export function TripBuilderPageContent({
         }
       />
 
-      {/* Status / Next strip only when a trip exists */}
-      <TripBuilderStatusStrip
-        detail={builder.detail}
-        activeLegId={builder.activeLegId}
-        onSelectLeg={builder.selectLeg}
-      />
+      <TripBuilderStatusStrip detail={builder.detail} />
 
       <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <section className="agent-chat-backdrop flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">

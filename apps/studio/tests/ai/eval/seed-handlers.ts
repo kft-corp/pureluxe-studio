@@ -1,5 +1,6 @@
 import type {
   ClientBrief,
+  ClientListRow,
   ClientSearchHit,
   DeskAgentHandlers,
   HomeAgentHandlers,
@@ -39,8 +40,24 @@ function toSearchHit(client: SeedClient): ClientSearchHit {
     email: client.email,
     phone: null,
     tier: { slug: client.tier.toLowerCase(), label: client.tier },
-    review_status: "approved",
+    review_status: client.reviewStatus ?? "approved",
     household_id: householdId(client),
+  };
+}
+
+function addedOn(client: SeedClient): string {
+  return client.addedOn ?? "2025-01-01";
+}
+
+function toListRow(client: SeedClient): ClientListRow {
+  return {
+    id: client.id,
+    display_name: client.displayName,
+    tier: { slug: client.tier.toLowerCase(), label: client.tier },
+    review_status: client.reviewStatus ?? "approved",
+    added_on: addedOn(client),
+    client_since: null,
+    household: client.household?.length ? `${surname(client.displayName)} family` : null,
   };
 }
 
@@ -197,6 +214,27 @@ function createSeedDeskHandlers(seed: ScenarioSeed, today: string): Omit<DeskAge
         })
         .slice(0, limit ?? SEARCH_LIMIT);
       return { clients: clients.map(toSearchHit) };
+    },
+
+    /** Every seeded client belongs to the seed advisor, so "unassigned" finds none. */
+    async listClients({ tier, reviewStatus, addedFrom, addedTo, owner, missingContact, inHousehold, sort, limit }) {
+      const matches = seed.clients
+        .filter(
+          (client) =>
+            owner !== "unassigned" &&
+            !missingContact &&
+            (!tier || client.tier.toLowerCase() === tier) &&
+            (!reviewStatus || (client.reviewStatus ?? "approved") === reviewStatus) &&
+            (!addedFrom || addedOn(client) >= addedFrom) &&
+            (!addedTo || addedOn(client) <= addedTo) &&
+            (!inHousehold || (client.household?.length ?? 0) > 0),
+        )
+        .sort((left, right) =>
+          sort === "name"
+            ? left.displayName.localeCompare(right.displayName)
+            : addedOn(right).localeCompare(addedOn(left)),
+        );
+      return { clients: matches.slice(0, limit ?? SEARCH_LIMIT).map(toListRow), total: matches.length };
     },
 
     async searchTrips({ clientId, query, stage, limit }) {

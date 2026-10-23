@@ -1,1 +1,7 @@
-export type { ClientBrief, ClientSearchHit, ClientToolHandlers } from "./types";
+export type {
+  ClientBrief,
+  ClientListInput,
+  ClientListRow,
+  ClientSearchHit,
+  ClientToolHandlers,
+} from "./types";

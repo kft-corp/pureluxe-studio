@@ -61,7 +61,7 @@ export function applyChatStreamEvent(options: ApplyOptions): void {
       return;
     }
     case "progress": {
-      setAgentSteps?.((steps) => (steps.includes(event.label) ? steps : [...steps, event.label]));
+      setAgentSteps?.((steps) => (steps.at(-1) === event.label ? steps : [...steps, event.label]));
       return;
     }
     case "delta": {

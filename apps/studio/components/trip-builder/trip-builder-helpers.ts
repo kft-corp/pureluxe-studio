@@ -8,6 +8,49 @@ import { partyFromTravellers, travellersConfirmed, tripStays } from "./stages";
 /** The conversation column: the thread and the composer share one centred width. */
 export const CHAT_COLUMN_CLASS = "mx-auto w-full max-w-[44rem]";
 
+/** A reply as plain text for the clipboard: no markdown symbols, bullets as "•", table rows as "a · b". */
+export function plainReplyText(markdown: string): string {
+  return markdown
+    .replace(/^#{1,6}[ \t]+/gm, "")
+    .replace(/^>[ \t]?/gm, "")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/^\|?[ \t]*:?-{2,}[-|: \t]*$/gm, "")
+    .replace(/^\|(.*)\|[ \t]*$/gm, (_, row: string) =>
+      row
+        .split("|")
+        .map((cell) => cell.trim())
+        .join(" · "),
+    )
+    .replace(/^[ \t]*[-*][ \t]+/gm, "• ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/** The local calendar day of a message time, e.g. "2026-10-23". Null when it doesn't parse. */
+export function chatDayKey(iso: string): string | null {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  return [date.getFullYear(), date.getMonth() + 1, date.getDate()]
+    .map((part) => String(part).padStart(2, "0"))
+    .join("-");
+}
+
+/** Day separator text: "Today", "Yesterday", "Mon 20 Oct", with the year when it isn't this year. */
+export function chatDayLabel(iso: string, now: Date = new Date()): string {
+  const key = chatDayKey(iso);
+  if (key === chatDayKey(now.toISOString())) return "Today";
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (key === chatDayKey(yesterday.toISOString())) return "Yesterday";
+  const date = new Date(iso);
+  const weekday = date.toLocaleDateString("en-GB", { weekday: "short" });
+  const dayMonth = date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  const year = date.getFullYear() === now.getFullYear() ? "" : ` ${date.getFullYear()}`;
+  return `${weekday} ${dayMonth}${year}`;
+}
+
 export type SavedRate = TripDetail["rates"]["candidates"][number];
 
 export type ListedRate =

@@ -283,11 +283,138 @@ export const MEHTA_V2_PAST_TRIPS: AgentScenario = {
         tools: { called: ["history_search_trips"], notCalled: ["trip_create"] },
         reply: {
           mentions: ["Dubai", "Maldives"],
-          mustNot: ["no past trips on file", "no trips on file", "none of them has one", "no trips on record"],
+          mustNot: [
+            "no past trips on file",
+            "no trips on file",
+            "none of them has one",
+            "no trips on record",
+            "Dubai · Dubai",
+            "Maldives · Maldives",
+          ],
         },
         readOnly: true,
       },
       note: "Nothing travelled yet, but a confirmed Maldives trip and a Dubai trip in building are on file.",
+    },
+  ],
+  budget: {
+    maxAdvisorInputsToQuoteSent: 9,
+    maxConfirmationsTotal: 0,
+    maxApprovalsToQuoteSent: 0,
+  },
+  everyReply: { mustNot: V2_MUST_NOT },
+};
+
+/**
+ * Senior-consultant know-how (Oct 23): general travel guidance where Studio has none,
+ * but never a visa, price or availability fact from general knowledge.
+ */
+export const TRAVEL_EXPERTISE: AgentScenario = {
+  id: "travel-expertise",
+  title: "Travel expertise — general guidance allowed, commercial and legal facts never guessed",
+  now: "2026-10-21T10:50:00+05:30",
+  advisorMemberId: "member-vijay",
+  steps: [
+    {
+      id: "best-time-general",
+      flowStages: [1],
+      buildStage: "stage-2b",
+      chat: "home",
+      title: "Gives general guidance on the best time to visit, worded as general",
+      advisor: { kind: "say", text: "When is the best time of year to visit Bali?", variants: ["what's the weather like in Bali in December?"] },
+      expect: {
+        tools: { notCalled: ["trip_create"] },
+        reply: { mentions: ["general"], mustNot: ["I don't have the best time", "I don't have weather"] },
+        readOnly: true,
+      },
+      note: "Studio has no Bali information, so the answer is general know-how, labelled as such.",
+    },
+    {
+      id: "visa-not-guessed",
+      flowStages: [1],
+      buildStage: "stage-2b",
+      chat: "home",
+      title: "Never states a visa rule without data",
+      advisor: {
+        kind: "say",
+        text: "Do Indian passport holders need a visa for Bali?",
+        variants: ["visa rules for Indians going to Bali?"],
+      },
+      expect: {
+        tools: { notCalled: ["trip_create"] },
+        reply: { mentions: ["don't have"], mustNot: ["visa on arrival", "visa-free", "e-VOA", "no visa is needed"] },
+        readOnly: true,
+      },
+      note: "Visa and entry rules are legal facts: Studio data only.",
+    },
+  ],
+  budget: {
+    maxAdvisorInputsToQuoteSent: 9,
+    maxConfirmationsTotal: 0,
+    maxApprovalsToQuoteSent: 0,
+  },
+  everyReply: { mustNot: V2_MUST_NOT },
+};
+
+/** Questions about the whole client base (Oct 23 bug: the agent had no way to count or list clients). */
+export const CLIENT_BASE_QUESTIONS: AgentScenario = {
+  id: "client-base-questions",
+  title: "Client base — totals, newest, tiers and pending review",
+  now: "2026-10-21T10:50:00+05:30",
+  advisorMemberId: "member-vijay",
+  steps: [
+    {
+      id: "client-total",
+      flowStages: [1],
+      buildStage: "stage-2b",
+      chat: "home",
+      title: "Counts every client",
+      advisor: { kind: "say", text: "how many clients do we have?", variants: ["total number of clients?"] },
+      expect: {
+        tools: { called: ["client_list"], notCalled: ["trip_create"] },
+        reply: { mentions: ["6"] },
+        readOnly: true,
+      },
+    },
+    {
+      id: "newest-clients",
+      flowStages: [1],
+      buildStage: "stage-2b",
+      chat: "home",
+      title: "Lists the newest clients first",
+      advisor: { kind: "say", text: "who are our most recent clients?", variants: ["show me the latest clients added"] },
+      expect: {
+        tools: { called: ["client_list"], notCalled: ["trip_create"] },
+        reply: { mentions: ["Sarah Chen", "Omar Haddad"] },
+        readOnly: true,
+      },
+    },
+    {
+      id: "vip-count",
+      flowStages: [1],
+      buildStage: "stage-2b",
+      chat: "home",
+      title: "Counts one tier",
+      advisor: { kind: "say", text: "how many VIP clients?", variants: ["number of VIPs"] },
+      expect: {
+        tools: { called: ["client_list"], notCalled: ["trip_create"] },
+        reply: { mentions: ["2"] },
+        readOnly: true,
+      },
+      note: "VIP is its own tier (Ravi, Omar); Sarah is VVIP.",
+    },
+    {
+      id: "pending-review",
+      flowStages: [1],
+      buildStage: "stage-2b",
+      chat: "home",
+      title: "Finds clients waiting for review",
+      advisor: { kind: "say", text: "any clients pending review?", variants: ["which new clients still need approval?"] },
+      expect: {
+        tools: { called: ["client_list"], notCalled: ["trip_create"] },
+        reply: { mentions: ["Sarah Chen"] },
+        readOnly: true,
+      },
     },
   ],
   budget: {

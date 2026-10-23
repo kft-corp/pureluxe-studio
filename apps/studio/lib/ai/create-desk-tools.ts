@@ -5,15 +5,17 @@ import {
   hasPermission,
   journeyToday,
   listBookingsQuerySchema,
+  listClientsQuerySchema,
   listJourneysQuerySchema,
 } from "@pureluxe/shared";
 
 import { getBookingDetail, listBookingDirectory } from "@/lib/bookings";
-import { searchClients } from "@/lib/clients";
+import { listClientDirectory, searchClients } from "@/lib/clients";
 import { answerAtlasStay, type AtlasHotelChoice } from "@/lib/trip-builder/stays/atlas-stay";
 import { loadHotelStayFacts } from "@/lib/trip-builder/stays/hotel-contract-facts";
 import { listJourneyDirectory } from "@/lib/trips";
 
+import { toClientListRow } from "./to-client-list-row";
 import { toClientSearchHit } from "./to-client-search-hit";
 import {
   toBookingBrief,
@@ -55,6 +57,25 @@ export function createDeskTools(actor: DeskActor): Omit<DeskAgentHandlers, "getC
     async searchClients({ query, limit }) {
       const result = await searchClients({ q: query, limit: limit ?? CLIENT_MATCHES });
       return { clients: result.clients.map(toClientSearchHit) };
+    },
+
+    async listClients({ tier, reviewStatus, addedFrom, addedTo, owner, missingContact, inHousehold, sort, limit }) {
+      requireAccess(actor, "clients.read", "Clients");
+      const result = await listClientDirectory({
+        ...listClientsQuerySchema.parse({
+          tier: tier ?? "any",
+          review_status: reviewStatus ?? "any",
+          created_from: addedFrom ?? "",
+          created_to: addedTo ?? "",
+          owner: owner === "mine" ? "me" : (owner ?? "any"),
+          missing_contact: missingContact ?? false,
+          has_family: inHousehold ?? false,
+          sort: sort === "name" ? "name_asc" : "created_desc",
+          limit: limit ?? DEFAULT_LIMIT,
+        }),
+        actorMemberId: actor.memberId,
+      });
+      return { clients: result.clients.map(toClientListRow), total: result.total };
     },
 
     async getPlaceNotes({ query, cityHint }) {

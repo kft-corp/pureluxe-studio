@@ -59,7 +59,7 @@ export function SidebarNavLink({
         <>
           <span className="studio-nav-reveal min-w-0 flex-1 truncate">{item.label}</span>
           {soon ? (
-            <span className="studio-nav-reveal shrink-0 rounded-full bg-sky-soft px-1.5 py-px text-[10px] leading-4 font-semibold tracking-wide text-sky-ink uppercase ring-1 ring-sky-line ring-inset">
+            <span className="studio-nav-reveal shrink-0 rounded-full bg-accent-soft px-1.5 py-px text-[10px] leading-4 font-semibold tracking-wide text-accent-ink uppercase ring-1 ring-accent-line ring-inset">
               Soon
             </span>
           ) : null}

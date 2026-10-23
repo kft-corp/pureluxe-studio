@@ -6,7 +6,13 @@
  *   turn-meter   — per-turn timings and token use for agent_turns
  */
 
-export type { ClientBrief, ClientSearchHit, ClientToolHandlers } from "./clients";
+export type {
+  ClientBrief,
+  ClientListInput,
+  ClientListRow,
+  ClientSearchHit,
+  ClientToolHandlers,
+} from "./clients";
 export type {
   BookingBrief,
   BookingHistoryRow,

@@ -42,18 +42,40 @@ export function TripBuilderComposer({
   const [expandedFor, setExpandedFor] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
-  const chipSet = chips.map((chip) => chip.id).join("|");
-  const folded = chips.length > VISIBLE_CHIPS + 1 && expandedFor !== chipSet;
-  const visibleChips: TripBuilderChip[] = folded
+  const approval = chips.filter((chip) => chip.kind === "confirm" || chip.kind === "cancel");
+  const choices = chips.filter((chip) => chip.kind === "choice");
+  const undo = chips.filter((chip) => chip.kind === "undo");
+  const ready = chips.filter((chip) => !chip.kind);
+
+  const chipSet = ready.map((chip) => chip.id).join("|");
+  const folded = ready.length > VISIBLE_CHIPS + 1 && expandedFor !== chipSet;
+  const visibleReady: TripBuilderChip[] = folded
     ? [
-        ...chips.slice(0, VISIBLE_CHIPS),
+        ...ready.slice(0, VISIBLE_CHIPS),
         {
           id: "more-chips",
-          label: `More (${chips.length - VISIBLE_CHIPS})`,
+          label: `More (${ready.length - VISIBLE_CHIPS})`,
           onClick: () => setExpandedFor(chipSet),
         },
       ]
-    : chips;
+    : ready;
+
+  function renderChip(chip: TripBuilderChip) {
+    return (
+      <TripBuilderActionChip
+        key={chip.id}
+        chip={{
+          ...chip,
+          onClick: () => {
+            setRunningChipId(chip.id);
+            chip.onClick();
+          },
+        }}
+        disabled={disabled}
+        running={disabled && runningChipId === chip.id}
+      />
+    );
+  }
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -77,28 +99,19 @@ export function TripBuilderComposer({
     <div className="shrink-0 border-t border-border bg-surface-raised px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:px-4 sm:pb-2">
       <div className={CHAT_COLUMN_CLASS}>
         {showChips ? (
-          <div
-            className={cn(
-              "mb-1.5 flex flex-wrap gap-1.5",
-              "lg:mb-2 lg:flex-nowrap lg:gap-2 lg:overflow-x-auto lg:pb-0.5",
-              "lg:[-ms-overflow-style:none] lg:[scrollbar-width:none] lg:[&::-webkit-scrollbar]:hidden",
-            )}
-          >
-            {visibleChips.map((chip) => (
-              <div key={chip.id} className="max-w-full lg:shrink-0">
-                <TripBuilderActionChip
-                  chip={{
-                    ...chip,
-                    onClick: () => {
-                      setRunningChipId(chip.id);
-                      chip.onClick();
-                    },
-                  }}
-                  disabled={disabled}
-                  running={disabled && runningChipId === chip.id}
-                />
+          <div className="mb-2 flex flex-col gap-1.5">
+            {approval.length > 0 ? (
+              <div className="flex items-center gap-1">{approval.map(renderChip)}</div>
+            ) : null}
+            {choices.length > 0 ? (
+              <div className="divide-y divide-divider overflow-hidden rounded-lg border border-border bg-surface-raised">
+                {choices.map(renderChip)}
               </div>
-            ))}
+            ) : null}
+            {visibleReady.length > 0 ? (
+              <div className="flex flex-wrap items-center gap-1">{visibleReady.map(renderChip)}</div>
+            ) : null}
+            {undo.length > 0 ? <div className="flex">{undo.map(renderChip)}</div> : null}
           </div>
         ) : null}
 

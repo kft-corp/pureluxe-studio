@@ -3,7 +3,7 @@
  * read tools look things up; the others change data (with Undo, or approval first).
  * The trip chat and the home chat share the lookups.
  */
-import { clientGetTool, clientSearchTool } from "./clients";
+import { clientGetTool, clientListTool, clientSearchTool } from "./clients";
 import type { AgentToolSpec, ToolSchema } from "./define-tool";
 import {
   historyGetBookingTool,
@@ -29,6 +29,7 @@ import type { HomeAgentHandlers, TripAgentHandlers } from "../types";
 const DESK_TOOLS = [
   clientSearchTool,
   clientGetTool,
+  clientListTool,
   historySearchTripsTool,
   historySearchBookingsTool,
   historyGetBookingTool,

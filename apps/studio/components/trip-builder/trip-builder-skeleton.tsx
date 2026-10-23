@@ -43,7 +43,7 @@ export function ChatSkeleton() {
   );
 }
 
-/** Whole Trip Builder desk — header stages, chat, composer. */
+/** Whole Trip Builder desk — header, chat, composer. */
 export function TripBuilderSkeleton() {
   return (
     <SkeletonRegion

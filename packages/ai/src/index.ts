@@ -81,6 +81,8 @@ export {
   type BookingBrief,
   type BookingHistoryRow,
   type ClientBrief,
+  type ClientListInput,
+  type ClientListRow,
   type ClientSearchHit,
   type ClientToolHandlers,
   type DeskToolHandlers,

@@ -22,7 +22,9 @@ export const EVERY_REPLY_MUST_NOT = [
   "PureLuxe",
   "on file",
   "no notes",
+  "destination notes",
   "in our records",
+  "snapshot",
 ];
 
 // ---------------------------------------------------------------------------

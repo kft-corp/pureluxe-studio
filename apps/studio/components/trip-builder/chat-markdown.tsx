@@ -10,9 +10,21 @@ type ChatMarkdownProps = {
   className?: string;
 };
 
+/** Status words the agent puts in backticks ("`Confirmed`"), coloured by meaning. */
+const STATUS_TONES: Array<[RegExp, string]> = [
+  [/confirm|booked|accepted|completed|approved/i, "bg-success-soft text-success-ink ring-success-line"],
+  [/cancel/i, "bg-danger-soft text-danger-ink ring-danger-line"],
+  [/pending|waiting|review/i, "bg-warning-soft text-warning-ink ring-warning-line"],
+  [/quote|sent|booking/i, "bg-info-soft text-info-ink ring-info-line"],
+];
+
+function statusTone(label: string): string {
+  return STATUS_TONES.find(([pattern]) => pattern.test(label))?.[1] ?? "bg-neutral-soft text-neutral-ink ring-neutral-line";
+}
+
 /**
- * ChatGPT-style markdown for agent replies.
- * Safe subset only (no raw HTML).
+ * Markdown for agent replies. Safe subset only (no raw HTML). A quote is the agent's
+ * heads-up (a champagne callout) and inline code is a status pill.
  */
 export function ChatMarkdown({ content, className }: ChatMarkdownProps) {
   return (
@@ -63,9 +75,14 @@ export function ChatMarkdown({ content, className }: ChatMarkdownProps) {
               );
             }
             return (
-              <code className="rounded bg-neutral-soft px-1 py-0.5 font-mono text-[12.5px] text-ink">
+              <span
+                className={cn(
+                  "inline-block rounded-full px-2 py-px align-[1px] text-[12px] leading-5 font-medium ring-1 ring-inset",
+                  statusTone(String(children)),
+                )}
+              >
                 {children}
-              </code>
+              </span>
             );
           },
           pre: ({ children }) => (
@@ -74,7 +91,7 @@ export function ChatMarkdown({ content, className }: ChatMarkdownProps) {
             </pre>
           ),
           blockquote: ({ children }) => (
-            <blockquote className="my-2.5 border-l-2 border-accent pl-3 text-ink-muted">
+            <blockquote className="my-3 rounded-lg bg-accent-soft px-3 py-2 text-[14px] leading-relaxed text-ink ring-1 ring-inset ring-accent-line [&>p]:my-0">
               {children}
             </blockquote>
           ),
@@ -95,22 +112,14 @@ export function ChatMarkdown({ content, className }: ChatMarkdownProps) {
           ),
           hr: () => <hr className="my-3 border-border" />,
           table: ({ children }) => (
-            <div className="my-2.5 overflow-x-auto">
-              <table className="w-full border-collapse text-left text-[13px]">
-                {children}
-              </table>
+            <div className="my-3 overflow-x-auto rounded-lg ring-1 ring-border">
+              <table className="w-full border-collapse text-left text-[13.5px]">{children}</table>
             </div>
           ),
           th: ({ children }) => (
-            <th className="border-b border-border px-2 py-1.5 font-semibold text-ink">
-              {children}
-            </th>
+            <th className="bg-surface-subtle px-3 py-2 text-[12px] font-semibold text-ink-muted">{children}</th>
           ),
-          td: ({ children }) => (
-            <td className="border-b border-border/70 px-2 py-1.5 text-ink">
-              {children}
-            </td>
-          ),
+          td: ({ children }) => <td className="border-t border-divider px-3 py-2 align-top text-ink">{children}</td>,
         }}
       >
         {content}

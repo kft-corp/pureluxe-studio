@@ -32,6 +32,7 @@ export type AgentToolName =
   | "trip_open"
   | "client_search"
   | "client_get"
+  | "client_list"
   | "history_search_trips"
   | "history_search_bookings"
   | "history_get_booking"
@@ -182,6 +183,10 @@ export type SeedClient = {
   /** Date of birth for adult/child counts. */
   dateOfBirth: string;
   preferences?: Array<{ label: string; sentiment: "prefer" | "avoid" | "require"; category: string }>;
+  /** YYYY-MM-DD the client was added. Default 2025-01-01. */
+  addedOn?: string;
+  /** Default approved. */
+  reviewStatus?: "pending" | "approved";
 };
 
 export type SeedRoom = {

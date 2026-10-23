@@ -168,6 +168,29 @@ describe("trip agent tools", () => {
     ]);
   });
 
+  it("maps client_list filters to the Studio handler, and refuses a reversed date range", async () => {
+    const { handlers, byName } = bind();
+
+    await byName("client_list").invoke({ tier: "vip", added_from: "2026-10-01", sort: "newest", limit: 5 });
+    const reversed = JSON.parse(
+      (await byName("client_list").invoke({ added_from: "2026-10-31", added_to: "2026-10-01" })) as string,
+    );
+
+    expect(handlers.listClients).toHaveBeenCalledOnce();
+    expect(handlers.listClients).toHaveBeenCalledWith({
+      tier: "vip",
+      reviewStatus: undefined,
+      addedFrom: "2026-10-01",
+      addedTo: undefined,
+      owner: undefined,
+      missingContact: undefined,
+      inHousehold: undefined,
+      sort: "newest",
+      limit: 5,
+    });
+    expect(reversed).toEqual({ error: "added_from must be on or before added_to." });
+  });
+
   it("lists the client's other trips when a stage finds none", async () => {
     const { handlers, byName } = bind();
     const open = {

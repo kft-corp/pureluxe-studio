@@ -60,6 +60,49 @@ export const clientSearchTool = defineDeskTool({
   choices: clientChoices,
 });
 
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD.");
+
+export const clientListTool = defineDeskTool({
+  name: "client_list",
+  description: [
+    "Count and list clients across the whole client base, with optional filters: tier, review status, date added, the advisor's own or unassigned, missing contact details, in a household.",
+    "Use for how many clients there are, the newest or recently added clients, VIP or VVIP clients, clients pending review, clients with no owner, the advisor's own clients, or clients with no email and no phone.",
+    "Do not use to find one person by name (use client_search) or for one client's profile (use client_get).",
+    "Returns total, the number of clients matching the filters (the answer to \"how many\"), and up to limit of them: name, tier, review status, date added and household.",
+  ].join(" "),
+  schema: z
+    .object({
+      tier: z.enum(["standard", "vip", "vvip"]).optional().describe("Only this tier. Omit for every tier."),
+      review_status: z.enum(["pending", "approved"]).optional().describe("pending = new clients waiting for review."),
+      added_from: isoDate.optional().describe("Added on or after this day, YYYY-MM-DD. Work it out from today."),
+      added_to: isoDate.optional().describe("Added on or before this day, YYYY-MM-DD."),
+      owner: z.enum(["mine", "unassigned"]).optional().describe("mine = the advisor's own clients; unassigned = no owner."),
+      missing_contact: z.boolean().optional().describe("true = clients with no email and no phone."),
+      in_household: z.boolean().optional().describe("true = only clients in a household."),
+      sort: z.enum(["newest", "name"]).optional().describe("newest = most recently added first (default); name = A to Z."),
+      limit: z.number().int().min(1).max(20).optional().describe("Clients to list, 1–20. Default 10. total is counted either way."),
+    })
+    .strict(),
+  risk: "read",
+  progress: () => "Reviewing the client list…",
+  run: async (input, handlers) => {
+    if (input.added_from && input.added_to && input.added_from > input.added_to) {
+      return { error: "added_from must be on or before added_to." };
+    }
+    return handlers.listClients({
+      tier: input.tier,
+      reviewStatus: input.review_status,
+      addedFrom: input.added_from,
+      addedTo: input.added_to,
+      owner: input.owner,
+      missingContact: input.missing_contact,
+      inHousehold: input.in_household,
+      sort: input.sort,
+      limit: input.limit,
+    });
+  },
+});
+
 export const clientGetTool = defineDeskTool({
   name: "client_get",
   description: [
