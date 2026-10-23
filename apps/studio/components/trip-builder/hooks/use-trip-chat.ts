@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import type { AgentPhase } from "@pureluxe/ai/chat-stream";
-import type { TripBuilderChatSendBody } from "@pureluxe/shared";
+import type { TripBuilderChatSendBody, TripBuilderPreTripChatSendBody } from "@pureluxe/shared";
 
 import {
   listTripChatMessages,
@@ -11,6 +11,7 @@ import {
   streamTripChat,
 } from "@/lib/api";
 import { showApiError, showWarningToast } from "@/lib/feedback";
+import { pageRoutes } from "@/lib/routes";
 import type { ChatMessage, TripDetail } from "@/lib/trip-builder";
 
 import { applyChatStreamEvent, makeOptimisticUserMessage } from "../apply-chat-stream-event";
@@ -20,6 +21,8 @@ import type { TripCore } from "./use-trip-core";
 const CHAT_PAGE_SIZE = 30;
 /** Wait before re-sending a message that hit another reply still running on this trip. */
 const BUSY_RETRY_MS = 3000;
+
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 
 /** A button that asks the agent to run one of its tools directly. */
 export type TripChatAction = {
@@ -31,10 +34,10 @@ export type TripChatAction = {
 /** The chat thread: loading it, streaming agent replies, and saving the local turns. */
 export function useTripChat(core: TripCore, initialDetail: TripDetail | null) {
   const {
+    router,
     detail,
     canWrite,
     setRateOptions,
-    setSuggestedClients,
     setQuietChips,
     setOffer,
     refreshAfterMutation,
@@ -47,7 +50,7 @@ export function useTripChat(core: TripCore, initialDetail: TripDetail | null) {
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [streamingContent, setStreamingContent] = useState<string | null>(null);
   const [agentPhase, setAgentPhase] = useState<AgentPhase | null>(null);
-  const [agentProgress, setAgentProgress] = useState<string | null>(null);
+  const [agentSteps, setAgentSteps] = useState<string[]>([]);
 
   /** The chip being tapped. Its user line is saved as an action, never as typed text. */
   const tapRef = useRef<{ id: string } | null>(null);
@@ -63,8 +66,7 @@ export function useTripChat(core: TripCore, initialDetail: TripDetail | null) {
     setHasMoreMessages(false);
     setStreamingContent(null);
     setAgentPhase(null);
-    setAgentProgress(null);
-    setSuggestedClients([]);
+    setAgentSteps([]);
     setRateOptions([]);
     setOffer(null);
     setQuietChips(false);
@@ -104,7 +106,7 @@ export function useTripChat(core: TripCore, initialDetail: TripDetail | null) {
     setChatLoadingOlder(false);
     setStreamingContent(null);
     setAgentPhase(null);
-    setAgentProgress(null);
+    setAgentSteps([]);
     try {
       const response = await listTripChatMessages(tripId, {
         limit: CHAT_PAGE_SIZE,
@@ -152,12 +154,23 @@ export function useTripChat(core: TripCore, initialDetail: TripDetail | null) {
     }
   }
 
-  /** Home chat — no trip yet (search_clients / get_client only). */
-  async function sendHomeChat(message: string) {
+  /**
+   * Home chat (no trip open): a typed message or a button tap. When the agent creates
+   * or picks a trip, the trip opens and the conversation continues there.
+   */
+  async function streamHomeTurn(
+    body: DistributiveOmit<TripBuilderPreTripChatSendBody, "history" | "client_request_id">,
+    label: string,
+  ) {
     if (!canWrite || chatBusy) return;
+    clearTap();
 
     const clientRequestId = crypto.randomUUID();
-    const optimisticUser = makeOptimisticUserMessage(message, clientRequestId);
+    const optimisticUser = makeOptimisticUserMessage(
+      label,
+      clientRequestId,
+      body.kind === "action" ? "action" : "text",
+    );
     const history = messages
       .filter((row) => !row.incomplete && row.content.trim())
       .map((row) => ({ role: row.role, content: row.content }));
@@ -166,10 +179,11 @@ export function useTripChat(core: TripCore, initialDetail: TripDetail | null) {
     setMessages((prev) => [...prev, optimisticUser]);
     setStreamingContent("");
     setAgentPhase("thinking");
+    setAgentSteps([]);
 
     try {
       await streamPreTripChat(
-        { message, history, client_request_id: clientRequestId },
+        { ...body, history, client_request_id: clientRequestId },
         {
           onEvent: (event) =>
             applyChatStreamEvent({
@@ -178,8 +192,8 @@ export function useTripChat(core: TripCore, initialDetail: TripDetail | null) {
               setMessages,
               setStreamingContent,
               setAgentPhase,
-              setAgentProgress,
-              onClients: rememberClients,
+              setAgentSteps,
+              onOpened: (tripId) => router.replace(pageRoutes.tripBuilderTrip(tripId)),
               showError: showApiError,
             }),
         },
@@ -187,7 +201,7 @@ export function useTripChat(core: TripCore, initialDetail: TripDetail | null) {
     } catch (error) {
       setStreamingContent(null);
       setAgentPhase(null);
-      setAgentProgress(null);
+      setAgentSteps([]);
       setMessages((prev) =>
         prev.filter((row) => row.id !== optimisticUser.id),
       );
@@ -195,6 +209,17 @@ export function useTripChat(core: TripCore, initialDetail: TripDetail | null) {
     } finally {
       setChatBusy(false);
     }
+  }
+
+  function sendHomeChat(message: string) {
+    return streamHomeTurn({ kind: "message", message }, message);
+  }
+
+  function sendHomeAction(action: TripChatAction) {
+    return streamHomeTurn(
+      { kind: "action", action: action.action, args: action.args ?? {}, label: action.label },
+      action.label,
+    );
   }
 
   /** Stream one trip turn (typed message, button action or approval) and keep the thread in sync. */
@@ -208,7 +233,7 @@ export function useTripChat(core: TripCore, initialDetail: TripDetail | null) {
     setMessages((prev) => [...prev, optimisticUser]);
     setStreamingContent("");
     setAgentPhase("thinking");
-    setAgentProgress(null);
+    setAgentSteps([]);
     let changed = false;
 
     try {
@@ -220,7 +245,7 @@ export function useTripChat(core: TripCore, initialDetail: TripDetail | null) {
             setMessages,
             setStreamingContent,
             setAgentPhase,
-            setAgentProgress,
+            setAgentSteps,
             onBusy,
             onChanged: () => {
               changed = true;
@@ -234,7 +259,7 @@ export function useTripChat(core: TripCore, initialDetail: TripDetail | null) {
     } catch (error) {
       setStreamingContent(null);
       setAgentPhase(null);
-      setAgentProgress(null);
+      setAgentSteps([]);
       setMessages((prev) =>
         prev.filter((row) => row.id !== optimisticUser.id),
       );
@@ -303,14 +328,6 @@ export function useTripChat(core: TripCore, initialDetail: TripDetail | null) {
     );
   }
 
-  function rememberClients(clients: { id: string; display_name: string }[]) {
-    setSuggestedClients((prev) => {
-      const byId = new Map(prev.map((client) => [client.id, client]));
-      for (const client of clients) byId.set(client.id, client);
-      return [...byId.values()].slice(-6);
-    });
-  }
-
   async function appendTurn(userText: string, assistantText: string) {
     const tap = tapRef.current;
     tapRef.current = null;
@@ -364,15 +381,15 @@ export function useTripChat(core: TripCore, initialDetail: TripDetail | null) {
     setStreamingContent,
     agentPhase,
     setAgentPhase,
-    agentProgress,
+    agentSteps,
     resetChatUi,
     loadChatMessages,
     loadOlderMessages,
     sendHomeChat,
+    sendHomeAction,
     sendTripChat,
     sendTripAction,
     sendApproval,
-    rememberClients,
     appendTurn,
     localChatMessage,
     beginTap,

@@ -5,11 +5,11 @@ import type { AgentApproval, AgentPhase, AgentStreamChunk, TurnMeter } from "../
 
 import { findAgentTool } from "./tools";
 
-const DEFAULT_PROGRESS = "Looking up…";
+const DEFAULT_PROGRESS = "Gathering details…";
 
-/** "Searching clients…" for one call; "Searching clients · Checking hotel…" for several. */
-export function progressLabel(calls: readonly Pick<ToolCall, "name" | "args">[]): string {
-  const labels = [
+/** One step label per distinct call, in call order ("Finding the client…", "Checking trip history…"). */
+export function progressLabels(calls: readonly Pick<ToolCall, "name" | "args">[]): string[] {
+  return [
     ...new Set(
       calls.map((call) => {
         const spec = findAgentTool(call.name);
@@ -18,8 +18,6 @@ export function progressLabel(calls: readonly Pick<ToolCall, "name" | "args">[])
       }),
     ),
   ];
-  if (labels.length <= 1) return labels[0] ?? DEFAULT_PROGRESS;
-  return `${labels.map((label) => label.replace(/…$/, "")).join(" · ")}…`;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -51,8 +49,11 @@ function textFromMessagesEvent(event: unknown): string {
   return "";
 }
 
+/** Chunks the tools send themselves (LangGraph "custom" mode). */
+const TOOL_CHUNKS = new Set(["changed", "choices", "opened"]);
+
 function isChunk(value: unknown): value is AgentStreamChunk {
-  return isRecord(value) && (value.kind === "changed" || value.kind === "choices");
+  return isRecord(value) && TOOL_CHUNKS.has(value.kind as string);
 }
 
 export type AgentStreamSummary = {
@@ -64,8 +65,8 @@ export type AgentStreamSummary = {
 
 /**
  * Map a LangGraph stream (modes "messages", "updates", "custom") to chat chunks:
- * tokens → delta, tool calls → looking_up + progress, tool events → changed / choices,
- * an interrupt → approval.
+ * tokens → delta, tool calls → looking_up + progress, tool events → changed / choices /
+ * opened, an interrupt → approval.
  */
 export async function* toAgentChunks(
   stream: AsyncIterable<unknown>,
@@ -108,7 +109,7 @@ export async function* toAgentChunks(
       if (calls.length === 0) continue;
       phase = "looking_up";
       yield { kind: "status", phase };
-      yield { kind: "progress", label: progressLabel(calls) };
+      for (const label of progressLabels(calls)) yield { kind: "progress", label };
     }
   }
 

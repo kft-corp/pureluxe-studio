@@ -122,7 +122,7 @@ export function TripBuilderTripsMenu({
 
           {trips.length === 0 ? (
             <p className="px-3 py-5 text-[13px] text-ink-muted">
-              No assigned trips yet. Tap Create trip when ready.
+              No assigned trips yet. Tell the agent who a trip is for to start one.
             </p>
           ) : (
             <ul className="max-h-[min(24rem,calc(100dvh-7rem))] overflow-y-auto py-1">
@@ -142,7 +142,7 @@ export function TripBuilderTripsMenu({
                       className={cn(
                         "flex w-full items-start gap-2.5 px-3 py-3 text-left transition-colors",
                         selected
-                          ? "border-l-2 border-l-accent bg-accent-soft pl-[10px]"
+                          ? "border-l-2 border-l-sky-ink bg-sky-soft pl-[10px]"
                           : "border-l-2 border-l-transparent hover:bg-surface-hover",
                       )}
                     >

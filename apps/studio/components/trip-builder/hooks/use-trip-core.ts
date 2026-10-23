@@ -23,7 +23,6 @@ export type UseTripBuilderOptions = {
   initialTrips: TripListItem[];
   initialDetail: TripDetail | null;
   canWrite: boolean;
-  prefillClientId?: string | null;
 };
 
 /** Shared state: the open trip, the open stay, the open question, and the rate search draft. */
@@ -42,10 +41,6 @@ export function useTripCore({
   const [busy, setBusy] = useState(false);
   const [rateOptions, setRateOptions] = useState<NormalizedRateOption[]>([]);
   const [rateStayNotes, setRateStayNotes] = useState<TripBuilderStayNotes | null>(null);
-  /** Clients the home chat found, offered as Create trip chips. */
-  const [suggestedClients, setSuggestedClients] = useState<
-    { id: string; display_name: string }[]
-  >([]);
   const [quietChips, setQuietChips] = useState(false);
   const firstLegId =
     initialDetail?.stays?.[0]?.leg_id ?? initialDetail?.stay?.leg_id ?? null;
@@ -128,8 +123,6 @@ export function useTripCore({
     setRateOptions,
     rateStayNotes,
     setRateStayNotes,
-    suggestedClients,
-    setSuggestedClients,
     quietChips,
     setQuietChips,
     activeLegIdRef,

@@ -11,4 +11,5 @@ export {
   shiftTrip,
   undoTripChange,
 } from "./trip-changes";
+export { createTripFromChat, type TripCreateContext } from "./create-trip-from-chat";
 export type { TripChangeContext, TripChangeResult } from "./with-trip-change";

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { LuArrowLeft, LuCheck, LuEllipsis, LuPencil, LuSparkles } from "react-icons/lu";
+import { LuArrowLeft, LuCheck, LuEllipsis, LuPencil } from "react-icons/lu";
 
 import {
   ConfirmDialog,
@@ -22,6 +22,7 @@ import {
   type ClientProfile,
   type RelationshipOwnerOption,
 } from "@/lib/clients";
+import { TripBuilderButton } from "@/components/trip-builder/trip-builder-button";
 import { pageRoutes } from "@/lib/routes";
 import { cn } from "@/lib/utils/cn";
 
@@ -234,18 +235,7 @@ export function ClientProfileContent({
                   Edit contact
                 </button>
               ) : null}
-              <button
-                type="button"
-                disabled
-                title="Trip Builder coming soon — will open with this client ready to plan."
-                className={studioButtonClass(
-                  client.review_status === "pending" ? "secondary" : "primary",
-                  "sm",
-                )}
-              >
-                <LuSparkles className="h-3.5 w-3.5" aria-hidden />
-                Start trip
-              </button>
+              <TripBuilderButton label="Start trip in Trip Builder (coming soon)" />
               {canWrite ? <MoreMenu onDeactivate={profilePage.requestDeactivate} /> : null}
             </div>
           </div>

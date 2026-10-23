@@ -1,16 +1,16 @@
 /**
  * @pureluxe/ai — Trip Builder AI.
  *
- *   agent/        — trip agent on LangGraph (reads and changes the open trip)
- *   trip-builder/ — home chat turn (no trip open)
- *   context/      — trip facts → stage + gaps
- *   prompts/      — system prompts (home, trip agent)
- *   providers/    — Claude API
- *   tools/        — home chat tools (clients/, history/, hotels/) + tool loop + stream chunks
+ *   agent/     — the LangGraph agent for the trip chat and the home chat
+ *   context/   — trip facts → stage + gaps
+ *   prompts/   — instructions (trip chat, home chat)
+ *   providers/ — a plain Claude text completion for small helpers
+ *   tools/     — lookup result shapes, stream chunks and the turn meter
  */
 
 export {
   AGENT_CHECKPOINT_SCHEMA,
+  HOME_AGENT_TOOLS,
   MAX_TOOL_ROUNDS,
   REDACTED,
   TRIP_AGENT_TOOLS,
@@ -20,6 +20,7 @@ export {
   readAgentMemory,
   redactSensitive,
   redactText,
+  streamHomeAgentTurn,
   streamTripAgentTurn,
   tripThreadId,
   type AgentAction,
@@ -28,6 +29,10 @@ export {
   type AgentTurnRequest,
   type ApprovalDecision,
   type CheckpointPool,
+  type DeskAgentHandlers,
+  type HomeAgentHandlers,
+  type HomeAgentTurnInput,
+  type LeadChoice,
   type PartyRole,
   type PlaceNotes,
   type RateSnapshot,
@@ -36,13 +41,10 @@ export {
   type TripAgentHandlers,
   type TripAgentTurnInput,
   type TripChange,
+  type TripCreateRequest,
+  type TripCreateResult,
+  type UpcomingTripMatch,
 } from "./agent";
-
-export {
-  buildModelMessages,
-  streamPreTripTurn,
-  type PreTripTurnInput,
-} from "./trip-builder";
 
 export {
   buildTripContext,
@@ -52,30 +54,22 @@ export {
 } from "./context";
 
 export {
+  HOME_PROMPT_RULES,
+  HOME_PROMPT_VERSION,
   TRIP_PROMPT_V2_RULES,
   TRIP_PROMPT_V2_VERSION,
-  buildPreTripSystemPrompt,
   buildTripFactsV2,
 } from "./prompts";
 
 export {
   completeClaudeText,
-  createClaudeMessage,
-  streamClaudeMessage,
-  streamClaudeText,
-  textFromClaudeMessage,
   type ClaudeChatMessage,
   type CompleteClaudeTextInput,
-  type CreateClaudeMessageInput,
 } from "./providers";
 
 export {
   AGENT_PHASE_LABEL,
-  PRE_TRIP_READ_TOOLS,
-  claudeRoundUsage,
   createTurnMeter,
-  executeTool,
-  streamAgentLoop,
   type AgentApproval,
   type AgentChoice,
   type AgentPhase,
@@ -87,14 +81,12 @@ export {
   type BookingBrief,
   type BookingHistoryRow,
   type ClientBrief,
-  type ClientLookupHandlers,
   type ClientSearchHit,
   type ClientToolHandlers,
   type DeskToolHandlers,
   type HistoryToolHandlers,
   type HotelBrief,
   type HotelToolHandlers,
-  type RunAgentLoopInput,
   type SearchBookingsInput,
   type SearchTripsInput,
   type TripHistoryRow,

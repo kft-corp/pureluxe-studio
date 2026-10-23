@@ -47,7 +47,7 @@ import { listedRates, stayOn } from "./trip-builder-helpers";
 export function useTripBuilder(options: UseTripBuilderOptions) {
   const core = useTripCore(options);
   const chat = useTripChat(core, options.initialDetail);
-  const session = useTripSession(core, chat, options.prefillClientId ?? null);
+  const session = useTripSession(core, chat);
   const {
     trips,
     detail,
@@ -58,7 +58,6 @@ export function useTripBuilder(options: UseTripBuilderOptions) {
     busy,
     rateOptions,
     rateStayNotes,
-    suggestedClients,
     quietChips,
     setQuietChips,
     activeLegIdRef,
@@ -81,9 +80,10 @@ export function useTripBuilder(options: UseTripBuilderOptions) {
     hasMoreMessages,
     streamingContent,
     agentPhase,
-    agentProgress,
+    agentSteps,
     loadOlderMessages,
     sendHomeChat,
+    sendHomeAction,
     sendTripChat,
     sendTripAction,
     sendApproval,
@@ -95,7 +95,7 @@ export function useTripBuilder(options: UseTripBuilderOptions) {
     enqueueMessage,
     dequeueMessage,
   } = chat;
-  const { pending, openTrip, newChat, createTrip, openTripPage, promptCreateTrip } = session;
+  const { pending, openTrip, newChat, openTripPage } = session;
   const {
     offerOptionsText,
     commitOptionsText,
@@ -532,16 +532,13 @@ export function useTripBuilder(options: UseTripBuilderOptions) {
     activeLegId,
     stayDraft,
     rateOptions,
-    suggestedClients,
     replyCards,
     quietChips,
     offer,
     pendingOptionDraft,
     pendingCostUpdate,
     actions: {
-      promptCreateTrip,
-      createTrip,
-      sendTripAction,
+      sendAction: detail ? sendTripAction : sendHomeAction,
       sendApproval,
       openTripPage,
       commitCostUpdate,
@@ -582,8 +579,6 @@ export function useTripBuilder(options: UseTripBuilderOptions) {
         }
       : undefined,
   }));
-  const homeChips: TripBuilderChip[] = [];
-
   return {
     trips,
     detail,
@@ -598,18 +593,15 @@ export function useTripBuilder(options: UseTripBuilderOptions) {
     hasMoreMessages,
     streamingContent,
     agentPhase,
-    agentProgress,
+    agentSteps,
     queuedCount,
     chips,
     rateCards,
     stayNotes: rateOptions.length > 0 ? rateStayNotes : null,
     activeLegId,
     selectLeg,
-    homeChips,
     openTrip,
     newChat,
-    createTrip,
-    promptCreateTrip,
     handleSend,
     loadOlderMessages,
     openOptionsQuote,

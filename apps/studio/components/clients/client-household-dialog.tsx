@@ -410,7 +410,7 @@ export function ClientHouseholdDialog({
                         onClick={() => setSelectedFamily(hit)}
                         className={cn(
                           "flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition hover:bg-surface-hover",
-                          checked && "bg-accent-soft",
+                          checked && "bg-sky-soft",
                         )}
                       >
                         <SelectionCheck checked={checked} />
@@ -455,7 +455,7 @@ export function ClientHouseholdDialog({
                         onClick={() => setSelectedClient(hit)}
                         className={cn(
                           "flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition hover:bg-surface-hover",
-                          checked && "bg-accent-soft",
+                          checked && "bg-sky-soft",
                         )}
                       >
                         <SelectionCheck checked={checked} />

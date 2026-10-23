@@ -114,7 +114,7 @@ export function TripBuilderRateCard({
               disabled={disabled}
               onClick={card.onAddToOptions}
               className={cn(
-                "inline-flex min-h-11 w-full items-center justify-center rounded-full bg-brand-dark px-3 text-[13px] font-medium text-on-dark hover:bg-brand-dark-hover disabled:cursor-not-allowed disabled:opacity-50 lg:min-h-8 lg:w-auto",
+                "inline-flex min-h-11 w-full items-center justify-center rounded-full bg-cta px-3 text-[13px] font-medium text-white hover:bg-cta-hover disabled:cursor-not-allowed disabled:opacity-50 lg:min-h-8 lg:w-auto",
                 studioFocusRing,
               )}
             >
@@ -131,7 +131,7 @@ export function TripBuilderRateCard({
                 studioFocusRing,
                 card.onAddToOptions
                   ? "bg-surface-raised text-accent-ink ring-1 ring-accent-line hover:bg-accent-soft"
-                  : "bg-brand-dark text-on-dark hover:bg-brand-dark-hover",
+                  : "bg-cta text-white hover:bg-cta-hover",
                 "disabled:cursor-not-allowed disabled:opacity-50",
               )}
             >

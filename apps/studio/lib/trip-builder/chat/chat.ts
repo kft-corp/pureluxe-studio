@@ -62,13 +62,14 @@ export type ChatMessage = {
 
 export type ChatStreamEvent =
   | { type: "meta"; user: ChatMessage }
-  | { type: "clients"; clients: { id: string; display_name: string }[] }
   | { type: "status"; phase: AgentPhase }
-  /** What the agent is doing, e.g. "Searching clients…". */
+  /** What the agent is doing, e.g. "Finding the client…". */
   | { type: "progress"; label: string }
   | { type: "delta"; text: string }
   /** The agent changed the trip; reload it. */
   | { type: "changed"; summary: string }
+  /** Home chat: open this trip (just created, or chosen). Sent after `done`. */
+  | { type: "opened"; tripId: string }
   | { type: "done"; assistant: ChatMessage }
   | {
       type: "replay";
@@ -221,18 +222,30 @@ export async function prepareChatTurn(
 ): Promise<PreparedChatTurn> {
   const meter = createTurnMeter();
 
-  // Independent reads: the send-key lookup is only used once access is confirmed.
-  const [, existing] = await Promise.all([
-    requireAssignedTrip(tripId, actor.memberId),
-    findTripChatMessageByClientRequestId(tripId, input.client_request_id),
-  ]);
-  meter.mark("access");
-  const replay = existing ? await findReplay(tripId, existing) : null;
-  if (replay) return replay;
-
-  // The trip loads while the lock is taken and the message is saved.
+  // Everything starts at once; nothing is used before access is confirmed. The trip
+  // load checks access itself, and the lock is given back if this turn doesn't run.
+  const lockAttempt = holdTripRunLock(tripId);
+  const giveBackLock = () => lockAttempt.then((held) => held?.release(), () => undefined);
   const prefetch = prefetchAgentTurn(tripId, actor);
-  const lock = await holdTripRunLock(tripId);
+  let existing: TripChatMessage | null;
+  let replay: ReplayTurn | null;
+  try {
+    [, existing] = await Promise.all([
+      requireAssignedTrip(tripId, actor.memberId),
+      findTripChatMessageByClientRequestId(tripId, input.client_request_id),
+    ]);
+    meter.mark("access");
+    replay = existing ? await findReplay(tripId, existing) : null;
+  } catch (cause) {
+    await giveBackLock();
+    throw cause;
+  }
+  if (replay) {
+    await giveBackLock();
+    return replay;
+  }
+
+  const lock = await lockAttempt;
   if (!lock) return { kind: "busy", message: tripMessages.error.agentBusy };
   meter.mark("lock");
 
@@ -435,7 +448,6 @@ function buildStreamTurn(input: {
         tripId,
         memberId: actor.memberId,
         clientRequestId: userRow.client_request_id,
-        agentVersion: "v2",
         threadId,
         promptVersion: TRIP_PROMPT_V2_VERSION,
       });

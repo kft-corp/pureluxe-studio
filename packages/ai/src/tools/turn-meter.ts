@@ -1,5 +1,3 @@
-import type Anthropic from "@anthropic-ai/sdk";
-
 /** One tool call inside a reply. Names and timings only — never inputs or results. */
 export type AgentToolCallMetric = {
   name: string;
@@ -58,17 +56,6 @@ export type TurnMeter = {
   addToolCall(metric: AgentToolCallMetric): void;
   read(): AgentTurnMetrics;
 };
-
-/** Usage from an Anthropic SDK message. `input_tokens` there already excludes the cache. */
-export function claudeRoundUsage(message: Anthropic.Message): ModelRoundUsage {
-  return {
-    model: message.model,
-    inputTokens: message.usage.input_tokens,
-    outputTokens: message.usage.output_tokens,
-    cacheReadTokens: message.usage.cache_read_input_tokens ?? 0,
-    cacheWriteTokens: message.usage.cache_creation_input_tokens ?? 0,
-  };
-}
 
 export function createTurnMeter(now: () => number = Date.now): TurnMeter {
   const startedAt = now();

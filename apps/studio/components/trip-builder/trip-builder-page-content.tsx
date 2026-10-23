@@ -14,20 +14,17 @@ type TripBuilderPageContentProps = {
   initialTrips: TripListItem[];
   initialDetail: TripDetail | null;
   canWrite: boolean;
-  prefillClientId?: string | null;
 };
 
 export function TripBuilderPageContent({
   initialTrips,
   initialDetail,
   canWrite,
-  prefillClientId = null,
 }: TripBuilderPageContentProps) {
   const builder = useTripBuilder({
     initialTrips,
     initialDetail,
     canWrite,
-    prefillClientId,
   });
 
   const stage = resolveTripStage(builder.detail);
@@ -38,7 +35,7 @@ export function TripBuilderPageContent({
       : undefined;
 
   const helperText = !tripOpen
-    ? "Ask about clients anytime. Tap Create trip when ready to build."
+    ? undefined
     : builder.chatBusy
       ? undefined
       : stage === "client"
@@ -82,7 +79,7 @@ export function TripBuilderPageContent({
       />
 
       <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
-        <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-raised">
+        <section className="agent-chat-backdrop flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
             <TripBuilderChatPane
               detail={builder.detail}
@@ -94,12 +91,10 @@ export function TripBuilderPageContent({
               hasMoreMessages={builder.hasMoreMessages}
               streamingContent={builder.streamingContent}
               agentPhase={builder.agentPhase}
-              agentProgress={builder.agentProgress}
-              homeChips={builder.homeChips}
+              agentSteps={builder.agentSteps}
               rateCards={builder.rateCards}
               stayNotes={builder.stayNotes}
               activeLegId={builder.activeLegId}
-              onCreateTrip={builder.promptCreateTrip}
               onLoadOlder={() => void builder.loadOlderMessages()}
             />
           </div>
@@ -108,7 +103,7 @@ export function TripBuilderPageContent({
             placeholder={
               tripOpen
                 ? "Message your agent…"
-                : "Ask about a client — or Create trip when ready…"
+                : "Plan a trip, or ask about a client…"
             }
             helperText={helperText}
             notice={queuedNotice}

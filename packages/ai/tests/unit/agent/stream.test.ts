@@ -1,7 +1,7 @@
 import { AIMessage, AIMessageChunk, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it } from "vitest";
 
-import { progressLabel, toAgentChunks } from "../../../src/agent/stream";
+import { progressLabels, toAgentChunks } from "../../../src/agent/stream";
 import { createTurnMeter, type AgentStreamChunk } from "../../../src/tools";
 
 async function collect(events: unknown[]) {
@@ -23,21 +23,30 @@ const agentToken = (text: string) => [
   [new AIMessageChunk({ content: text }), { langgraph_node: "agent" }],
 ];
 
-describe("progressLabel", () => {
-  it("names one lookup, and joins several", () => {
-    expect(progressLabel([{ name: "client_search", args: { query: "Mehta" } }])).toBe("Searching clients…");
+describe("progressLabels", () => {
+  it("gives one step per distinct lookup, in call order", () => {
     expect(
-      progressLabel([
+      progressLabels([
         { name: "client_search", args: { query: "Mehta" } },
         { name: "hotel_get", args: { name: "Resort One" } },
-        { name: "hotel_get", args: { name: "Resort One" } },
+        { name: "hotel_get", args: { name: "Resort Two" } },
       ]),
-    ).toBe("Searching clients · Checking Resort One…");
+    ).toEqual(["Finding the client…", "Reviewing hotel details…"]);
   });
 
   it("falls back for unknown tools or bad arguments", () => {
-    expect(progressLabel([{ name: "hotel_get", args: {} }])).toBe("Looking up…");
-    expect(progressLabel([{ name: "nope", args: {} }])).toBe("Looking up…");
+    expect(progressLabels([{ name: "hotel_get", args: {} }, { name: "nope", args: {} }])).toEqual([
+      "Gathering details…",
+    ]);
+  });
+
+  it("never names internal systems or the brand", () => {
+    const labels = progressLabels([
+      { name: "place_get_notes", args: { query: "Maldives" } },
+      { name: "rates_get_snapshot", args: {} },
+      { name: "history_search_trips", args: {} },
+    ]);
+    for (const label of labels) expect(label).not.toMatch(/atlas|notes|snapshot|search|pureluxe|database/i);
   });
 });
 
@@ -65,7 +74,7 @@ describe("toAgentChunks", () => {
 
     expect(chunks).toEqual([
       { kind: "status", phase: "looking_up" },
-      { kind: "progress", label: "Searching clients…" },
+      { kind: "progress", label: "Finding the client…" },
       { kind: "status", phase: "writing" },
       { kind: "delta", text: "Four " },
       { kind: "delta", text: "Mehtas." },
@@ -83,12 +92,14 @@ describe("toAgentChunks", () => {
     const approval = { tool: "trip_shift_dates", args: { days: 2 }, summary: "Move the trip?", tripVersion: 3 };
     const { chunks, summary } = await collect([
       ["custom", { kind: "changed", summary: "Dates set", undo: true }],
+      ["custom", { kind: "opened", tripId: "trip-2", created: true }],
       ["custom", { kind: "something_else" }],
       ["updates", { __interrupt__: [{ value: approval }] }],
     ]);
 
     expect(chunks).toEqual([
       { kind: "changed", summary: "Dates set", undo: true },
+      { kind: "opened", tripId: "trip-2", created: true },
       { kind: "approval", approval },
     ]);
     expect(summary).toEqual({ sawText: false, paused: true });

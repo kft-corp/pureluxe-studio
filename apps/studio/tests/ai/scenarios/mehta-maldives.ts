@@ -18,6 +18,11 @@ export const EVERY_REPLY_MUST_NOT = [
   "database",
   "Atlas",
   "trip pack",
+  // Replies stay neutral: no company name, and nothing about where answers are stored.
+  "PureLuxe",
+  "on file",
+  "no notes",
+  "in our records",
 ];
 
 // ---------------------------------------------------------------------------
@@ -95,7 +100,7 @@ const mainSteps: ScenarioStep[] = [
   {
     id: "hotels-and-similar",
     flowStages: [4],
-    buildStage: "stage-3",
+    buildStage: "stage-3c",
     title: "Named hotel plus similar ones, rates side by side",
     advisor: {
       kind: "say",
@@ -120,7 +125,7 @@ const mainSteps: ScenarioStep[] = [
   {
     id: "add-options",
     flowStages: [5],
-    buildStage: "stage-3",
+    buildStage: "stage-3d",
     title: "Two rooms per hotel added to the quote in one go",
     advisor: {
       kind: "say",
@@ -156,7 +161,7 @@ const mainSteps: ScenarioStep[] = [
   {
     id: "review-quote",
     flowStages: [5],
-    buildStage: "stage-3",
+    buildStage: "stage-3d",
     title: "Review the quote before it goes",
     advisor: {
       kind: "say",
@@ -173,7 +178,7 @@ const mainSteps: ScenarioStep[] = [
   {
     id: "send-quote",
     flowStages: [5],
-    buildStage: "stage-3",
+    buildStage: "stage-3d",
     title: "One labelled tap sends the quote",
     advisor: {
       kind: "tap",
@@ -192,8 +197,8 @@ const mainSteps: ScenarioStep[] = [
   {
     id: "client-picks",
     flowStages: [6],
-    buildStage: "stage-3",
-    title: "Advisor records the client's choice; agent asks for approval once",
+    buildStage: "stage-4",
+    title: "Advisor records the client's choice; it becomes a pending booking with Undo",
     advisor: {
       kind: "say",
       text: "Aarav picked the water villa at Kihavah",
@@ -204,36 +209,23 @@ const mainSteps: ScenarioStep[] = [
       ],
     },
     expect: {
-      tools: { notCalled: ["quote_send", "quote_add_options"] },
-      cards: ["approval"],
-      reply: { mentions: ["Over Water Pool Villa", KIHAVAH] },
-      confirmations: 0,
-      approvals: 1,
-    },
-    note:
-      "quote_select_final is chosen from typed text and creates a pending booking, so it pauses for one approval card (risk level: approval).",
-  },
-  {
-    id: "approve-choice",
-    flowStages: [6],
-    buildStage: "stage-3",
-    title: "Approve the client's choice",
-    advisor: { kind: "tap", label: "Confirm", action: "approve" },
-    expect: {
-      tools: { called: ["quote_select_final"] },
+      tools: { called: ["quote_select_final"], notCalled: ["quote_send", "quote_add_options"] },
       trip: {
         chosenOption: { hotel: KIHAVAH, room: "Over Water Pool Villa" },
         booking: { hotel: KIHAVAH, status: "pending" },
       },
-      reply: { mentions: ["booking"] },
+      cards: ["undo"],
+      reply: { mentions: ["Over Water Pool Villa", KIHAVAH, "booking"] },
       confirmations: 0,
       approvals: 0,
     },
+    note:
+      "Feedback v2: confirmation only when the quote is sent. Recording the choice runs with Undo (Undo cancels the pending booking). Pending Keshav's confirmation (redesign §2.3).",
   },
   {
     id: "booking-confirmed",
     flowStages: [6],
-    buildStage: "stage-3",
+    buildStage: "stage-4",
     title: "Advisor books with the hotel (Bookings module)",
     advisor: {
       kind: "event",
@@ -285,7 +277,7 @@ export const MEHTA_MALDIVES: AgentScenario = {
     {
       id: "cancellation-question",
       afterStep: "hotels-and-similar",
-      buildStage: "stage-3",
+      buildStage: "stage-3c",
       advisor: {
         kind: "say",
         text: "What's the cancellation on these?",
@@ -299,7 +291,7 @@ export const MEHTA_MALDIVES: AgentScenario = {
     {
       id: "margin-question",
       afterStep: "add-options",
-      buildStage: "stage-3",
+      buildStage: "stage-3d",
       advisor: {
         kind: "say",
         text: "What's our margin on the Kanuhura beach villa option?",
@@ -313,7 +305,7 @@ export const MEHTA_MALDIVES: AgentScenario = {
     {
       id: "free-cancel-deadline",
       afterStep: "send-quote",
-      buildStage: "stage-3",
+      buildStage: "stage-3d",
       advisor: {
         kind: "say",
         text: "Until when can they cancel for free?",
@@ -348,7 +340,7 @@ export const MEHTA_MALDIVES_SUGGEST: AgentScenario = {
     {
       id: "suggest-hotels",
       flowStages: [4],
-      buildStage: "stage-3",
+      buildStage: "stage-3c",
       title: "Agent suggests hotels and shows their rates side by side",
       advisor: {
         kind: "say",

@@ -29,10 +29,8 @@ type Run = void | Promise<unknown>;
 
 /** What each chip runs. The hook passes its own functions in. */
 export type ComposerChipActions = {
-  promptCreateTrip: () => void;
-  createTrip: (clientId: string, clientName: string) => Run;
-  /** Runs an agent tool directly; the label is all the advisor sees. */
-  sendTripAction: (action: TripChatAction) => Run;
+  /** Runs an agent tool directly (home chat or trip chat); the label is all the advisor sees. */
+  sendAction: (action: TripChatAction) => Run;
   /** Confirm or Cancel on the agent's approval card. */
   sendApproval: (decision: "approve" | "cancel") => Run;
   openTripPage: () => void;
@@ -60,7 +58,6 @@ export type ComposerChipsInput = {
   activeLegId: string | null;
   stayDraft: StayDraft;
   rateOptions: NormalizedRateOption[];
-  suggestedClients: { id: string; display_name: string }[];
   /** Cards on the agent's latest reply. Null while a reply is running. */
   replyCards: ChatReplyCards | null;
   quietChips: boolean;
@@ -90,7 +87,7 @@ function rankChips(chips: TripBuilderChip[], decline: TripBuilderChip | null): T
 /** The agent's cards: Confirm and Cancel, one button per choice, and Undo. */
 function replyCardChips(
   cards: ChatReplyCards,
-  actions: Pick<ComposerChipActions, "sendTripAction" | "sendApproval">,
+  actions: Pick<ComposerChipActions, "sendAction" | "sendApproval">,
 ): TripBuilderChip[] {
   if (cards.approval) {
     return [
@@ -102,8 +99,7 @@ function replyCardChips(
     id: `choice-${index}`,
     label: choice.label,
     variant: index === 0 ? "primary" : "secondary",
-    onClick: () =>
-      void actions.sendTripAction({ action: choice.action, args: choice.args, label: choice.label }),
+    onClick: () => void actions.sendAction({ action: choice.action, args: choice.args, label: choice.label }),
   }));
   if (cards.undo) {
     chips.push({
@@ -111,7 +107,7 @@ function replyCardChips(
       label: "Undo",
       variant: "secondary",
       icon: "undo",
-      onClick: () => void actions.sendTripAction({ action: "trip_undo", label: "Undo" }),
+      onClick: () => void actions.sendAction({ action: "trip_undo", label: "Undo" }),
     });
   }
   return chips;
@@ -129,7 +125,6 @@ export function buildComposerChips(input: ComposerChipsInput): {
     activeLegId,
     stayDraft,
     rateOptions,
-    suggestedClients,
     replyCards,
     quietChips,
     offer,
@@ -137,9 +132,7 @@ export function buildComposerChips(input: ComposerChipsInput): {
     pendingCostUpdate,
   } = input;
   const {
-    promptCreateTrip,
-    createTrip,
-    sendTripAction,
+    sendAction,
     openTripPage,
     commitCostUpdate,
     offerRoomPrice,
@@ -158,29 +151,8 @@ export function buildComposerChips(input: ComposerChipsInput): {
 
   const stage = resolveTripStage(detail);
   const openStay = stayOn(detail, activeLegId);
-  const chips: TripBuilderChip[] = [];
-
-  if (!detail && canWrite) {
-    chips.push({
-      id: "create-trip",
-      label: "Create trip",
-      variant: "primary",
-      icon: "plus",
-      onClick: promptCreateTrip,
-    });
-
-    for (const client of suggestedClients) {
-      chips.push({
-        id: `draft-client-${client.id}`,
-        label: `Create trip · ${client.display_name}`,
-        variant: "secondary",
-        onClick: () => void createTrip(client.id, client.display_name),
-      });
-    }
-  }
-
-  const agentChips = detail && canWrite && replyCards ? replyCardChips(replyCards, input.actions) : [];
-  chips.push(...agentChips);
+  const agentChips = canWrite && replyCards ? replyCardChips(replyCards, input.actions) : [];
+  const chips: TripBuilderChip[] = [...agentChips];
   if (replyCards?.approval) return { chips, rateCards: [] };
 
   const hasConfirm = Boolean(offer || pendingOptionDraft || agentChips.length > 0);
@@ -195,7 +167,7 @@ export function buildComposerChips(input: ComposerChipsInput): {
       label: pastTripsLabel,
       variant: "secondary",
       onClick: () =>
-        void sendTripAction({
+        void sendAction({
           action: "history_search_trips",
           args: { client_id: client.id },
           label: pastTripsLabel,
@@ -405,7 +377,7 @@ export function buildComposerChips(input: ComposerChipsInput): {
       id: "ask-readiness",
       label: "What's missing before booking?",
       variant: "secondary",
-      onClick: () => void sendTripAction({ action: "trip_get", label: "What's missing before booking?" }),
+      onClick: () => void sendAction({ action: "trip_get", label: "What's missing before booking?" }),
     });
     chips.push({
       id: "open-trip-page",

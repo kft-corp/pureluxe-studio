@@ -3,7 +3,7 @@
  * Map domain data → AI shapes; wire tool handlers (no HTTP).
  */
 export { createDeskTools, type DeskActor } from "./create-desk-tools";
-export { createPreTripTools } from "./create-pre-trip-tools";
+export { createHomeAgentTools } from "./create-home-agent-tools";
 export { createTripAgentTools } from "./create-trip-agent-tools";
 export { toClientBrief } from "./to-client-brief";
 export { toClientSearchHit } from "./to-client-search-hit";

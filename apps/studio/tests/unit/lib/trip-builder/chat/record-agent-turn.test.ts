@@ -1,4 +1,4 @@
-import { claudeRoundUsage, createTurnMeter, type ModelRoundUsage } from "@pureluxe/ai";
+import { createTurnMeter, type ModelRoundUsage } from "@pureluxe/ai";
 import { AppError } from "@pureluxe/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -8,25 +8,8 @@ vi.mock("@pureluxe/db", () => ({ insertAgentTurn: db.insertAgentTurn }));
 
 import { recordAgentTurn } from "@/lib/trip-builder/chat/record-agent-turn";
 
-type ClaudeMessage = Parameters<typeof claudeRoundUsage>[0];
-
-function message(usage: Partial<ClaudeMessage["usage"]>): ModelRoundUsage {
-  return claudeRoundUsage({
-    id: "msg_1",
-    type: "message",
-    role: "assistant",
-    model: "claude-test",
-    content: [],
-    stop_reason: "end_turn",
-    stop_sequence: null,
-    usage: {
-      input_tokens: 0,
-      output_tokens: 0,
-      cache_creation_input_tokens: null,
-      cache_read_input_tokens: null,
-      ...usage,
-    },
-  } as ClaudeMessage);
+function message(usage: Partial<ModelRoundUsage>): ModelRoundUsage {
+  return { model: "claude-test", inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, ...usage };
 }
 
 function clock(times: number[]) {
@@ -39,8 +22,8 @@ describe("createTurnMeter", () => {
     const meter = createTurnMeter(clock([1000, 1400, 1450, 2200]));
     meter.markText();
     meter.markText();
-    meter.addRound(message({ input_tokens: 100, output_tokens: 20, cache_read_input_tokens: 900 }));
-    meter.addRound(message({ input_tokens: 50, output_tokens: 30, cache_creation_input_tokens: 40 }));
+    meter.addRound(message({ inputTokens: 100, outputTokens: 20, cacheReadTokens: 900 }));
+    meter.addRound(message({ inputTokens: 50, outputTokens: 30, cacheWriteTokens: 40 }));
     meter.addToolCall({ name: "get_trip", ms: 12, ok: true, error_code: null });
 
     expect(meter.read()).toEqual({
@@ -81,8 +64,8 @@ describe("createTurnMeter", () => {
 
   it("flags the turn when the backup model answered a round", () => {
     const meter = createTurnMeter(clock([0, 100]));
-    meter.addRound({ ...message({ input_tokens: 5 }), fallback: false });
-    meter.addRound({ ...message({ input_tokens: 5 }), model: "claude-backup", fallback: true });
+    meter.addRound({ ...message({ inputTokens: 5 }), fallback: false });
+    meter.addRound({ ...message({ inputTokens: 5 }), model: "claude-backup", fallback: true });
 
     expect(meter.read()).toMatchObject({ model: "claude-backup", rounds: 2, fallbackUsed: true });
   });
@@ -98,9 +81,9 @@ describe("recordAgentTurn", () => {
     db.insertAgentTurn.mockReset();
   });
 
-  it("saves a v1 trip row with the error code", async () => {
+  it("saves a trip row with the error code", async () => {
     const meter = createTurnMeter(clock([0, 250]));
-    meter.addRound(message({ input_tokens: 10, output_tokens: 5 }));
+    meter.addRound(message({ inputTokens: 10, outputTokens: 5 }));
 
     await recordAgentTurn({
       meter,
@@ -119,7 +102,7 @@ describe("recordAgentTurn", () => {
         trip_id: "trip-1",
         member_id: "member-1",
         channel: "trip",
-        agent_version: "v1",
+        agent_version: "v2",
         client_request_id: "req-1",
         model: "claude-test",
         rounds: 1,
@@ -131,9 +114,9 @@ describe("recordAgentTurn", () => {
     );
   });
 
-  it("saves a v2 row with its thread, instructions version and backup-model use", async () => {
+  it("saves the thread, instructions version and backup-model use", async () => {
     const meter = createTurnMeter(clock([0, 250]));
-    meter.addRound({ ...message({ input_tokens: 10 }), model: "claude-backup", fallback: true });
+    meter.addRound({ ...message({ inputTokens: 10 }), model: "claude-backup", fallback: true });
 
     await recordAgentTurn({
       meter,
@@ -142,7 +125,6 @@ describe("recordAgentTurn", () => {
       tripId: "trip-1",
       memberId: "member-1",
       clientRequestId: "req-1",
-      agentVersion: "v2",
       threadId: "trip:trip-1",
       promptVersion: "TRIP_PROMPT_V2",
     });

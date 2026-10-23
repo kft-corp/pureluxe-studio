@@ -5,21 +5,23 @@ import { LuArrowDown, LuSparkles } from "react-icons/lu";
 
 import { AGENT_PHASE_LABEL, type AgentPhase } from "@pureluxe/ai/chat-stream";
 
-import { studioButtonClass } from "@/components/ui";
 import type { ChatMessage, TripDetail } from "@/lib/trip-builder";
 import { cn } from "@/lib/utils/cn";
 
 import { ChatMarkdown } from "./chat-markdown";
 import { resolveTripStage } from "./stages";
 import { TRIP_START_PROMPT } from "./trip-builder-copy";
-import type { TripBuilderChip } from "./trip-builder-action-chip";
 import {
   TripBuilderRateCard,
   TripBuilderStayNotesCard,
   type TripBuilderRateCard as RateCard,
   type TripBuilderStayNotes,
 } from "./trip-builder-rate-card";
+import { CHAT_COLUMN_CLASS } from "./trip-builder-helpers";
 import { ChatSkeleton } from "./trip-builder-skeleton";
+
+/** How long "Jump to latest" stays after the advisor stops scrolling. */
+const JUMP_VISIBLE_MS = 2500;
 
 type TripBuilderChatPaneProps = {
   detail: TripDetail | null;
@@ -31,21 +33,13 @@ type TripBuilderChatPaneProps = {
   hasMoreMessages: boolean;
   streamingContent: string | null;
   agentPhase: AgentPhase | null;
-  /** What the agent is looking up, e.g. "Searching clients…". */
-  agentProgress: string | null;
-  homeChips: TripBuilderChip[];
+  /** This reply's steps so far, e.g. "Finding the client…". */
+  agentSteps: string[];
   rateCards: RateCard[];
   stayNotes: TripBuilderStayNotes | null;
   activeLegId?: string | null;
-  onCreateTrip: () => void;
   onLoadOlder: () => void;
 };
-
-/** The live status line: the lookup in progress, else the phase. */
-function agentStatusLabel(phase: AgentPhase | null, progress: string | null): string | null {
-  if (phase === "looking_up" && progress) return progress;
-  return phase ? AGENT_PHASE_LABEL[phase] : null;
-}
 
 /** Full-width chat thread — agent left, you right. */
 export function TripBuilderChatPane({
@@ -58,12 +52,10 @@ export function TripBuilderChatPane({
   hasMoreMessages,
   streamingContent,
   agentPhase,
-  agentProgress,
-  homeChips,
+  agentSteps,
   rateCards,
   stayNotes,
   activeLegId = null,
-  onCreateTrip,
   onLoadOlder,
 }: TripBuilderChatPaneProps) {
   const hasDraftThread =
@@ -80,64 +72,17 @@ export function TripBuilderChatPane({
   if (!detail && !hasDraftThread) {
     return (
       <div className="h-full min-h-0 w-full overflow-y-auto">
-      <div className="mx-auto flex min-h-full w-full max-w-[440px] flex-col justify-center px-4 py-6 text-center sm:py-16">
-        <h2 className="font-serif text-[1.65rem] leading-tight font-medium tracking-tight text-ink sm:text-[2.05rem]">
-          What do you need?
-        </h2>
-        <p className="mx-auto mt-2.5 max-w-md text-[14px] leading-relaxed text-ink-muted sm:text-[15px]">
-          I’m your{" "}
-          <strong className="font-semibold text-ink">PureLuxe agent</strong> — I
-          can look up clients and answer questions about them. Tap{" "}
-          <strong className="font-semibold text-ink">Create trip</strong> when
-          you’re ready to build.
-        </p>
-
-        <div className="mt-6 flex justify-center sm:mt-8">
-          {canWrite ? (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={onCreateTrip}
-              className={studioButtonClass(
-                "primary",
-                "md",
-                "min-w-[148px] h-11 rounded-[10px] text-sm sm:h-10",
-              )}
-            >
-              Create trip
-            </button>
-          ) : (
-            <p className="max-w-sm text-center text-xs text-ink-muted">
-              You can open assigned trips above. Creating trips needs write
-              access.
-            </p>
-          )}
+        <div className="mx-auto flex min-h-full w-full max-w-md flex-col items-center justify-center px-4 py-10 text-center">
+          <AgentAvatar />
+          <h2 className="mt-4 font-serif text-[1.6rem] leading-tight font-medium tracking-tight text-ink sm:text-[1.9rem]">
+            Where to next?
+          </h2>
+          <p className="mt-2 text-[14px] leading-relaxed text-ink-muted">
+            {canWrite
+              ? "Tell me who the trip is for, where and when, or ask about a client, hotel or place."
+              : "Ask about a client, hotel or place, or open one of your trips above."}
+          </p>
         </div>
-
-        {homeChips.length > 0 ? (
-          <div className="mt-6 sm:mt-7">
-            <p className="mb-2 text-[12px] text-ink-muted">Try saying</p>
-            <div className="flex flex-wrap justify-center gap-2">
-              {homeChips.map((chip) => (
-                <button
-                  key={chip.id}
-                  type="button"
-                  disabled={busy || !canWrite}
-                  onClick={chip.onClick}
-                  className={cn(
-                    "inline-flex min-h-10 max-w-full items-center rounded-full bg-surface-subtle px-3 py-2 text-left text-[13px] font-medium leading-snug break-words text-ink ring-1 ring-border transition-colors lg:min-h-7 lg:py-1 lg:leading-none",
-                    "hover:bg-accent-soft hover:text-accent-ink hover:ring-accent-line",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-strong",
-                    "disabled:cursor-not-allowed disabled:opacity-50",
-                  )}
-                >
-                  {chip.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : null}
-      </div>
       </div>
     );
   }
@@ -156,8 +101,8 @@ export function TripBuilderChatPane({
       onLoadOlder={onLoadOlder}
       messages={messages}
       streamingContent={streamingContent}
-      agentStatus={agentStatusLabel(agentPhase, agentProgress)}
-      lookingUp={agentPhase === "looking_up"}
+      agentPhase={agentPhase}
+      agentSteps={agentSteps}
       busy={busy}
       welcomeContent={
         detail && showWelcome
@@ -167,7 +112,6 @@ export function TripBuilderChatPane({
       rateCards={streamingContent ? [] : rateCards}
       stayNotes={streamingContent ? null : stayNotes}
       offersDisabled={busy}
-      banner={<AgentStatusBanner detail={detail} />}
     />
   );
 }
@@ -181,78 +125,41 @@ function tripWelcomeMessage(
   return stageCueFor(detail, stage, activeLegId);
 }
 
-function AgentAvatar({
-  size = "md",
-  thinking = false,
-  className,
-}: {
-  size?: "sm" | "md";
-  thinking?: boolean;
-  className?: string;
-}) {
+/** The agent's mark on the empty start screen. */
+function AgentAvatar() {
   return (
     <div
       aria-hidden
-      className={cn(
-        "grid shrink-0 place-items-center rounded-full bg-avatar-hero text-avatar-hero-ink shadow-sm ring-1 ring-inset ring-accent/40",
-        size === "sm" ? "h-7 w-7 sm:h-8 sm:w-8" : "h-8 w-8",
-        className,
-      )}
+      className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-avatar-hero text-avatar-hero-ink shadow-sm ring-1 ring-inset ring-accent/40"
     >
-      <LuSparkles
-        className={cn(
-          size === "sm" ? "h-3.5 w-3.5 sm:h-4 sm:w-4" : "h-4 w-4",
-          thinking && "animate-pulse motion-reduce:animate-none",
-        )}
-        strokeWidth={1.75}
-      />
-    </div>
-  );
-}
-
-function AgentStatusBanner({ detail }: { detail: TripDetail | null }) {
-  return (
-    <div className="mb-3 flex w-full items-start gap-2.5 rounded-xl border border-accent-line bg-accent-soft px-3 py-2.5 sm:mb-4">
-      <AgentAvatar className="mt-0.5" />
-      <div className="min-w-0">
-        <p className="text-[11px] font-semibold text-accent-ink">
-          PureLuxe trip builder
-        </p>
-        <p className="mt-0.5 text-[13px] leading-snug text-ink">
-          {!detail
-            ? "Hi — I’m your trip builder agent. Chat for client info, or tap Create trip when you’re ready to plan."
-            : "Hi — I’ll help you plan this trip. Tell me what you need; you can undo any change I make."}
-        </p>
-      </div>
+      <LuSparkles className="h-4 w-4" strokeWidth={1.75} />
     </div>
   );
 }
 
 function ChatScrollArea({
-  banner,
   chatLoading,
   chatLoadingOlder,
   hasMoreMessages,
   onLoadOlder,
   messages,
   streamingContent,
-  agentStatus,
-  lookingUp,
+  agentPhase,
+  agentSteps,
   busy,
   welcomeContent,
   rateCards,
   stayNotes,
   offersDisabled,
 }: {
-  banner: React.ReactNode;
   chatLoading: boolean;
   chatLoadingOlder: boolean;
   hasMoreMessages: boolean;
   onLoadOlder: () => void;
   messages: ChatMessage[];
   streamingContent: string | null;
-  agentStatus: string | null;
-  lookingUp: boolean;
+  agentPhase: AgentPhase | null;
+  agentSteps: string[];
   busy: boolean;
   welcomeContent: string | null;
   rateCards: RateCard[];
@@ -266,6 +173,9 @@ function ChatScrollArea({
   const [prevChatLoading, setPrevChatLoading] = useState(chatLoading);
   const scrollAdjustRef = useRef<number | null>(null);
   const olderFetchLockRef = useRef(false);
+  const jumpTimerRef = useRef<number | null>(null);
+  /** Pointer or keyboard focus is on the button, so it stays visible. */
+  const jumpHeldRef = useRef(false);
 
   if (chatLoading !== prevChatLoading) {
     setPrevChatLoading(chatLoading);
@@ -285,7 +195,7 @@ function ChatScrollArea({
     if (stickToBottomRef.current) {
       endRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
     }
-  }, [messages, streamingContent, agentStatus, busy, chatLoading, welcomeContent, rateCards]);
+  }, [messages, streamingContent, agentPhase, agentSteps, busy, chatLoading, welcomeContent, rateCards]);
 
   useEffect(() => {
     if (chatLoading) {
@@ -299,6 +209,26 @@ function ChatScrollArea({
     }
   }, [chatLoadingOlder]);
 
+  useEffect(() => () => clearJumpTimer(), []);
+
+  function clearJumpTimer() {
+    if (jumpTimerRef.current != null) window.clearTimeout(jumpTimerRef.current);
+    jumpTimerRef.current = null;
+  }
+
+  /** Hide the button after a pause in scrolling, unless the pointer or focus is on it. */
+  function scheduleJumpHide() {
+    clearJumpTimer();
+    if (jumpHeldRef.current) return;
+    jumpTimerRef.current = window.setTimeout(() => setShowJump(false), JUMP_VISIBLE_MS);
+  }
+
+  function holdJump(held: boolean) {
+    jumpHeldRef.current = held;
+    if (held) clearJumpTimer();
+    else scheduleJumpHide();
+  }
+
   function handleScroll() {
     const el = scrollRef.current;
     if (!el) return;
@@ -307,8 +237,13 @@ function ChatScrollArea({
       el.scrollHeight - el.scrollTop - el.clientHeight;
     stickToBottomRef.current = distanceFromBottom < 96;
     const jumpThreshold = Math.max(280, Math.min(el.clientHeight * 0.6, 520));
-    const show = distanceFromBottom >= jumpThreshold;
-    setShowJump((current) => (current === show ? current : show));
+    if (distanceFromBottom >= jumpThreshold) {
+      setShowJump(true);
+      scheduleJumpHide();
+    } else {
+      clearJumpTimer();
+      setShowJump(false);
+    }
 
     if (
       el.scrollTop < 72 &&
@@ -324,6 +259,7 @@ function ChatScrollArea({
 
   function jumpToLatest() {
     stickToBottomRef.current = true;
+    clearJumpTimer();
     setShowJump(false);
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }
@@ -335,16 +271,16 @@ function ChatScrollArea({
         onScroll={handleScroll}
         className="flex h-full min-h-0 w-full flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain px-3 pt-3 pb-3 sm:px-6 sm:pt-4"
       >
-      {banner}
-
       {chatLoading ? (
-        <ChatSkeleton />
+        <div className={CHAT_COLUMN_CLASS}>
+          <ChatSkeleton />
+        </div>
       ) : (
         <ChatMessageList
           messages={messages}
           streamingContent={streamingContent}
-          agentStatus={agentStatus}
-          lookingUp={lookingUp}
+          agentPhase={agentPhase}
+          agentSteps={agentSteps}
           busy={busy}
           loadingOlder={chatLoadingOlder}
           welcomeContent={welcomeContent}
@@ -358,6 +294,10 @@ function ChatScrollArea({
       <button
         type="button"
         onClick={jumpToLatest}
+        onPointerEnter={() => holdJump(true)}
+        onPointerLeave={() => holdJump(false)}
+        onFocus={() => holdJump(true)}
+        onBlur={() => holdJump(false)}
         aria-label="Jump to latest messages"
         aria-hidden={showJump ? undefined : true}
         tabIndex={showJump ? 0 : -1}
@@ -439,8 +379,8 @@ function formatMsgTime(iso: string) {
 function ChatMessageList({
   messages,
   streamingContent,
-  agentStatus,
-  lookingUp,
+  agentPhase,
+  agentSteps,
   busy,
   loadingOlder,
   welcomeContent,
@@ -451,9 +391,8 @@ function ChatMessageList({
 }: {
   messages: ChatMessage[];
   streamingContent: string | null;
-  agentStatus: string | null;
-  /** Text already streamed, and the agent went back to look something up. */
-  lookingUp: boolean;
+  agentPhase: AgentPhase | null;
+  agentSteps: string[];
   busy: boolean;
   loadingOlder: boolean;
   welcomeContent: string | null;
@@ -471,10 +410,10 @@ function ChatMessageList({
     return null;
   }
 
-  const showPhaseOnly =
-    streamingContent != null &&
-    streamingContent.length === 0 &&
-    Boolean(agentStatus);
+  const lookingUp = agentPhase === "looking_up" && agentSteps.length > 0;
+  /** Before any text: the phase ("Thinking…"), unless a lookup is shimmering in the steps. */
+  const phaseLabel =
+    streamingContent === "" && !lookingUp ? AGENT_PHASE_LABEL[agentPhase ?? "thinking"] : null;
   const lastAssistantId = [...messages]
     .reverse()
     .find((message) => message.role === "assistant")?.id;
@@ -484,7 +423,7 @@ function ChatMessageList({
     ) : null;
 
   return (
-    <div className="flex w-full flex-col gap-3 sm:gap-4" aria-live="polite">
+    <div className={cn("flex flex-col gap-4 sm:gap-5", CHAT_COLUMN_CLASS)} aria-live="polite">
       {loadingOlder ? (
         <p className="py-1 text-center text-[12px] text-ink-muted">
           Loading earlier messages…
@@ -519,8 +458,9 @@ function ChatMessageList({
         <AgentMessage
           time="now"
           content={streamingContent}
-          statusLabel={showPhaseOnly ? agentStatus : null}
-          activityLabel={!showPhaseOnly && lookingUp ? agentStatus : null}
+          steps={agentSteps}
+          lookingUp={lookingUp}
+          statusLabel={phaseLabel}
         />
       ) : busy ? (
         <AgentMessage
@@ -535,20 +475,26 @@ function ChatMessageList({
 }
 
 function AgentStatusLabel({ label }: { label: string }) {
-  const text = label.replace(/…$/, "");
   return (
-    <p
-      className="agent-phase-label inline-flex items-center gap-0.5 py-0.5 text-[13px] font-medium text-accent-ink"
-      aria-live="polite"
-      aria-label={label}
-    >
-      {text}
-      <span className="inline-flex gap-0.5" aria-hidden>
-        <span className="animate-pulse">.</span>
-        <span className="animate-pulse [animation-delay:150ms]">.</span>
-        <span className="animate-pulse [animation-delay:300ms]">.</span>
-      </span>
+    <p className="agent-phase-label py-0.5 text-[13px] font-medium text-accent-ink" aria-live="polite">
+      <span className="agent-phase-shimmer">{label}</span>
     </p>
+  );
+}
+
+/** This reply's steps, one per line in order; the one still running shimmers. */
+function AgentSteps({ steps, lookingUp }: { steps: string[]; lookingUp: boolean }) {
+  return (
+    <ol className="mb-2 space-y-0.5" aria-label="What the agent is doing">
+      {steps.map((step, index) => {
+        const running = lookingUp && index === steps.length - 1;
+        return (
+          <li key={step} className="agent-phase-label text-[13px] leading-5 text-ink-muted">
+            {running ? <span className="agent-phase-shimmer font-medium">{step}</span> : step.replace(/…$/, "")}
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
@@ -585,55 +531,45 @@ function AgentMessage({
   content,
   time,
   incomplete,
+  steps = [],
+  lookingUp = false,
   statusLabel,
-  activityLabel,
   offers,
 }: {
   content: string;
   time: string;
   incomplete?: boolean;
+  /** Lookups made while this reply was written (live replies only). */
+  steps?: string[];
+  /** The last step is still running. */
+  lookingUp?: boolean;
   /** Phase label while waiting for the first text delta. */
   statusLabel?: string | null;
-  /** Lookup in progress after some text has already streamed. */
-  activityLabel?: string | null;
   offers?: React.ReactNode;
 }) {
   return (
-    <div className="mr-auto flex w-full max-w-[min(100%,42rem)] items-start gap-2 self-start sm:gap-2.5">
-      <AgentAvatar
-        size="sm"
-        thinking={Boolean(statusLabel) || (!content.trim() && !offers)}
-        className="mt-4 sm:mt-5"
-      />
-      <div className="min-w-0 flex-1 overflow-hidden">
-        <div className="mb-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] font-semibold text-ink">
-          PureLuxe Agent
-          {time ? (
-            <span className="font-medium text-ink-muted">{time}</span>
-          ) : null}
-        </div>
-        <div className="text-[14px] leading-relaxed break-words text-ink">
-          {statusLabel ? (
-            <AgentStatusLabel key={statusLabel} label={statusLabel} />
-          ) : content.trim() ? (
-            <ChatMarkdown content={content} />
-          ) : offers ? null : (
-            <AgentStatusLabel
-              key={AGENT_PHASE_LABEL.thinking}
-              label={AGENT_PHASE_LABEL.thinking}
-            />
-          )}
-          {activityLabel ? <AgentStatusLabel key={activityLabel} label={activityLabel} /> : null}
-          {incomplete ? (
-            <p className="mt-2 text-[11px] text-ink-subtle">
-              Reply was interrupted.
-            </p>
-          ) : null}
-          {offers}
-        </div>
-      </div>
+    <div
+      className="w-full self-start text-[15px] leading-[1.6] break-words text-ink"
+      title={timeTooltip(time)}
+    >
+      <span className="sr-only">PureLuxe Agent: </span>
+      {steps.length > 0 ? <AgentSteps steps={steps} lookingUp={lookingUp} /> : null}
+      {statusLabel ? (
+        <AgentStatusLabel key={statusLabel} label={statusLabel} />
+      ) : content.trim() ? (
+        <ChatMarkdown content={content} />
+      ) : offers || lookingUp ? null : (
+        <AgentStatusLabel key={AGENT_PHASE_LABEL.thinking} label={AGENT_PHASE_LABEL.thinking} />
+      )}
+      {incomplete ? <p className="mt-2 text-[11px] text-ink-subtle">Reply was interrupted.</p> : null}
+      {offers}
     </div>
   );
+}
+
+/** Message times show on hover only, so the thread stays content first. */
+function timeTooltip(time: string): string | undefined {
+  return time && time !== "now" ? time : undefined;
 }
 
 function YouMessage({
@@ -644,14 +580,9 @@ function YouMessage({
   time: string;
 }) {
   return (
-    <div className="ml-auto w-full max-w-[min(88%,42rem)] self-end sm:max-w-[min(100%,42rem)]">
-      <div className="mb-1 flex items-center justify-end gap-1.5 text-[11px] font-semibold text-ink">
-        You
-        {time ? (
-          <span className="font-medium text-ink-muted">{time}</span>
-        ) : null}
-      </div>
-      <div className="rounded-[14px] rounded-tr-sm border border-neutral-line bg-neutral-soft px-3 py-2.5 text-[14px] leading-relaxed break-words text-ink sm:px-3.5">
+    <div className="ml-auto flex max-w-[85%] justify-end self-end" title={timeTooltip(time)}>
+      <div className="w-fit rounded-[14px] rounded-tr-sm border border-neutral-line bg-neutral-soft px-3 py-2.5 text-[14.5px] leading-relaxed break-words text-ink sm:px-3.5">
+        <span className="sr-only">You: </span>
         <p className="whitespace-pre-wrap">{children}</p>
       </div>
     </div>
@@ -667,10 +598,12 @@ function YouTapped({
   time: string;
 }) {
   return (
-    <p className="ml-auto max-w-[min(88%,42rem)] self-end text-right text-[12px] leading-snug break-words text-ink-subtle">
+    <p
+      className="ml-auto max-w-[85%] self-end text-right text-[12px] leading-snug break-words text-ink-subtle"
+      title={timeTooltip(time)}
+    >
       <span className="sr-only">You tapped: </span>
       {children}
-      {time ? <span className="ml-1.5">· {time}</span> : null}
     </p>
   );
 }

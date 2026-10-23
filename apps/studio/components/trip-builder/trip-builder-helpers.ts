@@ -5,6 +5,9 @@ import type { StayDraft } from "@/lib/trip-builder/intents";
 
 import { partyFromTravellers, travellersConfirmed, tripStays } from "./stages";
 
+/** The conversation column: the thread and the composer share one centred width. */
+export const CHAT_COLUMN_CLASS = "mx-auto w-full max-w-[44rem]";
+
 export type SavedRate = TripDetail["rates"]["candidates"][number];
 
 export type ListedRate =

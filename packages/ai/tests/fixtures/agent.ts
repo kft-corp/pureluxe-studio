@@ -1,6 +1,6 @@
 import { vi } from "vitest";
 
-import type { TripAgentHandlers, TripChange } from "../../src/agent/types";
+import type { HomeAgentHandlers, TripAgentHandlers, TripChange, TripCreateResult } from "../../src/agent/types";
 import type { TripFacts } from "../../src/types";
 
 export const CLIENT_ID = "6f1c2a1e-4b7d-4c1a-9a51-3c6e2d1b9f10";
@@ -32,6 +32,15 @@ export function makeTripFacts(partial: Partial<TripFacts> = {}): TripFacts {
   };
 }
 
+/** A trip whose only stay has the client's room, so moving or removing it asks first. */
+export function makeBookedTripFacts(): TripFacts {
+  return makeTripFacts({
+    stays: [
+      { city: "Maldives", check_in: "2026-12-10", check_out: "2026-12-15", property_name: "Resort One", rate_selected: true },
+    ],
+  });
+}
+
 function changed(summary: string, undo = true) {
   return vi.fn(async (): Promise<TripChange> => ({ ok: true, summary, undo }));
 }
@@ -56,4 +65,29 @@ export function makeHandlers(trip: TripFacts = makeTripFacts()) {
     shiftDates: changed("Trip moved 2 days later"),
     undo: changed("Undone: Dates set to 10 Dec – 15 Dec 2026", false),
   } satisfies TripAgentHandlers;
+}
+
+export const NEW_TRIP_ID = "9d3f6a2b-1c4e-4f8a-b7d6-5e2a1c0b9f83";
+
+/** Home chat handlers: creating a trip succeeds with NEW_TRIP_ID. */
+export function makeHomeHandlers() {
+  const desk = makeHandlers();
+  return {
+    searchClients: desk.searchClients,
+    getClient: desk.getClient,
+    searchTrips: desk.searchTrips,
+    searchBookings: desk.searchBookings,
+    getBooking: desk.getBooking,
+    getHotel: desk.getHotel,
+    getPlaceNotes: desk.getPlaceNotes,
+    createTrip: vi.fn(
+      async (): Promise<TripCreateResult> => ({
+        ok: true,
+        status: "created",
+        trip_id: NEW_TRIP_ID,
+        summary: "Trip created for Aarav Mehta",
+      }),
+    ),
+    openTrip: vi.fn(async ({ tripId }: { tripId: string }) => ({ ok: true as const, trip_id: tripId, title: null })),
+  } satisfies HomeAgentHandlers;
 }

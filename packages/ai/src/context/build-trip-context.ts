@@ -63,9 +63,9 @@ function formatRate(rate: TripRateFact): string {
     rate.sell_amount != null
       ? `client price ${money(rate.sell_amount, rate.currency)}`
       : "client price not set",
-    roomFact("included", rate.inclusions?.join(", "), "included not in PureLuxe"),
-    roomFact("cancellation", rate.cancellation_policy, "cancellation not in PureLuxe"),
-    roomFact("payment", rate.payment_policy, "payment not in PureLuxe"),
+    roomFact("included", rate.inclusions?.join(", "), "inclusions not given"),
+    roomFact("cancellation", rate.cancellation_policy, "cancellation terms not given"),
+    roomFact("payment", rate.payment_policy, "payment terms not given"),
     rate.selected ? "selected" : null,
   ].filter(Boolean);
   return bits.join(" · ");

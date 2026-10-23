@@ -1,11 +1,20 @@
-import type { TripAgentHandlers, TripChange } from "@pureluxe/ai";
+import type {
+  LeadChoice,
+  TripAgentHandlers,
+  TripChange,
+  TripCreateRequest,
+  TripCreateResult,
+  TripFacts,
+  UpcomingTripMatch,
+} from "@pureluxe/ai";
 import { AppError } from "@pureluxe/shared";
 
+import { cleanPlaceName } from "@/lib/trip-builder/actions/place-names";
 import { resolveTripDates } from "@/lib/trip-builder/trip/resolve-dates";
 
 import type { ScenarioSeed } from "../scenario-types";
 
-import type { EvalTrip } from "./eval-trip";
+import { toEvalTripFacts, type EvalTrip } from "./eval-trip";
 
 type TripChangeHandlers = Pick<
   TripAgentHandlers,
@@ -28,6 +37,103 @@ function addDays(iso: string, days: number): string {
 
 function snapshot(trip: EvalTrip): EvalTrip {
   return structuredClone(trip);
+}
+
+/** Lead and travellers, as Studio's planParty works them out from the seed's households. */
+function seedParty(
+  seed: ScenarioSeed,
+  input: { clientId: string; withHousehold: boolean; lead: LeadChoice },
+): { leadId: string; travellerIds: string[] } {
+  const named = seed.clients.find((row) => row.id === input.clientId);
+  if (!named) throw refuse("That client isn't in Studio.");
+  const household = [named.id, ...(named.household ?? []).map((member) => member.clientId)];
+  const primary =
+    input.lead === "household_primary"
+      ? seed.clients.find((row) => household.includes(row.id) && row.householdPrimary)
+      : undefined;
+  const leadId = primary?.id ?? named.id;
+  const travellers = input.withHousehold ? household : [leadId];
+  return { leadId, travellerIds: [leadId, ...travellers.filter((id) => id !== leadId)] };
+}
+
+/** Like Studio: seeded trips of anyone travelling that haven't ended, same dates first. */
+function upcomingSeedTrips(
+  seed: ScenarioSeed,
+  travellerIds: string[],
+  input: TripCreateRequest,
+  dates: { start: string; end: string } | null,
+  today: string,
+): UpcomingTripMatch[] {
+  return (seed.trips ?? [])
+    .filter((row) => travellerIds.includes(row.leadClientId) && row.endsOn >= today)
+    .map((row): UpcomingTripMatch => {
+      const overlaps = dates && row.startsOn < dates.end && row.endsOn > dates.start;
+      const samePlace = input.stays.some((stay) => sameCity(stay.city, row.destination));
+      return {
+        trip_id: row.id,
+        title: `${clientNameOf(seed, row.leadClientId)} · ${row.destination}`,
+        status: row.status,
+        starts_on: row.startsOn,
+        ends_on: row.endsOn,
+        destinations: [row.destination],
+        owner_name: row.ownerName ?? null,
+        matches: overlaps ? "dates" : samePlace ? "destination" : null,
+      };
+    })
+    .sort((left, right) => Number(right.matches === "dates") - Number(left.matches === "dates"));
+}
+
+function clientNameOf(seed: ScenarioSeed, clientId: string): string {
+  return seed.clients.find((row) => row.id === clientId)?.displayName ?? clientId;
+}
+
+/** Home chat: fill in the run's trip, once per run (a retry returns the same trip). */
+export function createSeedTrip(
+  seed: ScenarioSeed,
+  trip: EvalTrip,
+  today: string,
+  input: TripCreateRequest,
+): TripCreateResult {
+  if (trip.leadClientId || trip.startsOn) {
+    return { ok: true, status: "created", trip_id: trip.tripId, summary: "Trip already created.", unchanged: true };
+  }
+  const party = input.clientId ? seedParty(seed, { ...input, clientId: input.clientId }) : null;
+  const dates = input.start && input.end ? resolveTripDates({ start: input.start, end: input.end, today }) : null;
+  const upcoming = party && !input.createAnyway ? upcomingSeedTrips(seed, party.travellerIds, input, dates, today) : [];
+  if (upcoming.length > 0) return { ok: true, status: "existing", upcoming_trips: upcoming };
+  const stays = dates
+    ? input.stays.map((stay) => {
+        const own = stay.checkIn && stay.checkOut
+          ? resolveTripDates({ start: stay.checkIn, end: stay.checkOut, today: dates.start })
+          : dates;
+        return { destination: cleanPlaceName(stay.city, "city"), checkIn: own.start, checkOut: own.end, hotel: stay.hotel ?? null };
+      })
+    : [];
+
+  trip.leadClientId = party?.leadId ?? null;
+  trip.travellerIds = party?.travellerIds ?? [];
+  trip.startsOn = dates?.start ?? null;
+  trip.endsOn = dates?.end ?? null;
+  trip.stays = stays;
+  trip.assumed = dates?.yearAssumed ? ["year"] : [];
+  const where = dates ? `${trip.stays.map((stay) => stay.destination).join(", ") || "no stays"} ${dates.start} to ${dates.end}` : "no dates yet";
+  return {
+    ok: true,
+    status: "created",
+    trip_id: trip.tripId,
+    summary: `Trip created for ${partyLabel(toEvalTripFacts(trip, seed, today))} · ${where}${dates?.yearAssumed ? " (year assumed)" : ""}`,
+  };
+}
+
+/** Like Studio's summary: "Ravi Mehta with Anika, Aarav and Kiara (2 adults, 2 children)". */
+function partyLabel(facts: TripFacts): string {
+  const travellers = facts.travellers ?? [];
+  if (travellers.length === 0) return "no client yet";
+  const children = travellers.filter((person) => person.party_role === "child").length;
+  const adults = travellers.length - children;
+  const counts = [`${adults} adult${adults === 1 ? "" : "s"}`, children ? `${children} child${children === 1 ? "" : "ren"}` : null];
+  const [lead, ...others] = travellers.map((person) => person.display_name);
+  return `${lead}${others.length ? ` with ${others.join(", ")}` : ""} (${counts.filter(Boolean).join(", ")})`;
 }
 
 /**
@@ -62,14 +168,11 @@ export function createSeedTripChanges(
   }
 
   return {
-    async setClient({ clientId, withHousehold }, call) {
-      const name = clientName(clientId);
-      const household = withHousehold
-        ? (seed.clients.find((row) => row.id === clientId)?.household ?? []).map((member) => member.clientId)
-        : [];
-      return apply(call.id, `Client set to ${name}`, () => {
-        trip.leadClientId = clientId;
-        trip.travellerIds = [clientId, ...household];
+    async setClient(input, call) {
+      const party = seedParty(seed, input);
+      return apply(call.id, `Client set to ${clientName(party.leadId)}`, () => {
+        trip.leadClientId = party.leadId;
+        trip.travellerIds = party.travellerIds;
       });
     },
 
@@ -107,12 +210,12 @@ export function createSeedTripChanges(
       if (!tripStart || !tripEnd) throw refuse("Set the trip dates first, or give them with the stays.");
       const next = stays.map((stay) => {
         if (stays.length === 1 && !stay.checkIn && !stay.checkOut) {
-          return { destination: stay.city.trim(), checkIn: tripStart, checkOut: tripEnd, hotel: stay.hotel ?? null };
+          return { destination: cleanPlaceName(stay.city, "city"), checkIn: tripStart, checkOut: tripEnd, hotel: stay.hotel ?? null };
         }
         if (!stay.checkIn || !stay.checkOut) throw refuse(`Give check-in and check-out for ${stay.city}.`);
         const stayDates = resolveTripDates({ start: stay.checkIn, end: stay.checkOut, today: tripStart });
         if (stayDates.start < tripStart || stayDates.end > tripEnd) throw refuse(`${stay.city} sits outside the trip.`);
-        return { destination: stay.city.trim(), checkIn: stayDates.start, checkOut: stayDates.end, hotel: stay.hotel ?? null };
+        return { destination: cleanPlaceName(stay.city, "city"), checkIn: stayDates.start, checkOut: stayDates.end, hotel: stay.hotel ?? null };
       });
       return apply(call.id, `Stays: ${next.map((stay) => stay.destination).join(", ")}`, () => {
         trip.startsOn = tripStart;
@@ -123,7 +226,7 @@ export function createSeedTripChanges(
     },
 
     async removeStay({ city }, call) {
-      const stay = trip.stays.find((row) => sameCity(row.destination, city));
+      const stay = trip.stays.find((row) => sameCity(row.destination, cleanPlaceName(city, "city")));
       if (!stay) throw refuse(`There is no stay in ${city} on this trip.`);
       return apply(call.id, `Removed ${stay.destination}`, () => {
         trip.stays = trip.stays.filter((row) => row !== stay);

@@ -3,17 +3,21 @@ import {
   createTurnMeter,
   errorCodeOf,
   readAgentMemory,
+  streamHomeAgentTurn,
   streamTripAgentTurn,
   userMessageOf,
+  type AgentStreamChunk,
   type AgentTurnMetrics,
   type AgentTurnRequest,
+  type ChatHistoryMessage,
+  type HomeAgentHandlers,
   type TripAgentHandlers,
+  type TurnMeter,
 } from "@pureluxe/ai";
 
 import type {
   AdvisorInput,
   AgentScenario,
-  BuildStage,
   CardKind,
   Interruption,
   ScenarioSeed,
@@ -21,20 +25,18 @@ import type {
   StepExpect,
 } from "../scenario-types";
 
+import { stageNumber } from "./build-stage";
 import { checkStep } from "./checks";
 import { fastForwardTrip, newEvalTrip, type EvalTrip } from "./eval-trip";
-import { createSeedHandlers } from "./seed-handlers";
+import { createSeedHandlers, createSeedHomeHandlers } from "./seed-handlers";
 
 type Checkpointer = ReturnType<typeof createMemoryCheckpointer>;
-
-export function stageNumber(stage: BuildStage): number {
-  return Number(stage.replace("stage-", ""));
-}
 
 /** One entry in the order a scenario is played. */
 export type PlannedStep = {
   id: string;
   title: string;
+  chat: "home" | "trip";
   advisor: AdvisorInput;
   expect: StepExpect;
   /** Null when it runs; otherwise why it is skipped. Skipped steps still apply their expected trip. */
@@ -62,6 +64,7 @@ export function planScenario(scenario: AgentScenario, stage: number): PlannedSte
     return {
       id: item.id,
       title,
+      chat: "chat" in item && item.chat === "home" ? "home" : "trip",
       advisor: item.advisor,
       expect: item.expect,
       skip: later ?? playable(item.advisor),
@@ -95,6 +98,9 @@ export type EvalRun = {
   variant: number;
   trip: EvalTrip;
   handlers: TripAgentHandlers;
+  homeHandlers: HomeAgentHandlers;
+  /** The home conversation so far; Studio copies it into the trip it creates. */
+  homeHistory: ChatHistoryMessage[];
   checkpointer: Checkpointer;
   today: string;
 };
@@ -112,6 +118,8 @@ export function startEvalRun(
     variant: options.variant,
     trip,
     handlers: createSeedHandlers(seed, trip, today),
+    homeHandlers: createSeedHomeHandlers(seed, trip, today),
+    homeHistory: [],
     checkpointer: createMemoryCheckpointer(),
     today,
   };
@@ -144,6 +152,33 @@ export function skipStep(run: EvalRun, planned: PlannedStep): StepOutcome {
   };
 }
 
+function streamStep(
+  run: EvalRun,
+  planned: PlannedStep,
+  request: AgentTurnRequest,
+  meter: TurnMeter,
+): AsyncGenerator<AgentStreamChunk, void, unknown> {
+  if (planned.chat === "trip") {
+    return streamTripAgentTurn({
+      tripId: run.trip.tripId,
+      request,
+      handlers: run.handlers,
+      checkpointer: run.checkpointer,
+      loadHistory: async () => run.homeHistory,
+      today: run.today,
+      meter,
+    });
+  }
+  if (request.kind === "resume") throw new Error(`Step ${planned.id}: the home chat has no approvals.`);
+  return streamHomeAgentTurn({
+    request,
+    handlers: run.homeHandlers,
+    history: run.homeHistory,
+    today: run.today,
+    meter,
+  });
+}
+
 /** Send one step to the real agent and check the result. */
 export async function playStep(run: EvalRun, planned: PlannedStep): Promise<StepOutcome> {
   const request = toRequest(planned.advisor, run.variant);
@@ -160,17 +195,11 @@ export async function playStep(run: EvalRun, planned: PlannedStep): Promise<Step
   let error: string | null = null;
 
   try {
-    for await (const chunk of streamTripAgentTurn({
-      tripId: run.trip.tripId,
-      request,
-      handlers: run.handlers,
-      checkpointer: run.checkpointer,
-      today: run.today,
-      meter,
-    })) {
+    for await (const chunk of streamStep(run, planned, request, meter)) {
       if (chunk.kind === "delta") reply += chunk.text;
       if (chunk.kind === "changed") undo = chunk.undo;
       if (chunk.kind === "choices") cards.add("client_picker");
+      if (chunk.kind === "opened") cards.add("trip_opened");
       if (chunk.kind === "approval") {
         cards.add("approval");
         reply ||= chunk.approval.summary;
@@ -181,11 +210,15 @@ export async function playStep(run: EvalRun, planned: PlannedStep): Promise<Step
     error = userMessageOf(cause) ?? errorCodeOf(cause);
   }
 
+  if (planned.chat === "home") {
+    run.homeHistory.push({ role: "user", content: sent }, { role: "assistant", content: reply });
+  }
   const metrics = meter.read();
   const tools = metrics.toolCalls.map((call) => call.name);
-  const memory = (await readAgentMemory(run.checkpointer, run.trip.tripId))
-    .map((line) => line.text)
-    .join("\n");
+  const memory =
+    planned.chat === "home"
+      ? run.homeHistory.map((line) => line.content).join("\n")
+      : (await readAgentMemory(run.checkpointer, run.trip.tripId)).map((line) => line.text).join("\n");
   const check = checkStep(
     planned.expect,
     { reply, tools, memory, trip: run.trip, cards: [...cards], seed: run.seed },

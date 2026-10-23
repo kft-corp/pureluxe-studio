@@ -63,6 +63,32 @@ export async function findTripChangeResult(input: {
   return (data?.result as Record<string, unknown> | null | undefined) ?? null;
 }
 
+/** The trip created with this key (a retried home-chat message). Null when none. */
+export async function findTripCreatedWithKey(input: {
+  memberId: string;
+  idempotencyKey: string;
+}): Promise<string | null> {
+  const supabase = getServiceClient();
+
+  const { data, error } = await runSupabaseQuery(() =>
+    supabase
+      .from("trip_idempotency_keys")
+      .select("trip_id")
+      .eq("member_id", input.memberId)
+      .eq("idempotency_key", input.idempotencyKey)
+      .not("trip_id", "is", null)
+      .gt("expires_at", new Date().toISOString())
+      .limit(1)
+      .maybeSingle(),
+  );
+
+  if (error) {
+    throw dbQueryError(error);
+  }
+
+  return (data?.trip_id as string | null | undefined) ?? null;
+}
+
 /**
  * Record one agent change: version + 1, Undo copy, duplicate record. Returns the new version.
  * `before: null` records a change that can't be undone.

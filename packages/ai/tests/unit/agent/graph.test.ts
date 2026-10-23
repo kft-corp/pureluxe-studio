@@ -9,10 +9,18 @@ import { RunnableLambda } from "@langchain/core/runnables";
 import { Command, MemorySaver } from "@langchain/langgraph";
 import { describe, expect, it } from "vitest";
 
-import { MAX_TOOL_ROUNDS, buildTripAgentGraph } from "../../../src/agent/graph";
+import { MAX_TOOL_ROUNDS, buildHomeAgentGraph, buildTripAgentGraph } from "../../../src/agent/graph";
 import type { AgentModels } from "../../../src/agent/model";
 import { createTurnMeter } from "../../../src/tools";
-import { CLIENT_ID, makeHandlers, makeTripFacts } from "../../fixtures/agent";
+import type { TripFacts } from "../../../src/types";
+import {
+  CLIENT_ID,
+  NEW_TRIP_ID,
+  makeBookedTripFacts,
+  makeHandlers,
+  makeHomeHandlers,
+  makeTripFacts,
+} from "../../fixtures/agent";
 
 type Reply = AIMessage | (() => never);
 
@@ -36,8 +44,9 @@ function setup(options: {
   withTools: Reply[];
   answerOnly?: Reply[];
   fallback?: Reply[];
+  trip?: TripFacts;
 }) {
-  const handlers = makeHandlers();
+  const handlers = makeHandlers(options.trip);
   const meter = createTurnMeter();
   const primary = scripted(options.withTools);
   const answerOnly = scripted(options.answerOnly ?? []);
@@ -74,11 +83,26 @@ describe("trip agent graph", () => {
     expect(state.messages.at(-1)?.text).toBe("Four Mehtas on file.");
     expect(state.toolRounds).toBe(1);
 
-    const [system] = primary.calls[0]!;
-    expect(system).toBeInstanceOf(SystemMessage);
-    expect(JSON.stringify(system!.content)).toContain("Today: 2026-10-20");
-    expect(JSON.stringify(system!.content)).toContain("Mehta · Maldives");
+    const first = primary.calls[0]!;
+    expect(first[0]).toBeInstanceOf(SystemMessage);
+    expect(JSON.stringify(first[0]!.content)).not.toContain("Trip facts");
+    expect(first.at(-1)!.text).toContain("Today: 2026-10-20");
+    expect(first.at(-1)!.text).toContain("Mehta · Maldives");
     expect(meter.read()).toMatchObject({ rounds: 2, toolCalls: [expect.objectContaining({ name: "client_search" })] });
+  });
+
+  it("sends the trip facts after the conversation, with a cache breakpoint on the conversation's end", async () => {
+    const { graph, config, primary } = setup({
+      withTools: [toolCall("client_search", { query: "Mehta" }), new AIMessage("Four Mehtas on file.")],
+    });
+
+    await graph.invoke({ messages: [new HumanMessage("Do we have the Mehtas?")], action: null, toolRounds: 0 }, config);
+
+    const second = primary.calls[1]!;
+    const toolResult = second.at(-2)!;
+    expect(toolResult).toBeInstanceOf(ToolMessage);
+    expect(toolResult.content).toEqual([expect.objectContaining({ cache_control: { type: "ephemeral" } })]);
+    expect(second.at(-1)!.text).toMatch(/^\[From Studio, not the advisor\]/);
   });
 
   it("uses trip facts already loading instead of loading them again", async () => {
@@ -211,9 +235,21 @@ describe("trip agent graph", () => {
     expect(custom).toEqual([{ kind: "changed", summary: "Dates set to 10 Dec – 15 Dec 2026", undo: true }]);
   });
 
-  it("pauses a risky change from typed text until the advisor confirms", async () => {
+  it("moves a trip with no booking at once, with Undo", async () => {
     const { graph, config, handlers } = setup({
       withTools: [toolCall("trip_shift_dates", { days: 2 }), new AIMessage("Moved.")],
+    });
+
+    await graph.invoke({ messages: [new HumanMessage("push it 2 days")], action: null, toolRounds: 0 }, config);
+
+    expect((await graph.getState(config)).next).toEqual([]);
+    expect(handlers.shiftDates).toHaveBeenCalledWith({ days: 2 }, { id: "call_trip_shift_dates" });
+  });
+
+  it("pauses a change that would cancel a booking until the advisor confirms", async () => {
+    const { graph, config, handlers } = setup({
+      withTools: [toolCall("trip_shift_dates", { days: 2 }), new AIMessage("Moved.")],
+      trip: makeBookedTripFacts(),
     });
 
     await graph.invoke({ messages: [new HumanMessage("push it 2 days")], action: null, toolRounds: 0 }, config);
@@ -234,13 +270,14 @@ describe("trip agent graph", () => {
   it("tells the model a cancelled change was not made", async () => {
     const { graph, config, handlers, primary } = setup({
       withTools: [toolCall("trip_shift_dates", { days: 2 }), new AIMessage("Okay, dates unchanged.")],
+      trip: makeBookedTripFacts(),
     });
 
     await graph.invoke({ messages: [new HumanMessage("push it 2 days")], action: null, toolRounds: 0 }, config);
     const state = await graph.invoke(new Command({ resume: "cancel" }), config);
 
     expect(handlers.shiftDates).not.toHaveBeenCalled();
-    expect(JSON.stringify(primary.calls[1]!.at(-1)!.content)).toContain("cancelled_by_advisor");
+    expect(JSON.stringify(primary.calls[1]!.at(-2)!.content)).toContain("cancelled_by_advisor");
     expect(state.messages.at(-1)?.text).toBe("Okay, dates unchanged.");
   });
 
@@ -271,5 +308,92 @@ describe("trip agent graph", () => {
       graph.invoke({ messages: [new HumanMessage("hello")], action: null, toolRounds: 0 }, config),
     ).rejects.toThrow("bad request");
     expect(fallback?.calls).toHaveLength(0);
+  });
+});
+
+describe("home agent graph", () => {
+  function setupHome(withTools: Reply[]) {
+    const handlers = makeHomeHandlers();
+    const primary = scripted(withTools);
+    const graph = buildHomeAgentGraph({
+      handlers,
+      checkpointer: new MemorySaver(),
+      today: "2026-10-20",
+      createModels: () => ({
+        primaryName: "test-model",
+        withTools: { primary: primary.model, fallback: null },
+        answerOnly: { primary: primary.model, fallback: null },
+      }),
+    });
+    return { graph, handlers, primary, config: { configurable: { thread_id: "home" } } };
+  }
+
+  it("creates the trip in one call and opens it, without asking first", async () => {
+    const { graph, config, handlers, primary } = setupHome([
+      toolCall("trip_create", { client_id: CLIENT_ID, lead: "household_primary", start: "12-15", end: "12-20", stays: [{ city: "Maldives" }] }),
+      new AIMessage("Trip created."),
+    ]);
+
+    const custom: unknown[] = [];
+    const stream = await graph.stream(
+      { messages: [new HumanMessage("Mehta family, Maldives 15–20 Dec")], action: null, toolRounds: 0 },
+      { ...config, streamMode: "custom" },
+    );
+    for await (const chunk of stream) custom.push(chunk);
+
+    expect(handlers.createTrip).toHaveBeenCalledWith(
+      {
+        clientId: CLIENT_ID,
+        lead: "household_primary",
+        withHousehold: true,
+        start: "12-15",
+        end: "12-20",
+        stays: [expect.objectContaining({ city: "Maldives" })],
+        createAnyway: false,
+      },
+      { id: "call_trip_create" },
+    );
+    expect(custom).toContainEqual({ kind: "opened", tripId: NEW_TRIP_ID, created: true });
+    expect(primary.calls[0]!.at(-1)!.text).not.toContain("Trip facts");
+  });
+
+  it("lists upcoming trips instead of creating one, and offers to open the advisor's own", async () => {
+    const { graph, config, handlers } = setupHome([
+      toolCall("trip_create", { client_id: CLIENT_ID, start: "12-15", end: "12-20" }),
+      new AIMessage("Ravi already has a trip on those dates."),
+    ]);
+    const upcoming = {
+      title: "Ravi Mehta · Maldives",
+      status: "confirmed",
+      starts_on: "2026-12-15",
+      ends_on: "2026-12-20",
+      destinations: ["Maldives"],
+      matches: "dates" as const,
+    };
+    handlers.createTrip.mockResolvedValueOnce({
+      ok: true,
+      status: "existing",
+      upcoming_trips: [
+        { ...upcoming, trip_id: "trip-1", owner_name: null },
+        { ...upcoming, trip_id: "trip-2", owner_name: "Keshav" },
+      ],
+    });
+
+    const custom: unknown[] = [];
+    const stream = await graph.stream(
+      { messages: [new HumanMessage("Ravi, Maldives 15–20 Dec")], action: null, toolRounds: 0 },
+      { ...config, streamMode: "custom" },
+    );
+    for await (const chunk of stream) custom.push(chunk);
+
+    expect(custom).not.toContainEqual(expect.objectContaining({ kind: "opened" }));
+    const choices = custom.find((chunk) => (chunk as { kind: string }).kind === "choices") as {
+      choices: Array<{ label: string; action: string; args: Record<string, unknown> }>;
+    };
+    expect(choices.choices.map((choice) => [choice.label, choice.action])).toEqual([
+      ["Open Maldives · 15 Dec – 20 Dec 2026", "trip_open"],
+      ["Create a new trip", "trip_create"],
+    ]);
+    expect(choices.choices[1]!.args).toMatchObject({ client_id: CLIENT_ID, create_anyway: true });
   });
 });

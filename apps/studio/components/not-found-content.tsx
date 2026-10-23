@@ -23,7 +23,7 @@ export function NotFoundContent() {
         <div className="mt-6 flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center sm:justify-center sm:gap-4">
           <Link
             href={pageRoutes.home}
-            className="rounded-md bg-brand-dark px-7 py-3 text-center text-on-dark transition-all hover:bg-ink active:scale-95"
+            className="rounded-md bg-cta px-7 py-3 text-center text-white transition-all hover:bg-cta-hover active:scale-95"
           >
             Return Home
           </Link>

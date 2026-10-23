@@ -200,6 +200,7 @@ export function legPillLabel(stay: TripStaySnapshot): string {
   return `${city} ${range}`;
 }
 
+/** "Dec 15 – Dec 20, 2026", or "Dec 28, 2026 – Jan 3, 2027" across a new year. */
 export function formatStayDates(
   checkIn: string | null | undefined,
   checkOut: string | null | undefined,
@@ -215,11 +216,11 @@ export function formatStayDates(
       month: "short",
       day: "numeric",
     };
-    const fromLabel = from.toLocaleDateString("en-US", opts);
-    const toLabel = to.toLocaleDateString("en-US", {
+    const fromLabel = from.toLocaleDateString("en-US", {
       ...opts,
       year: from.getFullYear() === to.getFullYear() ? undefined : "numeric",
     });
+    const toLabel = to.toLocaleDateString("en-US", { ...opts, year: "numeric" });
     return `${fromLabel} – ${toLabel}`;
   } catch {
     return `${checkIn} → ${checkOut}`;

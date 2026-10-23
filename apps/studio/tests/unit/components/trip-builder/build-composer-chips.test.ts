@@ -72,19 +72,35 @@ function leads(chips: TripBuilderChip[]): TripBuilderChip[] {
 
 describe("buildComposerChips", () => {
   describe("no trip open", () => {
-    it("offers Create trip, then a chip per suggested client", () => {
-      const input = makeChipInput({ suggestedClients: [SARAH] });
+    it("shows no chips on a fresh home screen", () => {
+      expect(buildComposerChips(makeChipInput()).chips).toEqual([]);
+    });
+
+    it("turns the agent's choices into buttons", () => {
+      const input = makeChipInput({
+        replyCards: {
+          choices: [{ label: "Create trip · Sarah Chen", action: "client_get", args: { client_id: "c1" } }],
+        },
+      });
       const { chips } = buildComposerChips(input);
 
-      expect(ids(chips)).toEqual(["create-trip", "draft-client-c1"]);
-      expect(chip(chips, "draft-client-c1").label).toBe("Create trip · Sarah Chen");
-
-      chip(chips, "draft-client-c1").onClick();
-      expect(input.actions.createTrip).toHaveBeenCalledWith("c1", "Sarah Chen");
+      expect(ids(chips)).toEqual(["choice-0"]);
+      expect(leads(chips)).toHaveLength(1);
+      chips[0]!.onClick();
+      expect(input.actions.sendAction).toHaveBeenCalledWith({
+        action: "client_get",
+        args: { client_id: "c1" },
+        label: "Create trip · Sarah Chen",
+      });
     });
 
     it("shows nothing without write access", () => {
-      const { chips } = buildComposerChips(makeChipInput({ canWrite: false, suggestedClients: [SARAH] }));
+      const { chips } = buildComposerChips(
+        makeChipInput({
+          canWrite: false,
+          replyCards: { choices: [{ label: "Sarah Chen", action: "client_get", args: { client_id: "c1" } }] },
+        }),
+      );
       expect(chips).toEqual([]);
     });
   });
@@ -96,7 +112,7 @@ describe("buildComposerChips", () => {
 
       expect(ids(chips)).toEqual(["past-trips"]);
       chip(chips, "past-trips").onClick();
-      expect(input.actions.sendTripAction).toHaveBeenCalledWith({
+      expect(input.actions.sendAction).toHaveBeenCalledWith({
         action: "history_search_trips",
         args: { client_id: "c1" },
         label: "Past trips for Sarah Chen",
@@ -139,7 +155,7 @@ describe("buildComposerChips", () => {
       expect(chips.map((item) => item.label)).toEqual(["Sarah Chen", "Sam Chen"]);
       expect(leads(chips)).toHaveLength(1);
       chips[1]!.onClick();
-      expect(input.actions.sendTripAction).toHaveBeenCalledWith({
+      expect(input.actions.sendAction).toHaveBeenCalledWith({
         action: "trip_set_client",
         args: { client_id: "c9" },
         label: "Sam Chen",
@@ -152,7 +168,7 @@ describe("buildComposerChips", () => {
 
       expect(ids(chips)).toEqual(["undo"]);
       chips[0]!.onClick();
-      expect(input.actions.sendTripAction).toHaveBeenCalledWith({ action: "trip_undo", label: "Undo" });
+      expect(input.actions.sendAction).toHaveBeenCalledWith({ action: "trip_undo", label: "Undo" });
     });
   });
 

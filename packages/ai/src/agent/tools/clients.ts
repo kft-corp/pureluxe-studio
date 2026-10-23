@@ -1,22 +1,52 @@
 import { z } from "zod";
 
-import type { ClientSearchHit } from "../../tools";
+import type { AgentChoice, ClientSearchHit } from "../../tools";
+import type { TripFacts } from "../../types";
 
-import { defineAgentTool } from "./define-tool";
+import { defineDeskTool } from "./define-tool";
+
+/** Buttons under a reply never exceed this. */
+const MAX_CHOICES = 6;
 
 function searchHits(result: unknown): ClientSearchHit[] {
   const clients = (result as { clients?: unknown } | null)?.clients;
   return Array.isArray(clients) ? (clients as ClientSearchHit[]) : [];
 }
 
-export const clientSearchTool = defineAgentTool({
+/** Every match belongs to the same household ("the Mehta family"). */
+function oneHousehold(hits: ClientSearchHit[]): boolean {
+  return new Set(hits.map((hit) => hit.household_id ?? hit.id)).size === 1;
+}
+
+/**
+ * One button per person when several different people match: "Create trip · name" in
+ * the home chat, or the lead in a trip chat that has none yet.
+ */
+function clientChoices(result: unknown, trip: TripFacts | null): AgentChoice[] {
+  const hits = searchHits(result).slice(0, MAX_CHOICES);
+  if (hits.length < 2 || oneHousehold(hits) || trip?.client) return [];
+  if (trip) {
+    return hits.map((hit) => ({
+      label: hit.display_name,
+      action: "trip_set_client",
+      args: { client_id: hit.id },
+    }));
+  }
+  return hits.map((hit) => ({
+    label: `Create trip · ${hit.display_name}`,
+    action: "client_get",
+    args: { client_id: hit.id },
+  }));
+}
+
+export const clientSearchTool = defineDeskTool({
   name: "client_search",
   description: [
     "Find Studio clients by name, email or phone.",
-    "Use when the advisor names a person, or pastes an email or phone, and you don't have their client id.",
+    "Use when the advisor names a person or a family, or pastes an email or phone, and you don't have their client id.",
     "Do not use for the lead client already on the trip (use client_get with no id).",
-    "Returns candidates: name, email, phone, tier, review status and whether they have a family. An empty list means no match; never invent one.",
-    "When the trip has no lead yet and several match, a button for each appears under your reply.",
+    "Returns candidates: name, email, phone, tier, review status and household_id (the same id means the same household; null means none). An empty list means no match; never invent one.",
+    "When several different people match, a button for each appears under your reply.",
   ].join(" "),
   schema: z
     .object({
@@ -25,24 +55,16 @@ export const clientSearchTool = defineAgentTool({
     })
     .strict(),
   risk: "read",
-  progress: () => "Searching clients…",
+  progress: () => "Finding the client…",
   run: (input, handlers) => handlers.searchClients({ query: input.query, limit: input.limit }),
-  choices: (result, trip) => {
-    const hits = searchHits(result);
-    if (trip?.client || hits.length < 2) return [];
-    return hits.map((hit) => ({
-      label: hit.display_name,
-      action: "trip_set_client",
-      args: { client_id: hit.id },
-    }));
-  },
+  choices: clientChoices,
 });
 
-export const clientGetTool = defineAgentTool({
+export const clientGetTool = defineDeskTool({
   name: "client_get",
   description: [
-    "Load one client's profile: contact, tier, language, residence, company, relationship owner, preferences (prefer / avoid / require), family, dietary and mobility, document type / status / expiry, guest notes and counts.",
-    "Use for any profile question or count. Omit client_id for the trip's lead client; pass the id from client_search for anyone else.",
+    "Load one client's profile: contact, tier, language, residence, company, relationship owner, preferences (prefer / avoid / require), family with its primary member, dietary and mobility, document type / status / expiry, guest notes and counts.",
+    "Use for any profile question or count. In a trip chat, omit client_id for the trip's lead client; otherwise pass the id from client_search.",
     "Do not use to find a person by name (use client_search first).",
     "Returns the profile. Counts are exact and zero is a real answer. Passport numbers, medication and emergency contacts are never included.",
   ].join(" "),
@@ -56,6 +78,6 @@ export const clientGetTool = defineAgentTool({
     })
     .strict(),
   risk: "read",
-  progress: () => "Loading the client…",
+  progress: () => "Reviewing the client profile…",
   run: (input, handlers) => handlers.getClient({ clientId: input.client_id }),
 });

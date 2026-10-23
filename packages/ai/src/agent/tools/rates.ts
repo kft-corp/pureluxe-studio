@@ -12,6 +12,6 @@ export const ratesGetSnapshotTool = defineAgentTool({
   ].join(" "),
   schema: z.object({}).strict(),
   risk: "read",
-  progress: () => "Reading the last rate search…",
+  progress: () => "Reviewing current rates…",
   run: (_input, handlers) => handlers.getRateSnapshot(),
 });

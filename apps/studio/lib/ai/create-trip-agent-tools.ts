@@ -1,15 +1,9 @@
-import type { PlaceNotes, ToolCallRef, TripAgentHandlers } from "@pureluxe/ai";
+import type { ToolCallRef, TripAgentHandlers } from "@pureluxe/ai";
 import { AppError } from "@pureluxe/shared";
 
-import { getClientProfile, searchClients } from "@/lib/clients";
+import { getClientProfile } from "@/lib/clients";
 import { readRateSnapshot } from "@/lib/rates/rate-search-store";
-import {
-  answerAtlasStay,
-  getTripDetail,
-  getTripReadiness,
-  type AtlasHotelChoice,
-  type TripDetail,
-} from "@/lib/trip-builder";
+import { getTripDetail, getTripReadiness, type TripDetail } from "@/lib/trip-builder";
 import {
   removeTripStay,
   setTripClient,
@@ -23,16 +17,9 @@ import {
 
 import { createDeskTools, type DeskActor } from "./create-desk-tools";
 import { toClientBrief } from "./to-client-brief";
-import { toClientSearchHit } from "./to-client-search-hit";
 import { toTripFacts } from "./to-trip-facts";
 
 type Options = DeskActor & { tripId: string };
-
-const CONTRACTED: Record<AtlasHotelChoice["contractStatus"], boolean | null> = {
-  contracted: true,
-  not_yet_contracted: false,
-  unknown: null,
-};
 
 /**
  * Handlers for the trip agent. The trip id comes from the server, never from the
@@ -42,6 +29,8 @@ export function createTripAgentTools(options: Options): TripAgentHandlers {
   const actor = { memberId: options.memberId };
   /** The trip as the last change left it; the agent's next reload uses it instead of the database. */
   let changed: TripDetail | null = null;
+  /** The trip as this reply last saw it. The run lock keeps other replies from changing it meanwhile. */
+  let latest: TripDetail | null = null;
 
   const change = (tool: string, args: Record<string, unknown>, call: ToolCallRef): TripChangeContext => ({
     tripId: options.tripId,
@@ -49,8 +38,10 @@ export function createTripAgentTools(options: Options): TripAgentHandlers {
     tool,
     args,
     idempotencyKey: call.id,
+    loaded: latest,
     onChanged: (after) => {
       changed = after;
+      latest = after;
     },
   });
 
@@ -60,16 +51,12 @@ export function createTripAgentTools(options: Options): TripAgentHandlers {
     async getTrip() {
       const detail = changed ?? (await getTripDetail(options.tripId, actor));
       changed = null;
+      latest = detail;
       return toTripFacts(detail, await getTripReadiness(options.tripId, actor, detail));
     },
 
-    async searchClients({ query, limit }) {
-      const result = await searchClients({ q: query, limit: limit ?? 8 });
-      return { clients: result.clients.map(toClientSearchHit) };
-    },
-
     async getClient({ clientId }) {
-      const id = clientId ?? (await getTripDetail(options.tripId, actor)).client?.id;
+      const id = clientId ?? (latest ?? (await getTripDetail(options.tripId, actor))).client?.id;
       if (!id) {
         throw new AppError({
           userMessage: "No client on this trip yet. Pass client_id from client_search.",
@@ -78,19 +65,6 @@ export function createTripAgentTools(options: Options): TripAgentHandlers {
         });
       }
       return toClientBrief(await getClientProfile(id));
-    },
-
-    async getPlaceNotes({ query, cityHint }): Promise<PlaceNotes> {
-      const atlas = await answerAtlasStay({ question: query, cityHint: cityHint ?? null });
-      return {
-        matched: atlas.matched,
-        notes: atlas.matched ? atlas.answer : null,
-        hotels: atlas.hotels.map((hotel) => ({
-          name: hotel.name,
-          city: hotel.city,
-          contracted: CONTRACTED[hotel.contractStatus],
-        })),
-      };
     },
 
     getRateSnapshot: () => readRateSnapshot(options.tripId),

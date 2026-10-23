@@ -1,23 +1,33 @@
 import {
   findClientById,
-  findClientFamily,
   findLatestTripUndo,
   findTripChangeResult,
   recordTripUndo,
-  type TripAssumptions,
   type TripPartyRole,
 } from "@pureluxe/db";
-import { AppError, journeyToday } from "@pureluxe/shared";
+import { journeyToday } from "@pureluxe/shared";
 
 import { requireActiveClient } from "@/lib/clients/require-active-client";
 
 import { shiftTripDates } from "../trip/shift-trip-dates";
 import type { TripDetail } from "../trip/trip-detail";
 import { resolveTripDates } from "../trip/resolve-dates";
-import { staysOverlap, stayInsideWindow } from "../trip/trip-window";
+import { stayInsideWindow } from "../trip/trip-window";
 
 import { applyTripShape } from "./apply-trip-shape";
-import { tripShapeOf, type TripShape, type TripShapeStay } from "./trip-shape";
+import { cleanPlaceName } from "./place-names";
+import {
+  partyLabel,
+  planParty,
+  planStays,
+  rangeLabel,
+  refuse,
+  sameCity,
+  staysLabel,
+  withAssumption,
+  type StayInput,
+} from "./plan-trip";
+import { tripShapeOf, type TripShape } from "./trip-shape";
 import {
   changeTripShape,
   withTripChange,
@@ -25,70 +35,25 @@ import {
   type TripChangeResult,
 } from "./with-trip-change";
 
-function refuse(userMessage: string, code: string): AppError {
-  return new AppError({ userMessage, code, status: 409 });
-}
-
-function sameCity(left: string, right: string): boolean {
-  return left.trim().toLowerCase() === right.trim().toLowerCase();
-}
-
-/** "10–15 Dec 2026". */
-function rangeLabel(start: string, end: string): string {
-  const format = (iso: string, withYear: boolean) =>
-    new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-GB", {
-      day: "numeric",
-      month: "short",
-      ...(withYear ? { year: "numeric" } : {}),
-      timeZone: "UTC",
-    });
-  return `${format(start, false)} – ${format(end, true)}`;
-}
-
-function withAssumption(
-  assumptions: TripAssumptions,
-  key: keyof TripAssumptions,
-  assumed: boolean,
-): TripAssumptions {
-  const next = { ...assumptions };
-  if (assumed) next[key] = true;
-  else delete next[key];
-  return next;
-}
-
 function hasSelectedRate(detail: TripDetail, legId: string | null): boolean {
   return detail.rates.candidates.some((rate) => rate.selected && rate.leg_id === legId);
 }
 
-/** Lead client; with their household as the travelling party unless told otherwise. */
+/** Lead client, with their household as the travelling party unless told otherwise. */
 export async function setTripClient(
   context: TripChangeContext,
-  input: { clientId: string; withHousehold: boolean },
+  input: { clientId: string; withHousehold: boolean; lead: "named" | "household_primary" },
 ): Promise<TripChangeResult> {
-  const client = await requireActiveClient(input.clientId);
-  const household = input.withHousehold ? await findClientFamily(client.id) : null;
-  const companions = (household?.members ?? [])
-    .filter((member) => member.client_id !== client.id)
-    .map((member) => ({
-      client_id: member.client_id,
-      display_name: member.display_name,
-      party_role: (member.role === "child" ? "child" : "adult") as TripPartyRole,
-    }));
-
-  return changeTripShape(context, (before) => {
-    const names = companions.map((person) => person.display_name);
-    return {
-      target: {
-        ...tripShapeOf(before),
-        lead_client_id: client.id,
-        companions: companions.map(({ client_id, party_role }) => ({ client_id, party_role })),
-        travellers_confirmed: true,
-      },
-      summary: names.length > 0
-        ? `Client set to ${client.display_name}, travelling with ${names.join(", ")}`
-        : `Client set to ${client.display_name}, travelling alone`,
-    };
-  });
+  const party = await planParty(input);
+  return changeTripShape(context, (before) => ({
+    target: {
+      ...tripShapeOf(before),
+      lead_client_id: party.lead.client_id,
+      companions: party.companions.map(({ client_id, party_role }) => ({ client_id, party_role })),
+      travellers_confirmed: true,
+    },
+    summary: `Travellers set: ${partyLabel(party)}`,
+  }));
 }
 
 /** Add or remove companions, or change who is a child. The lead stays. */
@@ -110,9 +75,9 @@ export async function setTripTravellers(
     for (const person of input.add) {
       if (person.clientId !== shape.lead_client_id) companions.set(person.clientId, person.partyRole);
     }
-    const parts = [
-      ...input.add.map((person, index) => `${added[index]!.display_name}${person.partyRole === "child" ? " (child)" : ""}`),
-    ];
+    const parts = input.add.map(
+      (person, index) => `${added[index]!.display_name}${person.partyRole === "child" ? " (child)" : ""}`,
+    );
     const gone = removed.flatMap((row) => (row ? [row.display_name] : []));
     return {
       target: {
@@ -166,23 +131,6 @@ export async function setTripDates(
   });
 }
 
-type StayInput = {
-  city: string;
-  checkIn?: string;
-  checkOut?: string;
-  hotel?: string | null;
-  rooms?: number;
-};
-
-/** Match each requested stay to an existing one by city, in order, so moved stays keep their rates. */
-function matchStays(current: TripShapeStay[], requested: StayInput[]): Array<TripShapeStay | null> {
-  const free = [...current];
-  return requested.map((stay) => {
-    const index = free.findIndex((row) => sameCity(row.city, stay.city));
-    return index >= 0 ? free.splice(index, 1)[0]! : null;
-  });
-}
-
 /**
  * Every stay at once, in order. One stay without dates covers the whole trip. Optional
  * new trip dates apply in the same change. A stay that has the client's room can't be
@@ -201,39 +149,7 @@ export async function setTripStays(
     const end = dates?.end ?? shape.ends_on;
     if (!start || !end) throw refuse("Set the trip dates first, or give them with the stays.", "trips.dates_required");
 
-    const matched = matchStays(shape.stays, input.stays);
-    let roomsAssumed = false;
-    const stays: TripShapeStay[] = input.stays.map((stay, index) => {
-      const existing = matched[index];
-      const single = input.stays.length === 1 && !stay.checkIn && !stay.checkOut;
-      if (!single && (!stay.checkIn || !stay.checkOut)) {
-        throw refuse(`Give check-in and check-out for ${stay.city}.`, "trips.stay_dates_required");
-      }
-      const stayDates = single
-        ? { start, end }
-        : resolveTripDates({ start: stay.checkIn!, end: stay.checkOut!, today: start });
-      const hotel = stay.hotel === undefined ? existing?.hotel ?? null : stay.hotel;
-      if (hotel && stay.rooms == null && existing?.rooms == null) roomsAssumed = true;
-      return {
-        leg_id: existing?.leg_id ?? null,
-        city: stay.city.trim(),
-        check_in: stayDates.start,
-        check_out: stayDates.end,
-        hotel,
-        rooms: stay.rooms ?? existing?.rooms ?? null,
-      };
-    });
-
-    for (const [index, stay] of stays.entries()) {
-      if (!stayInsideWindow({ start, end }, stay.check_in, stay.check_out)) {
-        throw refuse(`${stay.city} (${stay.check_in} to ${stay.check_out}) sits outside the trip, ${start} to ${end}.`, "trips.leg_outside");
-      }
-      const clash = stays.find(
-        (other, otherIndex) =>
-          otherIndex !== index && staysOverlap(stay.check_in, stay.check_out, other.check_in, other.check_out),
-      );
-      if (clash) throw refuse(`${stay.city} and ${clash.city} overlap. Adjust the nights.`, "trips.stay_overlap");
-    }
+    const { stays, roomsAssumed } = planStays({ current: shape.stays, requested: input.stays, start, end });
 
     const kept = new Set(stays.map((stay) => stay.leg_id));
     const dropped = shape.stays.filter((stay) => !kept.has(stay.leg_id));
@@ -247,19 +163,18 @@ export async function setTripStays(
     assumptions = withAssumption(assumptions, "rooms", roomsAssumed);
     return {
       target: { ...shape, starts_on: start, ends_on: end, stays, legs_confirmed: true, assumptions },
-      summary: `Stays: ${stays
-        .map((stay) => `${stay.city} ${rangeLabel(stay.check_in, stay.check_out)}${stay.hotel ? ` · ${stay.hotel}` : ""}`)
-        .join("; ")}`,
+      summary: `Stays: ${staysLabel(stays)}`,
     };
   });
 }
 
 /** Remove one stay. With the client's room on it, its booking is cancelled and Undo is not offered. */
 export function removeTripStay(context: TripChangeContext, input: { city: string }): Promise<TripChangeResult> {
+  const city = cleanPlaceName(input.city, "city");
   return withTripChange(context, async (before) => {
     const shape = tripShapeOf(before);
-    const stay = shape.stays.find((row) => sameCity(row.city, input.city));
-    if (!stay) throw refuse(`There is no stay in ${input.city} on this trip.`, "trips.leg_not_found");
+    const stay = shape.stays.find((row) => sameCity(row.city, city));
+    if (!stay) throw refuse(`There is no stay in ${city} on this trip.`, "trips.leg_not_found");
     const target: TripShape = { ...shape, stays: shape.stays.filter((row) => row !== stay) };
     if (target.stays.length === 0) target.legs_confirmed = false;
     return {
@@ -296,7 +211,12 @@ export async function undoTripChange(context: TripChangeContext): Promise<TripCh
   if (done) return { ok: true, summary: "Already undone.", undo: false, unchanged: true };
   if (!latest) throw refuse("There is nothing to undo on this trip.", "trips.undo_none");
 
-  const after = await applyTripShape(context.tripId, latest.before_payload as TripShape, context.actor);
+  const after = await applyTripShape(
+    context.tripId,
+    latest.before_payload as TripShape,
+    context.actor,
+    context.loaded ?? undefined,
+  );
   const version = await recordTripUndo({
     tripId: context.tripId,
     undoId: latest.id,

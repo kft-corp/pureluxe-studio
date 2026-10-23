@@ -1,16 +1,19 @@
 import type {
   ClientBrief,
   ClientSearchHit,
+  DeskAgentHandlers,
+  HomeAgentHandlers,
   HotelBrief,
   PlaceNotes,
   TripAgentHandlers,
+  TripHistoryRow,
 } from "@pureluxe/ai";
 import { AppError } from "@pureluxe/shared";
 
-import type { ScenarioSeed, SeedClient, SeedHotel } from "../scenario-types";
+import type { ScenarioSeed, SeedClient, SeedHotel, SeedTrip } from "../scenario-types";
 
 import { toEvalTripFacts, type EvalTrip } from "./eval-trip";
-import { createSeedTripChanges } from "./seed-trip-changes";
+import { createSeedTrip, createSeedTripChanges } from "./seed-trip-changes";
 
 const SEARCH_LIMIT = 8;
 
@@ -22,6 +25,13 @@ function surname(name: string): string {
   return name.trim().split(/\s+/).at(-1) ?? name;
 }
 
+/** One id per household, the same for every member (the seed has no household rows). */
+function householdId(client: SeedClient): string | null {
+  const members = client.household ?? [];
+  if (members.length === 0) return null;
+  return [client.id, ...members.map((member) => member.clientId)].sort()[0]!;
+}
+
 function toSearchHit(client: SeedClient): ClientSearchHit {
   return {
     id: client.id,
@@ -30,7 +40,7 @@ function toSearchHit(client: SeedClient): ClientSearchHit {
     phone: null,
     tier: { slug: client.tier.toLowerCase(), label: client.tier },
     review_status: "approved",
-    has_family: (client.household?.length ?? 0) > 0,
+    household_id: householdId(client),
   };
 }
 
@@ -38,8 +48,12 @@ function toClientBrief(client: SeedClient, seed: ScenarioSeed): ClientBrief {
   const household = client.household ?? [];
   const members = household.flatMap((member) => {
     const person = seed.clients.find((row) => row.id === member.clientId);
-    return person ? [{ display_name: person.displayName, role: member.relation, is_primary: false }] : [];
+    return person
+      ? [{ display_name: person.displayName, role: member.relation, is_primary: Boolean(person.householdPrimary) }]
+      : [];
   });
+  const preferences = client.preferences ?? [];
+  const primary = members.some((member) => member.is_primary) ? Boolean(client.householdPrimary) : true;
   return {
     id: client.id,
     display_name: client.displayName,
@@ -56,10 +70,10 @@ function toClientBrief(client: SeedClient, seed: ScenarioSeed): ClientBrief {
     tier: { slug: client.tier.toLowerCase(), label: client.tier },
     relationship_owner: { id: seed.advisor.memberId, name: seed.advisor.name },
     counts: {
-      preferences: 0,
-      preferences_prefer: 0,
-      preferences_avoid: 0,
-      preferences_require: 0,
+      preferences: preferences.length,
+      preferences_prefer: preferences.filter((row) => row.sentiment === "prefer").length,
+      preferences_avoid: preferences.filter((row) => row.sentiment === "avoid").length,
+      preferences_require: preferences.filter((row) => row.sentiment === "require").length,
       documents: 0,
       documents_passport: 0,
       documents_visa: 0,
@@ -74,12 +88,12 @@ function toClientBrief(client: SeedClient, seed: ScenarioSeed): ClientBrief {
       members.length > 0
         ? {
             name: `${surname(client.displayName)} family`,
-            role: "primary",
-            is_primary: true,
-            members: [{ display_name: client.displayName, role: "self", is_primary: true }, ...members],
+            role: primary ? "primary" : "member",
+            is_primary: primary,
+            members: [{ display_name: client.displayName, role: "self", is_primary: primary }, ...members],
           }
         : null,
-    preferences: [],
+    preferences: preferences.map((row) => ({ ...row, is_confirmed: true })),
     health: null,
     documents: [],
     guest_notes: null,
@@ -118,20 +132,62 @@ function advisorError(userMessage: string, code: string): AppError {
   return new AppError({ userMessage, code, status: 400 });
 }
 
-/**
- * Tool handlers that read the scenario seed instead of the database.
- * Same contract as Studio's createTripAgentTools, so the agent can't tell the difference.
- */
-export function createSeedHandlers(
-  seed: ScenarioSeed,
-  trip: EvalTrip,
-  today: string,
-): TripAgentHandlers {
-  return {
-    async getTrip() {
-      return toEvalTripFacts(trip, seed, today);
-    },
+function findClientBrief(seed: ScenarioSeed, clientId: string): ClientBrief {
+  const client = seed.clients.find((row) => row.id === clientId);
+  if (!client) throw advisorError("That client isn't in Studio.", "clients.not_found");
+  return toClientBrief(client, seed);
+}
 
+const WORKING_STATUSES = new Set(["building", "quote_sent", "waiting_on_client", "booking"]);
+
+/** Studio's trip board stages: working by status, the travel stages by dates. */
+function inStage(trip: SeedTrip, stage: string | undefined, today: string): boolean {
+  switch (stage ?? "any") {
+    case "any":
+      return true;
+    case "working":
+      return WORKING_STATUSES.has(trip.status);
+    case "upcoming":
+      return trip.startsOn > today;
+    case "on_trip":
+      return trip.startsOn <= today && trip.endsOn >= today;
+    case "past":
+      return trip.endsOn < today;
+    default:
+      return trip.status === stage;
+  }
+}
+
+/** The seed's trip travellers: the lead and their household. */
+function tripTravellers(trip: SeedTrip, seed: ScenarioSeed): SeedClient[] {
+  const lead = seed.clients.find((row) => row.id === trip.leadClientId);
+  const household = (lead?.household ?? []).flatMap((member) => seed.clients.filter((row) => row.id === member.clientId));
+  return lead ? [lead, ...household] : [];
+}
+
+function toTripRow(trip: SeedTrip, seed: ScenarioSeed): TripHistoryRow {
+  const travellers = tripTravellers(trip, seed);
+  return {
+    trip_id: trip.id,
+    title: `${travellers[0]?.displayName ?? "Trip"} · ${trip.destination}`,
+    status: trip.status,
+    client: travellers[0]?.displayName ?? null,
+    owner: trip.ownerName ?? seed.advisor.name,
+    starts_on: trip.startsOn,
+    ends_on: trip.endsOn,
+    destinations: [trip.destination],
+    traveller_count: travellers.length,
+    sell_total: null,
+    sell_currency: null,
+    margin: null,
+    pricing_locked: trip.status === "confirmed",
+    quote_out_of_date: false,
+  };
+}
+
+/** Lookups both chats share, read from the seed (no bookings on file). */
+function createSeedDeskHandlers(seed: ScenarioSeed, today: string): Omit<DeskAgentHandlers, "getClient"> {
+  return {
     async searchClients({ query, limit }) {
       const terms = words(query);
       const clients = seed.clients
@@ -143,18 +199,18 @@ export function createSeedHandlers(
       return { clients: clients.map(toSearchHit) };
     },
 
-    async getClient({ clientId }) {
-      const id = clientId ?? trip.leadClientId;
-      if (!id) {
-        throw advisorError("No client on this trip yet. Pass client_id from client_search.", "ai.client_required");
-      }
-      const client = seed.clients.find((row) => row.id === id);
-      if (!client) throw advisorError("That client isn't in Studio.", "clients.not_found");
-      return toClientBrief(client, seed);
-    },
-
-    async searchTrips() {
-      return { trips: [], total: 0 };
+    async searchTrips({ clientId, query, stage, limit }) {
+      const terms = query ? words(query) : [];
+      const trips = (seed.trips ?? []).filter((trip) => {
+        const travellers = tripTravellers(trip, seed);
+        const haystack = `${travellers[0]?.displayName ?? ""} ${trip.destination}`.toLowerCase();
+        return (
+          (!clientId || travellers.some((person) => person.id === clientId)) &&
+          (terms.length === 0 || terms.some((term) => haystack.includes(term))) &&
+          inStage(trip, stage, today)
+        );
+      });
+      return { trips: trips.slice(0, limit ?? 10).map((trip) => toTripRow(trip, seed)), total: trips.length };
     },
 
     async searchBookings() {
@@ -193,11 +249,60 @@ export function createSeedHandlers(
           .map((row) => ({ name: row.name, city: row.destination, contracted: true })),
       };
     },
+  };
+}
+
+/**
+ * Trip chat handlers that read the scenario seed instead of the database.
+ * Same contract as Studio's createTripAgentTools, so the agent can't tell the difference.
+ */
+export function createSeedHandlers(
+  seed: ScenarioSeed,
+  trip: EvalTrip,
+  today: string,
+): TripAgentHandlers {
+  return {
+    ...createSeedDeskHandlers(seed, today),
+
+    async getTrip() {
+      return toEvalTripFacts(trip, seed, today);
+    },
+
+    async getClient({ clientId }) {
+      const id = clientId ?? trip.leadClientId;
+      if (!id) {
+        throw advisorError("No client on this trip yet. Pass client_id from client_search.", "ai.client_required");
+      }
+      return findClientBrief(seed, id);
+    },
 
     async getRateSnapshot() {
       return { status: "none" };
     },
 
     ...createSeedTripChanges(seed, trip, today),
+  };
+}
+
+/** Home chat handlers on the seed: creating a trip fills in the run's eval trip. */
+export function createSeedHomeHandlers(
+  seed: ScenarioSeed,
+  trip: EvalTrip,
+  today: string,
+): HomeAgentHandlers {
+  return {
+    ...createSeedDeskHandlers(seed, today),
+
+    async getClient({ clientId }) {
+      if (!clientId) throw advisorError("No trip is open, so pass client_id from client_search.", "ai.client_id_required");
+      return findClientBrief(seed, clientId);
+    },
+
+    createTrip: async (input) => createSeedTrip(seed, trip, today, input),
+
+    async openTrip({ tripId }) {
+      if (tripId !== trip.tripId) throw advisorError("That trip isn't in Studio.", "trips.not_found");
+      return { ok: true, trip_id: trip.tripId, title: null };
+    },
   };
 }

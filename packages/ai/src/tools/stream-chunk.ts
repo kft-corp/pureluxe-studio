@@ -26,17 +26,19 @@ export type AgentApproval = {
 /** One piece of a streaming agent turn. */
 export type AgentStreamChunk =
   | { kind: "status"; phase: AgentPhase }
-  /** What the agent is doing right now, e.g. "Searching clients…". */
+  /** What the agent is doing right now, e.g. "Finding the client…". */
   | { kind: "progress"; label: string }
   | { kind: "delta"; text: string }
   /** The agent changed the trip. */
   | { kind: "changed"; summary: string; undo: boolean }
   | { kind: "choices"; choices: AgentChoice[] }
   /** The run paused; it continues when the advisor confirms or cancels. */
-  | { kind: "approval"; approval: AgentApproval };
+  | { kind: "approval"; approval: AgentApproval }
+  /** Open this trip for the advisor (home chat). `created`: it was made in this turn. */
+  | { kind: "opened"; tripId: string; created: boolean };
 
 export const AGENT_PHASE_LABEL: Record<AgentPhase, string> = {
   thinking: "Thinking…",
-  looking_up: "Looking up…",
-  writing: "Writing…",
+  looking_up: "Gathering details…",
+  writing: "Preparing the reply…",
 };

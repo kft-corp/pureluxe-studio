@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Fraunces, Geist_Mono, Inter } from "next/font/google";
+import { Figtree, Fraunces, Geist_Mono } from "next/font/google";
 
 import { AppToaster } from "@/components/feedback";
 import "./globals.css";
@@ -9,12 +9,13 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-/** Interface font across the app. */
-const inter = Inter({
-  variable: "--font-inter",
+/** Interface and reading font across the app. */
+const figtree = Figtree({
+  variable: "--font-figtree",
   subsets: ["latin"],
 });
 
+/** Titles and headings. */
 const fraunces = Fraunces({
   variable: "--font-fraunces",
   subsets: ["latin"],
@@ -52,7 +53,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${geistMono.variable} ${fraunces.variable} h-dvh overflow-hidden antialiased`}
+      className={`${figtree.variable} ${geistMono.variable} ${fraunces.variable} h-dvh overflow-hidden antialiased`}
     >
       <body className="h-dvh overflow-hidden font-sans">
         {children}

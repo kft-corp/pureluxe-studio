@@ -17,7 +17,6 @@ import {
   isApiErrorResponse,
   type AddRateOptionBody,
   type ApiErrorResponse,
-  type CreateTripBody,
   type GenerateTripQuoteBody,
   type ListTripsQuery,
   type PasteLineItemBody,
@@ -79,16 +78,6 @@ export function getTripBuilderTrip(tripId: string) {
 /** Things to sort out before booking, for the summary panel. */
 export function getTripBuilderReadiness(tripId: string) {
   return fetchApi<{ readiness: string[] }>(apiRoutes.tripBuilder.readiness(tripId), {
-    cache: "no-store",
-  });
-}
-
-/** Create a trip assigned to the current member. */
-export function createTripBuilderTrip(input: CreateTripBody) {
-  return fetchApi<TripDetail>(apiRoutes.tripBuilder.trips, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
     cache: "no-store",
   });
 }

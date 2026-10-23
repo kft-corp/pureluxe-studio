@@ -6,23 +6,31 @@ import { errorCodeOf, userMessageOf } from "../../errors";
 import type { AgentChoice, AgentStreamChunk, TurnMeter } from "../../tools";
 import type { TripFacts } from "../../types";
 import { redactSensitive } from "../redact";
-import type { AgentToolRisk, ToolCallRef, TripAgentHandlers, TripChange } from "../types";
+import type {
+  AgentToolRisk,
+  DeskAgentHandlers,
+  HomeAgentHandlers,
+  ToolCallRef,
+  TripAgentHandlers,
+  TripChange,
+} from "../types";
 
-type ToolSchema = z.ZodObject<z.ZodRawShape>;
+export type ToolSchema = z.ZodObject<z.ZodRawShape>;
 
 /**
  * One agent tool: a thin wrapper around a Studio handler.
  * The description is a contract — what it does, when to use it, when not to, what it returns.
+ * `Handlers` is the set of Studio callbacks the tool needs.
  */
-export type AgentToolSpec<Schema extends ToolSchema = ToolSchema> = {
+export type AgentToolSpec<Schema extends ToolSchema = ToolSchema, Handlers = TripAgentHandlers> = {
   name: string;
   description: string;
   schema: Schema;
   /** read tools run in parallel; others change the trip, one at a time, and reload it after. */
   risk: AgentToolRisk;
-  /** Shown to the advisor while it runs, e.g. "Searching clients…". */
+  /** Shown to the advisor while it runs, e.g. "Finding the client…". Plain, professional, and never names internals. */
   progress(input: z.infer<Schema>): string;
-  run(input: z.infer<Schema>, handlers: TripAgentHandlers, call: ToolCallRef): Promise<unknown>;
+  run(input: z.infer<Schema>, handlers: Handlers, call: ToolCallRef): Promise<unknown>;
   /**
    * When the agent chose this from typed text: the approval card's text, or null to run
    * straight away. A labelled button tap is already the approval and skips this.
@@ -34,18 +42,25 @@ export type AgentToolSpec<Schema extends ToolSchema = ToolSchema> = {
   repeatable?: true;
   /** Buttons to show under the reply for this result. */
   choices?(result: unknown, trip: TripFacts | null): AgentChoice[];
+  /** The trip this result opens for the advisor (home chat). */
+  opens?(result: unknown): { tripId: string; created: boolean } | null;
 };
 
-export function defineAgentTool<Schema extends ToolSchema>(
-  spec: AgentToolSpec<Schema>,
-): AgentToolSpec<Schema> {
-  return spec;
+function toolDefiner<Handlers>() {
+  return <Schema extends ToolSchema>(spec: AgentToolSpec<Schema, Handlers>) => spec;
 }
 
-export type BindAgentToolsContext = {
-  handlers: TripAgentHandlers;
+/** Trip chat tools: they read or change the open trip. */
+export const defineAgentTool = toolDefiner<TripAgentHandlers>();
+/** Lookups both chats share. */
+export const defineDeskTool = toolDefiner<DeskAgentHandlers>();
+/** Home chat tools: create or open a trip. */
+export const defineHomeTool = toolDefiner<HomeAgentHandlers>();
+
+export type BindAgentToolsContext<Handlers> = {
+  handlers: Handlers;
   meter?: TurnMeter;
-  /** The trip as the agent last loaded it. */
+  /** The trip as the agent last loaded it. Null in the home chat. */
   trip?: () => TripFacts | null;
 };
 
@@ -75,18 +90,20 @@ function writerOf(config: LangGraphRunnableConfig | undefined): Emit {
 /**
  * Bind specs to this turn's handlers. Every call is timed for agent_turns.
  * Changes run one at a time in call order, and a change already made in this message
- * (a tapped one included) is not made again. A rule or access error goes back to the
- * model as `{ error }` so it can explain; bad inputs are rejected by the schema first.
+ * (a tapped one included) is not made again. A lookup repeated with the same input
+ * reuses the first result until something changes. A rule or access error goes back
+ * to the model as `{ error }` so it can explain; bad inputs are rejected by the schema first.
  */
-export function bindAgentTools(
-  specs: readonly AgentToolSpec[],
-  context: BindAgentToolsContext,
+export function bindAgentTools<Handlers>(
+  specs: readonly AgentToolSpec<ToolSchema, Handlers>[],
+  context: BindAgentToolsContext<Handlers>,
 ): StructuredToolInterface[] {
   let changes: Promise<unknown> = Promise.resolve();
   const made = new Map<string, TripChange>();
+  const lookups = new Map<string, Promise<string>>();
 
   async function call(
-    spec: AgentToolSpec,
+    spec: AgentToolSpec<ToolSchema, Handlers>,
     input: Record<string, unknown>,
     ref: ToolCallRef,
     emit: Emit,
@@ -109,10 +126,13 @@ export function bindAgentTools(
       });
       if (spec.risk !== "read" && isChange(result) && !result.unchanged) {
         if (key) made.set(key, result);
-        emit({ kind: "changed", summary: result.summary, undo: result.undo });
+        lookups.clear();
+        emit({ kind: "changed", summary: result.summary, undo: result.undo === true });
       }
       const choices = spec.choices?.(result, context.trip?.() ?? null) ?? [];
       if (choices.length > 0) emit({ kind: "choices", choices });
+      const opened = spec.opens?.(result);
+      if (opened) emit({ kind: "opened", ...opened });
       return toToolContent(result);
     } catch (cause) {
       const code = errorCodeOf(cause);
@@ -128,7 +148,17 @@ export function bindAgentTools(
       (input, config) => {
         const ref = { id: config?.toolCall?.id ?? crypto.randomUUID() };
         const emit = writerOf(config as LangGraphRunnableConfig);
-        if (spec.risk === "read") return call(spec, input, ref, emit);
+        if (spec.risk === "read") {
+          const key = `${spec.name}:${JSON.stringify(input)}`;
+          const earlier = lookups.get(key);
+          if (earlier) {
+            context.meter?.addToolCall({ name: spec.name, ms: 0, ok: true, error_code: "reused" });
+            return earlier;
+          }
+          const next = call(spec, input, ref, emit);
+          lookups.set(key, next);
+          return next;
+        }
         const next = changes.then(() => call(spec, input, ref, emit));
         changes = next.catch(() => undefined);
         return next;

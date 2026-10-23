@@ -2,7 +2,7 @@ import { deleteLineItemsForLeg, updateTrip as dbUpdateTrip, type UpdateTripRecor
 import { AppError, type UpdateTripInput } from "@pureluxe/shared";
 
 import {
-  addTripTraveller,
+  addTripTravellers,
   changeTripLead,
   confirmTripTravellers,
   partyCounts,
@@ -39,11 +39,10 @@ async function applyTravellers(tripId: string, detail: TripDetail, target: TripS
     if (!wanted.has(person.client_id)) next = await removeTripTraveller(tripId, person.client_id, actor);
   }
   const current = new Map(tripShapeOf(next).companions.map((person) => [person.client_id, person.party_role]));
-  for (const [clientId, partyRole] of wanted) {
-    if (current.get(clientId) !== partyRole) {
-      next = await addTripTraveller(tripId, { client_id: clientId, party_role: partyRole }, actor);
-    }
-  }
+  const additions = [...wanted]
+    .filter(([clientId, partyRole]) => current.get(clientId) !== partyRole)
+    .map(([client_id, party_role]) => ({ client_id, party_role }));
+  if (additions.length > 0) next = await addTripTravellers(tripId, additions, actor);
 
   if (target.travellers_confirmed && !next.trip.travellers_confirmed_at) {
     next = await confirmTripTravellers(tripId, actor);

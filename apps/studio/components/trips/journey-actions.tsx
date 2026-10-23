@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { TripStatus } from "@pureluxe/db";
@@ -15,7 +14,6 @@ import {
   LuHourglass,
   LuRotateCcw,
   LuSend,
-  LuSparkles,
 } from "react-icons/lu";
 
 import {
@@ -24,6 +22,7 @@ import {
   ToolbarMenu,
   type ToolbarMenuItem,
 } from "@/components/ui";
+import { TripBuilderButton } from "@/components/trip-builder/trip-builder-button";
 import { getJourneyQuoteUrl, setJourneyStatus } from "@/lib/api/trips";
 import { showApiError, showSuccessToast } from "@/lib/feedback/toast";
 import { pageRoutes } from "@/lib/routes";
@@ -195,13 +194,7 @@ export function JourneyHeroActions({
 
   return (
     <div className="flex w-full flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-end lg:w-auto lg:shrink-0">
-      <Link
-        href={pageRoutes.tripBuilderTrip(tripId)}
-        className={cn(studioButtonClass("primary", "sm"), "w-full justify-center sm:w-auto")}
-      >
-        <LuSparkles className={ICON} aria-hidden />
-        Trip Builder
-      </Link>
+      <TripBuilderButton href={pageRoutes.tripBuilderTrip(tripId)} label="Open in Trip Builder" />
       <ToolbarMenu
         heading={`${formatTripStatus(status)} · move to`}
         menuClassName="w-72 max-w-[calc(100vw-2rem)]"

@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
+import { MEHTA_FAMILY_SEED } from "@/tests/ai/fixtures/mehta-family";
 import { MEHTA_MALDIVES_SEED } from "@/tests/ai/fixtures/mehta-maldives";
 import type { AgentScenario, ScenarioSeed, ScenarioStep } from "@/tests/ai/scenario-types";
 import { AGENT_SCENARIOS } from "@/tests/ai/scenarios";
 import { MEHTA_MALDIVES } from "@/tests/ai/scenarios/mehta-maldives";
+import { MEHTA_V2_ACCEPTANCE } from "@/tests/ai/scenarios/mehta-v2";
 
 function hotel(seed: ScenarioSeed, name: string) {
   return seed.hotels.find((row) => row.name === name);
@@ -149,15 +151,52 @@ describe("Mehta / Maldives main scenario", () => {
     expect(new Set(transfers).size).toBe(compared.length);
   });
 
-  it("asks for approval only after the quote is sent, and only once", () => {
-    const sendIndex = MEHTA_MALDIVES.steps.findIndex((step) => step.id === "send-quote");
-    const approvalsBefore = MEHTA_MALDIVES.steps
-      .slice(0, sendIndex + 1)
-      .reduce((sum, step) => sum + (step.expect.approvals ?? 0), 0);
-    const approvalsAfter = MEHTA_MALDIVES.steps
-      .slice(sendIndex + 1)
-      .reduce((sum, step) => sum + (step.expect.approvals ?? 0), 0);
-    expect(approvalsBefore).toBe(0);
-    expect(approvalsAfter).toBe(1);
+  it("never asks for an approval card: the labelled send tap is the approval (Feedback v2)", () => {
+    const approvals = MEHTA_MALDIVES.steps.reduce((sum, step) => sum + (step.expect.approvals ?? 0), 0);
+    expect(approvals).toBe(0);
+    expect(MEHTA_MALDIVES.steps.find((step) => step.id === "send-quote")?.advisor).toMatchObject({
+      kind: "tap",
+      action: "quote_send",
+    });
+  });
+});
+
+describe("Feedback v2 scenarios", () => {
+  it("reaches a sent quote in under 10 advisor inputs, the send being the only confirmation", () => {
+    const sendIndex = MEHTA_V2_ACCEPTANCE.steps.findIndex((step) => step.id === "send-quote");
+    const inputs = MEHTA_V2_ACCEPTANCE.steps.slice(0, sendIndex + 1).filter(isAdvisorInput);
+    expect(inputs.length).toBeLessThan(10);
+    for (const step of MEHTA_V2_ACCEPTANCE.steps) {
+      expect(step.expect.confirmations ?? 0, step.id).toBe(0);
+      expect(step.expect.approvals ?? 0, step.id).toBe(0);
+    }
+  });
+
+  it("has one household of four Mehtas with Ravi as its primary", () => {
+    const mehtas = MEHTA_FAMILY_SEED.clients.filter((client) => client.displayName.endsWith("Mehta"));
+    expect(mehtas).toHaveLength(4);
+    expect(mehtas.filter((client) => client.householdPrimary).map((client) => client.displayName)).toEqual([
+      "Ravi Mehta",
+    ]);
+    const ravi = mehtas.find((client) => client.householdPrimary)!;
+    expect(ravi.household?.map((member) => member.clientId).sort()).toEqual(
+      mehtas.filter((client) => client !== ravi).map((client) => client.id).sort(),
+    );
+  });
+
+  it("prices Kanuhura's rooms as in the Oct 21 run, so the advisor's prices sit below the 25% minimum", () => {
+    const kanuhura = hotel(MEHTA_FAMILY_SEED, "Six Senses Kanuhura")!;
+    const fiveNights = (room: string) => kanuhura.rooms.find((row) => row.name === room)!.nightlyCost * 5;
+    expect(fiveNights("Beach Villa with Pool")).toBe(5580);
+    expect(fiveNights("Water Villa with Pool")).toBe(7105);
+    expect(6075).toBeLessThan(fiveNights("Beach Villa with Pool") * (1 + kanuhura.minMarkupPercent / 100));
+    expect(8081.25).toBeLessThan(fiveNights("Water Villa with Pool") * (1 + kanuhura.minMarkupPercent / 100));
+  });
+
+  it("gives Kanuhura two tier-mates and leaves the other tiers out", () => {
+    const tiers = new Map(MEHTA_FAMILY_SEED.hotels.map((row) => [row.name, row.tier]));
+    const compare = MEHTA_V2_ACCEPTANCE.steps.find((step) => step.id === "hotels-same-tier")!.expect.rateCompare!;
+    for (const name of compare.hotels ?? []) expect(tiers.get(name), name).toBe(tiers.get("Six Senses Kanuhura"));
+    for (const name of compare.excludesHotels ?? []) expect(tiers.get(name), name).not.toBe(tiers.get("Six Senses Kanuhura"));
   });
 });

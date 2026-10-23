@@ -16,7 +16,6 @@ import {
 type TripBuilderPageProps = {
   searchParams: Promise<{
     trip?: string;
-    primary_client_id?: string;
   }>;
 };
 
@@ -58,7 +57,6 @@ export default async function TripBuilderPage({
           initialTrips={initialTrips}
           initialDetail={initialDetail}
           canWrite={canWrite}
-          prefillClientId={params.primary_client_id ?? null}
         />
       </Suspense>
     </ShellModulePage>

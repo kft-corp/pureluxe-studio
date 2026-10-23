@@ -54,15 +54,26 @@ export type StayRequest = {
   rooms?: number;
 };
 
+/** Who leads: the client named, or (for "the Mehta family") the household's primary member. */
+export type LeadChoice = "named" | "household_primary";
+
 /**
- * Host callbacks for the trip agent. Studio injects these, so @pureluxe/ai never
- * touches the database. Every handler checks the advisor's access and the trip's rules.
+ * Lookups both chats have: clients, history, hotels and place notes. All handlers are
+ * host callbacks Studio injects, so @pureluxe/ai never touches the database; every
+ * handler checks the advisor's access and the trip's rules.
  */
-export type TripAgentHandlers = DeskToolHandlers & {
-  getTrip: () => Promise<TripFacts>;
+export type DeskAgentHandlers = DeskToolHandlers & {
   getPlaceNotes: (input: { query: string; cityHint?: string }) => Promise<PlaceNotes>;
+};
+
+/** The trip chat: lookups plus changes to the open trip. */
+export type TripAgentHandlers = DeskAgentHandlers & {
+  getTrip: () => Promise<TripFacts>;
   getRateSnapshot: () => Promise<RateSnapshot>;
-  setClient: (input: { clientId: string; withHousehold: boolean }, call: ToolCallRef) => Promise<TripChange>;
+  setClient: (
+    input: { clientId: string; withHousehold: boolean; lead: LeadChoice },
+    call: ToolCallRef,
+  ) => Promise<TripChange>;
   setTravellers: (
     input: { add: Array<{ clientId: string; partyRole: PartyRole }>; remove: string[] },
     call: ToolCallRef,
@@ -72,6 +83,44 @@ export type TripAgentHandlers = DeskToolHandlers & {
   removeStay: (input: { city: string }, call: ToolCallRef) => Promise<TripChange>;
   shiftDates: (input: { days: number }, call: ToolCallRef) => Promise<TripChange>;
   undo: (call: ToolCallRef) => Promise<TripChange>;
+};
+
+/** A trip the home chat asks Studio to create, with everything the advisor said. */
+export type TripCreateRequest = {
+  /** Omitted when the advisor named no client. */
+  clientId?: string;
+  lead: LeadChoice;
+  withHousehold: boolean;
+  /** YYYY-MM-DD or MM-DD. */
+  start?: string;
+  end?: string;
+  stays: StayRequest[];
+  /** The advisor saw the client's upcoming trips and still wants a new one. */
+  createAnyway: boolean;
+};
+
+/** An upcoming trip of someone travelling, which may be the one the advisor means. Snake case: the model reads it. */
+export type UpcomingTripMatch = {
+  trip_id: string;
+  title: string | null;
+  status: string;
+  starts_on: string | null;
+  ends_on: string | null;
+  destinations: string[];
+  /** Null for the advisor's own trip (it can be opened); otherwise the advisor who owns it. */
+  owner_name: string | null;
+  /** "dates": overlaps the new dates. "destination": the same place. Null: another upcoming trip. */
+  matches: "dates" | "destination" | null;
+};
+
+export type TripCreateResult =
+  | { ok: true; status: "created"; trip_id: string; summary: string; unchanged?: true }
+  | { ok: true; status: "existing"; upcoming_trips: UpcomingTripMatch[] };
+
+/** The home chat (no trip open): lookups, creating a trip, and opening one. */
+export type HomeAgentHandlers = DeskAgentHandlers & {
+  createTrip: (input: TripCreateRequest, call: ToolCallRef) => Promise<TripCreateResult>;
+  openTrip: (input: { tripId: string }) => Promise<{ ok: true; trip_id: string; title: string | null }>;
 };
 
 /** A button tap: run this tool directly, without reading any text. */

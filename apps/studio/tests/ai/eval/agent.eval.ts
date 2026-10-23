@@ -27,7 +27,7 @@ function variantCount(steps: ReturnType<typeof planScenario>): number {
   return 1 + Math.max(0, ...steps.map((step) => (step.advisor.kind === "say" ? step.advisor.variants?.length ?? 0 : 0)));
 }
 
-describe.skipIf(!hasApiKey)(`agent eval (build stage ${options.stage})`, () => {
+describe.skipIf(!hasApiKey)(`agent eval (build stage ${options.stageLabel})`, () => {
   for (const { scenario, seed } of selected) {
     const plan = planScenario(scenario, options.stage);
     if (plan.every((step) => step.skip)) continue;
@@ -67,7 +67,7 @@ describe.skipIf(!hasApiKey)(`agent eval (build stage ${options.stage})`, () => {
 
   afterAll(() => {
     mkdirSync(dirname(EVAL_REPORT_PATH), { recursive: true });
-    writeFileSync(EVAL_REPORT_PATH, `${formatEvalReport(reports, options.stage)}\n`);
+    writeFileSync(EVAL_REPORT_PATH, `${formatEvalReport(reports, options.stageLabel)}\n`);
   });
 });
 

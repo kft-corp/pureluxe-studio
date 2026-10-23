@@ -9,21 +9,21 @@
  * ink-faint and accent are decorative — never use them for readable text on light surfaces.
  */
 :root {
-  /* Surfaces */
-  --surface: #f2f5f6;
+  /* Surfaces — Ice Mist palette: white cards on an ice-mist canvas */
+  --surface: #ebf1f5;
   --surface-raised: #ffffff;
-  --surface-subtle: #f7f9fa;
-  --surface-hover: #e9eff1;
+  --surface-subtle: #f5f8fa;
+  --surface-hover: #e4ecf2;
 
-  /* Lines */
-  --border: #dce4e7;
-  --border-strong: #c5d0d4;
-  --divider: #e5ebed;
+  /* Lines — cool, ice-tinted */
+  --border: #d9e2e9;
+  --border-strong: #c3d0da;
+  --divider: #e4eaef;
   /* Form field outline — 3.1:1 on white (WCAG non-text minimum is 3:1) */
   --field-border: #86939a;
 
-  /* Ink */
-  --ink: #1a232a;
+  /* Ink — deep slate charcoal */
+  --ink: #1a202c;
   --ink-muted: #5b6870;
   --ink-subtle: #66737b;
   --ink-faint: #98a5ac;
@@ -32,6 +32,15 @@
   --brand-dark: #13202a;
   --brand-dark-hover: #1f3140;
   --brand-light: #f3f6f7;
+
+  /* Deep steel blue — primary actions. White text on it is 7.1:1. */
+  --cta: #3d5a80;
+  --cta-hover: #334c6d;
+
+  /* Steel accent — selected filters, small tags. sky-ink on sky-soft is 5.9:1. */
+  --sky-soft: #e3ebf3;
+  --sky-line: #c6d4e3;
+  --sky-ink: #3d5a80;
 
   /* Champagne accent */
   --accent: #c5a880;
@@ -42,16 +51,23 @@
   --accent-ink: #7d6139;
   --accent-ink-strong: #5e4b30;
 
-  /* Navigation sidebar (Aegean mist) — sea-ink text and outline icons on pale sea mist */
-  --nav: #e6eef0;
-  --nav-hover: #d9e5e8;
+  /*
+   * Navigation sidebar (Ice Mist) — slate charcoal text in a regular weight, the active
+   * item as a white pill. Contrast on --nav: ink 14:1, icon 7:1, label and muted 5.1:1.
+   */
+  --nav: #ebf1f5;
+  --nav-hover: #dfe8ee;
   --nav-active: #ffffff;
-  --nav-line: #cfdde1;
-  --nav-ink: #1f2a30;
-  --nav-ink-strong: #0f171c;
-  --nav-icon: #34474f;
-  --nav-label: #5a6b72;
-  --nav-muted: #94a4ab;
+  --nav-line: #d3dde5;
+  --nav-ink: #1a202c;
+  --nav-ink-strong: #0f141c;
+  --nav-icon: #4a5157;
+  --nav-label: #5f666c;
+  --nav-muted: #5f666c;
+
+  /* Trip Builder agent backdrop — an ice-mist haze at the top that fades to white */
+  --agent-sky: #e3ebf1;
+  --agent-sky-fade: #f3f6f9;
 
   /* Dark chrome (login photo scrim, monogram tiles, text on dark buttons) */
   --brand-sidebar: #111a21;
@@ -90,9 +106,9 @@
   --info-line: #d3e0f0;
   --info-dot: #3b6cb5;
 
-  --neutral-soft: #eef2f4;
+  --neutral-soft: #edf3f6;
   --neutral-ink: #46535b;
-  --neutral-line: #dae2e6;
+  --neutral-line: #d6e2e8;
   --neutral-dot: #98a5ac;
 
   /* Root layout (login gate, etc.) */
@@ -119,6 +135,13 @@
   --color-brand-dark: var(--brand-dark);
   --color-brand-dark-hover: var(--brand-dark-hover);
   --color-brand-light: var(--brand-light);
+
+  --color-cta: var(--cta);
+  --color-cta-hover: var(--cta-hover);
+
+  --color-sky-soft: var(--sky-soft);
+  --color-sky-line: var(--sky-line);
+  --color-sky-ink: var(--sky-ink);
 
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
@@ -179,7 +202,8 @@
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter);
+  /* Figtree for interface and reading text; Fraunces (font-serif) for titles and headings */
+  --font-sans: var(--font-figtree);
   --font-mono: var(--font-geist-mono);
   --font-serif: var(--font-fraunces);
   --font-serif--font-variation-settings: "SOFT" 0, "WONK" 0;
@@ -188,6 +212,8 @@
 body {
   background: var(--background);
   color: var(--foreground);
+  /* Figtree reads light at 400; 450 keeps body text crisp without looking bold */
+  font-weight: 450;
 }
 
 @layer base {
@@ -387,9 +413,51 @@ body {
   animation: agentPhaseFadeIn 180ms ease-out;
 }
 
+/* Trip Builder chat — sky haze at the top that fades to white, like an assistant panel */
+.agent-chat-backdrop {
+  background: linear-gradient(
+    180deg,
+    var(--agent-sky) 0%,
+    var(--agent-sky-fade) 28%,
+    var(--surface-raised) 62%
+  );
+}
+
+/* A light band sweeps across the status text, left to right, while the agent works. */
+@keyframes agentTextShimmer {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
+
+.agent-phase-shimmer {
+  color: transparent;
+  background-image: linear-gradient(
+    90deg,
+    var(--accent-ink) 0%,
+    var(--accent-ink) 40%,
+    color-mix(in srgb, var(--accent-ink) 40%, var(--surface-raised)) 50%,
+    var(--accent-ink) 60%,
+    var(--accent-ink) 100%
+  );
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: agentTextShimmer 1.8s linear infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .agent-phase-label {
     animation: none;
+  }
+
+  .agent-phase-shimmer {
+    animation: none;
+    background: none;
+    color: var(--accent-ink);
   }
 }
 

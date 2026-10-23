@@ -113,10 +113,21 @@ export async function changeTripLead(
   return finish(trip.id, actor);
 }
 
+type NewTraveller = { client_id: string; party_role: TripPartyRole };
+
 /** Add a client who is already in Studio. The lead is not replaced. */
-export async function addTripTraveller(
+export function addTripTraveller(
   tripId: string,
-  input: { client_id: string; party_role: TripPartyRole },
+  input: NewTraveller,
+  actor: { memberId: string },
+): Promise<TripDetail> {
+  return addTripTravellers(tripId, [input], actor);
+}
+
+/** Add several clients in one go (a household), reloading the trip once. The lead is not replaced. */
+export async function addTripTravellers(
+  tripId: string,
+  people: NewTraveller[],
   actor: { memberId: string },
 ): Promise<TripDetail> {
   const trip = await requireEditableTrip(tripId, actor.memberId);
@@ -134,7 +145,7 @@ export async function addTripTraveller(
       status: 409,
     });
   }
-  if (input.client_id === trip.primary_client_id) {
+  if (people.some((person) => person.client_id === trip.primary_client_id)) {
     throw new AppError({
       userMessage: "That person is already the lead on this trip.",
       code: "trips.traveller_is_lead",
@@ -142,9 +153,13 @@ export async function addTripTraveller(
     });
   }
 
-  const client = await requireActiveClient(input.client_id);
-  const existing = await listTripTravellers(trip.id);
-  if (existing.length >= 20 && !existing.some((row) => row.client_id === client.id)) {
+  const [clients, existing] = await Promise.all([
+    Promise.all(people.map((person) => requireActiveClient(person.client_id))),
+    listTripTravellers(trip.id),
+  ]);
+  const onTrip = new Set(existing.map((row) => row.client_id));
+  const added = clients.filter((client) => !onTrip.has(client.id)).length;
+  if (existing.length + added > 20) {
     throw new AppError({
       userMessage: "This trip already has 20 travellers.",
       code: "trips.traveller_limit",
@@ -152,8 +167,11 @@ export async function addTripTraveller(
     });
   }
 
-  const partyRole: TripPartyRole = input.party_role === "child" ? "child" : "adult";
-  await upsertTripCompanion(trip.id, client.id, partyRole);
+  await Promise.all(
+    people.map((person, index) =>
+      upsertTripCompanion(trip.id, clients[index]!.id, person.party_role === "child" ? "child" : "adult"),
+    ),
+  );
   if (trip.travellers_confirmed_at) {
     await applyPartyToStays(trip.id, await listTripTravellers(trip.id));
   }

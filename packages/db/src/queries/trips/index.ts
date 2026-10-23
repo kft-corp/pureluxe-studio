@@ -74,10 +74,12 @@ export {
   findTripById,
   insertTrip,
   listAssignedTrips,
+  listUpcomingClientTrips,
   updateTrip,
   type InsertTripInput,
   type ListAssignedTripsInput,
   type ListAssignedTripsResult,
+  type UpcomingClientTrip,
   type TripDirectoryRow,
   type UpdateTripRecord,
 } from "./trips";

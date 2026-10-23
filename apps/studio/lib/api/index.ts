@@ -61,7 +61,6 @@ export {
 } from "./trips";
 export {
   addTripBuilderRateOption,
-  createTripBuilderTrip,
   generateTripBuilderOptionsQuote,
   getTripBuilderOptionsQuoteUrl,
   updateTripBuilderOptionsQuote,

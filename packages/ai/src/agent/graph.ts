@@ -22,18 +22,30 @@ import { ToolNode } from "@langchain/langgraph/prebuilt";
 import type { AgentApproval, TurnMeter } from "../tools";
 import type { ChatHistoryMessage, TripFacts } from "../types";
 
-import { buildTripInstructions } from "./instructions";
+import {
+  buildHomeInstructions,
+  buildTripInstructions,
+  type AgentInstructions,
+  type InstructionsInput,
+} from "./instructions";
 import { pruneOldTurns, recentTurns, repairToolPairs, seedMessages } from "./memory";
 import {
   createAgentModels,
   invokeWithFallback,
   roundUsageOf,
+  withCacheBreakpoint,
   type AgentModelOptions,
   type AgentModels,
 } from "./model";
 import { TripAgentState, type TripAgentStateValue } from "./state";
-import { TRIP_AGENT_TOOLS, bindAgentTools, findAgentTool } from "./tools";
-import type { ApprovalDecision, TripAgentHandlers } from "./types";
+import {
+  HOME_AGENT_TOOLS,
+  TRIP_AGENT_TOOLS,
+  bindAgentTools,
+  type AgentToolSpec,
+  type ToolSchema,
+} from "./tools";
+import type { ApprovalDecision, HomeAgentHandlers, TripAgentHandlers } from "./types";
 
 export type TripAgentNode = typeof START | "refresh" | "tap" | "agent" | "approval" | "tools" | "reply";
 
@@ -48,19 +60,33 @@ const SEED_MESSAGES = 12;
 /** Tool calls made by a button tap carry this id prefix. */
 const TAP_CALL = "tap_";
 
-export type TripAgentDeps = {
-  handlers: TripAgentHandlers;
+type CommonDeps<Handlers> = {
+  handlers: Handlers;
   checkpointer: BaseCheckpointSaver;
   /** YYYY-MM-DD in the agency's time zone, for "10–15 Dec" style questions. */
   today: string;
-  /** Trip facts already loading (started with the request). Used by the first refresh. */
-  trip?: Promise<TripFacts>;
-  /** Earlier chat, loaded only when this trip has no saved agent memory yet. */
+  /** Earlier chat, loaded only when the thread has no saved agent memory yet. */
   loadHistory?: () => Promise<ChatHistoryMessage[]>;
   meter?: TurnMeter;
   models?: AgentModelOptions;
   /** Builds the bound models. Defaults to Claude; tests pass a scripted model. */
   createModels?: (tools: StructuredToolInterface[]) => AgentModels;
+};
+
+export type TripAgentDeps = CommonDeps<TripAgentHandlers> & {
+  /** Trip facts already loading (started with the request). Used by the first refresh. */
+  trip?: Promise<TripFacts>;
+};
+
+export type HomeAgentDeps = CommonDeps<HomeAgentHandlers>;
+
+/** What differs between the trip chat and the home chat. */
+type AgentGraphDeps<Handlers> = CommonDeps<Handlers> & {
+  name: "trip_agent" | "home_agent";
+  tools: readonly AgentToolSpec<ToolSchema, Handlers>[];
+  instructions: (input: InstructionsInput) => AgentInstructions;
+  /** Loads the open trip at the start of a turn and after a change. None in the home chat. */
+  loadTrip?: () => Promise<TripFacts>;
 };
 
 /** Nothing saved yet: at most the advisor message this turn just added. */
@@ -76,16 +102,6 @@ function lastToolCalls(messages: readonly BaseMessage[]): ToolCall[] {
   return [];
 }
 
-/** Approval cards for calls the model chose that must be confirmed first. */
-function approvalsFor(calls: ToolCall[], trip: TripFacts | null): string[] {
-  return calls.flatMap((call) => {
-    const spec = findAgentTool(call.name);
-    const parsed = spec?.schema.safeParse(call.args ?? {});
-    const summary = spec?.confirm && parsed?.success ? spec.confirm(parsed.data, trip) : null;
-    return summary ? [summary] : [];
-  });
-}
-
 function parseResult(content: unknown): { ok?: boolean; summary?: string } | null {
   try {
     return typeof content === "string" ? JSON.parse(content) : null;
@@ -94,10 +110,40 @@ function parseResult(content: unknown): { ok?: boolean; summary?: string } | nul
   }
 }
 
-/** Compile the trip agent for one turn, bound to this advisor's handlers. */
+/**
+ * Compile the trip agent for one turn, bound to this advisor's handlers.
+ * The trip chat and the home chat share one graph; they differ in tools,
+ * instructions and whether a trip is loaded.
+ */
 export function buildTripAgentGraph(deps: TripAgentDeps) {
+  let prefetched = deps.trip;
+  return buildAgentGraph({
+    ...deps,
+    name: "trip_agent",
+    tools: TRIP_AGENT_TOOLS,
+    instructions: buildTripInstructions,
+    loadTrip: () => {
+      const load = prefetched ?? deps.handlers.getTrip();
+      prefetched = undefined;
+      return load;
+    },
+  });
+}
+
+/** Compile the home-chat agent (no trip open) for one turn. */
+export function buildHomeAgentGraph(deps: HomeAgentDeps) {
+  return buildAgentGraph({
+    ...deps,
+    name: "home_agent",
+    tools: HOME_AGENT_TOOLS,
+    instructions: buildHomeInstructions,
+  });
+}
+
+function buildAgentGraph<Handlers>(deps: AgentGraphDeps<Handlers>) {
   let currentTrip: TripFacts | null = null;
-  const tools = bindAgentTools(TRIP_AGENT_TOOLS, {
+  const specs = new Map(deps.tools.map((spec) => [spec.name, spec]));
+  const tools = bindAgentTools(deps.tools, {
     handlers: deps.handlers,
     meter: deps.meter,
     trip: () => currentTrip,
@@ -105,7 +151,15 @@ export function buildTripAgentGraph(deps: TripAgentDeps) {
   const models = deps.createModels?.(tools) ?? createAgentModels(tools, deps.models);
   const toolNode = new ToolNode(tools, { handleToolErrors: true });
 
-  let prefetchedTrip = deps.trip;
+  /** Approval cards for calls the model chose that must be confirmed first. */
+  function approvalsFor(calls: ToolCall[], trip: TripFacts | null): string[] {
+    return calls.flatMap((call) => {
+      const spec = specs.get(call.name);
+      const parsed = spec?.schema.safeParse(call.args ?? {});
+      const summary = spec?.confirm && parsed?.success ? spec.confirm(parsed.data, trip) : null;
+      return summary ? [summary] : [];
+    });
+  }
 
   /**
    * Reload the trip so the agent sees saved values. A new thread starts from the
@@ -113,11 +167,9 @@ export function buildTripAgentGraph(deps: TripAgentDeps) {
    */
   async function refresh(state: TripAgentStateValue) {
     deps.meter?.mark("memory");
-    const tripLoad = prefetchedTrip ?? deps.handlers.getTrip();
-    prefetchedTrip = undefined;
     const historyLoad =
       deps.loadHistory && isNewThread(state.messages) ? deps.loadHistory() : Promise.resolve(null);
-    const [trip, history] = await Promise.all([tripLoad, historyLoad]);
+    const [trip, history] = await Promise.all([deps.loadTrip?.() ?? null, historyLoad]);
     deps.meter?.mark("trip");
     currentTrip = trip;
 
@@ -156,9 +208,11 @@ export function buildTripAgentGraph(deps: TripAgentDeps) {
 
   async function agent(state: TripAgentStateValue, config: RunnableConfig) {
     const toolsExhausted = state.toolRounds >= MAX_TOOL_ROUNDS;
+    const { rules, context } = deps.instructions({ trip: state.trip, today: deps.today, toolsExhausted });
     const messages = [
-      buildTripInstructions({ trip: state.trip, today: deps.today, toolsExhausted }),
-      ...repairToolPairs(recentTurns(state.messages, CONTEXT_TURNS)),
+      rules,
+      ...withCacheBreakpoint(repairToolPairs(recentTurns(state.messages, CONTEXT_TURNS))),
+      context,
     ];
     const stopModel = deps.meter?.startModelCall();
     const { message, fallback } = await invokeWithFallback(
@@ -177,7 +231,7 @@ export function buildTripAgentGraph(deps: TripAgentDeps) {
   function approval(state: TripAgentStateValue) {
     const calls = lastToolCalls(state.messages);
     const summaries = approvalsFor(calls, state.trip);
-    const first = calls.find((call) => findAgentTool(call.name)?.confirm);
+    const first = calls.find((call) => specs.get(call.name)?.confirm);
     const decision = interrupt<AgentApproval, ApprovalDecision>({
       tool: first?.name ?? calls[0]!.name,
       args: first?.args ?? {},
@@ -207,7 +261,7 @@ export function buildTripAgentGraph(deps: TripAgentDeps) {
     const calls = lastToolCalls(state.messages);
     const result = (await toolNode.invoke(state, config)) as { messages: BaseMessage[] };
     const tapped = calls.length === 1 && calls[0]!.id?.startsWith(TAP_CALL);
-    const quick = tapped && findAgentTool(calls[0]!.name)?.quickReply;
+    const quick = tapped && specs.get(calls[0]!.name)?.quickReply;
     const outcome = quick ? parseResult(result.messages[0]?.content) : null;
     return {
       ...result,
@@ -232,7 +286,7 @@ export function buildTripAgentGraph(deps: TripAgentDeps) {
   /** A quick reply ends a simple tap; a change reloads the trip; a lookup goes back to the model. */
   function afterTools(state: TripAgentStateValue) {
     if (state.quickReply) return "reply";
-    const changed = lastToolCalls(state.messages).some((call) => findAgentTool(call.name)?.risk !== "read");
+    const changed = lastToolCalls(state.messages).some((call) => specs.get(call.name)?.risk !== "read");
     return changed ? "refresh" : "agent";
   }
 
@@ -249,7 +303,7 @@ export function buildTripAgentGraph(deps: TripAgentDeps) {
     .addConditionalEdges("agent", afterAgent, ["tools", "approval", END])
     .addConditionalEdges("tools", afterTools, ["reply", "refresh", "agent"])
     .addEdge("reply", END)
-    .compile({ checkpointer: deps.checkpointer, name: "trip_agent" });
+    .compile({ checkpointer: deps.checkpointer, name: deps.name });
 }
 
-export type TripAgentGraph = ReturnType<typeof buildTripAgentGraph>;
+export type AgentGraph = ReturnType<typeof buildTripAgentGraph>;

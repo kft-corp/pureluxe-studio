@@ -18,7 +18,7 @@ export function ChatMarkdown({ content, className }: ChatMarkdownProps) {
   return (
     <div
       className={cn(
-        "chat-md text-[14px] leading-relaxed break-words text-ink",
+        "chat-md text-[15px] leading-[1.6] break-words text-ink",
         "[&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
         "[&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto",
         className,
@@ -28,20 +28,20 @@ export function ChatMarkdown({ content, className }: ChatMarkdownProps) {
         remarkPlugins={[remarkGfm]}
         components={{
           p: ({ children }) => (
-            <p className="my-2.5 whitespace-pre-wrap">{children}</p>
+            <p className="my-3 whitespace-pre-wrap">{children}</p>
           ),
           strong: ({ children }) => (
             <strong className="font-semibold text-ink">{children}</strong>
           ),
           em: ({ children }) => <em className="italic text-ink">{children}</em>,
           ul: ({ children }) => (
-            <ul className="my-2.5 list-disc space-y-1 pl-5">{children}</ul>
+            <ul className="my-3 list-disc space-y-1.5 pl-5">{children}</ul>
           ),
           ol: ({ children }) => (
-            <ol className="my-2.5 list-decimal space-y-1 pl-5">{children}</ol>
+            <ol className="my-3 list-decimal space-y-1.5 pl-5">{children}</ol>
           ),
           li: ({ children }) => (
-            <li className="leading-relaxed marker:text-ink-muted">{children}</li>
+            <li className="marker:text-ink-muted">{children}</li>
           ),
           a: ({ href, children }) => (
             <a
@@ -79,17 +79,17 @@ export function ChatMarkdown({ content, className }: ChatMarkdownProps) {
             </blockquote>
           ),
           h1: ({ children }) => (
-            <p className="mb-1.5 mt-3 text-[15px] font-semibold text-ink">
+            <p className="mt-4 mb-1.5 font-serif text-[18px] leading-snug font-medium text-ink">
               {children}
             </p>
           ),
           h2: ({ children }) => (
-            <p className="mb-1.5 mt-3 text-[15px] font-semibold text-ink">
+            <p className="mt-4 mb-1.5 font-serif text-[18px] leading-snug font-medium text-ink">
               {children}
             </p>
           ),
           h3: ({ children }) => (
-            <p className="mb-1 mt-2.5 text-[14px] font-semibold text-ink">
+            <p className="mt-3.5 mb-1 font-serif text-[16px] leading-snug font-medium text-ink">
               {children}
             </p>
           ),

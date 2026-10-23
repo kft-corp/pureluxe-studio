@@ -11,6 +11,7 @@ const services = vi.hoisted(() => ({
   setTripStay: vi.fn(),
   getTripDetail: vi.fn(),
   dbUpdateTrip: vi.fn(),
+  addTripTravellers: vi.fn(),
 }));
 
 vi.mock("@pureluxe/db", () => ({
@@ -25,7 +26,7 @@ vi.mock("@/lib/trip-builder/stays/set-trip-stay", () => ({ setTripStay: services
 vi.mock("@/lib/trip-builder/stays/stay-side-effects", () => ({ markQuoteStale: vi.fn() }));
 vi.mock("@/lib/trip-builder/trip/get-trip-detail", () => ({ getTripDetail: services.getTripDetail }));
 vi.mock("@/lib/trip-builder/party/trip-party", () => ({
-  addTripTraveller: vi.fn(),
+  addTripTravellers: services.addTripTravellers,
   changeTripLead: vi.fn(),
   confirmTripTravellers: vi.fn(),
   removeTripTraveller: vi.fn(),
@@ -141,6 +142,43 @@ describe("applyTripShape", () => {
     expect(services.reviseTripLeg).toHaveBeenCalledOnce();
     expect(services.addTripLeg).not.toHaveBeenCalled();
     expect(services.dbUpdateTrip).not.toHaveBeenCalled();
+  });
+
+  it("adds a whole household in one call", async () => {
+    const withFamily = makeTripDetail({
+      ...NEW_TRIP,
+      travellers: [
+        LEAD,
+        { ...LEAD, client_id: "c2", display_name: "Anika Mehta", role: "companion" as const },
+        { ...LEAD, client_id: "c3", display_name: "Kiara Mehta", role: "companion" as const, party_role: "child" as const },
+      ],
+    });
+    services.addTripTravellers.mockResolvedValue(withFamily);
+
+    await applyTripShape(
+      "trip-1",
+      target({
+        companions: [
+          { client_id: "c2", party_role: "adult" },
+          { client_id: "c3", party_role: "child" },
+        ],
+        starts_on: null,
+        ends_on: null,
+        legs_confirmed: false,
+      }),
+      ACTOR,
+      NEW_TRIP,
+    );
+
+    expect(services.addTripTravellers).toHaveBeenCalledOnce();
+    expect(services.addTripTravellers).toHaveBeenCalledWith(
+      "trip-1",
+      [
+        { client_id: "c2", party_role: "adult" },
+        { client_id: "c3", party_role: "child" },
+      ],
+      ACTOR,
+    );
   });
 
   it("does nothing more than the change needs", async () => {

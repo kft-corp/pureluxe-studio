@@ -27,7 +27,7 @@ function average(values: number[]): number | null {
 }
 
 /** One line per step, then totals: pass rate, cached share, time to first word. */
-export function formatEvalReport(reports: RunReport[], stage: number): string {
+export function formatEvalReport(reports: RunReport[], stage: string): string {
   const lines: string[] = [`Agent eval · build stage ${stage}`, ""];
   const all = reports.flatMap((report) => report.outcomes);
 

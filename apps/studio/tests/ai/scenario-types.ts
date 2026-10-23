@@ -13,12 +13,23 @@
 /** Ideal-flow stage from Keshav's redesign (1 client … 7 pre-arrival). */
 export type FlowStage = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
-/** Build stage from the redesign's order of work that makes a step checkable. */
-export type BuildStage = "stage-1" | "stage-2" | "stage-3" | "stage-5";
+/** Build stage from the redesign's order of work (§14) that makes a step checkable. */
+export type BuildStage =
+  | "stage-1"
+  | "stage-2"
+  | "stage-2b"
+  | "stage-3a"
+  | "stage-3b"
+  | "stage-3c"
+  | "stage-3d"
+  | "stage-4"
+  | "stage-5";
 
 /** Agent tool names (redesign §4.3). */
 export type AgentToolName =
   | "trip_get"
+  | "trip_create"
+  | "trip_open"
   | "client_search"
   | "client_get"
   | "history_search_trips"
@@ -44,7 +55,8 @@ export type AgentToolName =
   | "quote_select_final"
   | "quote_send";
 
-export type CardKind = "client_picker" | "rate_compare" | "leg_split" | "undo" | "approval";
+/** "trip_opened": the home chat created or opened a trip and the page moved into it. */
+export type CardKind = "client_picker" | "rate_compare" | "leg_split" | "undo" | "approval" | "trip_opened";
 
 /** What the advisor does in one step. */
 export type AdvisorInput =
@@ -63,7 +75,14 @@ export type TripExpectation = {
   stays?: Array<{ destination: string; checkIn: string; checkOut: string }>;
   quoteOptions?: {
     count: number;
-    includes?: Array<{ hotel: string; room: string; rank?: number; markupPercent?: number }>;
+    includes?: Array<{
+      hotel: string;
+      room: string;
+      rank?: number;
+      markupPercent?: number;
+      /** Client price as the advisor gave it, USD. */
+      clientPrice?: number;
+    }>;
   };
   quoteStatus?: "draft" | "sent";
   chosenOption?: { hotel: string; room: string };
@@ -108,6 +127,8 @@ export type ScenarioStep = {
   /** Ideal-flow stages this step covers. */
   flowStages: FlowStage[];
   buildStage: BuildStage;
+  /** Sent from the Trip Builder home screen (no trip open yet). Default: the trip chat. */
+  chat?: "home";
   title: string;
   advisor: AdvisorInput;
   expect: StepExpect;
@@ -156,8 +177,11 @@ export type SeedClient = {
   email: string;
   tier: string;
   household?: Array<{ clientId: string; relation: "spouse" | "child" | "parent" | "sibling" }>;
+  /** The household's primary member: the default lead for "the X family". */
+  householdPrimary?: true;
   /** Date of birth for adult/child counts. */
   dateOfBirth: string;
+  preferences?: Array<{ label: string; sentiment: "prefer" | "avoid" | "require"; category: string }>;
 };
 
 export type SeedRoom = {
@@ -165,6 +189,8 @@ export type SeedRoom = {
   /** Team cost per night, USD, for the seeded dates. */
   nightlyCost: number;
   maxAdults: number;
+  /** Children allowed with the adults in one room. Unset: not stated in the contract. */
+  maxChildren?: number;
   inclusions: string[];
 };
 
@@ -174,6 +200,8 @@ export type SeedHotel = {
   aliases?: string[];
   destination: string;
   styleTags: string[];
+  /** Hotel tier from the Hotels sheet (Feedback v2, note 5). */
+  tier?: "ultra_luxury" | "luxury" | "premium";
   minMarkupPercent: number;
   cancellation: string;
   /** Required charges the all-in price must add (R2). */
@@ -191,9 +219,22 @@ export type SeedPlace = {
   notes: string;
 };
 
+/** A trip already in Studio, found by the home chat's check for upcoming trips. */
+export type SeedTrip = {
+  id: string;
+  leadClientId: string;
+  destination: string;
+  startsOn: string;
+  endsOn: string;
+  status: "building" | "quote_sent" | "confirmed";
+  /** Another advisor's trip. Unset: the seed advisor's own. */
+  ownerName?: string;
+};
+
 export type ScenarioSeed = {
   advisor: { memberId: string; name: string };
   clients: SeedClient[];
   hotels: SeedHotel[];
+  trips?: SeedTrip[];
   places?: SeedPlace[];
 };

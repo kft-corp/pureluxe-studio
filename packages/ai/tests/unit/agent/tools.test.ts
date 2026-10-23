@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { REDACTED } from "../../../src/agent/redact";
 import { TRIP_AGENT_TOOLS, bindAgentTools, findAgentTool } from "../../../src/agent/tools";
 import { createTurnMeter } from "../../../src/tools";
-import { CLIENT_ID, makeHandlers, makeTripFacts } from "../../fixtures/agent";
+import { CLIENT_ID, makeBookedTripFacts, makeHandlers, makeTripFacts } from "../../fixtures/agent";
 
 function bind(handlers = makeHandlers()) {
   const meter = createTurnMeter();
@@ -19,10 +19,17 @@ describe("trip agent tools", () => {
       expect(spec.name).toMatch(/^(?:trip|client|history|hotel|place|rates)_[a-z_]+$/);
       if (spec.risk !== "read") expect(spec.name).toMatch(/^trip_/);
     }
-    expect(TRIP_AGENT_TOOLS.filter((spec) => spec.risk === "approval").map((spec) => spec.name)).toEqual([
-      "trip_shift_dates",
-    ]);
+    expect(TRIP_AGENT_TOOLS.filter((spec) => spec.risk === "approval")).toEqual([]);
     expect(findAgentTool("quote_send")).toBeNull();
+  });
+
+  it("asks before moving the trip only when a stay has the client's room", () => {
+    const spec = findAgentTool("trip_shift_dates")!;
+
+    expect(spec.confirm!({ days: 1 }, makeTripFacts())).toBeNull();
+    expect(spec.confirm!({ days: -1 }, makeBookedTripFacts())).toMatch(
+      /^Move the whole trip 1 day earlier\? The client's room in Maldives/,
+    );
   });
 
   it("passes the tool call id to a change, so a retry can't apply it twice", async () => {
@@ -70,6 +77,20 @@ describe("trip agent tools", () => {
     expect(meter.read().toolCalls.at(-1)).toMatchObject({ name: "trip_set_client", error_code: "repeated" });
   });
 
+  it("reuses a repeated lookup until something changes", async () => {
+    const { handlers, meter, byName } = bind();
+    const input = { query: "Maldives" };
+
+    const first = await byName("place_get_notes").invoke(input);
+    const again = await byName("place_get_notes").invoke(input);
+    await byName("trip_set_dates").invoke({ start: "12-10", end: "12-15" });
+    await byName("place_get_notes").invoke(input);
+
+    expect(again).toBe(first);
+    expect(handlers.getPlaceNotes).toHaveBeenCalledTimes(2);
+    expect(meter.read().toolCalls[1]).toMatchObject({ name: "place_get_notes", error_code: "reused" });
+  });
+
   it("still runs Undo twice, and retries a change that failed", async () => {
     const { handlers, byName } = bind();
     handlers.setDates.mockRejectedValueOnce(
@@ -96,16 +117,36 @@ describe("trip agent tools", () => {
     );
   });
 
-  it("offers a button per client when several match and the trip has no client", () => {
+  describe("client buttons", () => {
     const spec = findAgentTool("client_search")!;
-    const hit = (id: string, display_name: string) => ({ id, display_name });
-    const result = { clients: [hit(CLIENT_ID, "Aarav Mehta"), hit("c2", "Ria Mehta")] };
+    const hit = (id: string, display_name: string, household_id: string | null = null) => ({
+      id,
+      display_name,
+      household_id,
+    });
+    const people = { clients: [hit(CLIENT_ID, "Aarav Mehta"), hit("c2", "Ria Mehta")] };
 
-    expect(spec.choices!(result, makeTripFacts({ client: null }))).toEqual([
-      { label: "Aarav Mehta", action: "trip_set_client", args: { client_id: CLIENT_ID } },
-      { label: "Ria Mehta", action: "trip_set_client", args: { client_id: "c2" } },
-    ]);
-    expect(spec.choices!(result, makeTripFacts())).toEqual([]);
+    it("offers one per person when several match and the trip has no client", () => {
+      expect(spec.choices!(people, makeTripFacts({ client: null }))).toEqual([
+        { label: "Aarav Mehta", action: "trip_set_client", args: { client_id: CLIENT_ID } },
+        { label: "Ria Mehta", action: "trip_set_client", args: { client_id: "c2" } },
+      ]);
+      expect(spec.choices!(people, makeTripFacts())).toEqual([]);
+    });
+
+    it("offers Create trip per person in the home chat", () => {
+      expect(spec.choices!(people, null)).toEqual([
+        { label: "Create trip · Aarav Mehta", action: "client_get", args: { client_id: CLIENT_ID } },
+        { label: "Create trip · Ria Mehta", action: "client_get", args: { client_id: "c2" } },
+      ]);
+    });
+
+    it("offers none for one match or one household", () => {
+      const household = { clients: [hit(CLIENT_ID, "Ravi Mehta", "h1"), hit("c2", "Anika Mehta", "h1")] };
+      expect(spec.choices!({ clients: [hit(CLIENT_ID, "Aarav Mehta")] }, null)).toEqual([]);
+      expect(spec.choices!(household, null)).toEqual([]);
+      expect(spec.choices!(household, makeTripFacts({ client: null }))).toEqual([]);
+    });
   });
 
   it("maps model input to the Studio handler and times the call", async () => {
@@ -125,6 +166,32 @@ describe("trip agent tools", () => {
     expect(meter.read().toolCalls).toEqual([
       expect.objectContaining({ name: "history_search_trips", ok: true, error_code: null }),
     ]);
+  });
+
+  it("lists the client's other trips when a stage finds none", async () => {
+    const { handlers, byName } = bind();
+    const open = {
+      trip_id: "trip-2",
+      title: "Ravi Mehta · Dubai",
+      status: "building",
+      client: "Ravi Mehta",
+      owner: "Vijay",
+      starts_on: "2026-11-05",
+      ends_on: "2026-11-10",
+      destinations: ["Dubai"],
+      traveller_count: 4,
+      sell_total: null,
+      sell_currency: null,
+      margin: null,
+      pricing_locked: false,
+      quote_out_of_date: false,
+    };
+    handlers.searchTrips.mockResolvedValueOnce({ trips: [], total: 0 }).mockResolvedValueOnce({ trips: [open], total: 1 });
+
+    const content = JSON.parse((await byName("history_search_trips").invoke({ client_id: CLIENT_ID, stage: "past" })) as string);
+
+    expect(handlers.searchTrips).toHaveBeenLastCalledWith(expect.objectContaining({ clientId: CLIENT_ID, stage: "any" }));
+    expect(content).toEqual({ trips: [], total: 0, other_trips: [open] });
   });
 
   it("returns an access error to the model so it can explain", async () => {

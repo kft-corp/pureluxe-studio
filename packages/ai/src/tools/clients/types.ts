@@ -1,4 +1,4 @@
-/** One row from search_clients. */
+/** One row from client_search. */
 export type ClientSearchHit = {
   id: string;
   display_name: string;
@@ -6,7 +6,8 @@ export type ClientSearchHit = {
   phone: string | null;
   tier: { slug: string; label: string };
   review_status: string;
-  has_family: boolean;
+  /** The same id means the same household. Null: not in a household. */
+  household_id: string | null;
 };
 
 /**
@@ -87,6 +88,3 @@ export type ClientToolHandlers = {
   }) => Promise<{ clients: ClientSearchHit[] }>;
   getClient: (input: { clientId?: string }) => Promise<ClientBrief>;
 };
-
-/** @deprecated Use ClientToolHandlers */
-export type ClientLookupHandlers = ClientToolHandlers;

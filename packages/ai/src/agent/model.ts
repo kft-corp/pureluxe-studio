@@ -1,5 +1,5 @@
 import { ChatAnthropic } from "@langchain/anthropic";
-import type { AIMessage, BaseMessage } from "@langchain/core/messages";
+import { HumanMessage, ToolMessage, type AIMessage, type BaseMessage } from "@langchain/core/messages";
 import type { Runnable, RunnableConfig } from "@langchain/core/runnables";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
@@ -10,6 +10,8 @@ const DEFAULT_MODEL = "claude-sonnet-5-5";
 const MAX_OUTPUT_TOKENS = 1024;
 /** SDK-level retries per model before the backup model is tried. */
 const MAX_RETRIES = 2;
+
+export const CACHED = { type: "ephemeral" } as const;
 
 /** Provider statuses where another model may succeed: timeouts, rate limits, overload, outages. */
 const OUTAGE_STATUSES = new Set([408, 409, 429, 500, 502, 503, 504, 529]);
@@ -46,8 +48,9 @@ function createChatModel(model: string, apiKey: string): ChatAnthropic {
 }
 
 /**
- * Bind the tools to the main and backup models.
- * The top-level cache breakpoint advances with the chat, so earlier rounds are read from cache.
+ * Bind the tools to the main and backup models. Caching is set on the messages
+ * (see withCacheBreakpoint), not for the whole request: the trip facts come last and
+ * change, so a breakpoint at the very end would never be read again.
  */
 export function createAgentModels(
   tools: StructuredToolInterface[],
@@ -65,19 +68,41 @@ export function createAgentModels(
   const primary = createChatModel(primaryName, apiKey);
   const fallback =
     fallbackName && fallbackName !== primaryName ? createChatModel(fallbackName, apiKey) : null;
-  const cache = { cache_control: { type: "ephemeral" as const } };
 
   return {
     primaryName,
     withTools: {
-      primary: primary.bindTools(tools, cache),
-      fallback: fallback?.bindTools(tools, cache) ?? null,
+      primary: primary.bindTools(tools),
+      fallback: fallback?.bindTools(tools) ?? null,
     },
     answerOnly: {
-      primary: primary.bindTools(tools, { ...cache, tool_choice: "none" }),
-      fallback: fallback?.bindTools(tools, { ...cache, tool_choice: "none" }) ?? null,
+      primary: primary.bindTools(tools, { tool_choice: "none" }),
+      fallback: fallback?.bindTools(tools, { tool_choice: "none" }) ?? null,
     },
   };
+}
+
+/**
+ * A cache breakpoint on the conversation's last message, so the next round (and the
+ * next turn) reads everything up to it from cache. The message in state is unchanged.
+ */
+export function withCacheBreakpoint(messages: BaseMessage[]): BaseMessage[] {
+  const last = messages.at(-1);
+  if (!last || typeof last.content !== "string" || last.content === "") return messages;
+  const content = [{ type: "text" as const, text: last.content, cache_control: CACHED }];
+  const marked = ToolMessage.isInstance(last)
+    ? new ToolMessage({
+        content,
+        id: last.id,
+        name: last.name,
+        tool_call_id: last.tool_call_id,
+        status: last.status,
+        artifact: last.artifact,
+      })
+    : HumanMessage.isInstance(last)
+      ? new HumanMessage({ content, id: last.id })
+      : null;
+  return marked ? [...messages.slice(0, -1), marked] : messages;
 }
 
 function statusOf(cause: unknown): number | null {

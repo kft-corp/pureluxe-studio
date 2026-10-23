@@ -30,8 +30,7 @@ export const studioControl = {
 } as const;
 
 export const studioTone = {
-  primary:
-    "bg-brand-dark text-on-dark shadow-sm hover:bg-brand-dark-hover",
+  primary: "bg-cta text-white shadow-sm hover:bg-cta-hover",
   secondary:
     "border border-border bg-surface-raised text-ink shadow-sm hover:border-border-strong hover:bg-surface-hover",
   /** Quiet chrome (pagination, tertiary) — keeps size tokens, lighter than secondary. */
@@ -49,7 +48,7 @@ export const studioTone = {
     "border border-danger-line bg-danger-soft text-danger-ink shadow-sm hover:border-danger-ink/30 hover:bg-danger-line/60",
   chipIdle:
     "bg-surface-raised text-ink-muted ring-border hover:bg-surface-hover hover:text-ink",
-  chipActive: "bg-accent-soft text-accent-ink ring-accent",
+  chipActive: "bg-sky-soft text-sky-ink ring-sky-line",
 } as const;
 
 export function studioButtonClass(

@@ -108,7 +108,14 @@ export function toEvalTripFacts(trip: EvalTrip, seed: ScenarioSeed, today: strin
     family_suggestions: household.flatMap((member) => {
       const person = byId.get(member.clientId);
       return person
-        ? [{ client_id: member.clientId, display_name: person.displayName, party_role: "adult", family_role: member.relation }]
+        ? [
+            {
+              client_id: member.clientId,
+              display_name: person.displayName,
+              party_role: ageOn(person.dateOfBirth, onDate) >= 18 ? "adult" : "child",
+              family_role: member.relation,
+            },
+          ]
         : [];
     }),
     starts_on: trip.startsOn,

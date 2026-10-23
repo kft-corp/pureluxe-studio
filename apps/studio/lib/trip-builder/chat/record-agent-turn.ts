@@ -1,10 +1,5 @@
 import { errorCodeOf, type TurnMeter } from "@pureluxe/ai";
-import {
-  insertAgentTurn,
-  type AgentTurnChannel,
-  type AgentTurnStatus,
-  type AgentVersion,
-} from "@pureluxe/db";
+import { insertAgentTurn, type AgentTurnChannel, type AgentTurnStatus } from "@pureluxe/db";
 
 export type AgentTurnOutcome = {
   status: AgentTurnStatus;
@@ -18,9 +13,7 @@ type RecordAgentTurnInput = {
   tripId: string | null;
   memberId: string;
   clientRequestId: string | null;
-  /** Defaults to v1. */
-  agentVersion?: AgentVersion;
-  /** LangGraph thread (trip:<id>) for v2. */
+  /** LangGraph thread (trip:<id>). None for the home chat, which keeps no memory. */
   threadId?: string | null;
   /** Instructions version that produced the reply. */
   promptVersion?: string | null;
@@ -34,7 +27,7 @@ export async function recordAgentTurn(input: RecordAgentTurnInput): Promise<void
       trip_id: input.tripId,
       member_id: input.memberId,
       channel: input.channel,
-      agent_version: input.agentVersion ?? "v1",
+      agent_version: "v2",
       thread_id: input.threadId ?? null,
       client_request_id: input.clientRequestId,
       prompt_version: input.promptVersion ?? null,

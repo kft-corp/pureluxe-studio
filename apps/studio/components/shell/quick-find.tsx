@@ -212,7 +212,7 @@ function QuickFindDialog({
                     onClick={() => open(item)}
                     className={cn(
                       "flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-sm text-ink transition-colors",
-                      on && "bg-accent-soft",
+                      on && "bg-sky-soft",
                     )}
                   >
                     <span

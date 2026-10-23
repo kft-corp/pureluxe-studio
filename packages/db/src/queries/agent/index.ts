@@ -5,6 +5,7 @@ export {
   findLatestTripUndo,
   findOpenTripApproval,
   findTripChangeResult,
+  findTripCreatedWithKey,
   insertTripApproval,
   recordTripChange,
   recordTripUndo,

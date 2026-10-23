@@ -5,13 +5,13 @@ import {
 } from "@pureluxe/shared";
 import { z } from "zod";
 
-import { defineAgentTool } from "./define-tool";
+import { defineDeskTool } from "./define-tool";
 
 const clientId = z
   .string()
   .uuid()
   .optional()
-  .describe("Client id from client_search or the trip facts.");
+  .describe("Client id from client_search or the trip facts. Finds their trips as lead or traveller, so one search covers a household that travels together.");
 
 const mine = z
   .boolean()
@@ -20,13 +20,14 @@ const mine = z
 
 const limit = z.number().int().min(1).max(20).optional().describe("Max rows, 1–20. Default 10.");
 
-export const historySearchTripsTool = defineAgentTool({
+export const historySearchTripsTool = defineDeskTool({
   name: "history_search_trips",
   description: [
     "List Studio trips other than the open one: a client's past, current and upcoming trips, or the advisor's own pipeline.",
     "Use for where a client went last time, another open trip, date clashes, the status of a named trip, or which trips are waiting or starting soon.",
     "Do not use for hotels, rooms or confirmation numbers (trip rows have no hotels; use history_search_bookings).",
     "Returns rows with status, dates, cities, traveller count, client price, margin and whether the quote is out of date.",
+    "When a stage finds nothing, other_trips lists the same search across all stages: none in that stage is not none on file.",
   ].join(" "),
   schema: z
     .object({
@@ -41,18 +42,23 @@ export const historySearchTripsTool = defineAgentTool({
     })
     .strict(),
   risk: "read",
-  progress: () => "Searching trips…",
-  run: (input, handlers) =>
-    handlers.searchTrips({
+  progress: () => "Checking trip history…",
+  run: async (input, handlers) => {
+    const search = {
       clientId: input.client_id,
       query: input.query,
       stage: input.stage,
       mine: input.mine,
       limit: input.limit,
-    }),
+    };
+    const found = await handlers.searchTrips(search);
+    if (found.trips.length > 0 || !input.stage || input.stage === "any") return found;
+    const other = await handlers.searchTrips({ ...search, stage: "any" });
+    return other.trips.length > 0 ? { ...found, other_trips: other.trips } : found;
+  },
 });
 
-export const historySearchBookingsTool = defineAgentTool({
+export const historySearchBookingsTool = defineDeskTool({
   name: "history_search_bookings",
   description: [
     "List Studio bookings (hotels, flights, transfers, activities).",
@@ -79,7 +85,7 @@ export const historySearchBookingsTool = defineAgentTool({
     })
     .strict(),
   risk: "read",
-  progress: () => "Searching bookings…",
+  progress: () => "Checking bookings…",
   run: (input, handlers) =>
     handlers.searchBookings({
       clientId: input.client_id,
@@ -91,7 +97,7 @@ export const historySearchBookingsTool = defineAgentTool({
     }),
 });
 
-export const historyGetBookingTool = defineAgentTool({
+export const historyGetBookingTool = defineDeskTool({
   name: "history_get_booking",
   description: [
     "Load one booking in full: dates, room, board, guests, supplier, confirmation ref, team cost, client price, margin, commission, cancellation policy and deadline, and travellers.",
@@ -105,6 +111,6 @@ export const historyGetBookingTool = defineAgentTool({
     })
     .strict(),
   risk: "read",
-  progress: () => "Loading the booking…",
+  progress: () => "Reviewing the booking…",
   run: (input, handlers) => handlers.getBooking({ bookingId: input.booking_id }),
 });

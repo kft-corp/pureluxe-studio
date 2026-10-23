@@ -14,6 +14,8 @@ export type TripChangeContext = {
   args: Record<string, unknown>;
   /** The agent's tool-call id: the same call never applies twice. */
   idempotencyKey: string;
+  /** The trip as the caller already loaded it; the change starts from it instead of loading it again. */
+  loaded?: TripDetail | null;
   /** Receives the trip after a change, so the caller doesn't load it again. */
   onChanged?: (after: TripDetail) => void;
 };
@@ -45,7 +47,7 @@ export async function withTripChange(
   const { tripId, actor } = context;
   const [done, before] = await Promise.all([
     findTripChangeResult({ tripId, memberId: actor.memberId, idempotencyKey: context.idempotencyKey }),
-    getTripDetail(tripId, actor),
+    context.loaded ?? getTripDetail(tripId, actor),
   ]);
   if (done) return { ok: true, summary: String(done.summary ?? ""), undo: false, unchanged: true };
 

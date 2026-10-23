@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
-import { LuListFilter, LuSparkles } from "react-icons/lu";
+import { LuListFilter } from "react-icons/lu";
 
+import { TripBuilderButton } from "@/components/trip-builder/trip-builder-button";
 import {
   ContentSection,
   PageStack,
@@ -55,17 +55,11 @@ export function TripsPageContent({
             />
           </div>
           {canStartTrip ? (
-            <Link
+            <TripBuilderButton
               href={pageRoutes.tripBuilder}
-              className={studioButtonClass(
-                "primary",
-                "md",
-                "w-full shrink-0 sm:w-auto sm:self-end",
-              )}
-            >
-              <LuSparkles className="h-3.5 w-3.5" aria-hidden />
-              New trip
-            </Link>
+              label="New trip in Trip Builder"
+              className="self-end"
+            />
           ) : null}
         </div>
 

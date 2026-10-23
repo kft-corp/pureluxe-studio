@@ -24,7 +24,7 @@ export type StepCheck = {
 };
 
 /** Cards the agent can show so far. */
-const CHECKED_CARDS: readonly CardKind[] = ["undo", "client_picker", "approval"];
+const CHECKED_CARDS: readonly CardKind[] = ["undo", "client_picker", "approval", "trip_opened"];
 
 /** Yes/no prompts the agent should never need; risky changes use an approval card. */
 const CONFIRMATION_PROMPT =

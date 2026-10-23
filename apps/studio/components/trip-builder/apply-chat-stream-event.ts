@@ -10,12 +10,14 @@ type ApplyOptions = {
   setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
   setStreamingContent: Dispatch<SetStateAction<string | null>>;
   setAgentPhase: Dispatch<SetStateAction<AgentPhase | null>>;
-  setAgentProgress?: Dispatch<SetStateAction<string | null>>;
-  onClients?: (clients: { id: string; display_name: string }[]) => void;
+  /** The steps of this reply so far, in order ("Finding the client…"). */
+  setAgentSteps?: Dispatch<SetStateAction<string[]>>;
   /** Another reply is still running on this trip. The turn was not saved. */
   onBusy?: (message: string) => void;
   /** The agent changed the trip. */
   onChanged?: () => void;
+  /** Home chat: the agent created or chose a trip to open. */
+  onOpened?: (tripId: string) => void;
   onError?: () => void;
   showError: (error: unknown) => void;
 };
@@ -23,7 +25,7 @@ type ApplyOptions = {
 function endStream(options: ApplyOptions) {
   options.setStreamingContent(null);
   options.setAgentPhase(null);
-  options.setAgentProgress?.(null);
+  options.setAgentSteps?.([]);
 }
 
 /** Apply one NDJSON chat event to local UI state. */
@@ -34,10 +36,10 @@ export function applyChatStreamEvent(options: ApplyOptions): void {
     setMessages,
     setStreamingContent,
     setAgentPhase,
-    setAgentProgress,
-    onClients,
+    setAgentSteps,
     onBusy,
     onChanged,
+    onOpened,
     onError,
     showError,
   } = options;
@@ -54,17 +56,12 @@ export function applyChatStreamEvent(options: ApplyOptions): void {
       setStreamingContent("");
       return;
     }
-    case "clients": {
-      onClients?.(event.clients);
-      return;
-    }
     case "status": {
       setAgentPhase(event.phase);
-      if (event.phase === "writing") setAgentProgress?.(null);
       return;
     }
     case "progress": {
-      setAgentProgress?.(event.label);
+      setAgentSteps?.((steps) => (steps.includes(event.label) ? steps : [...steps, event.label]));
       return;
     }
     case "delta": {
@@ -73,6 +70,10 @@ export function applyChatStreamEvent(options: ApplyOptions): void {
     }
     case "changed": {
       onChanged?.();
+      return;
+    }
+    case "opened": {
+      onOpened?.(event.tripId);
       return;
     }
     case "done": {

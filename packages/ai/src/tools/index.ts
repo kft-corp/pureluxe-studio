@@ -1,23 +1,12 @@
 /**
- * Read-only tools for the home chat, and the chunks every chat streams.
+ * Shapes the agent tools return and the chunks every chat streams.
  *
- *   clients/  — search_clients, get_client
- *   history/  — search_trips, search_bookings, get_booking
- *   hotels/   — get_hotel
- *   tool-sets — the home chat tool list
- *   execute   — routes by tool name to a domain module
- *   run-agent-loop — Claude tool loop for the home chat
+ *   clients/, history/, hotels/ — what each lookup returns, and the Studio callbacks behind it
+ *   stream-chunk — chat stream chunks (browser-safe)
+ *   turn-meter   — per-turn timings and token use for agent_turns
  */
 
-export { CLIENT_TOOLS, executeClientTool } from "./clients";
-export type {
-  ClientBrief,
-  ClientLookupHandlers,
-  ClientSearchHit,
-  ClientToolHandlers,
-} from "./clients";
-
-export { HISTORY_TOOLS, executeHistoryTool } from "./history";
+export type { ClientBrief, ClientSearchHit, ClientToolHandlers } from "./clients";
 export type {
   BookingBrief,
   BookingHistoryRow,
@@ -26,19 +15,8 @@ export type {
   SearchTripsInput,
   TripHistoryRow,
 } from "./history";
-
-export { HOTEL_TOOLS, executeHotelTool } from "./hotels";
 export type { HotelBrief, HotelToolHandlers } from "./hotels";
-
 export type { DeskToolHandlers } from "./handlers";
-
-export { PRE_TRIP_READ_TOOLS } from "./tool-sets";
-
-export { executeTool } from "./execute";
-export {
-  streamAgentLoop,
-  type RunAgentLoopInput,
-} from "./run-agent-loop";
 export {
   AGENT_PHASE_LABEL,
   type AgentApproval,
@@ -47,7 +25,6 @@ export {
   type AgentStreamChunk,
 } from "./stream-chunk";
 export {
-  claudeRoundUsage,
   createTurnMeter,
   type AgentToolCallMetric,
   type AgentTurnMetrics,

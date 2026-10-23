@@ -23,6 +23,6 @@ export function toClientSearchHit(client: StudioClientSearchRow): ClientSearchHi
       label: client.tier.label,
     },
     review_status: client.review_status,
-    has_family: Boolean(client.family_id),
+    household_id: client.family_id,
   };
 }

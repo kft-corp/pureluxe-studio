@@ -1,4 +1,4 @@
-import type { HistoryToolHandlers, HotelToolHandlers } from "@pureluxe/ai";
+import type { DeskAgentHandlers } from "@pureluxe/ai";
 import { searchActivePropertiesByName } from "@pureluxe/db";
 import {
   AppError,
@@ -9,9 +9,12 @@ import {
 } from "@pureluxe/shared";
 
 import { getBookingDetail, listBookingDirectory } from "@/lib/bookings";
+import { searchClients } from "@/lib/clients";
+import { answerAtlasStay, type AtlasHotelChoice } from "@/lib/trip-builder/stays/atlas-stay";
 import { loadHotelStayFacts } from "@/lib/trip-builder/stays/hotel-contract-facts";
 import { listJourneyDirectory } from "@/lib/trips";
 
+import { toClientSearchHit } from "./to-client-search-hit";
 import {
   toBookingBrief,
   toBookingHistoryRow,
@@ -24,7 +27,14 @@ export type DeskActor = {
 };
 
 const DEFAULT_LIMIT = 10;
+const CLIENT_MATCHES = 8;
 const HOTEL_MATCHES = 3;
+
+const CONTRACTED: Record<AtlasHotelChoice["contractStatus"], boolean | null> = {
+  contracted: true,
+  not_yet_contracted: false,
+  unknown: null,
+};
 
 function requireAccess(actor: DeskActor, permission: string, area: string) {
   if (hasPermission(actor.permissions, permission)) return;
@@ -36,11 +46,30 @@ function requireAccess(actor: DeskActor, permission: string, area: string) {
 }
 
 /**
- * History and hotel tools shared by home chat and trip chat.
+ * Lookups shared by the home chat and the trip chat. Only loading a client differs
+ * (the trip chat falls back to the trip's lead), so each chat adds getClient itself.
  * A client's history covers the whole team; otherwise the advisor's own work.
  */
-export function createDeskTools(actor: DeskActor): HistoryToolHandlers & HotelToolHandlers {
+export function createDeskTools(actor: DeskActor): Omit<DeskAgentHandlers, "getClient"> {
   return {
+    async searchClients({ query, limit }) {
+      const result = await searchClients({ q: query, limit: limit ?? CLIENT_MATCHES });
+      return { clients: result.clients.map(toClientSearchHit) };
+    },
+
+    async getPlaceNotes({ query, cityHint }) {
+      const atlas = await answerAtlasStay({ question: query, cityHint: cityHint ?? null });
+      return {
+        matched: atlas.matched,
+        notes: atlas.matched ? atlas.answer : null,
+        hotels: atlas.hotels.map((hotel) => ({
+          name: hotel.name,
+          city: hotel.city,
+          contracted: CONTRACTED[hotel.contractStatus],
+        })),
+      };
+    },
+
     async searchTrips({ clientId, query, stage, mine, limit }) {
       requireAccess(actor, "trips.read", "Trips");
       const result = await listJourneyDirectory({

@@ -29,7 +29,6 @@ vi.mock("@/lib/feedback", () => ({
 
 vi.mock("@/lib/api", () => ({
   addTripBuilderRateOption: vi.fn(),
-  createTripBuilderTrip: vi.fn(),
   generateTripBuilderOptionsQuote: vi.fn(),
   getTripBuilderOptionsQuoteUrl: vi.fn(),
   getTripBuilderTrip: vi.fn(),

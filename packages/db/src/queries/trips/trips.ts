@@ -2,6 +2,7 @@ import { getServiceClient, runSupabaseQuery } from "../../client";
 import { dbQueryError } from "../../errors";
 import type { Trip, TripAssumptions, TripStatus } from "../../schema";
 import { escapeIlike } from "../../utils/ilike";
+import { findTeamMemberNamesByIds } from "../bookings/bookings";
 
 const TRIP_COLUMNS = [
   "id",
@@ -165,6 +166,63 @@ export async function listAssignedTrips(
     limit,
     offset,
   };
+}
+
+/** Trips not finished: still being worked on, or confirmed and not travelled yet. */
+const UPCOMING_TRIP_STATUSES: TripStatus[] = ["building", "quote_sent", "waiting_on_client", "booking", "confirmed"];
+
+export type UpcomingClientTrip = Pick<
+  Trip,
+  "id" | "title" | "status" | "starts_on" | "ends_on" | "relationship_owner_id"
+> & {
+  owner_name: string | null;
+  /** Stay cities in order. */
+  destinations: string[];
+};
+
+type UpcomingTripRow = Omit<UpcomingClientTrip, "owner_name" | "destinations"> & {
+  trip_legs: Array<{ destination: string; sequence_order: number }> | null;
+};
+
+/**
+ * Trips led by any of these clients that haven't ended (or have no dates yet), any
+ * advisor's, soonest first. `today` is YYYY-MM-DD.
+ */
+export async function listUpcomingClientTrips(input: {
+  clientIds: string[];
+  today: string;
+}): Promise<UpcomingClientTrip[]> {
+  const clientIds = [...new Set(input.clientIds)];
+  if (clientIds.length === 0) return [];
+  const supabase = getServiceClient();
+
+  const { data, error } = await runSupabaseQuery(() =>
+    supabase
+      .from("trips")
+      .select("id, title, status, starts_on, ends_on, relationship_owner_id, trip_legs(destination, sequence_order)")
+      .in("primary_client_id", clientIds)
+      .is("archived_at", null)
+      .in("status", UPCOMING_TRIP_STATUSES)
+      .or(`ends_on.is.null,ends_on.gte.${input.today}`)
+      .order("starts_on", { ascending: true, nullsFirst: false })
+      .limit(10),
+  );
+
+  if (error) {
+    throw dbQueryError(error);
+  }
+
+  const rows = (data as UpcomingTripRow[] | null) ?? [];
+  const owners = await findTeamMemberNamesByIds(
+    rows.map((row) => row.relationship_owner_id).filter((id): id is string => Boolean(id)),
+  );
+  return rows.map(({ trip_legs, ...trip }) => ({
+    ...trip,
+    owner_name: trip.relationship_owner_id ? (owners.get(trip.relationship_owner_id) ?? null) : null,
+    destinations: [...(trip_legs ?? [])]
+      .sort((left, right) => left.sequence_order - right.sequence_order)
+      .map((leg) => leg.destination),
+  }));
 }
 
 /** Insert a Studio trip row. */

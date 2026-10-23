@@ -399,27 +399,43 @@ const chatHistoryMessageSchema = z.object({
     .max(4000, { message: "Keep each history message under 4000 characters." }),
 });
 
+const homeChatHistorySchema = z.array(chatHistoryMessageSchema).max(40).optional().default([]);
+
+const tripBuilderPreTripChatSendUnion = z.discriminatedUnion("kind", [
+  /** Typed message. */
+  z.object({
+    kind: z.literal("message"),
+    message: z
+      .string()
+      .trim()
+      .min(1, { message: "Enter a message." })
+      .max(4000, { message: "Keep the message under 4000 characters." }),
+    history: homeChatHistorySchema,
+    client_request_id: chatClientRequestIdSchema,
+  }),
+  /** Button tap, e.g. "Create trip · Ravi Mehta". */
+  z.object({
+    kind: z.literal("action"),
+    action: chatActionNameSchema,
+    args: z.record(z.unknown()).optional().default({}),
+    label: chatActionLabelSchema,
+    history: homeChatHistorySchema,
+    client_request_id: chatClientRequestIdSchema,
+  }),
+]);
+
 /**
  * POST /api/trip-builder/pre-trip/chat
- * Ephemeral home chat (no trip row). Client lookup tools only.
+ * Home chat (no trip open). Nothing is saved until it creates a trip.
+ * A body without `kind` is a typed message (older clients).
  */
-export const tripBuilderPreTripChatSendSchema = z.object({
-  message: z
-    .string()
-    .trim()
-    .min(1, { message: "Enter a message." })
-    .max(4000, { message: "Keep the message under 4000 characters." }),
-  history: z.array(chatHistoryMessageSchema).max(40).optional().default([]),
-  client_request_id: z
-    .string()
-    .trim()
-    .min(8, { message: "Missing send key." })
-    .max(128, { message: "Send key is too long." }),
-});
+export const tripBuilderPreTripChatSendSchema = z.preprocess(
+  (value) =>
+    value && typeof value === "object" && !("kind" in value)
+      ? { ...value, kind: "message" }
+      : value,
+  tripBuilderPreTripChatSendUnion,
+);
 
-export type TripBuilderPreTripChatSendBody = z.input<
-  typeof tripBuilderPreTripChatSendSchema
->;
-export type TripBuilderPreTripChatSendInput = z.output<
-  typeof tripBuilderPreTripChatSendSchema
->;
+export type TripBuilderPreTripChatSendBody = z.input<typeof tripBuilderPreTripChatSendUnion>;
+export type TripBuilderPreTripChatSendInput = z.output<typeof tripBuilderPreTripChatSendUnion>;
