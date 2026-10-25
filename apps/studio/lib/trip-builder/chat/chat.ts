@@ -35,6 +35,7 @@ import { requireAssignedTrip } from "../access/require-assigned-trip";
 import { holdTripRunLock, type TripRunLock } from "./agent-run-lock";
 import { prefetchAgentTurn, streamAgentTurn, type AgentPrefetch } from "./agent-turn";
 import { advisorRowFields, agentRequestFromRow } from "./chat-turn-request";
+import { logChatFailure } from "./log-chat-error";
 import { recordAgentTurn, type AgentTurnOutcome } from "./record-agent-turn";
 
 /** Cards under an agent reply. */
@@ -250,6 +251,7 @@ export async function prepareChatTurn(
     replay = existing ? await findReplay(tripId, existing) : null;
   } catch (cause) {
     await giveBackLock();
+    logChatFailure("prepare turn access failed", { tripId, cause });
     throw cause;
   }
   if (replay) {
@@ -258,7 +260,10 @@ export async function prepareChatTurn(
   }
 
   const lock = await lockAttempt;
-  if (!lock) return { kind: "busy", message: tripMessages.error.agentBusy };
+  if (!lock) {
+    console.info("[trip-chat] prepare turn busy", { tripId });
+    return { kind: "busy", message: tripMessages.error.agentBusy };
+  }
   meter.mark("lock");
 
   try {
@@ -294,6 +299,7 @@ export async function prepareChatTurn(
     });
   } catch (cause) {
     await lock.release();
+    logChatFailure("prepare turn save failed", { tripId, cause });
     throw cause;
   }
 }

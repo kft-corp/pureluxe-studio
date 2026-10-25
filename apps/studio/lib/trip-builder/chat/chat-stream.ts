@@ -1,6 +1,7 @@
 import { AppError, tripMessages } from "@pureluxe/shared";
 
 import type { ChatStreamEvent, PreparedChatTurn, ReplyOutcome } from "./chat";
+import { logChatFailure } from "./log-chat-error";
 
 /** Encode one NDJSON chat event. */
 export function encodeChatStreamEvent(event: ChatStreamEvent): Uint8Array {
@@ -39,11 +40,16 @@ export function createChatStream(
         }
 
         if (prepared.kind === "busy") {
+          console.info("[trip-chat] trip stream busy", { message: prepared.message });
           send({ type: "busy", message: prepared.message });
           close();
           return;
         }
 
+        console.info("[trip-chat] trip stream start", {
+          userId: prepared.user.id,
+          clientRequestId: prepared.user.client_request_id,
+        });
         send({ type: "meta", user: prepared.user });
 
         let full = "";
@@ -93,7 +99,18 @@ export function createChatStream(
           send({ type: "done", assistant });
           if (quotePreviewUrl) send({ type: "quote_preview", url: quotePreviewUrl });
           await prepared.finish({ status: "ok" });
+          console.info("[trip-chat] trip stream ok", {
+            userId: prepared.user.id,
+            replyChars: full.length,
+          });
         } catch (cause) {
+          logChatFailure("trip stream failed", {
+            userId: prepared.user.id,
+            clientRequestId: prepared.user.client_request_id,
+            cancelled,
+            partialChars: full.length,
+            cause,
+          });
           const assistant = await prepared.abandon(full).catch(() => null);
           send({
             type: "error",
@@ -108,6 +125,7 @@ export function createChatStream(
 
         close();
       } catch (cause) {
+        logChatFailure("trip stream setup failed", { cancelled, cause });
         send({
           type: "error",
           message:
@@ -120,6 +138,7 @@ export function createChatStream(
     },
     cancel() {
       cancelled = true;
+      console.info("[trip-chat] trip stream cancelled by client");
       if (prepared.kind === "stream") prepared.abort();
     },
   });

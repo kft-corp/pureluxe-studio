@@ -19,6 +19,7 @@ import { createHomeAgentTools } from "@/lib/ai/create-home-agent-tools";
 
 import { saveTripChatLines, type ChatMessage, type ChatStreamEvent } from "./chat";
 import { encodeChatStreamEvent } from "./chat-stream";
+import { logChatFailure } from "./log-chat-error";
 import { recordAgentTurn, type AgentTurnOutcome } from "./record-agent-turn";
 
 /** Lines of the home conversation copied into a trip it creates. */
@@ -104,6 +105,11 @@ export function createPreTripChatStream(
       const send = (event: ChatStreamEvent) => {
         if (!cancelled) stream.enqueue(encodeChatStreamEvent(event));
       };
+      console.info("[trip-chat] home stream start", {
+        clientRequestId: input.client_request_id,
+        kind: input.kind,
+        historyRows: history.length,
+      });
       send({ type: "meta", user });
 
       let reply = "";
@@ -135,7 +141,20 @@ export function createPreTripChatStream(
         });
         if (opened) send({ type: "opened", tripId: opened.tripId });
         await finish({ status: "ok" });
+        console.info("[trip-chat] home stream ok", {
+          clientRequestId: input.client_request_id,
+          replyChars: reply.length,
+          openedTripId: opened?.tripId ?? null,
+          created: opened?.created ?? false,
+        });
       } catch (cause) {
+        logChatFailure("home stream failed", {
+          clientRequestId: input.client_request_id,
+          kind: input.kind,
+          cancelled,
+          partialChars: reply.length,
+          cause,
+        });
         const content = reply.trim() || tripMessages.error.replyInterrupted;
         send({
           type: "error",
@@ -148,6 +167,7 @@ export function createPreTripChatStream(
     },
     cancel() {
       cancelled = true;
+      console.info("[trip-chat] home stream cancelled by client");
       controller.abort();
     },
   });

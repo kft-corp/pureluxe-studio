@@ -13,6 +13,7 @@ import { journeyToday } from "@pureluxe/shared";
 import { createTripAgentTools } from "@/lib/ai";
 
 import { loadChatHistory } from "./chat-history";
+import { logChatFailure } from "./log-chat-error";
 
 /** Earlier chat rows used to start memory for a trip the agent hasn't seen. */
 const SEED_ROWS = 24;
@@ -54,18 +55,41 @@ export async function* streamAgentTurn(input: {
   signal: AbortSignal;
 }): AsyncGenerator<AgentStreamChunk, void, unknown> {
   const { tripId, prefetch } = input;
-  const checkpointer = await getAgentCheckpointer(getPgPool());
+  let checkpointer;
+  try {
+    console.info("[trip-chat] trip agent checkpointer start", {
+      tripId,
+      retry: input.retry,
+      requestKind: input.request.kind,
+    });
+    checkpointer = await getAgentCheckpointer(getPgPool());
+    console.info("[trip-chat] trip agent checkpointer ready", { tripId });
+  } catch (cause) {
+    logChatFailure("trip agent checkpointer failed", { tripId, cause });
+    throw cause;
+  }
 
-  yield* streamTripAgentTurn({
-    tripId,
-    request: input.request,
-    handlers: prefetch.handlers,
-    checkpointer,
-    today: journeyToday(),
-    trip: prefetch.trip,
-    loadHistory: () => loadChatHistory(tripId, { limit: SEED_ROWS, excludeId: input.userRowId }),
-    retry: input.retry,
-    meter: input.meter,
-    signal: input.signal,
-  });
+  try {
+    yield* streamTripAgentTurn({
+      tripId,
+      request: input.request,
+      handlers: prefetch.handlers,
+      checkpointer,
+      today: journeyToday(),
+      trip: prefetch.trip,
+      loadHistory: () => loadChatHistory(tripId, { limit: SEED_ROWS, excludeId: input.userRowId }),
+      retry: input.retry,
+      meter: input.meter,
+      signal: input.signal,
+    });
+  } catch (cause) {
+    logChatFailure("trip agent turn failed", {
+      tripId,
+      retry: input.retry,
+      requestKind: input.request.kind,
+      aborted: input.signal.aborted,
+      cause,
+    });
+    throw cause;
+  }
 }
