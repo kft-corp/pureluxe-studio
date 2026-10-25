@@ -336,23 +336,28 @@ function applyRecommended(hotels: RateCompareHotel[]): RateCompareHotel[] {
     }));
   }
 
-  let best: { hotelIndex: number; roomIndex: number; score: number } | null = null;
-  hotels.forEach((hotel, hotelIndex) => {
-    hotel.rooms.forEach((room, roomIndex) => {
+  let bestHotel = -1;
+  let bestRoom = -1;
+  let bestScore = Number.POSITIVE_INFINITY;
+  for (let hotelIndex = 0; hotelIndex < hotels.length; hotelIndex++) {
+    const hotel = hotels[hotelIndex]!;
+    for (let roomIndex = 0; roomIndex < hotel.rooms.length; roomIndex++) {
+      const room = hotel.rooms[roomIndex]!;
       const score = sourceRank(room.source) * 1_000_000 + room.team_cost;
-      if (!best || score < best.score) {
-        best = { hotelIndex, roomIndex, score };
+      if (score < bestScore) {
+        bestHotel = hotelIndex;
+        bestRoom = roomIndex;
+        bestScore = score;
       }
-    });
-  });
+    }
+  }
 
-  if (!best) return hotels;
+  if (bestHotel < 0 || bestRoom < 0) return hotels;
 
-  const pick = best;
   return hotels.map((hotel, hotelIndex) => {
-    if (hotelIndex !== pick.hotelIndex) return hotel;
+    if (hotelIndex !== bestHotel) return hotel;
     const rooms = hotel.rooms.map((room, roomIndex) =>
-      roomIndex === pick.roomIndex ? { ...room, recommended: true } : room,
+      roomIndex === bestRoom ? { ...room, recommended: true } : room,
     );
     return {
       ...hotel,

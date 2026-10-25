@@ -135,7 +135,7 @@ async function outcomeFromSearch(
   const fromNotes = facts?.markup ? Number(facts.markup.match(/(\d+(?:\.\d+)?)/)?.[1]) : null;
   const minMarkup = property.min_markup_percent ?? (Number.isFinite(fromNotes) ? fromNotes : null);
 
-  if (result.status === "offline") {
+  if (result.status === "consultant_required") {
     return {
       hotel: property.name,
       status: "offline",

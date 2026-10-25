@@ -88,7 +88,8 @@ function roomsChosen(detail: TripDetail): boolean {
 }
 
 /** How many stays still need the client's chosen room. */
-export function staysAwaitingRoom(detail: TripDetail): number {
+export function staysAwaitingRoom(detail: TripDetail | null): number {
+  if (!detail) return 0;
   return detail.stays.filter(
     (stay) =>
       !detail.rates.candidates.some((rate) => rate.selected && rate.leg_id === stay.leg_id),

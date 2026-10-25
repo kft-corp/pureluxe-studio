@@ -15,7 +15,8 @@ import type {
   TripChange,
 } from "../types";
 
-export type ToolSchema = z.ZodObject<z.ZodRawShape>;
+/** Zod object, or object + `.refine()` (ZodEffects). LangChain accepts both at runtime. */
+export type ToolSchema = z.ZodTypeAny;
 
 /**
  * One agent tool: a thin wrapper around a Studio handler.

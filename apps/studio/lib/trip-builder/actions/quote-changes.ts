@@ -786,6 +786,7 @@ export function usePastedQuote(
       {
         trip_id: context.tripId,
         leg_id: stay?.leg_id ?? null,
+        property_id: stay?.property_id ?? null,
         property_name: input.hotel,
         title: input.room,
         paste_text: input.pasteText,

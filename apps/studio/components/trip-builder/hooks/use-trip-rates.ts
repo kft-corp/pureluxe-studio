@@ -159,6 +159,8 @@ export function useTripRates(core: TripCore, chat: TripChat) {
         adults,
         children,
         rooms: party.rooms,
+        child_ages: [],
+        client_market_codes: [],
         paste_text: null,
       });
       const options = [...response.data.options].sort(

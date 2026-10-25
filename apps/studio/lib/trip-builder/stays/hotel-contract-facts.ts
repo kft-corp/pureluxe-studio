@@ -131,8 +131,8 @@ function paymentLine(rule: unknown): string | null {
   return `${label}: ${body}.`;
 }
 
-function legalLines(legal: Record<string, unknown> | undefined): string[] {
-  if (!legal) return [];
+function legalLines(legal: Record<string, unknown> | unknown[] | undefined): string[] {
+  if (!legal || Array.isArray(legal)) return [];
   const lines: string[] = [];
   if (legal.direct_book_only === true) lines.push("Book direct only.");
   if (legal.confidential === true) lines.push("Rates are confidential.");
