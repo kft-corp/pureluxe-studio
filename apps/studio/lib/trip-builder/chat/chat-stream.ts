@@ -47,7 +47,13 @@ export function createChatStream(
         send({ type: "meta", user: prepared.user });
 
         let full = "";
-        const outcome: ReplyOutcome = { undo: false, choices: [], rateCompare: null, approval: null };
+        const outcome: ReplyOutcome = {
+          undo: false,
+          choices: [],
+          rateCompare: null,
+          legSplit: null,
+          approval: null,
+        };
         let quotePreviewUrl: string | null = null;
         try {
           for await (const chunk of prepared.chunks) {
@@ -72,6 +78,9 @@ export function createChatStream(
               case "rate_compare":
                 outcome.rateCompare = chunk.compare;
                 break;
+              case "leg_split":
+                outcome.legSplit = chunk.split;
+                break;
               case "approval":
                 outcome.approval = chunk.approval;
                 break;
@@ -85,13 +94,14 @@ export function createChatStream(
           if (quotePreviewUrl) send({ type: "quote_preview", url: quotePreviewUrl });
           await prepared.finish({ status: "ok" });
         } catch (cause) {
-          await prepared.abandon(full).catch(() => null);
+          const assistant = await prepared.abandon(full).catch(() => null);
           send({
             type: "error",
             message:
               cause instanceof AppError
                 ? cause.userMessage
                 : tripMessages.error.aiFailed,
+            ...(assistant ? { assistant } : {}),
           });
           await prepared.finish({ status: cancelled ? "aborted" : "error", cause });
         }

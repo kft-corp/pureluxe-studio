@@ -16,8 +16,9 @@ import { cn } from "@/lib/utils/cn";
 
 import { AgentSparkle } from "./agent-sparkle";
 import { ChatMarkdown } from "./chat-markdown";
-import { resolveTripStage } from "./stages";
-import { TRIP_START_PROMPT } from "./trip-builder-copy";
+import { resolveTripStage, staysAwaitingRoom } from "./stages";
+import { BOOKING_PREP_GUIDE, TRIP_START_PROMPT } from "./trip-builder-copy";
+import { TripBuilderLegSplit } from "./trip-builder-leg-split";
 import {
   TripBuilderRateCard,
   TripBuilderStayNotesCard,
@@ -379,10 +380,13 @@ function stageCueFor(
     return "This trip is confirmed. Bookings hold the stays. Open the trip page for the full journey.";
   }
   if (stage === "booking") {
-    return "The client accepted the quote. Tap **Client chose this** on the room they picked for each stay. Then tap **Check availability** for today's price. If the hotel price changed, tap **Use today's cost**, and **Set client price** if the client price needs to change. Book with the hotel and confirm the booking in **Bookings**.";
+    if (staysAwaitingRoom(detail) > 0) {
+      return "Client said yes. Tap **This is their room** for each stay. Then check today's price, book offline, confirm the hotel in **Bookings** with the PNR, and clear travel prep.";
+    }
+    return BOOKING_PREP_GUIDE;
   }
   if (status === "quote_sent" || status === "waiting_on_client") {
-    return "The options quote is with the client. When they pick a room, tap **Client chose this**. When they agree, mark **Client accepted** on the trip page.";
+    return "The quote is with the client. When they agree, mark **Client said yes** on the trip page, then tap **This is their room** here.";
   }
   return "Every stay has a room with a client price. Say **show the options quote** to check the PDF. When you send it, mark **Sent to client** on the trip page.";
 }
@@ -436,16 +440,22 @@ function ChatMessageList({
     .reverse()
     .find((message) => message.role === "assistant")?.id;
 
-  /** Rate table is stored on the message (like hotel-compare markdown) so it stays after later replies. */
+  /** Rate / split cards are stored on the message so they stay after later replies. */
   function offersForMessage(message: ChatMessage, isLastAssistant: boolean): React.ReactNode {
     const savedCompare = message.cards?.rateCompare ?? null;
-    if (savedCompare) {
+    const savedSplit = message.cards?.legSplit ?? null;
+    if (savedCompare || savedSplit) {
       return (
-        <TripBuilderRateCompare
-          compare={savedCompare}
-          disabled={offersDisabled}
-          onAddOption={onAddRateOption}
-        />
+        <>
+          {savedCompare ? (
+            <TripBuilderRateCompare
+              compare={savedCompare}
+              disabled={offersDisabled}
+              onAddOption={onAddRateOption}
+            />
+          ) : null}
+          {savedSplit ? <TripBuilderLegSplit split={savedSplit} /> : null}
+        </>
       );
     }
     // Live fallback: last reply only, when cards were not on the row yet / legacy rate cards.
@@ -592,7 +602,11 @@ function AgentMessage({
       <span className="sr-only">PureLuxe Agent: </span>
       {content.trim() ? <ChatMarkdown content={content} /> : null}
       {status ? <AgentStatusLine key={status} label={status} /> : null}
-      {incomplete ? <p className="mt-2 text-[11px] text-ink-subtle">Reply was interrupted.</p> : null}
+      {incomplete ? (
+        <p className="mt-2 text-[11px] text-ink-subtle">
+          Interrupted — send again if you still need this.
+        </p>
+      ) : null}
       {offers}
       {copyable && content.trim() ? <CopyReplyButton content={content} /> : null}
     </div>

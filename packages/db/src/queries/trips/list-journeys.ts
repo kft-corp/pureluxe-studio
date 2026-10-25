@@ -27,6 +27,8 @@ const TRIP_COLUMNS = [
   "sell_total",
   "sell_currency",
   "margin_internal",
+  "amount_received",
+  "payment_status",
   "pricing_locked_at",
   "updated_at",
 ].join(", ");
@@ -43,6 +45,8 @@ type TripListRow = {
   sell_total: number | string | null;
   sell_currency: string | null;
   margin_internal: number | string | null;
+  amount_received: number | string | null;
+  payment_status: string | null;
   pricing_locked_at: string | null;
   updated_at: string;
 };
@@ -101,6 +105,8 @@ export type JourneyCard = {
   sell_currency: string | null;
   /** Client price minus team cost, in the sell currency. Null until priced. */
   margin_internal: number | null;
+  amount_received: number | null;
+  payment_status: string;
   pricing_locked: boolean;
   /** A proposal PDF exists and is out of date. */
   proposal_stale: boolean;
@@ -352,6 +358,9 @@ export async function listJourneys(
     } else if (input.price === "open") {
       request = request.is("pricing_locked_at", null);
     }
+    if (input.payment && input.payment !== "any") {
+      request = request.eq("payment_status", input.payment);
+    }
     if (input.quote === "stale") {
       request = request.in("id", staleTripIds);
     } else if (input.quote === "current" && staleTripIds.length > 0) {
@@ -592,6 +601,8 @@ function toCard(trip: TripListRow, facts: CardFacts, today: string): JourneyCard
     sell_total: money(trip.sell_total),
     sell_currency: trip.sell_currency,
     margin_internal: money(trip.margin_internal),
+    amount_received: money(trip.amount_received),
+    payment_status: trip.payment_status?.trim() || "not_started",
     pricing_locked: Boolean(trip.pricing_locked_at),
     proposal_stale: facts.staleTripIds.has(trip.id),
     updated_at: trip.updated_at,

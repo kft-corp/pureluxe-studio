@@ -91,7 +91,7 @@ export function BookingCommercialPanel({
         title="Commercial snapshot"
         description={
           trip
-            ? "Supplier cost is for this stay. The client price and trip margin stay on the trip."
+            ? "This stay's client price and supplier cost. After confirm, edit the client price here to keep the trip total in step."
             : "Studio-only pricing captured at the time of booking."
         }
         className="min-w-0"
@@ -105,12 +105,8 @@ export function BookingCommercialPanel({
         <DetailFieldGrid>
           <DetailField
             icon={icons.sellPrice}
-            label={trip ? "Trip client price" : "Sell price"}
-            value={
-              trip
-                ? formatBookingMoney(trip.sell_total, trip.sell_currency)
-                : formatBookingMoney(booking.sell_amount, booking.currency)
-            }
+            label="Stay client price"
+            value={formatBookingMoney(booking.sell_amount, booking.currency)}
             className="sm:border-b sm:border-border/70"
           />
           <DetailField
@@ -119,6 +115,14 @@ export function BookingCommercialPanel({
             value={formatBookingMoney(booking.cost_amount, booking.currency)}
             className="sm:border-b sm:border-border/70"
           />
+          {trip ? (
+            <DetailField
+              icon={icons.sellPrice}
+              label="Trip client price"
+              value={formatBookingMoney(trip.sell_total, trip.sell_currency)}
+              className="sm:border-b sm:border-border/70"
+            />
+          ) : null}
           {trip ? (
             <DetailField
               icon={icons.supplierCost}
@@ -145,20 +149,20 @@ export function BookingCommercialPanel({
           />
           <DetailField
             icon={icons.currency}
-            label={trip ? "Cost currency" : "Currency"}
+            label="Currency"
             value={displayOrDash(booking.currency?.toUpperCase())}
           />
         </DetailFieldGrid>
         {trip ? (
           <p className="mt-3 text-xs leading-5 text-ink-muted">
             {booking.tax_percentage == null
-              ? "Tax is not set on this stay. Trip margin is the client price minus the hotel net."
+              ? "Tax is not set on this stay. Trip margin is the trip client price minus hotel net."
               : "Tax is the stored percent on top of this stay's hotel net. Trip margin subtracts tax only when every priced stay has a tax percent."}
             {tripBuilderOwnsStay(booking)
-              ? " Confirm the booking before changing this cost in Bookings."
-              : ""}
+              ? " Confirm after you book offline — hotel, dates, cost and client price stay with Trip Builder until then. Add the confirmation / PNR when you have it."
+              : " Edit this stay's client price here to keep the trip total in step. Plan change: reopen quote; hotel booked: amend in Bookings."}
             {trip.pricing_locked
-              ? " The client accepted this price. Change the client price or a pending cost in Trip Builder."
+              ? " The quote was accepted; currency stays fixed."
               : ""}
           </p>
         ) : null}

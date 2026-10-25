@@ -69,6 +69,8 @@ export function useTripsDirectory({ initialDirectory }: UseTripsDirectoryOptions
         advancedFilters.client_tier !== "any" ? advancedFilters.client_tier : undefined,
       price: advancedFilters.price !== "any" ? advancedFilters.price : undefined,
       quote: advancedFilters.quote !== "any" ? advancedFilters.quote : undefined,
+      payment:
+        advancedFilters.payment !== "any" ? advancedFilters.payment : undefined,
       owner: advancedFilters.owner !== "any" ? advancedFilters.owner : undefined,
       starts_from: advancedFilters.starts_from || undefined,
       starts_to: advancedFilters.starts_to || undefined,

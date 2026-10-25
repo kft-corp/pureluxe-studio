@@ -37,6 +37,8 @@ export function makeTrip(partial: Partial<Trip> = {}): Trip {
     cost_total_internal: null,
     margin_internal: null,
     payment_plan: null,
+    amount_received: null,
+    payment_status: "not_started",
     pricing_locked_at: null,
     pricing_locked_by_id: null,
     source: "studio",

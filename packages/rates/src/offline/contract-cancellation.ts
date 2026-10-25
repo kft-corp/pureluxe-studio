@@ -1,10 +1,19 @@
+import {
+  cancellationLinesFromPoliciesV2,
+  isPoliciesV2,
+} from "./contract-policies-v2";
+
 /**
- * Cancel lines already stored on a contract's payment_rules.
+ * Cancel lines already stored on a contract's policies.
+ * Prefers schema_version 2 (R3); legacy payment_rules still work until clean-up.
  * Prepay text is left out. Nothing here is invented.
  */
 export function cancellationLinesFromPolicies(
-  policies: { payment_rules?: unknown[] } | null | undefined,
+  policies: { payment_rules?: unknown[]; schema_version?: number } | null | undefined,
 ): string[] {
+  if (isPoliciesV2(policies)) {
+    return cancellationLinesFromPoliciesV2(policies);
+  }
   const rules = Array.isArray(policies?.payment_rules) ? policies.payment_rules : [];
   const lines: string[] = [];
   for (const rule of rules) {

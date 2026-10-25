@@ -9,6 +9,11 @@ export function tripBuilderOwnsStay(booking: {
   );
 }
 
+/**
+ * Stay shape, supplier cost, and client price stay with Trip Builder until
+ * the stay is confirmed. After confirm, Bookings owns client price corrections
+ * (currency still locked via pricing_locked after quote accept).
+ */
 export const TRIP_BUILDER_OWNED_FIELDS = [
   "title",
   "hotel_name",
@@ -26,8 +31,8 @@ export const TRIP_BUILDER_OWNED_FIELDS = [
   "cancellation_policy",
 ] as const;
 
-/** The client price the client accepted. Team cost stays editable after the hotel confirms. */
-export const PRICING_LOCK_FIELDS = [
-  "currency",
-  "sell_amount",
-] as const;
+/**
+ * Currency stays fixed once the client accepted the quote.
+ * Stay client price is editable in Bookings only after the stay is confirmed.
+ */
+export const PRICING_LOCK_FIELDS = ["currency"] as const;

@@ -99,6 +99,10 @@ export type Trip = {
   cost_total_internal: number | null;
   margin_internal: number | null;
   payment_plan: Record<string, unknown> | null;
+  /** Client money recorded as received (offline collection). */
+  amount_received: number | null;
+  /** not_started | partial | paid | overdue */
+  payment_status: string;
   pricing_locked_at: string | null;
   pricing_locked_by_id: string | null;
   source: TripSource;

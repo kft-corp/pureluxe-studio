@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { LuPanelRightClose, LuPanelRightOpen, LuPlus } from "react-icons/lu";
+import {
+  LuMessageSquarePlus,
+  LuPanelRightClose,
+  LuPanelRightOpen,
+} from "react-icons/lu";
 
 import type { TripDetail, TripListItem } from "@/lib/trip-builder";
 import { studioFocusRing } from "@/components/ui";
@@ -12,7 +16,6 @@ import {
   formatStayDates,
   formatTripDates,
   legPillLabel,
-  resolveNextStep,
   stayGapNotes,
   tripStays,
 } from "./stages";
@@ -156,7 +159,6 @@ export function TripBuilderHeader({
   const tripOpen = Boolean(detail);
   const stays = detail ? tripStays(detail) : [];
   const gaps = stayGapNotes(stays);
-  const next = detail ? resolveNextStep(detail) : null;
   const dates = detail
     ? (formatStayDates(detail.trip.starts_on, detail.trip.ends_on) ??
       formatTripDates(stays))
@@ -192,12 +194,6 @@ export function TripBuilderHeader({
                   </span>
                 ) : null}
               </div>
-              <div
-                title={`Next: ${next}`}
-                className="max-w-[10rem] shrink-0 truncate rounded-full bg-accent-soft px-2.5 py-1 text-[12px] leading-snug font-semibold text-accent-ink ring-1 ring-inset ring-accent-line sm:max-w-[16rem]"
-              >
-                Next: {next}
-              </div>
             </>
           ) : null}
         </div>
@@ -228,7 +224,11 @@ export function TripBuilderHeader({
               title="New chat"
               onClick={onNewChat}
             >
-              <LuPlus className="size-4 lg:size-[18px]" strokeWidth={2} aria-hidden />
+              <LuMessageSquarePlus
+                className="size-4 lg:size-[18px]"
+                strokeWidth={2}
+                aria-hidden
+              />
             </HeaderIconButton>
           ) : null}
         </div>

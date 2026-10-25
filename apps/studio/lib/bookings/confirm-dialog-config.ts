@@ -16,11 +16,11 @@ export function getBookingConfirmConfig(input: {
   switch (input.action) {
     case "confirm":
       return {
-        title: "Confirm this booking?",
+        title: "Confirm hotel booking?",
         description: input.hasSupplierRef
-          ? "Mark as confirmed with the supplier. You can still edit refs and deadlines after."
-          : "Mark as confirmed. Tip: add the confirmation / PNR in Commercial if you have it.",
-        confirmLabel: "Confirm booking",
+          ? "Marks this hotel stay as confirmed with the supplier. Next: record client payment on the trip."
+          : "Add the hotel confirmation / PNR in Commercial first (you booked offline), then confirm.",
+        confirmLabel: "Confirm hotel booking",
         loadingLabel: "Confirming…",
       };
     case "amend":

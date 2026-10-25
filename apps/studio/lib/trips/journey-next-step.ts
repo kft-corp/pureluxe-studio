@@ -18,16 +18,16 @@ export function statusNextStep(input: {
       return "Trip cancelled";
     case "completed":
       return "Trip finished";
-    case "confirmed":
-      return "Ready for travel";
     case "booking":
       return input.roomsChosen === false
-        ? "Record the client's room"
-        : "Check today's price and book";
+        ? "Record their room in Trip Builder"
+        : "Book offline & confirm hotel in Bookings";
+    case "confirmed":
+      return "Trip ready — record payment on the trip if needed";
     case "quote_sent":
-      return "Wait for the client's reply";
+      return "Wait for reply, then Client said yes";
     case "waiting_on_client":
-      return "Follow up with the client";
+      return "Follow up, then Client said yes";
     default:
       // Stage 3d: quote_send builds the PDF and marks sent in one step.
       if (input.quoteStale) return "Regenerate the options quote";

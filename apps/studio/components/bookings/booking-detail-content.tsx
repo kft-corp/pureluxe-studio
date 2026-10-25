@@ -95,7 +95,6 @@ export function BookingDetailContent({
     handleAmendBooking,
     handleSoftDeleteBooking,
     handleAssignOwner,
-    handleLinkTrip,
     travellerDialogOpen,
     setTravellerDialogOpen,
     setEditingTravellerId,
@@ -129,12 +128,10 @@ export function BookingDetailContent({
     booking.nights,
     booking.service_type,
   );
-  const tripPrice = trip
+  const stayPriceLabel = formatBookingMoney(booking.sell_amount, booking.currency);
+  const tripPriceLabel = trip
     ? formatBookingMoney(trip.sell_total, trip.sell_currency)
     : null;
-  const sellLabel = trip
-    ? tripPrice
-    : formatBookingMoney(booking.sell_amount, booking.currency);
   const stayOwned = tripBuilderOwnsStay(booking);
   const refLabel = displayOrDash(booking.supplier_ref);
   const deadlineUrgent =
@@ -221,11 +218,10 @@ export function BookingDetailContent({
                 ) : null}
                 {booking.trip_id ? (
                   <Link
-                    href={pageRoutes.trips}
+                    href={pageRoutes.trip(booking.trip_id)}
                     className="text-ink-muted underline-offset-2 transition hover:text-ink hover:underline"
-                    title={booking.trip_id}
                   >
-                    Open trips
+                    Open trip
                   </Link>
                 ) : null}
               </div>
@@ -260,14 +256,20 @@ export function BookingDetailContent({
             {canEdit && needsConfirm ? (
               <button
                 type="button"
-                onClick={() => setConfirmAction("confirm")}
+                onClick={() => {
+                  if (!booking.supplier_ref?.trim()) {
+                    setEditSection("commercial");
+                    return;
+                  }
+                  setConfirmAction("confirm");
+                }}
                 className={cn(
                   studioButtonClass("success", "sm"),
                   "w-full justify-center sm:w-auto",
                 )}
               >
                 <LuCheck className="h-3.5 w-3.5" aria-hidden />
-                Confirm booking
+                Confirm hotel booking
               </button>
             ) : null}
             {canEdit ? (
@@ -361,11 +363,11 @@ export function BookingDetailContent({
             }
           />
           <SnapshotCard
-            label={trip ? "Trip client price" : "Sell price"}
-            value={sellLabel ?? "—"}
+            label="Stay client price"
+            value={stayPriceLabel ?? "—"}
             hint={
-              trip
-                ? trip.sell_currency?.trim().toUpperCase() || "Stored on the trip"
+              tripPriceLabel
+                ? `Trip total ${tripPriceLabel}`
                 : booking.currency?.trim().toUpperCase() || "Commercial snapshot"
             }
           />
@@ -453,9 +455,6 @@ export function BookingDetailContent({
           onSuccess={setDetail}
           onAssignOwner={async (ownerId) => {
             await handleAssignOwner({ relationship_owner_id: ownerId });
-          }}
-          onLinkTrip={async (tripId) => {
-            await handleLinkTrip({ trip_id: tripId });
           }}
         />
       ) : null}

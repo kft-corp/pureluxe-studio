@@ -1,3 +1,4 @@
+import type { TripProposeSplitInput, TripProposeSplitResult } from "@pureluxe/ai";
 import {
   findClientById,
   findLatestTripUndo,
@@ -9,6 +10,7 @@ import { journeyToday } from "@pureluxe/shared";
 
 import { requireActiveClient } from "@/lib/clients/require-active-client";
 
+import { getTripDetail } from "../trip/get-trip-detail";
 import { shiftTripDates } from "../trip/shift-trip-dates";
 import type { TripDetail } from "../trip/trip-detail";
 import { resolveTripDates } from "../trip/resolve-dates";
@@ -27,6 +29,10 @@ import {
   withAssumption,
   type StayInput,
 } from "./plan-trip";
+import {
+  isQuoteSelectFinalUndo,
+  undoQuoteSelectFinal,
+} from "./quote-changes";
 import { tripShapeOf, type TripShape } from "./trip-shape";
 import {
   changeTripShape,
@@ -131,6 +137,77 @@ export async function setTripDates(
   });
 }
 
+/** Short day range for a split card, e.g. "10–12" (same month) or "10 Dec – 3 Jan". */
+function shortStayRange(checkIn: string, checkOut: string): string {
+  const start = new Date(`${checkIn}T12:00:00Z`);
+  const end = new Date(`${checkOut}T12:00:00Z`);
+  const day = (d: Date) => d.getUTCDate();
+  const month = (d: Date) =>
+    d.toLocaleDateString("en-GB", { month: "short", timeZone: "UTC" });
+  if (start.getUTCMonth() === end.getUTCMonth() && start.getUTCFullYear() === end.getUTCFullYear()) {
+    return `${day(start)}–${day(end)}`;
+  }
+  return `${day(start)} ${month(start)} – ${day(end)} ${month(end)}`;
+}
+
+/**
+ * Propose a multi-city split without applying it. The advisor taps Accept to run trip_set_stays.
+ */
+export async function proposeTripSplit(
+  tripId: string,
+  input: TripProposeSplitInput,
+  actor: { memberId: string },
+  loaded?: TripDetail | null,
+): Promise<TripProposeSplitResult> {
+  const before = loaded ?? (await getTripDetail(tripId, actor));
+  const shape = tripShapeOf(before);
+  const today = journeyToday();
+  const dates =
+    input.start && input.end
+      ? resolveTripDates({ start: input.start, end: input.end, today })
+      : null;
+  const start = dates?.start ?? shape.starts_on;
+  const end = dates?.end ?? shape.ends_on;
+  if (!start || !end) {
+    throw refuse("Set the trip dates first, or give them with the split.", "trips.dates_required");
+  }
+  if (input.stays.length < 2) {
+    throw refuse("A split needs at least two places.", "trips.split_too_few");
+  }
+
+  const { stays } = planStays({
+    current: shape.stays,
+    requested: input.stays.map((stay) => ({
+      city: stay.city,
+      checkIn: stay.checkIn,
+      checkOut: stay.checkOut,
+      hotel: stay.hotel,
+      rooms: stay.rooms,
+    })),
+    start,
+    end,
+  });
+
+  const summary = `${stays
+    .map((stay) => `${stay.city} ${shortStayRange(stay.check_in, stay.check_out)}`)
+    .join(", ")}?`;
+
+  return {
+    ok: true,
+    summary: `Proposed split: ${summary.replace(/\?$/, "")}. Tap Accept to apply, or say different dates.`,
+    split: {
+      summary,
+      stays: stays.map((stay) => ({
+        city: stay.city,
+        check_in: stay.check_in,
+        check_out: stay.check_out,
+        hotel: stay.hotel,
+        rooms: stay.rooms,
+      })),
+    },
+  };
+}
+
 /**
  * Every stay at once, in order. One stay without dates covers the whole trip. Optional
  * new trip dates apply in the same change. A stay that has the client's room can't be
@@ -211,12 +288,14 @@ export async function undoTripChange(context: TripChangeContext): Promise<TripCh
   if (done) return { ok: true, summary: "Already undone.", undo: false, unchanged: true };
   if (!latest) throw refuse("There is nothing to undo on this trip.", "trips.undo_none");
 
-  const after = await applyTripShape(
-    context.tripId,
-    latest.before_payload as TripShape,
-    context.actor,
-    context.loaded ?? undefined,
-  );
+  const after = isQuoteSelectFinalUndo(latest.before_payload)
+    ? await undoQuoteSelectFinal(context.tripId, latest.before_payload, context.actor)
+    : await applyTripShape(
+        context.tripId,
+        latest.before_payload as TripShape,
+        context.actor,
+        context.loaded ?? undefined,
+      );
   const version = await recordTripUndo({
     tripId: context.tripId,
     undoId: latest.id,

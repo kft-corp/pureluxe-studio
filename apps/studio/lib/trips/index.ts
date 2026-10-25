@@ -19,6 +19,12 @@ export { journeyNextStep, statusNextStep } from "./journey-next-step";
 export { getJourney, type JourneyPageModel, type JourneyStop, type JourneyStopKind } from "./get-journey";
 export { getJourneyQuoteUrl } from "./quote-file";
 export { setJourneyStatus } from "./set-journey-status";
+export { updateTripPayment } from "./update-trip-payment";
+export {
+  buildAdvisorPath,
+  type AdvisorPath,
+  type AdvisorPathStep,
+} from "./advisor-path";
 export {
   JOURNEY_QUICK_CHIP_OPTIONS,
   JOURNEY_STAGE_CHIP_IDS,

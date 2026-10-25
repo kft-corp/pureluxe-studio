@@ -18,6 +18,17 @@ import { createSeedTrip, createSeedTripChanges } from "./seed-trip-changes";
 
 const SEARCH_LIMIT = 8;
 
+function quoteStayNights(trip: EvalTrip): number {
+  if (!trip.startsOn || !trip.endsOn) return 5;
+  return Math.max(
+    1,
+    Math.round(
+      (Date.parse(`${trip.endsOn}T12:00:00Z`) - Date.parse(`${trip.startsOn}T12:00:00Z`)) /
+        86_400_000,
+    ),
+  );
+}
+
 function words(text: string): string[] {
   return text.toLowerCase().split(/[^a-z0-9@.]+/).filter((word) => word.length >= 2);
 }
@@ -287,7 +298,8 @@ function createSeedDeskHandlers(seed: ScenarioSeed, today: string): Omit<DeskAge
 
       let hotels = seed.hotels.filter((hotel) => {
         if (dest && hotel.destination.toLowerCase() !== dest) return false;
-        if (targetTier && hotel.tier && hotel.tier !== targetTier) return false;
+        // Same-tier / similar: hotels with no tier or a different tier stay out (Coral Bay etc.).
+        if (targetTier && hotel.tier !== targetTier) return false;
         if (name && !similarTo && !priceBandLike && !tier) {
           return hotelMatches(hotel, name);
         }
@@ -376,6 +388,7 @@ export function createSeedHandlers(
     },
 
     async searchRates(input) {
+      trip.rooms = Math.max(1, input.rooms);
       const hotels = input.hotels.slice(0, 5).map((name, hotelIndex) => {
         const hit = seed.hotels.find((row) => hotelMatches(row, name));
         const markupPercent = hit?.minMarkupPercent ?? 25;
@@ -477,41 +490,101 @@ export function createSeedHandlers(
     },
 
     async addQuoteOptions(input) {
+      const stayNights = quoteStayNights(trip);
+      const roomCount = Math.max(1, trip.rooms);
       for (const option of input.options) {
         const existing = trip.quoteOptions.findIndex(
           (row) =>
             row.hotel.toLowerCase().includes(option.hotel.toLowerCase()) &&
             row.room.toLowerCase().includes(option.room.toLowerCase()),
         );
+        const prev = existing >= 0 ? trip.quoteOptions[existing]! : null;
+        const hotel = seed.hotels.find((row) => hotelMatches(row, option.hotel));
+        const room = hotel?.rooms.find(
+          (seedRoom) =>
+            seedRoom.name.toLowerCase().includes(option.room.toLowerCase()) ||
+            option.room.toLowerCase().includes(seedRoom.name.toLowerCase()),
+        );
+        const teamCost = room ? room.nightlyCost * stayNights * roomCount : null;
+        let markupPercent = option.markupPercent ?? prev?.markupPercent ?? null;
+        let clientPrice = option.clientPrice ?? prev?.clientPrice ?? null;
+        if (option.clientPrice != null && markupPercent == null && teamCost && teamCost > 0) {
+          markupPercent = Math.round(((option.clientPrice - teamCost) / teamCost) * 100);
+        }
+        if (option.markupPercent != null && option.clientPrice == null && teamCost != null) {
+          clientPrice = Math.round(teamCost * (1 + option.markupPercent / 100) * 100) / 100;
+        }
         const next = {
           hotel: option.hotel,
           room: option.room,
-          markupPercent: option.markupPercent ?? null,
-          clientPrice: option.clientPrice ?? null,
+          markupPercent,
+          clientPrice,
         };
         if (existing >= 0) trip.quoteOptions[existing] = next;
         else trip.quoteOptions.push(next);
+        // Mirror production: put the hotel on a stay that has none yet.
+        if (trip.stays.length === 1 && !trip.stays[0]!.hotel) {
+          trip.stays[0] = { ...trip.stays[0]!, hotel: option.hotel };
+        }
       }
+      const belowMin = input.options.some((option) => {
+        const hotel = seed.hotels.find((row) => hotelMatches(row, option.hotel));
+        const markup =
+          option.markupPercent ??
+          trip.quoteOptions.find(
+            (row) =>
+              row.hotel.toLowerCase().includes(option.hotel.toLowerCase()) &&
+              row.room.toLowerCase().includes(option.room.toLowerCase()),
+          )?.markupPercent;
+        return markup != null && hotel?.minMarkupPercent != null && markup < hotel.minMarkupPercent;
+      });
       return {
         ok: true as const,
-        summary: `Added ${input.options.length} options to the quote. Below the hotel minimum once.`,
+        summary: belowMin
+          ? `Added ${input.options.length} options to the quote. One is below the hotel minimum markup; applied as given.`
+          : `Added ${input.options.length} options to the quote.`,
         undo: true,
       };
     },
 
     async setQuoteClientPrices(input) {
+      const stayNights = quoteStayNights(trip);
+      const roomCount = Math.max(1, trip.rooms);
+      let belowMin = false;
       for (const price of input.prices) {
         const row = trip.quoteOptions.find(
           (option) =>
             option.hotel.toLowerCase().includes(price.hotel.toLowerCase()) &&
             option.room.toLowerCase().includes(price.room.toLowerCase()),
         );
-        if (row) {
-          row.clientPrice = price.clientPrice;
-          row.markupPercent = null;
+        if (!row) continue;
+        row.clientPrice = price.clientPrice;
+        const hotel = seed.hotels.find((seedHotel) => hotelMatches(seedHotel, price.hotel));
+        const room = hotel?.rooms.find(
+          (seedRoom) =>
+            seedRoom.name.toLowerCase().includes(price.room.toLowerCase()) ||
+            price.room.toLowerCase().includes(seedRoom.name.toLowerCase()),
+        );
+        const teamCost = room ? room.nightlyCost * stayNights * roomCount : null;
+        row.markupPercent =
+          teamCost && teamCost > 0
+            ? Math.round(((price.clientPrice - teamCost) / teamCost) * 100)
+            : null;
+        if (
+          row.markupPercent != null &&
+          hotel?.minMarkupPercent != null &&
+          row.markupPercent < hotel.minMarkupPercent
+        ) {
+          belowMin = true;
         }
       }
-      return { ok: true as const, summary: `Updated ${input.prices.length} client prices.`, undo: true };
+      return {
+        ok: true as const,
+        summary: belowMin
+          ? `Updated ${input.prices.length} client prices. One is below the hotel minimum markup; applied as given.`
+          : `Updated ${input.prices.length} client prices.`,
+        undo: true,
+      };
     },
 
     async removeQuoteOption(input) {
@@ -582,9 +655,11 @@ export function createSeedHandlers(
     },
 
     async previewQuote() {
+      const hotels = [...new Set(trip.quoteOptions.map((row) => row.hotel))];
+      const named = hotels.length > 0 ? hotels.join(", ") : "the options";
       return {
         ok: true as const,
-        summary: "The options quote is open.",
+        summary: `The options quote is open with ${trip.quoteOptions.length} room(s): ${named}.`,
         url: "https://example.test/options-quote.pdf",
         expires_in: 120,
       };
@@ -608,6 +683,43 @@ export function createSeedHandlers(
         ok: true as const,
         summary: `Sent ${trip.quoteOptions.length} options to ${name}.`,
         undo: false,
+      };
+    },
+
+    async selectFinal(input) {
+      const row = trip.quoteOptions.find(
+        (option) =>
+          option.hotel.toLowerCase().includes(input.hotel.toLowerCase()) &&
+          option.room.toLowerCase().includes(input.room.toLowerCase()),
+      );
+      if (!row) {
+        throw advisorError(
+          `No room matching ${input.room} at ${input.hotel} is on the options quote.`,
+          "trips.quote_option_not_found",
+        );
+      }
+      trip.chosenOption = { hotel: row.hotel, room: row.room };
+      trip.booking = { hotel: row.hotel, status: "pending" };
+      return {
+        ok: true as const,
+        summary: `Recorded ${row.room} at ${row.hotel} as the client's choice. A pending booking is ready.`,
+        undo: true,
+      };
+    },
+
+    async proposeSplit(input) {
+      const stays = input.stays.map((stay) => ({
+        city: stay.city,
+        check_in: stay.checkIn ?? trip.startsOn ?? "2026-12-10",
+        check_out: stay.checkOut ?? trip.endsOn ?? "2026-12-15",
+        hotel: stay.hotel ?? null,
+        rooms: stay.rooms ?? null,
+      }));
+      const summary = `${stays.map((stay) => `${stay.city} ${stay.check_in.slice(8)}–${stay.check_out.slice(8)}`).join(", ")}?`;
+      return {
+        ok: true as const,
+        summary: `Proposed split: ${summary.replace(/\?$/, "")}. Tap Accept to apply.`,
+        split: { summary, stays },
       };
     },
 

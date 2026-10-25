@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils/cn";
 import { AgentSparkle } from "./agent-sparkle";
 
 const BUTTON_CLASS = cn(
-  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-50 lg:h-8 lg:w-8",
+  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-accent-soft text-accent-ink ring-1 ring-inset ring-accent-line transition-colors hover:bg-accent-line/40 disabled:cursor-not-allowed disabled:opacity-50 lg:h-8 lg:w-8",
   studioFocusRing,
 );
 

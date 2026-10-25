@@ -399,7 +399,7 @@ export const createBookingSchema = z
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;
 export type CreateBookingBody = z.input<typeof createBookingSchema>;
 
-/** Confirm — optional ref / deadlines filled at confirm time. */
+/** Confirm — confirmation / PNR required (offline book proof); deadlines optional. */
 export const confirmBookingSchema = z.object({
   supplier_ref: optionalNullableText(120, "Confirmation / PNR is too long")
     .nullable()

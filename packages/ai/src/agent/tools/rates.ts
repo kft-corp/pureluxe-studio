@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { RateCompareCard } from "../../tools";
+import type { TripFacts } from "../../types";
 
 import { defineAgentTool } from "./define-tool";
 
@@ -14,12 +15,20 @@ function asCompare(result: unknown): RateCompareCard | null {
   return Array.isArray(hotels) ? (compare as RateCompareCard) : null;
 }
 
+/** Client already picked a room — do not show the shopping rate table. */
+function clientChoseRoom(trip: TripFacts | null): boolean {
+  if (!trip) return false;
+  if (trip.rates.selected) return true;
+  return trip.rates.candidates.some((rate) => rate.selected);
+}
+
 export const ratesGetSnapshotTool = defineAgentTool({
   name: "rates_get_snapshot",
   description: [
     "Read the last rate search on this trip: the rooms found with team cost, inclusions, cancellation and payment, plus the hotel rules for those dates.",
     "Use for follow-up questions about rooms, prices, what is included, cancellation, offers or which room suits the client.",
-    "Do not use for rooms already saved on the trip (they are in the trip facts) or for hotels never searched (use rates_search or hotel_get).",
+    "When the client already chose a room (trip facts show selected / status booking): prefer this or the trip facts for a price check — answer only for the chosen room(s); do not re-shop other rooms.",
+    "Do not use for hotels never searched (use rates_search or hotel_get).",
     "Returns status none when there is no recent search: tell the advisor to search rates first. Team cost is the advisor's cost, never the client price. Call these the current rates when you speak to the advisor.",
   ].join(" "),
   schema: z.object({}).strict(),
@@ -33,10 +42,11 @@ export const ratesSearchTool = defineAgentTool({
   description: [
     "Search rates for one or more hotels in a destination for given dates and party. A saved stay is NOT required — never ask the advisor to save a stay or confirm before searching.",
     "Use when the advisor names hotels, asks for prices, wants to compare, or says \"need rates\". Pass every hotel in one call (max 5); they run in parallel. Run immediately; never ask \"Search rates?\".",
+    "When the client already chose a room (selected in trip facts / booking stage) and the advisor only wants today's price for that choice: search only the chosen hotel(s), then reply in short prose comparing the chosen room's quoted client price to today's team cost / commission rate. Do not suggest other rooms or treat it as a new quote.",
     "When the advisor also wants the hotel on the trip itinerary, call trip_set_stays in the same turn, then this. Pricing alone does not need trip_set_stays.",
     "Do not use for place questions (place_get_notes) or to list hotels without prices (hotel_find).",
     "Returns one entry per hotel: ok | no_rates | not_in_pureluxe | several_matches | offline | timeout, with alternatives when not ok. Team cost is advisor-only.",
-    "After this tool: Studio shows one room-rate table under the reply. Reply with short prose only (dates, party, commission rate, inclusions/cancel heads-up, which room to suggest). Never paste a markdown table of rooms or prices — that duplicates the UI. Advisors add rooms via chat with quote_add_options, not row buttons.",
+    "After this tool (shopping only): Studio shows one room-rate table under the reply. Reply with short prose only (dates, party, commission rate, inclusions/cancel heads-up, which room to suggest). Never paste a markdown table of rooms or prices — that duplicates the UI. Advisors add rooms via chat with quote_add_options, not row buttons.",
     "When comparing hotels on fit (which hotel is better), use the fixed hotel-compare markdown table (Entry room, Pool upgrade, Water / overwater, Meal plans, Transfers & taxes, Free cancel until, Commission rate — never Minimum markup; optional Location / Family). That compare table is separate from the room-rate UI table.",
   ].join(" "),
   schema: z
@@ -57,7 +67,7 @@ export const ratesSearchTool = defineAgentTool({
   risk: "read",
   progress: (input) =>
     input.hotels.length > 1 ? "Searching rates for several hotels…" : "Searching rates…",
-  rateCompare: (result) => asCompare(result),
+  rateCompare: (result, trip) => (clientChoseRoom(trip) ? null : asCompare(result)),
   choices: (result) => {
     const compare = asCompare(result);
     if (!compare) return [];

@@ -34,8 +34,10 @@ const quoteOption = z
 export const quoteAddOptionsTool = defineAgentTool({
   name: "quote_add_options",
   description: [
-    "Add any number of rooms from any number of hotels to the options quote in one call, each with a markup percent or a client price.",
-    "Use when the advisor names rooms and prices or markups together, e.g. \"Beach Villa at 30% and Water Villa at 25%, for all 3 hotels\", or \"add the first two suggested rooms\".",
+    "Add or update any number of rooms from any number of hotels on the options quote in one call, each with a markup percent or a client price.",
+    "Use when the advisor names rooms and prices or markups together, e.g. \"Beach Villa at 30% and Water Villa at 25%, for all 3 hotels\", \"add the first two suggested rooms\", or \"make the Kihavah water villa 10% instead\".",
+    "Pass absolute client prices exactly as stated — never multiply by the trip's room count or by nights, and never treat a figure as per-room unless the advisor said so. Pass percentage markups as markup_percent.",
+    "Call once with every room in this message; do not call again for the same ask.",
     "If the stay has no hotel yet, this sets the room's hotel on the stay automatically. Does not overwrite a different hotel already on the stay.",
     "A markup below the hotel's minimum is applied and flagged once in the summary — never call deliberate prices typos.",
     "Do not use to send the quote (quote_send) or to change only wording (quote_set_wording / quote_edit_lines).",
@@ -65,8 +67,8 @@ export const quoteAddOptionsTool = defineAgentTool({
 export const quoteSetClientPriceTool = defineAgentTool({
   name: "quote_set_client_price",
   description: [
-    "Set the client price on one or more rooms already on the options quote, in one call.",
-    "Use when the advisor changes prices already on the quote. Do not use to add a new room (quote_add_options).",
+    "Set the absolute client price on one or more rooms already on the options quote, in one call.",
+    "Use when the advisor gives a money amount for a room already on the quote. Do not use for a markup percent only (quote_add_options with markup_percent) or to add a new room (quote_add_options).",
     "On success the PDF is rebuilt and opened automatically — do not call quote_preview again unless they ask to open it again.",
     "Returns a summary; the advisor gets Undo.",
   ].join(" "),
@@ -350,4 +352,20 @@ export const quoteSendTool = defineAgentTool({
   quickReply: true,
   confirm: (_input, trip) => sendConfirm(trip),
   run: (_input, handlers, call) => handlers.sendQuote(call),
+});
+
+export const quoteSelectFinalTool = defineAgentTool({
+  name: "quote_select_final",
+  description: [
+    "Record the client's final room from the options quote. Creates a pending hotel booking; Undo cancels it (or restores the previous room).",
+    "Use when the advisor says the client picked a room, chose an option, or went with a named villa — e.g. \"Aarav picked the water villa at Kihavah\", \"they chose option 2\".",
+    "Do not use to send the quote (quote_send), add rooms (quote_add_options), or change prices. The room must already be on the quote.",
+    "Runs immediately with Undo — no Confirm card. Returns a summary.",
+  ].join(" "),
+  schema: z.object({ hotel: hotelName, room: roomName }).strict(),
+  risk: "undo",
+  progress: () => "Recording the client's room…",
+  quickReply: true,
+  run: (input, handlers, call) =>
+    handlers.selectFinal({ hotel: input.hotel, room: input.room }, call),
 });

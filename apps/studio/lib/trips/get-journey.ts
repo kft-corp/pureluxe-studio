@@ -25,6 +25,11 @@ import {
 import { formatBookingDate, formatBookingMoney } from "@/lib/bookings";
 
 import {
+  buildAdvisorPath,
+  type AdvisorPath,
+} from "./advisor-path";
+
+import {
   formatJourneyParty,
   formatJourneyPhase,
   formatJourneyRoute,
@@ -90,6 +95,14 @@ export type JourneyPageModel = {
   costLabel: string | null;
   marginLabel: string | null;
   priceHint: string;
+  sellTotal: number | null;
+  sellCurrency: string | null;
+  amountReceived: number | null;
+  amountPending: number | null;
+  paymentStatus: string;
+  paymentStatusLabel: string;
+  /** Ordered advisor checklist after the quote leaves Building. */
+  advisorPath: AdvisorPath;
 };
 
 const DOCUMENT_LABELS: Record<TripDocument["type"], string> = {
@@ -154,6 +167,17 @@ export async function getJourney(tripId: string): Promise<JourneyPageModel> {
   const planDone = trip.status !== "building" || quoteReady || proposalStale;
   const travelPhase =
     stage.phase === "cancelled" || stage.phase === "on_trip" || stage.phase === "past";
+  const roomsChosen =
+    legs.length > 0 &&
+    legs.every((leg) =>
+      pieces.lineItems.some(
+        (item) =>
+          item.category === "accommodation" &&
+          item.selected &&
+          item.leg_id === leg.id &&
+          !isStayShell(item),
+      ),
+    );
   const nextStep =
     travelPhase || !planDone
       ? journeyNextStep({
@@ -169,18 +193,25 @@ export async function getJourney(tripId: string): Promise<JourneyPageModel> {
           status: trip.status,
           quoteReady,
           quoteStale: proposalStale,
-          roomsChosen:
-            legs.length > 0 &&
-            legs.every((leg) =>
-              pieces.lineItems.some(
-                (item) =>
-                  item.category === "accommodation" &&
-                  item.selected &&
-                  item.leg_id === leg.id &&
-                  !isStayShell(item),
-              ),
-            ),
+          roomsChosen,
         });
+
+  const stops = buildStops(trip, legs, pieces.lineItems, pieces.bookings);
+  const stayStops = stops.filter((stop) => stop.kind === "stay");
+  const staysConfirmed =
+    stayStops.length > 0 &&
+    stayStops.every((stop) => stop.status === "Confirmed");
+
+  const paymentStatus = trip.payment_status?.trim() || "not_started";
+  const advisorPath = buildAdvisorPath({
+    status: trip.status,
+    quoteFile: Boolean(quote?.file_path) && quote?.status !== "generating",
+    quoteReady,
+    roomsChosen,
+    staysConfirmed,
+    paymentStatus,
+    travelPrepCount: 0,
+  });
 
   return {
     id: trip.id,
@@ -220,12 +251,48 @@ export async function getJourney(tripId: string): Promise<JourneyPageModel> {
         statusLabel: DOCUMENT_STATUS[document.status],
         stale: document.status === "stale",
       })),
-    stops: buildStops(trip, legs, pieces.lineItems, pieces.bookings),
+    stops,
     sellLabel: moneyLabel(trip.sell_total, trip.sell_currency) ?? "Not set",
     costLabel: moneyLabel(trip.cost_total_internal, trip.sell_currency),
     marginLabel: moneyLabel(trip.margin_internal, trip.sell_currency),
     priceHint: pricingLocked ? "Price locked" : "Team sell price",
+    sellTotal:
+      trip.sell_total == null || !Number.isFinite(Number(trip.sell_total))
+        ? null
+        : Number(trip.sell_total),
+    sellCurrency: trip.sell_currency,
+    amountReceived:
+      trip.amount_received == null || !Number.isFinite(Number(trip.amount_received))
+        ? null
+        : Number(trip.amount_received),
+    amountPending: pendingAmount(trip.sell_total, trip.amount_received),
+    paymentStatus,
+    paymentStatusLabel: paymentStatusLabel(trip.payment_status),
+    advisorPath,
   };
+}
+
+function pendingAmount(
+  sellTotal: number | string | null | undefined,
+  received: number | string | null | undefined,
+): number | null {
+  if (sellTotal == null || !Number.isFinite(Number(sellTotal))) return null;
+  const taken =
+    received == null || !Number.isFinite(Number(received)) ? 0 : Number(received);
+  return Math.max(0, Number(sellTotal) - taken);
+}
+
+function paymentStatusLabel(status: string | null | undefined): string {
+  switch (status) {
+    case "partial":
+      return "Partial";
+    case "paid":
+      return "Paid";
+    case "overdue":
+      return "Overdue";
+    default:
+      return "Not started";
+  }
 }
 
 type PlannedStop = JourneyStop & {

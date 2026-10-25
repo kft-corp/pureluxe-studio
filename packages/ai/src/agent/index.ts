@@ -47,6 +47,7 @@ export type {
   QuotePreviewResult,
   QuoteRemoveOptionInput,
   QuoteRewriteSectionInput,
+  QuoteSelectFinalInput,
   QuoteSetClientPriceInput,
   QuoteSetWordingInput,
   RateSnapshot,
@@ -58,5 +59,7 @@ export type {
   TripChange,
   TripCreateRequest,
   TripCreateResult,
+  TripProposeSplitInput,
+  TripProposeSplitResult,
   UpcomingTripMatch,
 } from "./types";

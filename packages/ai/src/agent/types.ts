@@ -1,4 +1,4 @@
-import type { DeskToolHandlers } from "../tools";
+import type { DeskToolHandlers, LegSplitCard } from "../tools";
 import type { TripFacts } from "../types";
 
 /**
@@ -138,6 +138,12 @@ export type QuotePreviewResult = {
   expires_in: number;
 };
 
+/** Record the client's final room from the options quote (creates a pending booking). */
+export type QuoteSelectFinalInput = {
+  hotel: string;
+  room: string;
+};
+
 export type RatesUsePastedQuoteInput = {
   hotel: string;
   room: string;
@@ -174,6 +180,19 @@ export type StayRequest = {
   /** Hotel name; null clears it, omitted keeps the current one. */
   hotel?: string | null;
   rooms?: number;
+};
+
+export type TripProposeSplitInput = {
+  stays: StayRequest[];
+  /** Optional trip dates when the split also sets them. */
+  start?: string;
+  end?: string;
+};
+
+export type TripProposeSplitResult = {
+  ok: true;
+  summary: string;
+  split: LegSplitCard;
 };
 
 /** Who leads: the client named, or (for "the Mehta family") the household's primary member. */
@@ -217,6 +236,9 @@ export type TripAgentHandlers = DeskAgentHandlers & {
   previewQuote: (input: QuotePreviewInput) => Promise<QuotePreviewResult>;
   usePastedQuote: (input: RatesUsePastedQuoteInput, call: ToolCallRef) => Promise<TripChange>;
   sendQuote: (call: ToolCallRef) => Promise<TripChange>;
+  selectFinal: (input: QuoteSelectFinalInput, call: ToolCallRef) => Promise<TripChange>;
+  /** Propose a multi-city date split once; does not apply until the advisor accepts. */
+  proposeSplit: (input: TripProposeSplitInput) => Promise<TripProposeSplitResult>;
 };
 
 /** A trip the home chat asks Studio to create, with everything the advisor said. */

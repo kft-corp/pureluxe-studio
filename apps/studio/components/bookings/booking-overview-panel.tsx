@@ -307,7 +307,10 @@ export function BookingOverviewPanel({
               icon={icons.trip}
               label="Trip"
               value={
-                booking.trip_id ? "Linked to a trip" : "Not linked to a trip"
+                booking.trip_id ? "Open trip details" : "Not linked to a trip"
+              }
+              href={
+                booking.trip_id ? pageRoutes.trip(booking.trip_id) : null
               }
               className="sm:border-b sm:border-border/70"
             />

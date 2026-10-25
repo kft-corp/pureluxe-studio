@@ -26,8 +26,21 @@ import { cn } from "@/lib/utils/cn";
 
 import { JourneyPhasePill } from "./journey-phase-pill";
 
-const COLUMNS = ["Client", "Trip", "Dates", "Stage", "Sell", "Owner", ""];
-const MIN_WIDTH = "min-w-[52rem]";
+const COLUMNS = ["Client", "Trip", "Dates", "Stage", "Sell", "Payment", "Owner", ""];
+const MIN_WIDTH = "min-w-[58rem]";
+
+function paymentLabel(status: string | null | undefined): string {
+  switch (status) {
+    case "partial":
+      return "Partial";
+    case "paid":
+      return "Paid";
+    case "overdue":
+      return "Overdue";
+    default:
+      return "Not started";
+  }
+}
 
 export function TripsTableSkeleton() {
   return (
@@ -146,6 +159,15 @@ function TripDirectoryRow({ journey }: { journey: JourneyCardItem }) {
         {sell ?? "—"}
         {journey.pricing_locked ? (
           <p className="text-[11px] text-ink-muted">Locked</p>
+        ) : null}
+      </TableCell>
+      <TableCell className="whitespace-nowrap text-sm text-ink">
+        {paymentLabel(journey.payment_status)}
+        {journey.amount_received != null ? (
+          <p className="text-[11px] text-ink-muted">
+            {formatJourneySell(journey.amount_received, journey.sell_currency) ??
+              "Received"}
+          </p>
         ) : null}
       </TableCell>
       <TableCell
@@ -270,6 +292,9 @@ export function TripsTable({
               {sell ? (
                 <span className="text-xs text-ink-muted">{sell}</span>
               ) : null}
+              <span className="text-xs text-ink-muted">
+                {paymentLabel(journey.payment_status)}
+              </span>
               {journey.owner ? (
                 <span className="truncate text-xs text-ink-muted">
                   {journey.owner.name}

@@ -120,6 +120,7 @@ export const hotelFindTool = defineDeskTool({
   description: [
     "Find PureLuxe hotels by name (fuzzy), destination, price tier (ultra_luxury / luxury / premium), similar to another hotel, or a similar price band.",
     "Use when the advisor names a hotel, asks for suggestions, wants others in the same tier, or says \"similar to X\". A saved stay is not required.",
+    "For \"similar\" / \"same tier\" / \"same price range\", pass similar_to or tier so results stay in that band — do not list cheaper out-of-tier hotels from general knowledge.",
     "Do not use for hotel rules or charges (hotel_get), place notes (place_get_notes), or room prices (rates tools).",
     "Returns PureLuxe hotels only, with tier and style tags. When the name is unclear, did_you_mean lists close matches instead of guessing.",
     "When the trip has dates, a Rates button appears for each hotel (and Did you mean when unsure).",

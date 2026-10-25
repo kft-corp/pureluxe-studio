@@ -28,7 +28,7 @@ import {
   type AgentInstructions,
   type InstructionsInput,
 } from "./instructions";
-import { pruneOldTurns, recentTurns, repairToolPairs, seedMessages } from "./memory";
+import { recentTurns, repairToolPairs, seedMessages, summariseOldTurns } from "./memory";
 import {
   createAgentModels,
   invokeWithFallback,
@@ -180,7 +180,7 @@ function buildAgentGraph<Handlers>(deps: AgentGraphDeps<Handlers>) {
         messages: [new RemoveMessage({ id: REMOVE_ALL_MESSAGES }), ...seed, ...state.messages],
       };
     }
-    return { trip, messages: pruneOldTurns(state.messages, STORED_MESSAGES) };
+    return { trip, messages: summariseOldTurns(state.messages, STORED_MESSAGES) };
   }
 
   /**

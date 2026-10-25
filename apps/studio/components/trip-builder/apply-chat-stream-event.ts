@@ -113,6 +113,13 @@ export function applyChatStreamEvent(options: ApplyOptions): void {
     }
     case "error": {
       endStream(options);
+      if (event.assistant) {
+        setMessages((prev) =>
+          prev.some((row) => row.id === event.assistant!.id)
+            ? prev
+            : [...prev, event.assistant!],
+        );
+      }
       showError(new Error(event.message));
       onError?.();
       return;

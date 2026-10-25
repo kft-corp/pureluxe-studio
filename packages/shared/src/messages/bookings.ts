@@ -4,7 +4,8 @@ export const bookingMessages = {
     listed: "Bookings loaded.",
     created: "Booking created.",
     updated: "Booking details saved.",
-    confirmed: "Booking confirmed.",
+    confirmed:
+      "Hotel booking confirmed. Next: open the trip and record client payment if needed.",
     cancelled: "Booking cancelled.",
     superseded: "Booking amended — open the new version to continue.",
     assigned: "Account owner updated.",
@@ -36,10 +37,12 @@ export const bookingMessages = {
     cannotCancel: "This booking can’t be cancelled in its current status.",
     cannotAmend: "Only active bookings can be amended.",
     tripBuilderOwned:
-      "This stay is still planned in Trip Builder. Confirm the booking before changing the hotel, dates, guests, cost, or cancellation policy.",
+      "This stay is still planned in Trip Builder. Confirm the booking before changing the hotel, dates, guests, cost, client price, or cancellation policy.",
     pricingLocked:
-      "The client accepted this price, so the client price and currency stay as they are. Change the client price in Trip Builder.",
+      "The client accepted this quote, so the currency stays as it is. After you confirm the stay, you can correct the client price here — the trip total updates to match.",
     tripLinkOwned:
       "This booking was created from Trip Builder. Keep it linked until the booking is confirmed.",
+    confirmNeedsRef:
+      "Add the hotel confirmation / PNR before confirming. Book offline, then enter the reference here.",
   },
 } as const;

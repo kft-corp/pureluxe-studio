@@ -43,6 +43,7 @@ export {
   type QuotePreviewInput,
   type QuotePreviewResult,
   type QuoteRewriteSectionInput,
+  type QuoteSelectFinalInput,
   type RateSnapshot,
   type RatesSearchInput,
   type StayRequest,
@@ -52,6 +53,8 @@ export {
   type TripChange,
   type TripCreateRequest,
   type TripCreateResult,
+  type TripProposeSplitInput,
+  type TripProposeSplitResult,
   type UpcomingTripMatch,
 } from "./agent";
 
@@ -87,6 +90,8 @@ export {
   type ModelRoundUsage,
   type TurnMeter,
   type AgentStreamChunk,
+  type LegSplitCard,
+  type LegSplitStay,
   type RateCompareCard,
   type RateCompareHotel,
   type RateCompareHotelNotes,

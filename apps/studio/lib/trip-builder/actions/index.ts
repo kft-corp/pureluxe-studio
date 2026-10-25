@@ -3,6 +3,7 @@
  * Every change runs through the trip services, so their rules and side effects apply.
  */
 export {
+  proposeTripSplit,
   removeTripStay,
   setTripClient,
   setTripDates,
@@ -18,6 +19,7 @@ export {
   previewQuote,
   removeQuoteOption,
   rewriteQuoteSection,
+  selectQuoteFinal,
   sendQuote,
   setQuoteClientPrices,
   setQuoteWording,

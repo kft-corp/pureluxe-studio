@@ -136,9 +136,11 @@ export function createPreTripChatStream(
         if (opened) send({ type: "opened", tripId: opened.tripId });
         await finish({ status: "ok" });
       } catch (cause) {
+        const content = reply.trim() || tripMessages.error.replyInterrupted;
         send({
           type: "error",
           message: cause instanceof AppError ? cause.userMessage : tripMessages.error.aiFailed,
+          assistant: localMessage("assistant", content, { incomplete: true }),
         });
         await finish({ status: cancelled ? "aborted" : "error", cause });
       }

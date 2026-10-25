@@ -6,6 +6,7 @@ import type {
   QuotePreviewResult,
   QuoteRemoveOptionInput,
   QuoteRewriteSectionInput,
+  QuoteSelectFinalInput,
   QuoteSetClientPriceInput,
   QuoteSetWordingInput,
   RatesUsePastedQuoteInput,
@@ -13,10 +14,12 @@ import type {
   ToolCallRef,
 } from "@pureluxe/ai";
 import {
+  clearSelectedAccommodationForLeg,
   deleteTripLineItemsByIds,
   findActivePropertyById,
   findLatestRateSearch,
   updateStayOption,
+  updateTrip,
 } from "@pureluxe/db";
 import { AppError, tripMessages } from "@pureluxe/shared";
 
@@ -32,7 +35,10 @@ import { setJourneyStatus } from "@/lib/trips/set-journey-status";
 
 import { partyCounts } from "../party/trip-party";
 import { attachRateOption } from "../rates/attach-rate-option";
+import { selectAccommodationRate } from "../rates/select-accommodation-rate";
 import { pasteTripLineItem } from "../rates/paste-line-item";
+import { syncTripHotelBooking } from "../pricing/sync-trip-booking";
+import { cancelStayBooking } from "../stays/stay-side-effects";
 import {
   generateOptionsQuotePdf,
   getOptionsQuoteFileUrl,
@@ -842,6 +848,149 @@ export function sendQuote(context: TripChangeContext): Promise<TripChange> {
       after: await getTripDetail(context.tripId, context.actor),
     };
   });
+}
+
+/** Undo payload for quote_select_final (shape alone cannot reverse a booking). */
+export const QUOTE_SELECT_FINAL_UNDO = "quote_select_final" as const;
+
+export type QuoteSelectFinalUndoPayload = {
+  kind: typeof QUOTE_SELECT_FINAL_UNDO;
+  leg_id: string;
+  line_item_id: string;
+  /** Previously selected room on this stay, if any. */
+  previous_selected_id: string | null;
+  /** Trip status before accept → booking (for Undo). */
+  previous_status?: string | null;
+};
+
+export function isQuoteSelectFinalUndo(
+  payload: Record<string, unknown> | null | undefined,
+): payload is QuoteSelectFinalUndoPayload {
+  return (
+    payload != null &&
+    payload.kind === QUOTE_SELECT_FINAL_UNDO &&
+    typeof payload.leg_id === "string" &&
+    typeof payload.line_item_id === "string"
+  );
+}
+
+/**
+ * Record the client's final room: select it, create/update the pending booking.
+ * Other quote options stay on the trip so Undo can clear the choice cleanly.
+ * Requires Client accepted first (pricing locked / booking stage).
+ */
+export function selectQuoteFinal(
+  context: TripChangeContext,
+  input: QuoteSelectFinalInput,
+): Promise<TripChange> {
+  return withTripChange(context, async (before) => {
+    if (!isQuoteAccepted(before.trip.status) && !before.pricing_locked) {
+      throw new AppError({
+        userMessage:
+          "Mark Client said yes on the trip page first, then record the room they chose.",
+        code: "trips.quote_accept_required",
+        status: 409,
+      });
+    }
+    const rows = findQuoteRows(before.rates.candidates, input.hotel, input.room);
+    if (rows.length === 0) {
+      throw new AppError({
+        userMessage: `No room matching ${input.room} at ${input.hotel} is on the options quote.`,
+        code: "trips.quote_option_not_found",
+        status: 404,
+      });
+    }
+    if (rows.length > 1) {
+      throw new AppError({
+        userMessage: `Several rooms match ${input.room} at ${input.hotel}. Name the hotel and room more specifically.`,
+        code: "trips.quote_option_ambiguous",
+        status: 409,
+      });
+    }
+    const row = rows[0]!;
+    if (row.selected) {
+      return {
+        summary: `${row.subtitle?.trim() || row.title} at ${row.property_name ?? input.hotel} is already the client's room.`,
+        undoable: false,
+        after: null,
+      };
+    }
+    const legId = row.leg_id;
+    if (!legId) {
+      throw new AppError({
+        userMessage: "That room is not attached to a stay, so it cannot become the booking.",
+        code: "trips.quote_option_no_stay",
+        status: 409,
+      });
+    }
+    if (before.pricing_locked && row.sell_amount == null) {
+      throw new AppError({
+        userMessage: tripMessages.error.pricingLocked,
+        code: "trips.pricing_locked",
+        status: 409,
+      });
+    }
+
+    const previousSelectedId =
+      before.rates.candidates.find((candidate) => candidate.selected && candidate.leg_id === legId)?.id ??
+      null;
+    const previousStatus = before.trip.status;
+
+    await selectAccommodationRate(row.id, context.actor, { keepOtherOptions: true });
+    const after = await getTripDetail(context.tripId, context.actor);
+    const hotel = after.rates.selected?.property_name?.trim() || input.hotel;
+    const room = after.rates.selected?.subtitle?.trim() || input.room;
+    const undoBefore: QuoteSelectFinalUndoPayload = {
+      kind: QUOTE_SELECT_FINAL_UNDO,
+      leg_id: legId,
+      line_item_id: row.id,
+      previous_selected_id: previousSelectedId,
+      previous_status: previousStatus,
+    };
+    return {
+      summary: `Recorded ${room} at ${hotel} as the client's choice. A pending booking is ready.`,
+      undoable: true,
+      after,
+      undoBefore,
+      undoAfter: { kind: QUOTE_SELECT_FINAL_UNDO, leg_id: legId, line_item_id: row.id },
+    };
+  });
+}
+
+/** Undo quote_select_final: clear the choice and cancel the pending booking (or restore the prior room). */
+export async function undoQuoteSelectFinal(
+  tripId: string,
+  payload: QuoteSelectFinalUndoPayload,
+  actor: { memberId: string },
+): Promise<TripDetail> {
+  await clearSelectedAccommodationForLeg(tripId, payload.leg_id);
+
+  if (payload.previous_selected_id) {
+    await selectAccommodationRate(payload.previous_selected_id, actor, { keepOtherOptions: true });
+  } else {
+    await cancelStayBooking(tripId, payload.leg_id, actor, {
+      pendingOnly: true,
+      reason: "Client room choice undone in Trip Builder",
+    });
+    const detail = await getTripDetail(tripId, actor);
+    await syncTripHotelBooking(detail, actor);
+  }
+
+  await markQuoteStale(tripId, { clientChoice: true });
+
+  // Put the trip back to waiting on the client when this step had moved it to booking.
+  if (
+    payload.previous_status === "quote_sent" ||
+    payload.previous_status === "waiting_on_client"
+  ) {
+    await updateTrip(tripId, {
+      status: payload.previous_status,
+      pricing_locked_at: null,
+      pricing_locked_by_id: null,
+    });
+  }
+
+  return getTripDetail(tripId, actor);
 }
 
 /** Compatibility wrapper when call ref is passed separately. */

@@ -11,7 +11,7 @@ import {
   updateTripBuilderQuote,
   updateTripBuilderStayOption,
 } from "@/lib/api";
-import { showApiError } from "@/lib/feedback";
+import { showApiError, showWarningToast } from "@/lib/feedback";
 import { pageRoutes } from "@/lib/routes";
 import {
   isPriceSkip,
@@ -19,7 +19,7 @@ import {
   type MoneyReply,
   type StayDraft,
 } from "@/lib/trip-builder/intents";
-import { isQuoteWithClient } from "@/lib/trips/trip-status";
+import { isQuoteAccepted, isQuoteWithClient } from "@/lib/trips/trip-status";
 
 import { priceCheck } from "../price-check";
 import {
@@ -631,6 +631,12 @@ export function useTripRates(core: TripCore, chat: TripChat) {
 
   async function selectCandidate(lineItemId: string, userLine?: string) {
     if (!canWrite || !detail) return;
+    if (!quoteFrozen && !isQuoteAccepted(detail.trip.status)) {
+      showWarningToast(
+        "Mark Client said yes on the trip page first, then tap This is their room.",
+      );
+      return;
+    }
     setBusy(true);
     try {
       await selectTripBuilderLineItem(lineItemId);

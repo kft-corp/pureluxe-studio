@@ -22,12 +22,28 @@ export const JOURNEY_STAGE_FILTERS = [
 export const JOURNEY_CLIENT_FILTERS = ["any", "vip", "standard"] as const;
 export const JOURNEY_PRICE_FILTERS = ["any", "locked", "open"] as const;
 export const JOURNEY_QUOTE_FILTERS = ["any", "stale", "current"] as const;
+/** Offline payment tracking on the trip (record-only). */
+export const JOURNEY_PAYMENT_FILTERS = [
+  "any",
+  "not_started",
+  "partial",
+  "paid",
+  "overdue",
+] as const;
+export const TRIP_PAYMENT_STATUSES = [
+  "not_started",
+  "partial",
+  "paid",
+  "overdue",
+] as const;
 
 export type JourneyScope = (typeof JOURNEY_SCOPES)[number];
 export type JourneyStageFilter = (typeof JOURNEY_STAGE_FILTERS)[number];
 export type JourneyClientFilter = (typeof JOURNEY_CLIENT_FILTERS)[number];
 export type JourneyPriceFilter = (typeof JOURNEY_PRICE_FILTERS)[number];
 export type JourneyQuoteFilter = (typeof JOURNEY_QUOTE_FILTERS)[number];
+export type JourneyPaymentFilter = (typeof JOURNEY_PAYMENT_FILTERS)[number];
+export type TripPaymentStatus = (typeof TRIP_PAYMENT_STATUSES)[number];
 
 const journeyDate = z
   .string()
@@ -52,6 +68,7 @@ export const listJourneysQuerySchema = z.object({
   client_tier: z.enum(JOURNEY_CLIENT_FILTERS).optional().default("any"),
   price: z.enum(JOURNEY_PRICE_FILTERS).optional().default("any"),
   quote: z.enum(JOURNEY_QUOTE_FILTERS).optional().default("any"),
+  payment: z.enum(JOURNEY_PAYMENT_FILTERS).optional().default("any"),
   owner: z.string().trim().max(80).optional().default("any"),
   starts_from: journeyDate.optional().default(""),
   starts_to: journeyDate.optional().default(""),
@@ -82,3 +99,21 @@ export const journeyStatusActionSchema = z.object({
 });
 
 export type JourneyStatusAction = (typeof JOURNEY_STATUS_ACTIONS)[number];
+
+/** PATCH /api/trips/[id]/payment — offline payment tracking (record-only). */
+export const updateTripPaymentSchema = z
+  .object({
+    amount_received: z
+      .number()
+      .finite()
+      .nonnegative()
+      .nullable()
+      .optional(),
+    payment_status: z.enum(TRIP_PAYMENT_STATUSES).optional(),
+  })
+  .refine((body) => Object.keys(body).length > 0, {
+    message: "Provide amount received or payment status.",
+  });
+
+export type UpdateTripPaymentBody = z.input<typeof updateTripPaymentSchema>;
+export type UpdateTripPaymentInput = z.output<typeof updateTripPaymentSchema>;

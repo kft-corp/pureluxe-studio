@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { LuHistory } from "react-icons/lu";
+import { LuFolderOpen } from "react-icons/lu";
 
 import { formatRelativeTime } from "@/lib/team/format-relative-time";
 import type { TripListItem } from "@/lib/trip-builder";
@@ -83,8 +83,8 @@ export function TripBuilderTripsMenu({
 
   const active = trips.find((trip) => trip.id === activeTripId);
   const tooltip = active
-    ? `Recent trips · ${displayTripTitle(active)}`
-    : "Recent trips";
+    ? `Switch trip · ${displayTripTitle(active)}`
+    : "Switch trip";
 
   return (
     <div ref={rootRef} className="relative shrink-0">
@@ -95,7 +95,7 @@ export function TripBuilderTripsMenu({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={menuId}
-        aria-label="Recent trips"
+        aria-label="Switch trip"
         title={tooltip}
         onClick={toggleMenu}
         className={cn(
@@ -105,19 +105,19 @@ export function TripBuilderTripsMenu({
           open ? "bg-neutral-soft" : "bg-transparent hover:bg-surface-hover",
         )}
       >
-        <LuHistory className="size-4 lg:size-[18px]" strokeWidth={2} aria-hidden />
+        <LuFolderOpen className="size-4 lg:size-[18px]" strokeWidth={2} aria-hidden />
       </button>
 
       {open && menuBox ? (
         <div
           id={menuId}
           role="listbox"
-          aria-label="Recent trips"
+          aria-label="Trips"
           style={{ top: menuBox.top, right: menuBox.right }}
           className="fixed z-50 w-[min(20rem,calc(100vw-1rem))] overflow-hidden rounded-lg border border-border bg-surface-raised shadow-lg"
         >
           <div className="border-b border-border px-3 py-2.5">
-            <p className="text-[13px] font-medium text-ink">Recent trips</p>
+            <p className="text-[13px] font-medium text-ink">Trips</p>
           </div>
 
           {trips.length === 0 ? (

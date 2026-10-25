@@ -89,7 +89,13 @@ export function OptionsQuotePanel({
   const stale = status === "stale";
   const accepted = isQuoteAccepted(detail.trip.status);
   const withClient = isQuoteWithClient(detail.trip.status);
+  const tripDone =
+    detail.trip.status === "confirmed" || detail.trip.status === "completed";
+  // Confirmed trips no longer shop options — Bookings hold the stays.
+  if (tripDone) return null;
   if (options.length === 0 && !hasFile && !hasRoom) return null;
+  // Happy path: Client accepted → then Client chose this.
+  const canPickRoom = canChoose && accepted;
 
   return (
     <section className="mb-3">
@@ -99,12 +105,12 @@ export function OptionsQuotePanel({
       <p className="mb-2 text-[12px] leading-relaxed text-ink-muted">
         {accepted
           ? options.length > 0
-            ? "The client accepted this quote. Tap Client chose this on the room they picked. Its client price from the quote becomes the trip price."
-            : "The client accepted this quote. It opens as sent. To change it, reopen the quote on the trip page."
+            ? "Client said yes. Tap This is their room on the room they picked. Its client price from the quote becomes the trip price."
+            : "Client said yes. The quote opens as sent. To change it, reopen the quote on the trip page."
           : withClient
-            ? "This quote is with the client. Changing or regenerating it moves the trip back to Building."
+            ? "Quote is with the client. When they agree, mark Client said yes on the trip page, then tap This is their room. Changing the quote moves the trip back to Building."
             : options.length > 0
-            ? "Tap Client chose this only after the client has picked. The other rooms come off and a pending booking is created."
+            ? "Send the quote and mark Client said yes on the trip page before recording the room choice."
             : "Open or regenerate the options quote to check the rooms saved on this trip."}
       </p>
       <div className="space-y-2">
@@ -112,7 +118,7 @@ export function OptionsQuotePanel({
           <HotelGroupCard
             key={hotel.key}
             hotel={hotel}
-            canWrite={canChoose}
+            canWrite={canPickRoom}
             pricingLocked={detail.pricing_locked}
             busy={busy}
             onChoose={onChoose}
@@ -223,7 +229,7 @@ function OptionRoomRow({
           onClick={() => onChoose(row.id)}
           className={cn(studioButtonClass("secondary", "sm"), "mt-1.5 h-11 w-full lg:h-8 lg:w-auto")}
         >
-          Client chose this
+          This is their room
         </button>
       ) : null}
     </div>

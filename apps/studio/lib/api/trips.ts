@@ -1,8 +1,13 @@
-import type { JourneyStatusAction, ListJourneysQuery } from "@pureluxe/shared";
+import type {
+  JourneyStatusAction,
+  ListJourneysQuery,
+  UpdateTripPaymentBody,
+} from "@pureluxe/shared";
 
 import type { JourneyCard, ListJourneysResult } from "@pureluxe/db";
 
 import { apiRoutes } from "@/lib/routes";
+import type { JourneyPageModel } from "@/lib/trips";
 
 import { fetchApi } from "./client";
 
@@ -47,5 +52,17 @@ export function setJourneyStatus(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action }),
+  });
+}
+
+/** Record offline client payment on the trip page. */
+export function updateJourneyPayment(
+  tripId: string,
+  body: UpdateTripPaymentBody,
+) {
+  return fetchApi<JourneyPageModel>(apiRoutes.trips.payment(tripId), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
   });
 }

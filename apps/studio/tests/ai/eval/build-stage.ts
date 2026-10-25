@@ -1,7 +1,7 @@
 import type { BuildStage } from "../scenario-types";
 
 /** The build stage the agent has reached. Raise it as each stage of the redesign lands. */
-export const CURRENT_BUILD_STAGE = "3a";
+export const CURRENT_BUILD_STAGE = "4";
 
 /**
  * Order of build stages: "2" < "2b" < "3" < "3a" < … < "3d" < "4".

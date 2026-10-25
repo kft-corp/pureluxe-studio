@@ -7,7 +7,12 @@ import { TripBuilderComposer } from "./trip-builder-composer";
 import { TripBuilderHeader } from "./trip-builder-header";
 import { TripBuilderStatusStrip } from "./trip-builder-status-strip";
 import { TripBuilderSummaryPanel } from "./trip-builder-summary-panel";
-import { legsConfirmed, resolveTripStage, tripDatesReady } from "./stages";
+import {
+  legsConfirmed,
+  resolveTripStage,
+  staysAwaitingRoom,
+  tripDatesReady,
+} from "./stages";
 import { useTripBuilder } from "./use-trip-builder";
 
 type TripBuilderPageContentProps = {
@@ -53,8 +58,10 @@ export function TripBuilderPageContent({
             : stage === "quote"
               ? builder.detail?.trip.status === "building"
                 ? "Check the options quote, then send it and update the status on the trip page."
-                : "When the client picks a room, tap Client chose this. Mark Client accepted on the trip page when they agree."
-              : "Tap Client chose this on the client's room, then check today's price before booking.";
+                : "When they agree, mark Client said yes on the trip page, then tap This is their room."
+              : staysAwaitingRoom(builder.detail) > 0
+                ? "Tap This is their room, then check today's price and travel prep before booking."
+                : "Check today's price, book offline, Confirm hotel booking in Bookings with the PNR, then record payment on the trip.";
 
   return (
     <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col bg-surface">

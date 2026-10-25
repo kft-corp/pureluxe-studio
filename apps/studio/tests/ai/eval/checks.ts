@@ -30,6 +30,7 @@ const CHECKED_CARDS: readonly CardKind[] = [
   "approval",
   "trip_opened",
   "rate_compare",
+  "leg_split",
 ];
 
 /** Yes/no prompts the agent should never need; risky changes use an approval card. */
@@ -136,9 +137,31 @@ function checkTrip(expect: StepExpect, observed: ObservedStep, failures: string[
   if (expected.quoteStatus && trip.quoteStatus !== expected.quoteStatus) {
     failures.push(`quote status ${trip.quoteStatus}, expected ${expected.quoteStatus}`);
   }
-  for (const key of ["chosenOption", "booking", "preArrival"] as const) {
-    if (expected[key]) notChecked.push(`trip.${key}`);
+  if (expected.chosenOption) {
+    const got = trip.chosenOption;
+    if (
+      !got ||
+      !got.hotel.toLowerCase().includes(expected.chosenOption.hotel.toLowerCase()) ||
+      !got.room.toLowerCase().includes(expected.chosenOption.room.toLowerCase())
+    ) {
+      failures.push(
+        `chosen option ${got ? `${got.hotel} · ${got.room}` : "none"}, expected ${expected.chosenOption.hotel} · ${expected.chosenOption.room}`,
+      );
+    }
   }
+  if (expected.booking) {
+    const got = trip.booking;
+    if (
+      !got ||
+      !got.hotel.toLowerCase().includes(expected.booking.hotel.toLowerCase()) ||
+      got.status !== expected.booking.status
+    ) {
+      failures.push(
+        `booking ${got ? `${got.hotel} (${got.status})` : "none"}, expected ${expected.booking.hotel} (${expected.booking.status})`,
+      );
+    }
+  }
+  if (expected.preArrival) notChecked.push("trip.preArrival");
 }
 
 function checkCards(expect: StepExpect, cards: CardKind[], failures: string[], notChecked: string[]) {

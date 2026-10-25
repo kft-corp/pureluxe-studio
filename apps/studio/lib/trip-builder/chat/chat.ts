@@ -45,6 +45,8 @@ export type ChatReplyCards = {
   choices?: AgentChoice[];
   /** Multi-hotel rate comparison (Stage 3c). */
   rateCompare?: RateCompareCard;
+  /** Multi-city date split proposal (Stage 4). */
+  legSplit?: import("@pureluxe/ai/chat-stream").LegSplitCard;
   /** What Confirm will do. The agent is waiting for Confirm or Cancel. */
   approval?: string;
 };
@@ -83,13 +85,15 @@ export type ChatStreamEvent =
     }
   /** Another reply is still running on this trip. Nothing was saved; send again later. */
   | { type: "busy"; message: string }
-  | { type: "error"; message: string };
+  /** Stream failed. Optional assistant is the saved interrupted reply (always preferred). */
+  | { type: "error"; message: string; assistant?: ChatMessage };
 
 /** What a finished reply carries besides its text, gathered from the agent's chunks. */
 export type ReplyOutcome = {
   undo: boolean;
   choices: AgentChoice[];
   rateCompare: RateCompareCard | null;
+  legSplit: import("@pureluxe/ai/chat-stream").LegSplitCard | null;
   approval: AgentApproval | null;
 };
 
@@ -98,6 +102,7 @@ function compactCards(cards: ChatReplyCards): ChatReplyCards | null {
     ...(cards.undo ? { undo: true as const } : {}),
     ...(cards.choices?.length ? { choices: cards.choices } : {}),
     ...(cards.rateCompare ? { rateCompare: cards.rateCompare } : {}),
+    ...(cards.legSplit ? { legSplit: cards.legSplit } : {}),
     ...(cards.approval ? { approval: cards.approval } : {}),
   };
   return Object.keys(compact).length > 0 ? compact : null;
@@ -438,13 +443,17 @@ function buildStreamTurn(input: {
         undo: outcome.undo || undefined,
         choices: outcome.choices,
         rateCompare: outcome.rateCompare ?? undefined,
+        legSplit: outcome.legSplit ?? undefined,
         approval: outcome.approval?.summary,
       });
       return saveAssistant(content, false, cards);
     },
     abandon: async (partialText) => {
-      const content = partialText.trim() || draftAssistant?.content || "";
-      return content ? saveAssistant(content, true) : null;
+      const content =
+        partialText.trim() ||
+        draftAssistant?.content?.trim() ||
+        tripMessages.error.replyInterrupted;
+      return saveAssistant(content, true);
     },
     abort: () => controller.abort(),
     finish: async (outcome) => {

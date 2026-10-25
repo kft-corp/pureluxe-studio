@@ -1,11 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { LuX } from "react-icons/lu";
 
 import { studioButtonClass } from "@/components/ui";
 import { getTripBuilderReadiness } from "@/lib/api";
 import type { TripDetail, TripRateSnapshot, TripStaySnapshot } from "@/lib/trip-builder";
+import { pageRoutes } from "@/lib/routes";
 import { formatTripStatus } from "@/lib/trips/journey-format";
 import { cn } from "@/lib/utils/cn";
 
@@ -173,6 +175,14 @@ export function TripBuilderSummaryPanel({
             <h2 className="mt-1.5 text-sm leading-5 font-semibold break-words text-ink">
               {detail?.client?.display_name?.trim() || "No client yet"}
             </h2>
+            {detail ? (
+              <Link
+                href={pageRoutes.trip(detail.trip.id)}
+                className="mt-1 inline-block text-[12px] font-medium text-accent-ink underline underline-offset-2 hover:text-accent-ink-strong"
+              >
+                Open trip page
+              </Link>
+            ) : null}
           </div>
           <button
             type="button"
@@ -249,13 +259,20 @@ export function TripBuilderSummaryPanel({
               </Block>
 
               {readiness && detail.travellers.length > 0 ? (
-                <Block title="Before booking">
+                <Block title="Travel prep checklist">
                   {readiness.length === 0 ? (
-                    <p className="text-[12px] text-ink-muted">Nothing flagged.</p>
+                    <p className="text-[12px] text-ink-muted">
+                      Nothing flagged — passports and hotel notes look clear.
+                    </p>
                   ) : (
                     <ul className="space-y-1 rounded-[10px] bg-accent-soft px-2.5 py-2 text-[11px] leading-relaxed text-accent-ink">
                       {readiness.map((item) => (
-                        <li key={item}>{item}</li>
+                        <li key={item} className="flex gap-1.5">
+                          <span className="shrink-0 font-semibold" aria-hidden>
+                            •
+                          </span>
+                          <span>{item}</span>
+                        </li>
                       ))}
                     </ul>
                   )}
@@ -286,7 +303,9 @@ export function TripBuilderSummaryPanel({
                 )}
               </Block>
 
-              {savedOptions > 0 ? (
+              {savedOptions > 0 &&
+              detail.trip.status !== "confirmed" &&
+              detail.trip.status !== "completed" ? (
                 <p className="mt-2 text-[12px] leading-relaxed text-ink-muted">
                   {savedOptions === 1
                     ? "1 room is saved for the options quote."
@@ -299,21 +318,59 @@ export function TripBuilderSummaryPanel({
                 onClick={() => setTab("quote")}
                 className={cn(studioButtonClass("primary", "sm"), "mt-1.5 h-11 w-full sm:h-8")}
               >
-                View quote
+                {detail.trip.status === "confirmed" ||
+                detail.trip.status === "completed"
+                  ? "View rates"
+                  : "View quote"}
               </button>
             </div>
           ) : (
             <div role="tabpanel">
-              <OptionsQuotePanel
-                detail={detail}
-                stays={stays}
-                canWrite={canWrite}
-                canChoose={canWrite}
-                busy={busy}
-                onOpen={onOpenOptions}
-                onRegenerate={onRegenerateOptions}
-                onChoose={onChooseSavedOption}
-              />
+              {detail.trip.status === "confirmed" ||
+              detail.trip.status === "completed" ? (
+                <div className="mb-3 space-y-2">
+                  <p className="text-[12px] leading-relaxed text-ink-muted">
+                    This trip is confirmed. Client options are closed. Chosen
+                    rooms below; travel documents stay on each traveller&apos;s
+                    client profile.
+                  </p>
+                  {stays.map((stay) => {
+                    const rate = selectedRate(detail, stay.leg_id);
+                    if (!rate) return null;
+                    return (
+                      <div
+                        key={stay.leg_id}
+                        className="rounded-[10px] border border-border bg-surface-raised px-2.5 py-2 text-[12px]"
+                      >
+                        <p className="font-semibold text-ink">
+                          {rate.property_name?.trim() ||
+                            stay.property_name?.trim() ||
+                            stay.city ||
+                            "Stay"}
+                        </p>
+                        <p className="text-ink-muted">
+                          {rate.subtitle?.trim() || rate.title}
+                        </p>
+                        <p className="mt-1 text-ink">
+                          {moneyLabel(rate.sell_amount, rate.currency) ??
+                            "Client price not set"}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <OptionsQuotePanel
+                  detail={detail}
+                  stays={stays}
+                  canWrite={canWrite}
+                  canChoose={canWrite}
+                  busy={busy}
+                  onOpen={onOpenOptions}
+                  onRegenerate={onRegenerateOptions}
+                  onChoose={onChooseSavedOption}
+                />
+              )}
               <Block title="Rates">
                 {stays.length === 0 ? (
                   <p className="text-[12px] text-ink-muted">

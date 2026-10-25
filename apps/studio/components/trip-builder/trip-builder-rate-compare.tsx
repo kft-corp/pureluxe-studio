@@ -102,8 +102,8 @@ export function TripBuilderRateCompare({
   const hotels = compare.hotels ?? [];
 
   return (
-    <div className="mt-3 space-y-4 text-sm text-ink">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1 text-xs text-ink-muted">
+    <div className="mt-3 space-y-4 text-[13.5px] leading-snug text-ink">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1 text-[13.5px] text-ink-muted">
         <span>
           {compare.destination}
           {nights ? ` · ${nights}` : ""} · {compare.check_in} → {compare.check_out} · {party}
@@ -112,11 +112,11 @@ export function TripBuilderRateCompare({
       </div>
 
       {compare.preference ? (
-        <p className="text-xs text-ink-muted">Preference: {compare.preference}</p>
+        <p className="text-[13.5px] text-ink-muted">Preference: {compare.preference}</p>
       ) : null}
 
       {compare.suggest_to_client ? (
-        <p className="text-xs text-ink">
+        <p className="text-[13.5px] text-ink">
           <span className="font-medium">Suggest to client: </span>
           {compare.suggest_to_client}
         </p>
@@ -141,19 +141,19 @@ function HotelRates({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-        <h4 className="font-medium text-ink">
+        <h4 className="text-[15px] font-medium text-ink">
           {hotel.hotel}
           {hotel.recommended ? (
-            <span className="ml-1.5 text-[11px] font-normal text-accent-ink">Best fit</span>
+            <span className="ml-1.5 text-[12px] font-normal text-accent-ink">Best fit</span>
           ) : null}
         </h4>
         {hotel.status === "ok" && hotel.source ? (
-          <span className="text-xs text-ink-subtle">{hotel.source}</span>
+          <span className="text-[12px] text-ink-subtle">{hotel.source}</span>
         ) : null}
       </div>
 
       {hotel.status !== "ok" ? (
-        <div className="space-y-1 text-xs text-ink-muted">
+        <div className="space-y-1 text-[13.5px] text-ink-muted">
           <p>{statusLabel(hotel.status)}</p>
           {hotel.note ? <p>{hotel.note}</p> : null}
           {(hotel.alternatives ?? []).length > 0 ? (
@@ -164,15 +164,19 @@ function HotelRates({
 
       {(hotel.rooms ?? []).length > 0 ? (
         <>
-          <div className="w-full max-w-full overflow-x-auto rounded-md ring-1 ring-border">
-            <table className="w-full min-w-[26rem] table-fixed border-collapse text-left text-xs">
+          <div className="w-full max-w-full overflow-x-auto rounded-lg ring-1 ring-border">
+            <table className="w-full min-w-[26rem] table-fixed border-collapse text-left text-[13.5px]">
               <thead>
-                <tr className="border-b border-divider bg-surface-subtle text-ink-subtle">
-                  <th className="w-[32%] px-2.5 py-1.5 font-medium">Room</th>
-                  <th className="w-[16%] px-2.5 py-1.5 font-medium">Meal plan</th>
-                  <th className="w-[20%] px-2.5 py-1.5 font-medium tabular-nums">Per night</th>
-                  <th className="w-[20%] px-2.5 py-1.5 font-medium tabular-nums">Stay total</th>
-                  <th className="w-[12%] px-2.5 py-1.5 font-medium">Source</th>
+                <tr className="border-b border-divider bg-surface-subtle text-ink-muted">
+                  <th className="w-[32%] px-3 py-2 text-[12px] font-semibold">Room</th>
+                  <th className="w-[16%] px-3 py-2 text-[12px] font-semibold">Meal plan</th>
+                  <th className="w-[20%] px-3 py-2 text-[12px] font-semibold tabular-nums">
+                    Per night
+                  </th>
+                  <th className="w-[20%] px-3 py-2 text-[12px] font-semibold tabular-nums">
+                    Stay total
+                  </th>
+                  <th className="w-[12%] px-3 py-2 text-[12px] font-semibold">Source</th>
                 </tr>
               </thead>
               <tbody>
@@ -205,26 +209,26 @@ function RoomTableRow({
         room.recommended ? "bg-accent-soft/40" : null,
       )}
     >
-      <td className="break-words px-2.5 py-2 text-ink">
+      <td className="break-words px-3 py-2 text-ink">
         {room.room_name || "—"}
         {room.recommended ? (
-          <span className="ml-1 text-[10px] font-medium text-accent-ink">Pick</span>
+          <span className="ml-1 text-[12px] font-medium text-accent-ink">Pick</span>
         ) : null}
       </td>
-      <td className="break-words px-2.5 py-2 text-ink-muted">{mealPlanLabel(room.board)}</td>
-      <td className="px-2.5 py-2 tabular-nums text-ink">
+      <td className="break-words px-3 py-2 text-ink-muted">{mealPlanLabel(room.board)}</td>
+      <td className="px-3 py-2 tabular-nums text-ink">
         {formatRoomMoney(clientPerNight, room.currency)}
-        <span className="mt-0.5 block text-[10px] text-ink-subtle">
+        <span className="mt-0.5 block text-[12px] text-ink-subtle">
           team {formatRoomMoney(teamPerNight, room.currency)}
         </span>
       </td>
-      <td className="px-2.5 py-2 tabular-nums text-ink">
+      <td className="px-3 py-2 tabular-nums text-ink">
         {formatRoomMoney(clientTotal, room.currency)}
-        <span className="mt-0.5 block text-[10px] text-ink-subtle">
+        <span className="mt-0.5 block text-[12px] text-ink-subtle">
           team {formatRoomMoney(teamTotal, room.currency)}
         </span>
       </td>
-      <td className="break-words px-2.5 py-2 text-ink-muted">{room.source ?? "—"}</td>
+      <td className="break-words px-3 py-2 text-ink-muted">{room.source ?? "—"}</td>
     </tr>
   );
 }
@@ -238,7 +242,7 @@ function HotelNotes({ hotel }: { hotel: RateCompareHotel }) {
   if (!cancellation && !markup && inclusions.length === 0 && !suggest) return null;
 
   return (
-    <dl className="space-y-1 text-xs text-ink-muted">
+    <dl className="space-y-1 text-[13.5px] text-ink-muted">
       {suggest ? (
         <div>
           <dt className="inline font-medium text-ink">Suggest to client: </dt>

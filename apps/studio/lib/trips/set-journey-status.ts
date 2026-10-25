@@ -1,6 +1,8 @@
 import {
   findTripById,
   findTripDocument,
+  listJourneyPieces,
+  listTripLegs,
   updateTrip as updateTripRow,
 } from "@pureluxe/db";
 import {
@@ -117,6 +119,38 @@ export async function setJourneyStatus(
 
   if (action === "confirm") {
     if (trip.status === "confirmed") return;
+    const [legs, pieces] = await Promise.all([
+      listTripLegs(tripId),
+      listJourneyPieces(tripId),
+    ]);
+    if (legs.length === 0) {
+      throw new AppError({
+        userMessage: tripMessages.error.tripConfirmNeedsStays,
+        code: "trips.confirm_needs_stays",
+        status: 409,
+      });
+    }
+    const staysConfirmed = legs.every((leg) =>
+      pieces.bookings.some(
+        (booking) =>
+          booking.status === "confirmed" &&
+          booking.service_type === "hotel" &&
+          (booking.trip_leg_id === leg.id ||
+            pieces.lineItems.some(
+              (item) =>
+                item.id === booking.trip_line_item_id &&
+                item.leg_id === leg.id &&
+                item.category === "accommodation",
+            )),
+      ),
+    );
+    if (!staysConfirmed) {
+      throw new AppError({
+        userMessage: tripMessages.error.tripConfirmNeedsStays,
+        code: "trips.confirm_needs_stays",
+        status: 409,
+      });
+    }
     await updateTrip(tripId, { status: "confirmed" });
     return;
   }

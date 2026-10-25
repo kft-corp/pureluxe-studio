@@ -12,6 +12,7 @@ import {
   recentTurns,
   repairToolPairs,
   seedMessages,
+  summariseOldTurns,
 } from "../../../src/agent/memory";
 
 function turn(index: number, withTool = false): BaseMessage[] {
@@ -75,6 +76,24 @@ describe("pruneOldTurns", () => {
 
   it("does nothing under the limit", () => {
     expect(pruneOldTurns(turn(1), 10)).toEqual([]);
+  });
+});
+
+describe("summariseOldTurns", () => {
+  it("replaces the oldest turns with a summary instead of dropping them silently", () => {
+    const messages = [...turn(1, true), ...turn(2), ...turn(3)];
+    const update = summariseOldTurns(messages, 4);
+
+    expect(update[0]).toBeInstanceOf(RemoveMessage);
+    expect(update.map((message) => message.id).slice(0, 4)).toEqual(["h1", "c1", "t1", "a1"]);
+    const summary = update.at(-1);
+    expect(summary).toBeInstanceOf(AIMessage);
+    expect(summary?.text).toContain("[Earlier in this chat]");
+    expect(summary?.text).toContain("trip_get");
+  });
+
+  it("does nothing under the limit", () => {
+    expect(summariseOldTurns(turn(1), 10)).toEqual([]);
   });
 });
 

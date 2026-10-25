@@ -3,7 +3,8 @@ import { listTripChatMessagesPage, type TripChatMessage } from "@pureluxe/db";
 
 /**
  * Earlier studio chat for the model. A button tap reads as a tap, never as
- * words the advisor typed. Unfinished replies and empty rows are left out.
+ * words the advisor typed. Empty rows are left out. Interrupted assistant
+ * replies stay in with a clear prefix so the model does not invent excuses.
  */
 export function toChatHistory(
   rows: readonly TripChatMessage[],
@@ -14,13 +15,20 @@ export function toChatHistory(
       (row) =>
         row.id !== excludeId &&
         row.kind !== "event" &&
-        !(row.role === "assistant" && row.incomplete) &&
         row.content.trim().length > 0,
     )
-    .map((row) => ({
-      role: row.role,
-      content: row.kind === "action" ? `[Tapped] ${row.content}` : row.content,
-    }));
+    .map((row) => {
+      if (row.role === "assistant" && row.incomplete) {
+        return {
+          role: row.role,
+          content: `[Interrupted reply — do not claim you already answered] ${row.content}`,
+        };
+      }
+      return {
+        role: row.role,
+        content: row.kind === "action" ? `[Tapped] ${row.content}` : row.content,
+      };
+    });
 }
 
 /** The latest `limit` studio rows as model history. */

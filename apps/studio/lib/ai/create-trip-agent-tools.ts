@@ -9,9 +9,11 @@ import {
   editQuoteLines,
   listQuoteLinesForAgent,
   previewQuote,
+  proposeTripSplit,
   removeQuoteOption,
   removeTripStay,
   rewriteQuoteSection,
+  selectQuoteFinal,
   sendQuote,
   setQuoteClientPrices,
   setQuoteWording,
@@ -156,5 +158,9 @@ export function createTripAgentTools(options: Options): TripAgentHandlers {
     previewQuote: (input) => previewQuote(options.tripId, input, actor),
     usePastedQuote: (input, call) => usePastedQuote(change("rates_use_pasted_quote", input, call), input),
     sendQuote: (call) => sendQuote(change("quote_send", {}, call)),
+    selectFinal: (input, call) =>
+      selectQuoteFinal(change("quote_select_final", input, call), input),
+    proposeSplit: (input) =>
+      proposeTripSplit(options.tripId, input, actor, latest),
   };
 }

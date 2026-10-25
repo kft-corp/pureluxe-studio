@@ -42,13 +42,23 @@ export async function confirmBooking(
     });
   }
 
+  const supplierRef =
+    (input.supplier_ref !== undefined
+      ? input.supplier_ref?.trim() || null
+      : existing.supplier_ref?.trim() || null) ?? null;
+  if (!supplierRef) {
+    throw new AppError({
+      userMessage: bookingMessages.error.confirmNeedsRef,
+      code: "bookings.confirm_needs_ref",
+      status: 400,
+    });
+  }
+
   const now = new Date().toISOString();
   const patch: Record<string, unknown> = {
     status: "confirmed",
     confirmed_at: existing.confirmed_at ?? now,
-  };
-  if (input.supplier_ref !== undefined) {
-    patch.supplier_ref = input.supplier_ref;
+    supplier_ref: supplierRef,
   }
   if (input.cancellation_deadline !== undefined) {
     patch.cancellation_deadline = input.cancellation_deadline;

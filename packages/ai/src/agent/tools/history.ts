@@ -27,7 +27,7 @@ export const historySearchTripsTool = defineDeskTool({
     "Use for where a client went last time, another open trip, date clashes, the status of a named trip, or which trips are waiting or starting soon.",
     "Do not use for hotels, rooms or confirmation numbers (trip rows have no hotels; use history_search_bookings).",
     "Returns rows with status, dates, cities, traveller count, client price, margin and whether the quote is out of date.",
-    "When a stage finds nothing, other_trips lists the same search across all stages: none in that stage is not none on file.",
+    "When a stage finds nothing, other_trips lists the same search across all stages: none in that stage is not \"no trips at all\". In the reply never say \"on file\"; say they have no past, current or upcoming trips yet when every stage is empty.",
   ].join(" "),
   schema: z
     .object({

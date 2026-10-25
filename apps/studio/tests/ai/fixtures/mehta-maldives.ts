@@ -69,6 +69,7 @@ export const MEHTA_MALDIVES_SEED: ScenarioSeed = {
       aliases: ["Kanuhura"],
       destination: "Maldives",
       styleTags: ["beach", "overwater", "family", "wellness"],
+      tier: "luxury",
       minMarkupPercent: 25,
       cancellation: "Free cancellation until 30 days before arrival; then 100% of the stay.",
       requiredCharges: [
@@ -88,6 +89,7 @@ export const MEHTA_MALDIVES_SEED: ScenarioSeed = {
       aliases: ["Kihavah", "Anantara Kihavah Maldives Villas"],
       destination: "Maldives",
       styleTags: ["beach", "overwater", "family", "dining"],
+      tier: "luxury",
       minMarkupPercent: 25,
       cancellation: "Free cancellation until 30 days before arrival; then 100% of the stay.",
       requiredCharges: [
@@ -107,6 +109,7 @@ export const MEHTA_MALDIVES_SEED: ScenarioSeed = {
       aliases: ["Soneva Fushi Resort"],
       destination: "Maldives",
       styleTags: ["beach", "overwater", "family", "barefoot-luxury"],
+      tier: "luxury",
       minMarkupPercent: 25,
       cancellation: "Free cancellation until 30 days before arrival; then 100% of the stay.",
       requiredCharges: [
@@ -125,6 +128,7 @@ export const MEHTA_MALDIVES_SEED: ScenarioSeed = {
       name: "Coral Bay Resort",
       destination: "Maldives",
       styleTags: ["beach", "budget"],
+      tier: "premium",
       minMarkupPercent: 20,
       cancellation: "Free cancellation until 7 days before arrival.",
       requiredCharges: [

@@ -200,6 +200,7 @@ export async function playStep(run: EvalRun, planned: PlannedStep): Promise<Step
       if (chunk.kind === "changed") undo = chunk.undo;
       if (chunk.kind === "choices") cards.add("client_picker");
       if (chunk.kind === "rate_compare") cards.add("rate_compare");
+      if (chunk.kind === "leg_split") cards.add("leg_split");
       if (chunk.kind === "opened") cards.add("trip_opened");
       if (chunk.kind === "approval") {
         cards.add("approval");

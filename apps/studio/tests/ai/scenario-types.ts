@@ -45,6 +45,7 @@ export type AgentToolName =
   | "trip_set_travellers"
   | "trip_set_dates"
   | "trip_set_stays"
+  | "trip_propose_split"
   | "quote_add_options"
   | "quote_remove_option"
   | "quote_set_wording"

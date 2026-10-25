@@ -142,6 +142,27 @@ function FiltersForm({
         </div>
 
         <div>
+          <FieldLabel htmlFor="trip-filter-payment">Client payment</FieldLabel>
+          <select
+            id="trip-filter-payment"
+            value={draft.payment}
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                payment: event.target.value as TripAdvancedFilters["payment"],
+              }))
+            }
+            className={cn(modalFieldClassName)}
+          >
+            <option value="any">Any</option>
+            <option value="not_started">Not started</option>
+            <option value="partial">Partial</option>
+            <option value="paid">Paid</option>
+            <option value="overdue">Overdue</option>
+          </select>
+        </div>
+
+        <div>
           <FieldLabel htmlFor="trip-filter-quote">Quote PDF</FieldLabel>
           <select
             id="trip-filter-quote"

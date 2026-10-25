@@ -37,32 +37,34 @@ const CONFIRM: Record<
   { title: string; description: string; confirmLabel: string; destructive?: boolean }
 > = {
   send: {
-    title: "Quote sent to the client?",
+    title: "Quote sent?",
     description:
-      "The trip moves to sent to client. If the plan changes in Trip Builder, it goes back to building.",
-    confirmLabel: "Sent to client",
+      "Marks the quote as delivered. If the plan changes in Trip Builder, the trip goes back to building.",
+    confirmLabel: "Quote sent",
   },
   waiting: {
-    title: "Waiting on the client?",
+    title: "Waiting for a reply?",
     description:
-      "Use this when the client has replied and you need something from them, like a decision, passports, or payment.",
-    confirmLabel: "Waiting on client",
+      "Use when the client has replied and you still need something — a decision, passports, or payment.",
+    confirmLabel: "Waiting for reply",
   },
   accept: {
-    title: "Client accepted this quote?",
-    description: "The trip moves to booking and the price locks.",
-    confirmLabel: "Client accepted",
+    title: "Client said yes?",
+    description:
+      "Locks the price and moves to booking. Next: open Trip Builder and tap This is their room for each stay.",
+    confirmLabel: "Client said yes",
   },
   reopen: {
     title: "Reopen this quote?",
     description:
-      "Use this when the client wants a change after accepting. The price unlocks and the trip goes back to building. Edit in Trip Builder, then send the new quote.",
+      "Use when the plan or price must change before the hotel is booked. If the hotel is already booked, amend in Bookings instead.",
     confirmLabel: "Reopen quote",
   },
   confirm: {
-    title: "Mark this trip confirmed?",
-    description: "Use this when the trip is booked, whenever you are ready.",
-    confirmLabel: "Mark confirmed",
+    title: "Trip ready for travel?",
+    description:
+      "Use when every hotel stay is confirmed in Bookings. You can still record client payment on this page.",
+    confirmLabel: "Trip ready for travel",
   },
   cancel: {
     title: "Cancel this trip?",
@@ -79,6 +81,7 @@ function statusMenuItems(
   status: TripStatus,
   quote: { ready: boolean; file: boolean },
   choose: (action: StatusAction) => void,
+  gates: { staysConfirmed: boolean; paymentStatus: string },
 ): ToolbarMenuItem[] {
   const items: ToolbarMenuItem[] = [];
 
@@ -91,9 +94,9 @@ function statusMenuItems(
   if (quoteStage && status !== "quote_sent") {
     items.push({
       key: "send",
-      label: "Sent to client",
+      label: "Quote sent",
       icon: <LuSend className={ICON} aria-hidden />,
-      hint: canMark ? "Quote delivered, no reply yet" : noQuote,
+      hint: canMark ? "PDF delivered, no reply yet" : noQuote,
       disabled: !canMark,
       onClick: () => choose("send"),
     });
@@ -102,9 +105,9 @@ function statusMenuItems(
   if (quoteStage && status !== "waiting_on_client") {
     items.push({
       key: "waiting",
-      label: "Waiting on client",
+      label: "Waiting for reply",
       icon: <LuHourglass className={ICON} aria-hidden />,
-      hint: canMark ? "They replied; you need something from them" : noQuote,
+      hint: canMark ? "They replied; you still need something" : noQuote,
       disabled: !canMark,
       onClick: () => choose("waiting"),
     });
@@ -114,9 +117,11 @@ function statusMenuItems(
     const ready = withClient && quote.file;
     items.push({
       key: "accept",
-      label: "Client accepted",
+      label: "Client said yes",
       icon: <LuCheck className={ICON} aria-hidden />,
-      hint: ready ? "Moves to booking and locks the price" : "Send the quote to the client first",
+      hint: ready
+        ? "Locks the price — then record their room in Trip Builder"
+        : "Mark Quote sent first",
       disabled: !ready,
       onClick: () => choose("accept"),
     });
@@ -127,17 +132,22 @@ function statusMenuItems(
       key: "reopen",
       label: "Reopen quote",
       icon: <LuRotateCcw className={ICON} aria-hidden />,
-      hint: "The client wants a change. Unlocks the price, back to Building",
+      hint: "Plan change before hotel booked. If already booked, amend in Bookings",
       onClick: () => choose("reopen"),
     });
   }
 
-  if (status !== "confirmed") {
+  if (status !== "confirmed" && status !== "completed") {
     items.push({
       key: "confirm",
-      label: "Mark confirmed",
+      label: "Trip ready for travel",
       icon: <LuCircleCheck className={ICON} aria-hidden />,
-      hint: "The trip is booked",
+      hint: gates.staysConfirmed
+        ? gates.paymentStatus === "not_started"
+          ? "Hotels confirmed — you can still record payment after"
+          : "Every hotel stay is confirmed in Bookings"
+        : "Confirm every hotel stay in Bookings first",
+      disabled: !gates.staysConfirmed,
       onClick: () => choose("confirm"),
     });
   }
@@ -162,12 +172,16 @@ export function JourneyHeroActions({
   quoteReady,
   quoteFile,
   canWrite,
+  staysConfirmed = false,
+  paymentStatus = "not_started",
 }: {
   tripId: string;
   status: TripStatus;
   quoteReady: boolean;
   quoteFile: boolean;
   canWrite: boolean;
+  staysConfirmed?: boolean;
+  paymentStatus?: string;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -175,8 +189,26 @@ export function JourneyHeroActions({
 
   const items =
     canWrite && status !== "cancelled"
-      ? statusMenuItems(status, { ready: quoteReady, file: quoteFile }, setPending)
+      ? statusMenuItems(
+          status,
+          { ready: quoteReady, file: quoteFile },
+          setPending,
+          { staysConfirmed, paymentStatus },
+        )
       : [];
+
+  const confirmConfig =
+    pending === "confirm"
+      ? {
+          ...CONFIRM.confirm,
+          description:
+            paymentStatus === "not_started"
+              ? `${CONFIRM.confirm.description} Payment is still “not started” — you can record it after.`
+              : CONFIRM.confirm.description,
+        }
+      : pending
+        ? CONFIRM[pending]
+        : null;
 
   async function run(action: StatusAction) {
     setBusy(true);
@@ -220,7 +252,7 @@ export function JourneyHeroActions({
       <ConfirmDialog
         open={pending != null}
         loading={busy}
-        config={pending ? CONFIRM[pending] : null}
+        config={confirmConfig}
         onClose={() => {
           if (!busy) setPending(null);
         }}

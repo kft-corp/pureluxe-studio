@@ -22,6 +22,8 @@ const TRIP_COLUMNS = [
   "cost_total_internal",
   "margin_internal",
   "payment_plan",
+  "amount_received",
+  "payment_status",
   "pricing_locked_at",
   "pricing_locked_by_id",
   "source",
@@ -102,6 +104,8 @@ export type UpdateTripRecord = {
   sell_total?: number | null;
   sell_currency?: string | null;
   payment_plan?: Record<string, unknown> | null;
+  amount_received?: number | null;
+  payment_status?: string;
   cost_total_internal?: number | null;
   margin_internal?: number | null;
   pricing_locked_at?: string | null;

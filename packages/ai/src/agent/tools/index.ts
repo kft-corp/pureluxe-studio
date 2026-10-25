@@ -20,6 +20,7 @@ import {
   quotePreviewTool,
   quoteRemoveOptionTool,
   quoteRewriteSectionTool,
+  quoteSelectFinalTool,
   quoteSendTool,
   quoteSetClientPriceTool,
   quoteSetWordingTool,
@@ -28,6 +29,7 @@ import {
 import { ratesGetSnapshotTool, ratesSearchTool } from "./rates";
 import {
   tripGetTool,
+  tripProposeSplitTool,
   tripRemoveStayTool,
   tripSetClientTool,
   tripSetDatesTool,
@@ -56,6 +58,7 @@ export const TRIP_AGENT_TOOLS: readonly AgentToolSpec<ToolSchema, TripAgentHandl
   tripSetTravellersTool,
   tripSetDatesTool,
   tripSetStaysTool,
+  tripProposeSplitTool,
   tripRemoveStayTool,
   tripShiftDatesTool,
   tripUndoTool,
@@ -71,6 +74,7 @@ export const TRIP_AGENT_TOOLS: readonly AgentToolSpec<ToolSchema, TripAgentHandl
   quoteRewriteSectionTool,
   quotePreviewTool,
   ratesUsePastedQuoteTool,
+  quoteSelectFinalTool,
   quoteSendTool,
 ];
 

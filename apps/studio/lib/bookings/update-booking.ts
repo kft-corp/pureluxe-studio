@@ -2,6 +2,7 @@ import {
   findTripById,
   insertBookingAuditLogs,
   updateBooking as dbUpdateBooking,
+  updateStayOption,
   type Booking,
 } from "@pureluxe/db";
 import {
@@ -9,6 +10,11 @@ import {
   bookingMessages,
   type UpdateBookingInput,
 } from "@pureluxe/shared";
+
+import {
+  syncClientPriceFromChoices,
+  syncTripCommercials,
+} from "@/lib/trip-builder/pricing/sync-trip-totals";
 
 import { AUDIT_BOOKING_FIELDS } from "./booking-fields";
 import {
@@ -173,6 +179,38 @@ export async function updateBooking(
     id: bookingId,
     ...writePatch,
   });
+
+  // Keep the trip line item and trip totals in step with this stay's commercial figures.
+  if (
+    existing.trip_id &&
+    existing.trip_line_item_id &&
+    ("sell_amount" in writePatch || "cost_amount" in writePatch)
+  ) {
+    const linePatch: {
+      sell_amount?: number | null;
+      cost_internal?: number;
+    } = {};
+    if ("sell_amount" in writePatch) {
+      linePatch.sell_amount =
+        writePatch.sell_amount == null
+          ? null
+          : Number(writePatch.sell_amount);
+    }
+    if (
+      "cost_amount" in writePatch &&
+      writePatch.cost_amount != null &&
+      Number.isFinite(Number(writePatch.cost_amount))
+    ) {
+      linePatch.cost_internal = Number(writePatch.cost_amount);
+    }
+    if (Object.keys(linePatch).length > 0) {
+      await updateStayOption(existing.trip_line_item_id, linePatch);
+    }
+    if ("sell_amount" in writePatch) {
+      await syncClientPriceFromChoices(existing.trip_id);
+    }
+    await syncTripCommercials(existing.trip_id);
+  }
 
   const changedFields = Object.keys(fieldChanges);
 

@@ -64,7 +64,12 @@ export function BookingActivityPanel({
           <DetailField
             icon={icons.trip}
             label="Trip"
-            value={formatTripLinked(booking.trip_id)}
+            value={
+              booking.trip_id ? "Open trip details" : formatTripLinked(booking.trip_id)
+            }
+            href={
+              booking.trip_id ? pageRoutes.trip(booking.trip_id) : null
+            }
             className="sm:border-b sm:border-border/70"
           />
           <DetailField

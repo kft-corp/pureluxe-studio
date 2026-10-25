@@ -36,6 +36,7 @@ export type {
   RateCompareHotelStatus,
   RateCompareRoom,
 } from "./rate-compare";
+export type { LegSplitCard, LegSplitStay } from "./leg-split";
 export {
   AGENT_PHASE_LABEL,
   type AgentApproval,

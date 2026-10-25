@@ -14,7 +14,9 @@ import {
 } from "react-icons/lu";
 
 import { ClientVipBadge } from "@/components/clients/client-vip-badge";
+import { JourneyAdvisorPath } from "@/components/trips/journey-advisor-path";
 import { JourneyHeroActions, JourneyQuoteFileButtons } from "@/components/trips/journey-actions";
+import { JourneyPaymentPanel } from "@/components/trips/journey-payment-panel";
 import { JourneyPhasePill } from "@/components/trips/journey-phase-pill";
 import {
   ContentSection,
@@ -107,6 +109,8 @@ export function JourneyPage({
             quoteReady={journey.quoteReady}
             quoteFile={journey.quoteFile}
             canWrite={canWrite}
+            staysConfirmed={journey.advisorPath.staysConfirmed}
+            paymentStatus={journey.paymentStatus}
           />
         </div>
 
@@ -117,10 +121,19 @@ export function JourneyPage({
             hint={journey.nightsLabel ?? "Set the trip dates in Trip Builder"}
           />
           <SnapshotCard label="Stage" value={journey.stageLabel} hint={journey.travelLabel} />
-          <SnapshotCard label="Next step" value={journey.nextStep} hint="What to do next" />
+          <SnapshotCard
+            label="Now"
+            value={
+              journey.advisorPath.progressLabel?.replace(/^Step \d+ of \d+ · /, "") ??
+              journey.nextStep
+            }
+            hint={journey.advisorPath.progressLabel ?? "What to do next"}
+          />
           <SnapshotCard label="Sell price" value={journey.sellLabel} hint={journey.priceHint} />
         </div>
       </PageToolbar>
+
+      <JourneyAdvisorPath journey={journey} />
 
       <div className="grid min-w-0 items-start gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(18rem,0.9fr)]">
         <ContentSection
@@ -164,6 +177,7 @@ export function JourneyPage({
               <DetailField icon={LuPercent} label="Margin" value={journey.marginLabel ?? "—"} />
             </div>
           </ContentSection>
+          <JourneyPaymentPanel journey={journey} canWrite={canWrite} />
         </div>
       </div>
     </PageStack>

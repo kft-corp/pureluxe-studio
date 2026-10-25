@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, type FormEvent, type ReactNode } from "react";
 import {
   BOOKING_EDITABLE_STATUSES,
@@ -36,6 +37,7 @@ import {
   showApiError,
   showWarningToast,
 } from "@/lib/feedback/toast";
+import { pageRoutes } from "@/lib/routes";
 import { cn } from "@/lib/utils/cn";
 
 function Field({
@@ -441,7 +443,9 @@ export function CommercialForm({
   );
   const [loading, setLoading] = useState(false);
   const ownedByTripBuilder = tripBuilderOwnsStay(booking);
-  const pricesLocked = ownedByTripBuilder || Boolean(detail.trip?.pricing_locked);
+  /** Currency locked after accept; client price editable in Bookings only after confirm. */
+  const currencyLocked = ownedByTripBuilder || Boolean(detail.trip?.pricing_locked);
+  const sellLocked = ownedByTripBuilder;
   const costLocked = ownedByTripBuilder;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -462,12 +466,8 @@ export function CommercialForm({
         supplier_name: emptyToNull(supplierName),
         supplier_ref: emptyToNull(supplierRef),
         booking_channel: emptyToNull(bookingChannel),
-        ...(pricesLocked
-          ? {}
-          : {
-              currency: emptyToNull(currency),
-              sell_amount: sell,
-            }),
+        ...(currencyLocked ? {} : { currency: emptyToNull(currency) }),
+        ...(sellLocked ? {} : { sell_amount: sell }),
         ...(costLocked ? {} : { cost_amount: cost }),
         commission_expected: expected,
       };
@@ -550,11 +550,11 @@ export function CommercialForm({
           ) : null}
         </select>
       </Field>
-      {pricesLocked ? (
+      {ownedByTripBuilder || currencyLocked ? (
         <p className="text-xs leading-5 text-ink-muted">
           {ownedByTripBuilder
-            ? "Cost and currency come from Trip Builder until this booking is confirmed. Supplier details can still be saved here."
-            : "The client accepted this price, so the client price and currency stay as they are. You can still record the team cost the hotel confirmed."}
+            ? "Hotel, dates, guests, cost, client price and currency stay with Trip Builder until you confirm. Add the confirmation / PNR here, book offline, then confirm."
+            : "Currency stays fixed after the quote was accepted. You can correct this stay's client price — the trip total updates to match. Plan changes: reopen the quote; hotel already booked: amend in Bookings."}
         </p>
       ) : null}
       <div className="grid gap-4 sm:grid-cols-2">
@@ -564,19 +564,25 @@ export function CommercialForm({
             value={currency}
             onChange={setCurrency}
             placeholder="Search currencies…"
-            disabled={pricesLocked}
+            disabled={currencyLocked}
           />
         </Field>
         <Field
-          label="Sell price"
+          label="Stay client price"
           htmlFor="edit-sell"
-          hint={currency ? `Amount in ${currency}` : "Pick a currency first"}
+          hint={
+            sellLocked
+              ? "Confirm the booking before changing the client price here"
+              : currency
+                ? `Amount in ${currency}${detail.trip ? " · updates the trip total" : ""}`
+                : "Pick a currency first"
+          }
         >
           <input
             id="edit-sell"
             inputMode="decimal"
             value={sellAmount}
-            disabled={pricesLocked}
+            disabled={sellLocked}
             onChange={(event) => setSellAmount(event.target.value)}
             className={cn(modalFieldClassName)}
           />
@@ -1413,20 +1419,17 @@ type ContextFormProps = {
   loading: boolean;
   onClose: () => void;
   onAssignOwner?: (ownerId: string | null) => Promise<void>;
-  onLinkTrip?: (tripId: string | null) => Promise<void>;
 };
 
-/** Context — trip link + account owner (dedicated actions, not generic PATCH). */
+/** Context — account owner (trip link is read-only; open the trip page instead). */
 export function ContextForm({
   detail,
   ownerOptions,
   loading,
   onClose,
   onAssignOwner,
-  onLinkTrip,
 }: ContextFormProps) {
   const booking = detail.booking;
-  const [tripId, setTripId] = useState(booking.trip_id ?? "");
   const [ownerId, setOwnerId] = useState(booking.relationship_owner_id ?? "");
   const [busy, setBusy] = useState(false);
 
@@ -1441,12 +1444,7 @@ export function ContextForm({
     event.preventDefault();
     setBusy(true);
     try {
-      const nextTrip = emptyToNull(tripId);
       const nextOwner = emptyToNull(ownerId);
-
-      if (onLinkTrip && nextTrip !== booking.trip_id) {
-        await onLinkTrip(nextTrip);
-      }
       if (onAssignOwner && nextOwner !== booking.relationship_owner_id) {
         await onAssignOwner(nextOwner);
       }
@@ -1461,23 +1459,40 @@ export function ContextForm({
   return (
     <SectionFormShell
       title="Edit context"
-      description="Link this reservation to a trip and set the account owner."
+      description="Set the account owner. The trip link is fixed — open the trip to work on the plan."
       loading={loading || busy}
       onClose={onClose}
       onSubmit={handleSubmit}
     >
       <Field
-        label="Trip ID"
+        label="Trip"
         htmlFor="edit-trip-id"
-        hint="Paste a trip UUID to link, or clear to unlink. Trip detail pages ship later."
+        hint={
+          booking.trip_id
+            ? "Linked from Trip Builder. Not editable here."
+            : "Not linked. Create or open the stay from Trip Builder to attach a trip."
+        }
       >
-        <input
-          id="edit-trip-id"
-          value={tripId}
-          onChange={(event) => setTripId(event.target.value)}
-          className={cn(modalFieldClassName, "font-mono")}
-          placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-        />
+        {booking.trip_id ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              id="edit-trip-id"
+              value={booking.trip_id}
+              readOnly
+              className={cn(modalFieldClassName, "font-mono text-ink-muted")}
+            />
+            <Link
+              href={pageRoutes.trip(booking.trip_id)}
+              className="text-sm font-medium text-ink underline-offset-2 hover:underline"
+            >
+              Open trip
+            </Link>
+          </div>
+        ) : (
+          <p id="edit-trip-id" className="text-sm text-ink-muted">
+            No trip linked
+          </p>
+        )}
       </Field>
       <Field label="Account owner" htmlFor="edit-owner">
         <select

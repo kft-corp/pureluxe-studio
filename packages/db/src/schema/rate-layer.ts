@@ -247,14 +247,24 @@ export type PropertySupplierCode = {
 };
 
 /**
- * Flexible offline-contract policy blob on property_contracts.policies.
- * Shape varies by hotel PDF; keep money in rates/addons/offers tables.
+ * Offline-contract policy blob on property_contracts.policies.
+ * Stage 4 / R3: prefer schema_version >= 2 with audience-tagged rules.
+ * Legacy free-text arrays (stay_rules / payment_rules / …) still accepted until clean-up.
+ * Keep money in rates/addons/offers tables.
  */
 export type PropertyContractPolicies = {
+  /** 2+ = versioned format (R3). Missing = legacy. */
+  schema_version?: number;
+  stay?: unknown[];
+  payment?: unknown[];
+  cancellation?: unknown[];
+  transfer?: unknown[];
   stay_rules?: unknown[];
   payment_rules?: unknown[];
   transfer_policies?: unknown[];
-  legal?: Record<string, unknown>;
+  legal?: Record<string, unknown> | unknown[];
+  check_in_time?: string;
+  check_out_time?: string;
   [key: string]: unknown;
 };
 

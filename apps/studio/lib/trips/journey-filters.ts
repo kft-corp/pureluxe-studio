@@ -62,6 +62,7 @@ export type TripAdvancedFilters = {
   client_tier: ListJourneysQuery["client_tier"];
   price: ListJourneysQuery["price"];
   quote: ListJourneysQuery["quote"];
+  payment: ListJourneysQuery["payment"];
   owner: string;
   starts_from: string;
   starts_to: string;
@@ -72,6 +73,7 @@ export const EMPTY_TRIP_ADVANCED_FILTERS: TripAdvancedFilters = {
   client_tier: "any",
   price: "any",
   quote: "any",
+  payment: "any",
   owner: "any",
   starts_from: "",
   starts_to: "",
@@ -115,6 +117,7 @@ export function countTripAdvancedFilters(filters: TripAdvancedFilters): number {
   if (filters.client_tier !== "any") count += 1;
   if (filters.price !== "any") count += 1;
   if (filters.quote !== "any") count += 1;
+  if (filters.payment !== "any") count += 1;
   if (filters.owner !== "any") count += 1;
   if (filters.starts_from || filters.starts_to) count += 1;
   return count;

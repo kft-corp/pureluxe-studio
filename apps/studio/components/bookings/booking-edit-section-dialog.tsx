@@ -27,7 +27,6 @@ type BookingEditSectionDialogProps = {
   onClose: () => void;
   onSuccess: (detail: BookingDetail) => void;
   onAssignOwner?: (ownerId: string | null) => Promise<void>;
-  onLinkTrip?: (tripId: string | null) => Promise<void>;
   actionLoading?: boolean;
 };
 
@@ -47,7 +46,6 @@ export function BookingEditSectionDialog({
   onClose,
   onSuccess,
   onAssignOwner,
-  onLinkTrip,
   actionLoading = false,
 }: BookingEditSectionDialogProps) {
   if (!open) return null;
@@ -61,7 +59,6 @@ export function BookingEditSectionDialog({
         loading={actionLoading}
         onClose={onClose}
         onAssignOwner={onAssignOwner}
-        onLinkTrip={onLinkTrip}
       />
     );
   }

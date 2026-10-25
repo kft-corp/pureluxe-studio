@@ -49,6 +49,7 @@ export const apiRoutes = {
     root: "/api/trips",
     status: (tripId: string) => `/api/trips/${tripId}/status`,
     quote: (tripId: string) => `/api/trips/${tripId}/quote`,
+    payment: (tripId: string) => `/api/trips/${tripId}/payment`,
   },
   tripBuilder: {
     trips: "/api/trip-builder/trips",

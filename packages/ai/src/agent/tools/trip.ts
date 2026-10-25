@@ -18,6 +18,7 @@ export const tripGetTool = defineAgentTool({
   name: "trip_get",
   description: [
     "Load the saved facts for the open trip: lead client and travellers, trip dates, stays, saved rooms and rates, the quote, price lines and before-booking checks.",
+    "Use when the advisor asks what is missing before booking, or about passports, visas, travel documents or travel prep for this trip — then summarise the Before booking lines.",
     "Use only when you need a fresher copy than the trip facts in your instructions, which are reloaded after every change.",
     "Do not use for other trips (use history_search_trips).",
     "Returns the trip facts object.",
@@ -111,6 +112,7 @@ export const tripSetStaysTool = defineAgentTool({
   description: [
     "Set every stay on the trip at once, in order, with an optional hotel and rooms for each. One stay without dates covers the whole trip.",
     "Use when the advisor names where they go, changes a stay's dates, city or hotel, or adds a stay. Pass the full list, existing stays included; stays left out are removed.",
+    "Do not use for the first multi-city split proposal (Malé then Baa, etc.) — use trip_propose_split so Studio shows Accept. Use this after they tap Accept, or when they clearly say to apply the split, or when stays are already split and only need a hotel/date tweak.",
     "Pass hotel null to clear a hotel on a stay — quote rooms on that stay (and any rooms labelled with that hotel) are removed with it. Pass start and end too when the trip dates change at the same time; like all dates here, MM-DD when the advisor gave no year. Rooms default to one per two adults when a hotel is set.",
     "Do not use to remove a stay that has the client's room (use trip_remove_stay).",
     "Returns a summary of the change; the advisor gets Undo.",
@@ -187,4 +189,56 @@ export const tripUndoTool = defineAgentTool({
   quickReply: true,
   repeatable: true,
   run: (_input, handlers, call) => handlers.undo(call),
+});
+
+function splitResultCard(result: unknown): import("../../tools").LegSplitCard | null {
+  if (!result || typeof result !== "object") return null;
+  const row = result as { split?: import("../../tools").LegSplitCard };
+  return row.split?.stays?.length ? row.split : null;
+}
+
+export const tripProposeSplitTool = defineAgentTool({
+  name: "trip_propose_split",
+  description: [
+    "Propose a multi-city date split once as a card the advisor can accept. Does not change the trip until they tap Accept (which runs trip_set_stays).",
+    "Use when the advisor names two or more places for one trip (e.g. Malé then Baa Atoll, with or without per-city dates) and the stays are not already split that way — even if they spelled out the dates in the same message.",
+    "Do not call trip_set_stays for that first split; the Accept card applies it. Ask only once — do not re-propose the same split once stays match.",
+    "Do not use for a single destination (trip_set_stays covers the whole trip).",
+    "Returns the proposed stays; Studio shows the split card with Accept.",
+  ].join(" "),
+  schema: z
+    .object({
+      stays: z.array(stayInput).min(2).max(10),
+      start: looseDate.optional(),
+      end: looseDate.optional(),
+    })
+    .strict(),
+  risk: "read",
+  progress: () => "Proposing the stay split…",
+  legSplit: splitResultCard,
+  choices: (result) => {
+    const split = splitResultCard(result);
+    if (!split) return [];
+    return [
+      {
+        label: `Accept · ${split.summary.replace(/\?$/, "")}`,
+        action: "trip_set_stays",
+        args: {
+          stays: split.stays.map((stay) => ({
+            city: stay.city,
+            check_in: stay.check_in,
+            check_out: stay.check_out,
+            ...(stay.hotel !== undefined ? { hotel: stay.hotel } : {}),
+            ...(stay.rooms != null ? { rooms: stay.rooms } : {}),
+          })),
+        },
+      },
+    ];
+  },
+  run: (input, handlers) =>
+    handlers.proposeSplit({
+      start: input.start,
+      end: input.end,
+      stays: input.stays.map(toStayRequest),
+    }),
 });

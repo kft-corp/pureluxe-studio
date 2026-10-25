@@ -39,11 +39,22 @@ export const AFTER_ACCEPT_STEPS = [
   "1. Tap **Search rates again** to see today's availability and hotel price for this room.",
   "2. If the hotel price changed, tap **Use today's cost** to update the team cost.",
   "3. Tap **Set client price** if the client price needs to change.",
-  "4. Book with the hotel, then set the booking to confirmed in **Bookings**.",
+  "4. Book with the hotel offline, then **Confirm hotel booking** in **Bookings** (confirmation / PNR required).",
+  "5. On the **trip page**, record client payment, then mark **Trip ready for travel** when every stay is confirmed.",
+  "",
+  "**Travel prep (while you book)**",
+  "- Check **Travel prep checklist** on the trip summary — or ask **What's missing before booking?**",
+  "- Confirm passport and travel documents on each traveller's client profile in Studio.",
+  "- Collect flight or ticket details if the client books travel separately (flights are not booked here yet).",
+  "- Ask here anytime about visas, entry rules, documents, or what is still missing.",
 ].join("\n");
 
 export const CHOSEN_ROOM_NEXT =
   "Tap **Set client price** to set or change what the client pays, or **Search rates again** to check today's hotel price for this room.";
+
+/** Shown once every stay has the client's room after accept. */
+export const BOOKING_PREP_GUIDE =
+  "Rooms are chosen. Next: check today's hotel price, book offline, then **Confirm hotel booking** in Bookings with the PNR. Clear travel prep (passports, visas, documents). Then record payment on the **trip page**. Ask **What's missing before booking?** if you need help.";
 
 /** What the room choice did to prices: the room's quoted client price, team cost, and the trip total. */
 export function choiceSummary(

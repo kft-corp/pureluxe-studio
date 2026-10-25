@@ -12,12 +12,14 @@ export const tripMessages = {
     quoteLoaded: "Quote loaded.",
     quoteSaved: "Quote draft saved.",
     quoteGenerated: "Quote PDF generated.",
-    quoteSent: "Quote sent to the client.",
-    waitingOnClient: "Trip marked waiting on the client.",
+    quoteSent: "Quote marked as sent.",
+    waitingOnClient: "Trip marked waiting for a reply.",
     quoteReopened: "Quote reopened. The price is unlocked and the trip is back to building.",
-    quoteAccepted: "Client accepted. The price is locked.",
-    tripConfirmed: "Trip marked confirmed.",
+    quoteAccepted:
+      "Client said yes. The price is locked — record their room in Trip Builder.",
+    tripConfirmed: "Trip ready for travel.",
     tripCancelled: "Trip cancelled.",
+    paymentUpdated: "Client payment recorded.",
     chatListed: "Chat loaded.",
     chatSent: "Message sent.",
   },
@@ -60,6 +62,8 @@ export const tripMessages = {
     quoteAccepted:
       "The client accepted this quote. Reopen the quote on the trip page before changing it.",
     reopenBlocked: "Only an accepted quote can be reopened.",
+    tripConfirmNeedsStays:
+      "Confirm every hotel stay in Bookings (with the confirmation / PNR) before marking the trip ready for travel.",
     acceptedRoomOnly:
       "After the client accepts, only the client's chosen room can be re-priced. Reopen the quote on the trip page to change other rooms.",
     quoteGenerateFailed: "We couldn't generate the quote PDF. Try again.",
@@ -67,6 +71,8 @@ export const tripMessages = {
     aiNotConfigured:
       "AI is not configured. Add ANTHROPIC_API_KEY to the environment.",
     aiFailed: "We couldn't get an AI reply. Try again.",
+    replyInterrupted:
+      "That reply was interrupted. Please try again.",
     chatListFailed: "We couldn't load chat. Refresh and try again.",
     chatSendFailed: "We couldn't send that message. Try again.",
     agentBusy: "Still working on your last message… This one sends when it finishes.",

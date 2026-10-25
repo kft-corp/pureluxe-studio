@@ -34,6 +34,12 @@ type ChangeOutcome = {
   undoable: boolean;
   /** The trip after the change. Null when nothing changed. */
   after: TripDetail | null;
+  /**
+   * When set, stored as the Undo before/after copy instead of the trip shape.
+   * Used when shape alone can't reverse the change (e.g. client's room → booking).
+   */
+  undoBefore?: Record<string, unknown> | null;
+  undoAfter?: Record<string, unknown> | null;
 };
 
 /**
@@ -51,7 +57,7 @@ export async function withTripChange(
   ]);
   if (done) return { ok: true, summary: String(done.summary ?? ""), undo: false, unchanged: true };
 
-  const { summary, undoable, after } = await change(before);
+  const { summary, undoable, after, undoBefore, undoAfter } = await change(before);
   if (!after) return { ok: true, summary, undo: false, unchanged: true };
 
   const version = await recordTripChange({
@@ -60,8 +66,8 @@ export async function withTripChange(
     tool: context.tool,
     args: context.args,
     summary,
-    before: undoable ? tripShapeOf(before) : null,
-    after: undoable ? tripShapeOf(after) : null,
+    before: undoable ? (undoBefore ?? tripShapeOf(before)) : null,
+    after: undoable ? (undoAfter ?? tripShapeOf(after)) : null,
     idempotencyKey: context.idempotencyKey,
   });
   context.onChanged?.({ ...after, trip: { ...after.trip, version } });

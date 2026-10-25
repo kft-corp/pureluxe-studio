@@ -16,7 +16,11 @@ import {
 } from "@/lib/api/bookings";
 import type { BookingDetail } from "@/lib/bookings";
 import type { BookingConfirmAction } from "@/lib/bookings/confirm-dialog-config";
-import { showApiError, showOptionalSuccessToast } from "@/lib/feedback/toast";
+import {
+  showApiError,
+  showOptionalSuccessToast,
+  showSuccessToast,
+} from "@/lib/feedback/toast";
 import { pageRoutes } from "@/lib/routes";
 import type {
   AssignBookingOwnerBody,
@@ -84,7 +88,26 @@ export function useBookingDetail({ initialDetail }: UseBookingDetailOptions) {
   }
 
   async function handleConfirmBooking(input: ConfirmBookingBody = {}) {
-    await runBookingAction(() => confirmBooking(detail.booking.id, input));
+    setActionLoading(true);
+    try {
+      const response = await confirmBooking(detail.booking.id, input);
+      setDetail(response.data);
+      closeConfirm();
+      const tripId = response.data.booking.trip_id;
+      if (tripId) {
+        showSuccessToast(
+          response.message ??
+            "Hotel booking confirmed. Next: record client payment on the trip.",
+        );
+        router.push(`${pageRoutes.trip(tripId)}#client-payment`);
+      } else {
+        showOptionalSuccessToast(response.message);
+      }
+    } catch (error) {
+      showApiError(error);
+    } finally {
+      setActionLoading(false);
+    }
   }
 
   async function handleCancelBooking() {

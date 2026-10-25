@@ -3,6 +3,7 @@
  * (the package root also loads the agent runtime). Keep this file dependency-free.
  */
 
+import type { LegSplitCard } from "./leg-split";
 import type { RateCompareCard } from "./rate-compare";
 
 export type {
@@ -12,6 +13,8 @@ export type {
   RateCompareHotelStatus,
   RateCompareRoom,
 } from "./rate-compare";
+
+export type { LegSplitCard, LegSplitStay } from "./leg-split";
 
 /** Lightweight phases for chat UI (Phase 1). */
 export type AgentPhase = "thinking" | "looking_up" | "writing";
@@ -44,6 +47,8 @@ export type AgentStreamChunk =
   | { kind: "choices"; choices: AgentChoice[] }
   /** Multi-hotel rate comparison card (Stage 3c). */
   | { kind: "rate_compare"; compare: RateCompareCard }
+  /** Multi-city date split proposal (Stage 4). */
+  | { kind: "leg_split"; split: LegSplitCard }
   /** The run paused; it continues when the advisor confirms or cancels. */
   | { kind: "approval"; approval: AgentApproval }
   /** Open this trip for the advisor (home chat). `created`: it was made in this turn. */

@@ -46,13 +46,20 @@ export {
 
 export {
   cancellationLinesFromPolicies,
+  cancellationLinesFromPoliciesV2,
   cancellationSummaryFromPolicies,
   checkOfflineAvailability,
+  isPoliciesV2,
   parseOfflineQuote,
+  readContractPolicies,
+  upgradePoliciesToV2,
+  type ContractPoliciesV2,
   type OfflineAvailabilityInput,
   type OfflineAvailabilityResult,
   type ParseOfflineQuoteInput,
   type ParseOfflineQuoteResult,
+  type PolicyAudience,
+  type PolicyRuleV2,
 } from "./offline";
 
 export {

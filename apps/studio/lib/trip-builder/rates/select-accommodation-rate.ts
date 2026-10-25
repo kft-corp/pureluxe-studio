@@ -39,10 +39,12 @@ function availabilityFromExtracted(
 /**
  * Select a priced accommodation rate for its leg.
  * Approves pending_review first; clears any prior selection on that leg.
+ * `keepOtherOptions`: leave unselected quote rooms on the stay (agent Undo path).
  */
 export async function selectAccommodationRate(
   lineItemId: string,
   actor: { memberId: string },
+  options: { keepOtherOptions?: boolean } = {},
 ): Promise<TripLineItem> {
   const existing = await findTripLineItemById(lineItemId);
   if (!existing) {
@@ -123,7 +125,9 @@ export async function selectAccommodationRate(
       property_name: selected.property_name,
     });
   }
-  await deleteUnselectedStayOptions(selected.trip_id, legId);
+  if (!options.keepOtherOptions) {
+    await deleteUnselectedStayOptions(selected.trip_id, legId);
+  }
   await markQuoteStale(selected.trip_id, { clientChoice: true });
   await syncClientPriceFromChoices(selected.trip_id);
   await refreshTripAfterRateChange(selected.trip_id, actor);
