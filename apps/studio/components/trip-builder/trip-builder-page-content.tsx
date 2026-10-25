@@ -64,7 +64,7 @@ export function TripBuilderPageContent({
                 : "Check today's price, book offline, Confirm hotel booking in Bookings with the PNR, then record payment on the trip.";
 
   return (
-    <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col bg-surface">
+    <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col bg-surface">
       <TripBuilderHeader
         trips={builder.trips}
         detail={builder.detail}

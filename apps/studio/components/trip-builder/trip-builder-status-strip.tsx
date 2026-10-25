@@ -83,7 +83,7 @@ export function TripBuilderStatusStrip({ detail }: { detail: TripDetail | null }
             : "bg-warning-soft text-warning-ink",
         )}
       >
-        <span className="min-w-0">{message}</span>
+        <span className="min-w-0 break-words">{message}</span>
         <Link
           href={pageRoutes.trip(detail.trip.id)}
           className="shrink-0 font-semibold underline underline-offset-2"

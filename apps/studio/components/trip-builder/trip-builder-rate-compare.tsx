@@ -104,11 +104,11 @@ export function TripBuilderRateCompare({
   return (
     <div className="mt-3 space-y-4 text-[13.5px] leading-snug text-ink">
       <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1 text-[13.5px] text-ink-muted">
-        <span>
+        <span className="min-w-0 break-words">
           {compare.destination}
           {nights ? ` · ${nights}` : ""} · {compare.check_in} → {compare.check_out} · {party}
         </span>
-        {age ? <span className="text-ink-subtle">{age}</span> : null}
+        {age ? <span className="shrink-0 text-ink-subtle">{age}</span> : null}
       </div>
 
       {compare.preference ? (
@@ -164,7 +164,12 @@ function HotelRates({
 
       {(hotel.rooms ?? []).length > 0 ? (
         <>
-          <div className="w-full max-w-full overflow-x-auto rounded-lg ring-1 ring-border">
+          <div className="space-y-2 md:hidden">
+            {(hotel.rooms ?? []).map((room) => (
+              <RoomMobileCard key={room.rate_ref} room={room} nights={nights} />
+            ))}
+          </div>
+          <div className="hidden w-full max-w-full overflow-x-auto rounded-lg ring-1 ring-border md:block">
             <table className="w-full min-w-[26rem] table-fixed border-collapse text-left text-[13.5px]">
               <thead>
                 <tr className="border-b border-divider bg-surface-subtle text-ink-muted">
@@ -230,6 +235,57 @@ function RoomTableRow({
       </td>
       <td className="break-words px-3 py-2 text-ink-muted">{room.source ?? "—"}</td>
     </tr>
+  );
+}
+
+/** Phone / narrow chat: same facts as the table, stacked so nothing needs sideways scroll. */
+function RoomMobileCard({
+  room,
+  nights,
+}: {
+  room: RateCompareRoom;
+  nights: number | null;
+}) {
+  const { teamTotal, clientTotal, clientPerNight, teamPerNight } = roomPrices(room, nights);
+
+  return (
+    <article
+      className={cn(
+        "rounded-lg px-3 py-2.5 ring-1 ring-border",
+        room.recommended ? "bg-accent-soft/40 ring-accent-line" : "bg-surface-raised",
+      )}
+    >
+      <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
+        <h5 className="min-w-0 text-[14px] font-medium break-words text-ink">
+          {room.room_name || "—"}
+          {room.recommended ? (
+            <span className="ml-1.5 text-[12px] font-medium text-accent-ink">Pick</span>
+          ) : null}
+        </h5>
+        <span className="shrink-0 text-[12px] text-ink-subtle">{room.source ?? "—"}</span>
+      </div>
+      <p className="mt-0.5 text-[12.5px] text-ink-muted">{mealPlanLabel(room.board)}</p>
+      <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-[13px]">
+        <div>
+          <dt className="text-[11px] font-medium text-ink-muted">Per night</dt>
+          <dd className="tabular-nums text-ink">
+            {formatRoomMoney(clientPerNight, room.currency)}
+            <span className="mt-0.5 block text-[12px] text-ink-subtle">
+              team {formatRoomMoney(teamPerNight, room.currency)}
+            </span>
+          </dd>
+        </div>
+        <div>
+          <dt className="text-[11px] font-medium text-ink-muted">Stay total</dt>
+          <dd className="tabular-nums text-ink">
+            {formatRoomMoney(clientTotal, room.currency)}
+            <span className="mt-0.5 block text-[12px] text-ink-subtle">
+              team {formatRoomMoney(teamTotal, room.currency)}
+            </span>
+          </dd>
+        </div>
+      </dl>
+    </article>
   );
 }
 

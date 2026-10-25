@@ -650,10 +650,10 @@ function CopyReplyButton({ content }: { content: string }) {
 
 function YouMessage({ children }: { children: React.ReactNode }) {
   return (
-    <div className="ml-auto flex max-w-[85%] justify-end self-end">
-      <div className="w-fit rounded-[14px] rounded-tr-sm border border-neutral-line bg-neutral-soft px-3 py-2.5 text-[14.5px] leading-relaxed break-words text-ink sm:px-3.5">
+    <div className="ml-auto flex min-w-0 max-w-[min(85%,28rem)] justify-end self-end">
+      <div className="w-fit min-w-0 max-w-full rounded-[14px] rounded-tr-sm border border-neutral-line bg-neutral-soft px-3 py-2.5 text-[14.5px] leading-relaxed break-words text-ink sm:px-3.5">
         <span className="sr-only">You: </span>
-        <p className="whitespace-pre-wrap">{children}</p>
+        <p className="whitespace-pre-wrap break-words">{children}</p>
       </div>
     </div>
   );

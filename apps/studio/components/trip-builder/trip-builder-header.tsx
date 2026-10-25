@@ -164,6 +164,8 @@ export function TripBuilderHeader({
       formatTripDates(stays))
     : null;
 
+  const mobileTitle = detail?.client?.display_name?.trim() || (tripOpen ? "Trip" : "Trip Builder");
+
   return (
     <header className="w-full shrink-0 border-b border-border bg-surface-raised">
       <div className="flex w-full flex-col gap-1 px-2 py-1.5 lg:flex-row lg:items-center lg:gap-3 lg:px-4 lg:py-2.5">
@@ -177,12 +179,15 @@ export function TripBuilderHeader({
             <>
               <div
                 className={cn(
-                  "flex min-w-0 flex-1 items-center gap-3 overflow-x-auto pr-6",
+                  "flex min-w-0 flex-1 items-center gap-3 overflow-x-auto overscroll-x-contain pr-6",
                   "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
                   "[mask-image:linear-gradient(to_right,black_calc(100%-1.5rem),transparent)]",
                 )}
               >
-                <HeaderItem label="Client" value={detail.client?.display_name} />
+                {/* Client is already the mobile title; keep it in the strip from lg up. */}
+                <div className="hidden lg:contents">
+                  <HeaderItem label="Client" value={detail.client?.display_name} />
+                </div>
                 <HeaderItem label="Dates" value={dates} />
                 <LegPills stays={stays} activeLegId={activeLegId} onSelectLeg={onSelectLeg} />
                 {gaps.length > 0 ? (
@@ -198,39 +203,44 @@ export function TripBuilderHeader({
           ) : null}
         </div>
 
-        <div className="order-1 flex items-center justify-end gap-0.5 lg:order-2 lg:shrink-0">
-          <HeaderIconButton
-            active={summaryOpen}
-            disabled={!tripOpen}
-            aria-pressed={summaryOpen}
-            aria-label={summaryOpen ? "Close summary" : "Open summary"}
-            title={tripOpen ? "Summary" : "Summary (open a trip first)"}
-            onClick={onToggleSummary}
-          >
-            <SummaryIcon className="size-4 lg:size-[18px]" strokeWidth={2} aria-hidden />
-          </HeaderIconButton>
-
-          <TripBuilderTripsMenu
-            trips={trips}
-            activeTripId={detail?.trip.id ?? null}
-            onSelect={onOpenTrip}
-            disabled={busy}
-          />
-
-          {canWrite ? (
+        <div className="order-1 flex min-w-0 items-center gap-2 lg:order-2 lg:shrink-0 lg:justify-end">
+          <p className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink lg:hidden">
+            {mobileTitle}
+          </p>
+          <div className="flex shrink-0 items-center gap-0.5">
             <HeaderIconButton
-              disabled={busy}
-              aria-label="New chat"
-              title="New chat"
-              onClick={onNewChat}
+              active={summaryOpen}
+              disabled={!tripOpen}
+              aria-pressed={summaryOpen}
+              aria-label={summaryOpen ? "Close summary" : "Open summary"}
+              title={tripOpen ? "Summary" : "Summary (open a trip first)"}
+              onClick={onToggleSummary}
             >
-              <LuMessageSquarePlus
-                className="size-4 lg:size-[18px]"
-                strokeWidth={2}
-                aria-hidden
-              />
+              <SummaryIcon className="size-4 lg:size-[18px]" strokeWidth={2} aria-hidden />
             </HeaderIconButton>
-          ) : null}
+
+            <TripBuilderTripsMenu
+              trips={trips}
+              activeTripId={detail?.trip.id ?? null}
+              onSelect={onOpenTrip}
+              disabled={busy}
+            />
+
+            {canWrite ? (
+              <HeaderIconButton
+                disabled={busy}
+                aria-label="New chat"
+                title="New chat"
+                onClick={onNewChat}
+              >
+                <LuMessageSquarePlus
+                  className="size-4 lg:size-[18px]"
+                  strokeWidth={2}
+                  aria-hidden
+                />
+              </HeaderIconButton>
+            ) : null}
+          </div>
         </div>
       </div>
     </header>

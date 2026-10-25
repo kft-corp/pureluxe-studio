@@ -114,7 +114,7 @@ export function TripBuilderComposer({
         {showChips ? (
           <div className="mb-2 flex flex-col gap-1.5">
             {approval.length > 0 ? (
-              <div className="flex items-center gap-1">{approval.map(renderChip)}</div>
+              <div className="flex flex-wrap items-center gap-1.5">{approval.map(renderChip)}</div>
             ) : null}
             {choices.length > 0 ? (
               <div className="overflow-hidden rounded-lg border border-border bg-surface-raised">
@@ -151,7 +151,7 @@ export function TripBuilderComposer({
               </div>
             ) : null}
             {visibleReady.length > 0 ? (
-              <div className="flex flex-wrap items-center gap-1">{visibleReady.map(renderChip)}</div>
+              <div className="flex flex-wrap items-center gap-1.5">{visibleReady.map(renderChip)}</div>
             ) : null}
             {undo.length > 0 ? <div className="flex">{undo.map(renderChip)}</div> : null}
           </div>

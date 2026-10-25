@@ -149,6 +149,16 @@ export function TripBuilderSummaryPanel({
 }: TripBuilderSummaryPanelProps) {
   const [tab, setTab] = useState<SummaryTab>("summary");
   const readiness = useReadiness(detail, open);
+
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open, onClose]);
+
   if (!open) return null;
 
   const stays = detail ? tripStays(detail) : [];
@@ -166,7 +176,12 @@ export function TripBuilderSummaryPanel({
         aria-label="Close summary"
         onClick={onClose}
       />
-      <aside className="absolute inset-0 z-30 flex w-full flex-col border-l border-border bg-surface pb-[env(safe-area-inset-bottom)] shadow-xl lg:static lg:inset-auto lg:z-0 lg:w-[24rem] lg:shrink-0 lg:pb-0 lg:shadow-none">
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-label="Trip summary"
+        className="absolute inset-y-0 right-0 z-30 flex w-full max-w-full flex-col border-l border-border bg-surface pb-[env(safe-area-inset-bottom)] shadow-xl sm:w-[min(24rem,100%)] lg:static lg:inset-auto lg:z-0 lg:w-[24rem] lg:max-w-none lg:shrink-0 lg:pb-0 lg:shadow-none"
+      >
         <div className="flex items-start justify-between gap-2 px-3 pt-3 pb-1.5">
           <div className="min-w-0">
             <span className="inline-flex rounded-full bg-neutral-soft px-1.5 py-0.5 text-[10px] font-semibold text-neutral-ink ring-1 ring-inset ring-neutral-line">
