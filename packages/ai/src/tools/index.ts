@@ -21,8 +21,21 @@ export type {
   SearchTripsInput,
   TripHistoryRow,
 } from "./history";
-export type { HotelBrief, HotelToolHandlers } from "./hotels";
+export type {
+  HotelBrief,
+  HotelFindHit,
+  HotelFindResult,
+  HotelPriceTier,
+  HotelToolHandlers,
+} from "./hotels";
 export type { DeskToolHandlers } from "./handlers";
+export type {
+  RateCompareCard,
+  RateCompareHotel,
+  RateCompareHotelNotes,
+  RateCompareHotelStatus,
+  RateCompareRoom,
+} from "./rate-compare";
 export {
   AGENT_PHASE_LABEL,
   type AgentApproval,

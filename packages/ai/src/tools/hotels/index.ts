@@ -1,1 +1,7 @@
-export type { HotelBrief, HotelToolHandlers } from "./types";
+export type {
+  HotelBrief,
+  HotelFindHit,
+  HotelFindResult,
+  HotelPriceTier,
+  HotelToolHandlers,
+} from "./types";

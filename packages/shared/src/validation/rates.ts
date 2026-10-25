@@ -29,6 +29,18 @@ export const searchRatesBodySchema = z
     adults: z.coerce.number().int().min(1).max(20).default(2),
     children: z.coerce.number().int().min(0).max(20).optional().default(0),
     rooms: z.coerce.number().int().min(1).max(20).optional().default(1),
+    /** Child ages in years on check-in (Stage 3b / R12). */
+    child_ages: z
+      .array(z.coerce.number().int().min(0).max(17))
+      .max(20)
+      .optional()
+      .default([]),
+    /** ISO country codes for the client's market (Stage 3b / R11). */
+    client_market_codes: z
+      .array(z.string().trim().length(2).transform((value) => value.toUpperCase()))
+      .max(10)
+      .optional()
+      .default([]),
     currency: z
       .string()
       .trim()

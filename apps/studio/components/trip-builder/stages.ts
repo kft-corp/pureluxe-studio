@@ -95,17 +95,23 @@ export function staysAwaitingRoom(detail: TripDetail): number {
   ).length;
 }
 
-/** Every stay has a room with a client price, so the options quote can go out. */
-function roomsPriced(detail: TripDetail): boolean {
-  const stays = tripStays(detail).filter(stayIsComplete);
-  if (stays.length === 0) return false;
-  const tripPriced = detail.trip.sell_total != null;
-  return stays.every((stay) =>
-    detail.rates.candidates.some(
-      (rate) =>
-        rate.leg_id === stay.leg_id &&
-        (rate.sell_amount != null || (rate.selected && tripPriced)),
-    ),
+/**
+ * Options quote has at least one room with a client price (Stage 3d).
+ * Multi-hotel options often share one leg — do not require a priced row per stay.
+ */
+function quoteOptionsPriced(detail: TripDetail): boolean {
+  if (detail.rates.candidates.some((rate) => rate.sell_amount != null)) return true;
+  return (
+    roomsChosen(detail) &&
+    (detail.trip.sell_total != null || detail.quote.sell_total != null)
+  );
+}
+
+/** Rooms are on the quote but still need a client price / markup. */
+function quoteOptionsNeedPrice(detail: TripDetail): boolean {
+  return (
+    detail.rates.candidates.length > 0 &&
+    !detail.rates.candidates.some((rate) => rate.sell_amount != null)
   );
 }
 
@@ -134,8 +140,8 @@ export function resolveTripStage(detail: TripDetail | null): TripStage {
   if (isQuoteWithClient(status)) return "quote";
   if (!travellersConfirmed(detail)) return "client";
   if (!tripDatesReady(detail) || !legsConfirmed(detail)) return "stay";
-  if (!staysComplete(detail)) return "stay";
-  if (!roomsPriced(detail)) return "rates";
+  // Stage 3c: rates shopping does not require a hotel saved on the stay.
+  if (!quoteOptionsPriced(detail)) return "rates";
   return "quote";
 }
 
@@ -163,10 +169,12 @@ export function resolveNextStep(detail: TripDetail | null): string {
   if (!detail.client) return "Select a client";
   if (!travellersConfirmed(detail)) return "Name the travellers";
   if (!tripDatesReady(detail)) return "Set the trip dates";
-  if (!legsConfirmed(detail)) return "List each stay";
-  if (!staysComplete(detail)) return "Set hotel & party";
-  if (!roomsPriced(detail)) return "Add rooms with a client price";
-  return fromStatus();
+  if (!legsConfirmed(detail)) return "Add places or search rates";
+  // Stage 3c/3d: rates and quote options can exist before every stay has a hotel.
+  if (quoteOptionsPriced(detail)) return fromStatus();
+  if (quoteOptionsNeedPrice(detail)) return "Set client prices on the quote";
+  if (!staysComplete(detail)) return "Suggest hotels and search rates";
+  return "Add rooms to the options quote";
 }
 
 /** Earliest check-in through latest check-out. */

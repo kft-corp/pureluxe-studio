@@ -140,7 +140,7 @@ function legalLines(legal: Record<string, unknown> | undefined): string[] {
     lines.push("Do not resell through an OTA or bedbank.");
   }
   if (typeof legal.min_markup_percent === "number") {
-    lines.push(`Minimum markup ${legal.min_markup_percent}%.`);
+    lines.push(`Commission rate ${legal.min_markup_percent}%.`);
   }
   return lines;
 }
@@ -249,7 +249,7 @@ function contractSections(
     contract.market ? `Market: ${contract.market}.` : null,
     contract.booking_code ? `Quote booking code ${contract.booking_code}.` : null,
     contract.min_markup_percent != null
-      ? `Minimum markup ${contract.min_markup_percent}%.`
+      ? `Commission rate ${contract.min_markup_percent}%.`
       : null,
     contract.notes?.trim() || null,
   ].filter((line): line is string => Boolean(line));
@@ -395,7 +395,7 @@ export async function loadHotelStayFacts(input: {
     cancellationLines,
     offers: offerLines,
     requiredCharges,
-    markup: markupPercent == null ? null : `Minimum markup ${markupPercent}%.`,
+    markup: markupPercent == null ? null : `Commission rate ${markupPercent}%.`,
   };
 }
 

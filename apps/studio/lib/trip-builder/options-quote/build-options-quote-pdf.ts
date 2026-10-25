@@ -1,8 +1,9 @@
 /**
  * Options quote PDF.
- * Layout follows docs/studio/client-quote.html: letterhead, trip facts,
- * one block per stay, then a hotel table. Drawn with PDFKit so the file
- * opens and downloads as a normal PDF. The painter reads OptionsQuoteDocument only.
+ * Letterhead, trip facts, advisor note (above hotels), then per hotel: room table
+ * (Room | Meal plan | Occupancy when capacity differs | Total with currency symbol),
+ * shared inclusions, room differences, getting there, good to know, then highlighted
+ * Cancellation and Payment. Drawn with PDFKit. Reads OptionsQuoteDocument only.
  */
 
 import { existsSync } from "node:fs";
@@ -16,7 +17,6 @@ import type {
   OptionsQuoteRoom,
   OptionsQuoteStay,
 } from "./options-quote-document";
-import { printedTermLines } from "./options-quote-lines";
 
 /** CSS pixels in the HTML sample, converted to PDF points (96px = 72pt). */
 const PT = 72 / 96;
@@ -151,19 +151,24 @@ function paint(doc: PDFKit.PDFDocument, quote: OptionsQuoteDocument) {
     lineGap: px(4),
   });
 
-  for (const stay of quote.stays) y = paintStay(doc, stay, y + 14);
-
+  // Intro note above hotels so wording like "please find below" matches the layout.
   if (quote.notes?.trim()) {
-    y = ensure(doc, y, px(40));
+    y = ensure(doc, y, px(56));
     y += 10;
     doc.moveTo(LEFT, y).lineTo(RIGHT, y).strokeColor(INK).lineWidth(0.6).stroke();
-    y = paragraph(doc, quote.notes.trim(), y + 8, {
+    y += 8;
+    doc.font(FONT.bold).fontSize(TYPE.includedTitle).fillColor(INK).text("A note from your advisor", LEFT, y, {
+      width: WIDTH,
+    });
+    y = paragraph(doc, quote.notes.trim(), doc.y + 4, {
       size: TYPE.notes,
       font: FONT.regular,
       color: INK,
       lineGap: px(4),
     });
   }
+
+  for (const stay of quote.stays) y = paintStay(doc, stay, y + 14);
   doc.y = y;
 }
 
@@ -252,18 +257,20 @@ function paintStay(doc: PDFKit.PDFDocument, stay: OptionsQuoteStay, y: number): 
 }
 
 function paintHotel(doc: PDFKit.PDFDocument, hotel: OptionsQuoteHotel, y: number): number {
-  const currency = sharedCurrency(hotel.rooms);
-  const heading = currency ? `Total (${currency})` : "Total";
-  const sameInclusions = sharedList(hotel.rooms.map((room) => room.inclusions));
-  const terms = hotelTermLines(hotel);
+  const sharedIncluded = sharedInclusions(hotel.rooms);
+  const roomDiffs = roomDifferenceLines(hotel, sharedIncluded);
+  const gettingThere = [...hotel.arrival, ...hotel.transfers];
+  const policies = hotelPolicySections(hotel);
+  const cols = tableColumns(hotel.rooms);
   const block =
     58 +
-    hotel.rooms.reduce((sum, room) => sum + roomHeight(doc, room, !sameInclusions), 0) +
-    (sameInclusions ? bulletHeight(doc, hotel.rooms[0]?.inclusions ?? []) : 0) +
-    bulletHeight(doc, hotel.arrival) +
-    bulletHeight(doc, hotel.transfers) +
+    hotel.rooms.reduce((sum, room) => sum + roomHeight(doc, room, cols), 0) +
+    bulletHeight(doc, sharedIncluded) +
+    bulletHeight(doc, roomDiffs) +
+    bulletHeight(doc, gettingThere) +
     bulletHeight(doc, hotel.shared) +
-    (terms.length > 0 ? termHeight(doc, terms) : 0);
+    importantHeight(doc, policies.cancellation) +
+    importantHeight(doc, policies.payment);
   y = ensure(doc, y, Math.min(block, px(220)));
   const cardTop = y;
   const cardPage = doc.bufferedPageRange().count;
@@ -291,23 +298,37 @@ function paintHotel(doc: PDFKit.PDFDocument, hotel: OptionsQuoteHotel, y: number
   doc.rect(LEFT, y, WIDTH, headHeight).fill(HEAD);
   const headTextY = y + (headHeight - TYPE.head) / 2;
   doc.font(FONT.bold).fontSize(TYPE.head).fillColor(INK);
-  doc.text("Room", LEFT + px(14), headTextY, { width: WIDTH - priceColumn() - px(20), lineBreak: false });
-  doc.text(heading, LEFT + WIDTH - priceColumn(), headTextY, {
-    width: priceColumn() - px(14),
+  doc.text("Room", cols.roomX, headTextY, { width: cols.roomW, lineBreak: false });
+  doc.text("Meal plan", cols.mealX, headTextY, { width: cols.mealW, lineBreak: false });
+  if (cols.showSleeps) {
+    doc.text("Occupancy", cols.sleepsX, headTextY, { width: cols.sleepsW, lineBreak: false });
+  }
+  doc.text("Total", cols.priceX, headTextY, {
+    width: cols.priceW,
     align: "right",
     lineBreak: false,
   });
   y += headHeight;
 
   hotel.rooms.forEach((room, index) => {
-    y = paintRoom(doc, room, y, currency, index % 2 === 1, !sameInclusions);
+    y = paintRoom(doc, room, y, index % 2 === 1, cols);
   });
 
-  if (sameInclusions) y = paintBullets(doc, "What's included", hotel.rooms[0]?.inclusions ?? [], y);
-  y = paintBullets(doc, "Arrival and departure", hotel.arrival, y);
-  y = paintBullets(doc, "Transfers", hotel.transfers, y);
-  y = paintBullets(doc, "For every room", hotel.shared, y);
-  if (terms.length > 0) y = paintTerms(doc, terms, y);
+  if (sharedIncluded.length > 0) {
+    y = paintBullets(doc, "Included with every option", sharedIncluded, y);
+  }
+  if (roomDiffs.length > 0) {
+    y = paintBullets(
+      doc,
+      sharedIncluded.length > 0 ? "Differences between rooms" : "What's included by room",
+      roomDiffs,
+      y,
+    );
+  }
+  y = paintBullets(doc, "Getting there", gettingThere, y);
+  y = paintBullets(doc, "Good to know", hotel.shared, y);
+  y = paintImportant(doc, "Cancellation", policies.cancellation, y);
+  y = paintImportant(doc, "Payment", policies.payment, y);
   if (doc.bufferedPageRange().count === cardPage) {
     doc.rect(LEFT, cardTop, WIDTH, y - cardTop).lineWidth(0.6).strokeColor(LINE).stroke();
   }
@@ -326,43 +347,29 @@ function paintRoom(
   doc: PDFKit.PDFDocument,
   room: OptionsQuoteRoom,
   y: number,
-  shared: string | null,
   shaded: boolean,
-  showInclusions: boolean,
+  cols: TableColumns,
 ): number {
-  const height = roomHeight(doc, room, showInclusions);
+  const height = roomHeight(doc, room, cols);
   y = ensure(doc, y, height);
   if (shaded) doc.rect(LEFT, y, WIDTH, height).fill(ROW);
-  const amount =
-    room.price === "To be confirmed" || shared
-      ? room.price
-      : `${room.currency ?? ""} ${room.price}`.trim();
-  const textWidth = WIDTH - priceColumn() - px(20);
-  doc.font(FONT.bold).fontSize(TYPE.room).fillColor(INK).text(room.name, LEFT + px(14), y + 7, {
-    width: textWidth,
+  const amount = formatMoneyLabel(room.price, room.currency);
+  const top = y + 7;
+  doc.font(FONT.bold).fontSize(TYPE.room).fillColor(INK).text(room.name, cols.roomX, top, {
+    width: cols.roomW,
   });
-  let textY = doc.y;
-  if (room.detail) {
-    doc.font(FONT.regular).fontSize(TYPE.roomMeta).fillColor(MUTED).text(room.detail, LEFT + px(14), textY + 1, {
-      width: textWidth,
-    });
-    textY = doc.y;
+  doc.font(FONT.regular).fontSize(TYPE.roomMeta).fillColor(MUTED).text(room.detail?.trim() || "—", cols.mealX, top, {
+    width: cols.mealW,
+  });
+  if (cols.showSleeps) {
+    doc
+      .font(FONT.regular)
+      .fontSize(TYPE.roomMeta)
+      .fillColor(MUTED)
+      .text(room.sleeps?.trim() || "—", cols.sleepsX, top, { width: cols.sleepsW });
   }
-  if (showInclusions && room.inclusions.length > 0) {
-    doc.font(FONT.regular).fontSize(TYPE.roomMeta).fillColor(MUTED).text(room.inclusions.join("  ·  "), LEFT + px(14), textY + px(2), {
-      width: textWidth,
-    });
-    textY = doc.y;
-  }
-  if (room.extras.length > 0) {
-    doc.font(FONT.regular).fontSize(TYPE.roomMeta).fillColor(INK);
-    for (const extra of room.extras) {
-      doc.text(`•  ${extra}`, LEFT + px(14), textY + px(2), { width: textWidth, lineGap: 1 });
-      textY = doc.y;
-    }
-  }
-  doc.font(FONT.bold).fontSize(TYPE.room).fillColor(INK).text(amount, LEFT + WIDTH - priceColumn(), y + 7, {
-    width: priceColumn() - px(14),
+  doc.font(FONT.bold).fontSize(TYPE.room).fillColor(INK).text(amount, cols.priceX, top, {
+    width: cols.priceW,
     align: "right",
     lineBreak: false,
   });
@@ -389,41 +396,79 @@ function paintBullets(doc: PDFKit.PDFDocument, title: string, items: string[], y
   return y + height;
 }
 
-function paintTerms(doc: PDFKit.PDFDocument, lines: string[], y: number): number {
-  if (lines.length === 0) return y;
-  const height = termHeight(doc, lines);
+/** Highlighted block for cancellation, payment, and other must-read terms. */
+function paintImportant(doc: PDFKit.PDFDocument, title: string, items: string[], y: number): number {
+  const unique = [...new Set(items.map((item) => item.trim()).filter(Boolean))];
+  if (unique.length === 0) return y;
+  const height = importantHeight(doc, unique);
   y = ensure(doc, y, height);
   doc.rect(LEFT, y, WIDTH, height).fill(SAND);
-  let lineY = y + 7;
-  for (const line of lines) {
-    doc.font(FONT.italic).fontSize(TYPE.terms).fillColor(INK).text(line, LEFT + px(14), lineY, {
+  doc.rect(LEFT, y, px(4), height).fill(GOLD);
+  doc.font(FONT.bold).fontSize(TYPE.includedTitle).fillColor(INK).text(title, LEFT + px(14), y + 7, {
+    width: WIDTH - px(28),
+  });
+  let lineY = y + 7 + TYPE.includedTitle + 3;
+  for (const item of unique) {
+    doc.font(FONT.regular).fontSize(TYPE.terms).fillColor(INK).text(`•  ${item}`, LEFT + px(14), lineY, {
       width: WIDTH - px(28),
       lineGap: 1,
     });
-    lineY = doc.y + 3;
+    lineY = doc.y + 2;
   }
   return y + height;
 }
 
-function hotelTermLines(hotel: OptionsQuoteHotel): string[] {
-  return printedTermLines(hotel);
+/**
+ * Split cancel and payment for the client. A full terms rewrite on a room
+ * is shown under Cancellation so payment is not duplicated.
+ */
+function hotelPolicySections(hotel: OptionsQuoteHotel): {
+  cancellation: string[];
+  payment: string[];
+} {
+  const cancelRows: Array<{ name: string; text: string }> = [];
+  const paymentRows: Array<{ name: string; text: string }> = [];
+
+  for (const room of hotel.rooms) {
+    const override = room.terms?.trim() || null;
+    if (override) {
+      cancelRows.push({ name: room.name, text: override });
+      continue;
+    }
+    if (room.cancellation?.trim()) {
+      cancelRows.push({ name: room.name, text: room.cancellation.trim() });
+    }
+    if (room.payment?.trim()) {
+      paymentRows.push({ name: room.name, text: room.payment.trim() });
+    }
+  }
+
+  return {
+    cancellation: policyLines(cancelRows, hotel.rooms.length),
+    payment: policyLines(paymentRows, hotel.rooms.length),
+  };
 }
 
-function roomHeight(doc: PDFKit.PDFDocument, room: OptionsQuoteRoom, showInclusions: boolean): number {
-  const textWidth = WIDTH - priceColumn() - px(20);
+function policyLines(
+  rows: Array<{ name: string; text: string }>,
+  roomCount: number,
+): string[] {
+  if (rows.length === 0) return [];
+  const same = rows.every((row) => row.text === rows[0]!.text);
+  if (same) return [rows[0]!.text];
+  if (roomCount <= 1) return rows.map((row) => row.text);
+  return rows.map((row) => `${row.name}: ${row.text}`);
+}
+
+function roomHeight(doc: PDFKit.PDFDocument, room: OptionsQuoteRoom, cols: TableColumns): number {
   doc.font(FONT.bold).fontSize(TYPE.room);
-  const name = doc.heightOfString(room.name, { width: textWidth });
+  const name = doc.heightOfString(room.name, { width: cols.roomW });
   doc.font(FONT.regular).fontSize(TYPE.roomMeta);
-  const detail = room.detail ? doc.heightOfString(room.detail, { width: textWidth }) + 2 : 0;
-  const included =
-    showInclusions && room.inclusions.length > 0
-      ? doc.heightOfString(room.inclusions.join("  ·  "), { width: textWidth }) + 4
-      : 0;
-  const extras = room.extras.reduce(
-    (sum, item) => sum + doc.heightOfString(`•  ${item}`, { width: textWidth, lineGap: 1 }) + 4,
-    0,
-  );
-  return Math.max(28, name + detail + included + extras + 14);
+  const meal = doc.heightOfString(room.detail?.trim() || "—", { width: cols.mealW });
+  const sleeps = cols.showSleeps
+    ? doc.heightOfString(room.sleeps?.trim() || "—", { width: cols.sleepsW })
+    : 0;
+  return Math.max(28, Math.max(name, meal, sleeps) + 14);
 }
 
 function bulletHeight(doc: PDFKit.PDFDocument, items: string[]): number {
@@ -437,14 +482,15 @@ function bulletHeight(doc: PDFKit.PDFDocument, items: string[]): number {
   return body + 7 + TYPE.includedTitle + 3 + 8;
 }
 
-function termHeight(doc: PDFKit.PDFDocument, lines: string[]): number {
-  if (lines.length === 0) return 0;
-  doc.font(FONT.italic).fontSize(TYPE.terms);
-  const body = lines.reduce(
-    (sum, line) => sum + doc.heightOfString(line, { width: WIDTH - px(28), lineGap: 1 }) + 3,
+function importantHeight(doc: PDFKit.PDFDocument, items: string[]): number {
+  const unique = [...new Set(items.map((item) => item.trim()).filter(Boolean))];
+  if (unique.length === 0) return 0;
+  doc.font(FONT.regular).fontSize(TYPE.terms);
+  const body = unique.reduce(
+    (sum, item) => sum + doc.heightOfString(`•  ${item}`, { width: WIDTH - px(28), lineGap: 1 }) + 2,
     0,
   );
-  return body + 11;
+  return body + 7 + TYPE.includedTitle + 3 + 8;
 }
 
 function paragraph(
@@ -468,8 +514,38 @@ function label(doc: PDFKit.PDFDocument, value: string, x: number, y: number, wid
   });
 }
 
-function priceColumn(): number {
-  return 112;
+type TableColumns = {
+  showSleeps: boolean;
+  roomX: number;
+  roomW: number;
+  mealX: number;
+  mealW: number;
+  sleepsX: number;
+  sleepsW: number;
+  priceX: number;
+  priceW: number;
+};
+
+/** Room | Meal plan | Total, plus Occupancy only when room capacity differs. */
+function tableColumns(rooms: OptionsQuoteRoom[]): TableColumns {
+  const pad = px(14);
+  const gap = px(8);
+  const priceW = px(108);
+  const mealW = px(100);
+  const showSleeps = showSleepsColumn(rooms);
+  const sleepsW = showSleeps ? px(92) : 0;
+  const priceX = LEFT + WIDTH - pad - priceW;
+  const sleepsX = showSleeps ? priceX - gap - sleepsW : priceX;
+  const mealX = sleepsX - gap - mealW;
+  const roomX = LEFT + pad;
+  const roomW = Math.max(px(80), mealX - gap - roomX);
+  return { showSleeps, roomX, roomW, mealX, mealW, sleepsX, sleepsW, priceX, priceW };
+}
+
+/** Occupancy column only when two or more rooms list different capacity. */
+function showSleepsColumn(rooms: OptionsQuoteRoom[]): boolean {
+  if (rooms.length < 2) return false;
+  return new Set(rooms.map((room) => room.sleeps?.trim() || "")).size > 1;
 }
 
 function ensure(doc: PDFKit.PDFDocument, y: number, height: number): number {
@@ -478,13 +554,52 @@ function ensure(doc: PDFKit.PDFDocument, y: number, height: number): number {
   return px(40);
 }
 
-function sharedCurrency(rooms: OptionsQuoteRoom[]): string | null {
-  const codes = [...new Set(rooms.map((room) => room.currency).filter((code): code is string => Boolean(code)))];
-  return codes.length === 1 ? codes[0]! : null;
+/** Lines true for every room option at this hotel. */
+function sharedInclusions(rooms: OptionsQuoteRoom[]): string[] {
+  if (rooms.length === 0) return [];
+  const [first, ...rest] = rooms;
+  return distinctLines(first?.inclusions ?? []).filter((item) =>
+    rest.every((room) => room.inclusions.includes(item)),
+  );
 }
 
-function sharedList(lists: string[][]): boolean {
-  if (lists.length === 0) return false;
-  const first = JSON.stringify(lists[0] ?? []);
-  return lists.every((list) => JSON.stringify(list) === first);
+/** Room-only inclusions and extras, one client line per room that differs. */
+function roomDifferenceLines(hotel: OptionsQuoteHotel, shared: string[]): string[] {
+  const sharedSet = new Set(shared);
+  const lines: string[] = [];
+  for (const room of hotel.rooms) {
+    const only = distinctLines([
+      ...room.inclusions.filter((item) => !sharedSet.has(item)),
+      ...room.extras,
+    ]);
+    if (only.length === 0) continue;
+    lines.push(`${room.name}: ${only.join("; ")}`);
+  }
+  return lines;
+}
+
+function distinctLines(items: string[]): string[] {
+  return [...new Set(items.map((item) => item.trim()).filter(Boolean))];
+}
+
+/** Client price with a currency symbol when the ISO code is known. */
+function formatMoneyLabel(amountText: string, currency: string | null): string {
+  const trimmed = amountText.trim();
+  if (!trimmed || /^to be confirmed$/i.test(trimmed)) return trimmed || "To be confirmed";
+  const code = currency?.trim().toUpperCase() || null;
+  const amount = Number(trimmed.replace(/,/g, ""));
+  if (!code || !Number.isFinite(amount)) {
+    return code ? `${code} ${trimmed}` : trimmed;
+  }
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: code,
+      currencyDisplay: "symbol",
+      minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    return `${code} ${trimmed}`;
+  }
 }

@@ -99,23 +99,15 @@ export function AppShell({ user, children }: AppShellProps) {
           "fixed inset-y-0 left-0 w-[min(18rem,calc(100vw-3rem))] max-w-[85vw] shadow-xl md:shadow-none",
           "transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
           mobileOpen ? "translate-x-0" : "pointer-events-none -translate-x-full",
-          // Desktop — in-flow column; its width is the space the page gives up
+          // Desktop — in-flow column; width is the space the page gives up (peek pushes main right).
           "md:pointer-events-auto md:relative md:inset-auto md:max-w-none md:shrink-0 md:translate-x-0",
-          "md:transition-[width] md:duration-300 md:ease-[cubic-bezier(0.22,1,0.36,1)]",
-          unfoldable ? "md:w-16" : "md:w-60",
+          "md:transition-[width] md:duration-300 md:ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+          unfoldable ? (peek.peeking ? "md:w-60" : "md:w-16") : "md:w-60",
         )}
         onPointerEnter={peek.onPointerEnter}
         onPointerLeave={peek.onPointerLeave}
       >
-        <div
-          className={cn(
-            "flex h-full w-full flex-col bg-nav",
-            // Desktop: a layer that can grow past the rail slot, so the hover peek slides over the page.
-            "md:absolute md:inset-y-0 md:left-0",
-            "md:transition-[width,box-shadow] md:duration-300 md:ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
-            peek.peeking ? "md:w-60 md:shadow-xl" : "md:w-full md:shadow-none",
-          )}
-        >
+        <div className="flex h-full w-full flex-col bg-nav">
           <SidebarPanel
             user={user}
             navigation={navigation}

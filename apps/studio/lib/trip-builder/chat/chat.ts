@@ -7,6 +7,7 @@ import {
   type AgentPhase,
   type AgentStreamChunk,
   type ApprovalDecision,
+  type RateCompareCard,
   type TripFacts,
   type TurnMeter,
 } from "@pureluxe/ai";
@@ -42,6 +43,8 @@ export type ChatReplyCards = {
   undo?: true;
   /** Buttons that run a tool directly, e.g. one per matching client. */
   choices?: AgentChoice[];
+  /** Multi-hotel rate comparison (Stage 3c). */
+  rateCompare?: RateCompareCard;
   /** What Confirm will do. The agent is waiting for Confirm or Cancel. */
   approval?: string;
 };
@@ -70,6 +73,8 @@ export type ChatStreamEvent =
   | { type: "changed"; summary: string }
   /** Home chat: open this trip (just created, or chosen). Sent after `done`. */
   | { type: "opened"; tripId: string }
+  /** Open the options quote PDF (short-lived signed URL; not stored on the message). */
+  | { type: "quote_preview"; url: string }
   | { type: "done"; assistant: ChatMessage }
   | {
       type: "replay";
@@ -84,6 +89,7 @@ export type ChatStreamEvent =
 export type ReplyOutcome = {
   undo: boolean;
   choices: AgentChoice[];
+  rateCompare: RateCompareCard | null;
   approval: AgentApproval | null;
 };
 
@@ -91,6 +97,7 @@ function compactCards(cards: ChatReplyCards): ChatReplyCards | null {
   const compact: ChatReplyCards = {
     ...(cards.undo ? { undo: true as const } : {}),
     ...(cards.choices?.length ? { choices: cards.choices } : {}),
+    ...(cards.rateCompare ? { rateCompare: cards.rateCompare } : {}),
     ...(cards.approval ? { approval: cards.approval } : {}),
   };
   return Object.keys(compact).length > 0 ? compact : null;
@@ -430,6 +437,7 @@ function buildStreamTurn(input: {
       const cards = compactCards({
         undo: outcome.undo || undefined,
         choices: outcome.choices,
+        rateCompare: outcome.rateCompare ?? undefined,
         approval: outcome.approval?.summary,
       });
       return saveAssistant(content, false, cards);

@@ -54,30 +54,23 @@ export function occupancyLine(raw: Record<string, unknown>): string | null {
   return parts.length > 0 ? parts.join(", ") : null;
 }
 
-function money(amount: number, currency: string): string {
-  const formatted = new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: 2,
-  }).format(amount);
-  return currency ? `${currency} ${formatted}` : formatted;
-}
-
 function roomLine(option: NormalizedRateOption, index: number, markupPercent: number | null): string {
   const room = option.room_name?.trim() || option.property_name?.trim() || "Room";
   const bits = [
     `${index}. ${room}`,
     option.board ? `board ${option.board}` : null,
-    `team cost ${money(option.cost_internal, option.currency)}`,
+    `team cost ${formatRoomMoney(option.cost_internal, option.currency)}`,
     markupPercent == null
       ? null
-      : `suggested client price at ${markupPercent}% markup ${formatRoomMoney(clientPriceAtMarkup(option.cost_internal, markupPercent), option.currency)}`,
+      : `suggested client price at ${markupPercent}% commission rate ${formatRoomMoney(clientPriceAtMarkup(option.cost_internal, markupPercent), option.currency)}`,
     typeof option.raw.cost_amount === "number" && typeof option.raw.cost_unit === "string"
-      ? `${money(option.raw.cost_amount, option.currency)} ${option.raw.cost_unit.replaceAll("_", " ")}`
+      ? `${formatRoomMoney(option.raw.cost_amount, option.currency)} ${option.raw.cost_unit.replaceAll("_", " ")}`
       : null,
     typeof option.raw.package_nights === "number"
       ? `package nights ${option.raw.package_nights}`
       : null,
     typeof option.raw.extra_night_amount === "number"
-      ? `extra night ${money(option.raw.extra_night_amount, option.currency)}`
+      ? `extra night ${formatRoomMoney(option.raw.extra_night_amount, option.currency)}`
       : null,
     typeof option.raw.season_code === "string" && option.raw.season_code
       ? `season ${option.raw.season_code}`

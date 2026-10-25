@@ -72,6 +72,36 @@ export {
 export { resolveRates, searchRatesForLeg } from "./search";
 
 export {
+  ASSUMED_CHILD_AGE,
+  applyQualifyingOffers,
+  applyServiceChargeAndTax,
+  applyTransferDiscount,
+  childAgesAffectPrice,
+  computeRoomStayCost,
+  contractAllowedForMarket,
+  coversNight,
+  listPricableRoomCategories,
+  mandatoryExtraCharges,
+  occupancyExtraCharges,
+  overlapsStay,
+  partyFitsRate,
+  priceContractedRoom,
+  previousCalendarDay,
+  rateForNight,
+  roomFitsOccupancy,
+  roundMoney,
+  splitPartyAcrossRooms,
+  stayNights,
+  type AppliedExtra,
+  type AppliedOffer,
+  type ContractedAllInPrice,
+  type PartyRoom,
+  type PriceContractedRoomInput,
+  type PriceContractedRoomResult,
+  type PriceScope,
+} from "./pricing";
+
+export {
   RATE_SOURCE_CODES,
   type AdapterRunSummary,
   type DestinationRoutingPattern,

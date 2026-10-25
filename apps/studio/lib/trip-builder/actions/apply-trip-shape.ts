@@ -1,5 +1,10 @@
-import { deleteLineItemsForLeg, updateTrip as dbUpdateTrip, type UpdateTripRecord } from "@pureluxe/db";
-import { AppError, type UpdateTripInput } from "@pureluxe/shared";
+import {
+  deleteLineItemsForLeg,
+  deleteTripLineItemsByIds,
+  updateTrip as dbUpdateTrip,
+  type UpdateTripRecord,
+} from "@pureluxe/db";
+import { AppError, tripMessages, type UpdateTripInput } from "@pureluxe/shared";
 
 import {
   addTripTravellers,
@@ -92,7 +97,18 @@ async function applyStayList(tripId: string, detail: TripDetail, stays: TripShap
   return { detail: next, stays: placed };
 }
 
-/** Choose or clear each stay's hotel. Clearing is refused once rooms are saved on that stay. */
+function sameHotelName(left: string | null | undefined, right: string | null | undefined): boolean {
+  const a = (left ?? "").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ");
+  const b = (right ?? "").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ");
+  if (!a || !b) return false;
+  return a === b || a.includes(b) || b.includes(a);
+}
+
+/**
+ * Choose or clear each stay's hotel.
+ * Clearing drops quote rooms on that stay (and any rooms labelled with that hotel on
+ * another stay — older attaches put multi-hotel options on the first leg).
+ */
 async function applyHotels(tripId: string, detail: TripDetail, stays: TripShapeStay[], actor: Actor) {
   let next = detail;
   const party = partyCounts(next.travellers);
@@ -122,13 +138,21 @@ async function applyHotels(tripId: string, detail: TripDetail, stays: TripShapeS
       );
       next = result.detail;
     } else if (current.hotel) {
-      if (next.rates.candidates.some((rate) => rate.leg_id === stay.leg_id)) {
+      if (next.pricing_locked) {
         throw new AppError({
-          userMessage: `Rooms are saved on ${stay.city}, so its hotel can't be cleared. Remove the rooms first.`,
-          code: "trips.hotel_has_rooms",
+          userMessage: tripMessages.error.pricingLocked,
+          code: "trips.pricing_locked",
           status: 409,
         });
       }
+      // Rooms may sit on this leg, or on another leg under this hotel name.
+      const strayIds = next.rates.candidates
+        .filter(
+          (rate) =>
+            rate.leg_id === stay.leg_id || sameHotelName(rate.property_name, current.hotel),
+        )
+        .map((rate) => rate.id);
+      if (strayIds.length > 0) await deleteTripLineItemsByIds(strayIds);
       await deleteLineItemsForLeg(tripId, stay.leg_id);
       await markQuoteStale(tripId);
       next = await getTripDetail(tripId, actor);

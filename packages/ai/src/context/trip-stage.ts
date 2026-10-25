@@ -25,10 +25,17 @@ function ratesComplete(trip: TripFacts): boolean {
 const ACCEPTED = new Set(["booking", "confirmed", "completed"]);
 const WITH_CLIENT = new Set(["quote_sent", "waiting_on_client"]);
 
-/** A room carries a client price, or a chosen room sits under a trip price. */
-function roomsPriced(trip: TripFacts): boolean {
+/** Options quote has at least one room with a client price (matches Studio Stage 3d). */
+function quoteOptionsPriced(trip: TripFacts): boolean {
   if (trip.rates.candidates.some((rate) => rate.sell_amount != null)) return true;
   return ratesComplete(trip) && trip.quote.sell_total != null;
+}
+
+function quoteOptionsNeedPrice(trip: TripFacts): boolean {
+  return (
+    trip.rates.candidates.length > 0 &&
+    !trip.rates.candidates.some((rate) => rate.sell_amount != null)
+  );
 }
 
 /**
@@ -42,8 +49,8 @@ export function resolveTripStage(trip: TripFacts): TripBuilderStage {
   if (trip.travellers_confirmed === false) return "client";
   if (!trip.starts_on || !trip.ends_on) return "stay";
   if (trip.legs_confirmed === false) return "stay";
-  if (!stayComplete(trip)) return "stay";
-  if (!roomsPriced(trip)) return "rates";
+  // Stage 3c: rates shopping does not require a hotel saved on the stay.
+  if (!quoteOptionsPriced(trip)) return "rates";
   return "quote";
 }
 
@@ -53,10 +60,11 @@ export function resolveNextStep(trip: TripFacts): string {
   if (!trip.client) return "Select a client";
   if (trip.travellers_confirmed === false) return "Name the travellers";
   if (!trip.starts_on || !trip.ends_on) return "Set the trip dates";
-  if (trip.legs_confirmed === false) return "List each stay";
-  if (!stayComplete(trip)) return "Set hotel & party";
-  if (!roomsPriced(trip)) return "Add rooms with a client price";
-  return "Send the options quote";
+  if (trip.legs_confirmed === false) return "Add places or search rates";
+  if (quoteOptionsPriced(trip)) return "Send the options quote";
+  if (quoteOptionsNeedPrice(trip)) return "Set client prices on the quote";
+  if (!stayComplete(trip)) return "Suggest hotels and search rates";
+  return "Add rooms to the options quote";
 }
 
 /** Explicit gaps the model should treat as unknown / incomplete. */
@@ -95,6 +103,17 @@ export function listTripGaps(trip: TripFacts): string[] {
 
   if (accepted && stays.length === 0 && !trip.rates.selected) {
     gaps.push("Client's room not chosen");
+  }
+
+  const building = !ACCEPTED.has(trip.status) && !WITH_CLIENT.has(trip.status);
+  if (building && trip.legs_confirmed !== false && !quoteOptionsPriced(trip)) {
+    if (quoteOptionsNeedPrice(trip)) {
+      gaps.push("Rooms on the quote need a client price");
+    } else {
+      gaps.push(
+        "No rate compare yet — name hotels or ask for suggestions, then search rates (saved stay not required)",
+      );
+    }
   }
 
   if (trip.rates.selected && trip.quote.sell_total == null) {

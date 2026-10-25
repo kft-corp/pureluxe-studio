@@ -11,5 +11,17 @@ export {
   shiftTrip,
   undoTripChange,
 } from "./trip-changes";
+export {
+  addQuoteOptions,
+  editQuoteLines,
+  listQuoteLinesForAgent,
+  previewQuote,
+  removeQuoteOption,
+  rewriteQuoteSection,
+  sendQuote,
+  setQuoteClientPrices,
+  setQuoteWording,
+  usePastedQuote,
+} from "./quote-changes";
 export { createTripFromChat, type TripCreateContext } from "./create-trip-from-chat";
 export type { TripChangeContext, TripChangeResult } from "./with-trip-change";

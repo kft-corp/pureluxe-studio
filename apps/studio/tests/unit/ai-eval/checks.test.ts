@@ -75,12 +75,29 @@ describe("checkStep", () => {
 
   it("lists what this build stage can't check instead of failing", () => {
     const { failures, notChecked } = checkStep(
-      { cards: ["rate_compare"], trip: { quoteStatus: "sent" } },
+      {
+        cards: ["leg_split"],
+        trip: {
+          chosenOption: { hotel: "Kanuhura", room: "Beach Villa" },
+          booking: { hotel: "Kanuhura", status: "pending" },
+          preArrival: { started: true, prefilled: ["travellers"] },
+        },
+      },
       observed(),
       [],
     );
     expect(failures).toEqual([]);
-    expect(notChecked).toEqual(["trip.quoteStatus", "cards (rate_compare)"]);
+    expect(notChecked).toEqual(["trip.chosenOption", "trip.booking", "trip.preArrival", "cards (leg_split)"]);
+  });
+
+  it("fails when quote status or rate_compare is missing (Stage 3c/3d)", () => {
+    const { failures, notChecked } = checkStep(
+      { cards: ["rate_compare"], trip: { quoteStatus: "sent" } },
+      observed({ trip: { ...newEvalTrip("trip-1"), quoteStatus: "draft" } }),
+      [],
+    );
+    expect(failures).toEqual(["quote status draft, expected sent", "expected a rate_compare card"]);
+    expect(notChecked).toEqual([]);
   });
 
   it("checks the cards shown and approvals allowed", () => {

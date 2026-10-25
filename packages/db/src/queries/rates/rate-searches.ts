@@ -160,6 +160,41 @@ export async function findLatestRateSearch(tripId: string): Promise<StoredRateSe
   return { event: saved, results: (results as unknown as RateSearchResult[]) ?? [] };
 }
 
+/** One stored room offer by id. */
+export async function findRateSearchResultById(
+  resultId: string,
+): Promise<RateSearchResult | null> {
+  const supabase = getServiceClient();
+  const { data, error } = await runSupabaseQuery(() =>
+    supabase.from("rate_search_results").select(RESULT_COLUMNS).eq("id", resultId).maybeSingle(),
+  );
+  if (error) throw dbQueryError(error);
+  return (data as unknown as RateSearchResult) ?? null;
+}
+
+/** One rate search event by id (with its room offers). */
+export async function findRateSearchByEventId(
+  eventId: string,
+): Promise<StoredRateSearch | null> {
+  const supabase = getServiceClient();
+  const { data: event, error: eventError } = await runSupabaseQuery(() =>
+    supabase.from("rate_search_events").select(EVENT_COLUMNS).eq("id", eventId).maybeSingle(),
+  );
+  if (eventError) throw dbQueryError(eventError);
+  if (!event) return null;
+
+  const saved = event as unknown as RateSearchEvent;
+  const { data: results, error: resultsError } = await runSupabaseQuery(() =>
+    supabase
+      .from("rate_search_results")
+      .select(RESULT_COLUMNS)
+      .eq("search_event_id", saved.id)
+      .order("rank", { ascending: true }),
+  );
+  if (resultsError) throw dbQueryError(resultsError);
+  return { event: saved, results: (results as unknown as RateSearchResult[]) ?? [] };
+}
+
 /** Close every open search on a trip. Call after the trip, a stay, or a rate changes. */
 export async function expireRateSearches(tripId: string): Promise<void> {
   const supabase = getServiceClient();

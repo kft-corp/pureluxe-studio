@@ -29,9 +29,9 @@ export function statusNextStep(input: {
     case "waiting_on_client":
       return "Follow up with the client";
     default:
+      // Stage 3d: quote_send builds the PDF and marks sent in one step.
       if (input.quoteStale) return "Regenerate the options quote";
-      if (input.quoteReady) return "Send the quote, then mark Sent to client";
-      return "Generate the options quote";
+      return "Send the options quote";
   }
 }
 
@@ -56,6 +56,6 @@ export function journeyNextStep(
   if (card.proposal_stale) return "Regenerate the options quote";
   if (!card.client) return "Select a client";
   if (!card.starts_on || !card.ends_on) return "Set the trip dates";
-  if (card.destinations.length === 0) return "Add the places";
-  return "Finish the plan";
+  if (card.destinations.length === 0) return "Add places or search rates";
+  return "Add rooms to the options quote";
 }

@@ -1,0 +1,44 @@
+﻿# Package Managers & Dependencies
+node_modules/
+.pnpm-store/
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Build & Compiled Output
+dist/
+build/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+
+# Test Coverage & Logs
+coverage/
+*.log
+npm-debug.log*
+yarn-debug.log*
+.nyc_output/
+playwright-report/
+test-results/
+*.snap
+
+# Binaries, Documents & Media
+*.png
+*.jpg
+*.jpeg
+*.svg
+*.ico
+*.mp4
+*.pdf
+*.zip
+
+# Local Databases & Secrets
+*.sqlite
+*.dump
+.env*
+!.env.example
+
+# VCS & OS noise
+.git/
+.DS_Store

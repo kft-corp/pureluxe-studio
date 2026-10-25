@@ -28,6 +28,69 @@ export function plainReplyText(markdown: string): string {
     .trim();
 }
 
+function isMarkdownTableRow(line: string): boolean {
+  const trimmed = line.trim();
+  return trimmed.startsWith("|") && trimmed.includes("|", 1);
+}
+
+function isMarkdownTableSeparator(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed.includes("-")) return false;
+  return /^\|?[\s:|-]+\|?$/.test(trimmed) && /:?-{2,}:?/.test(trimmed);
+}
+
+function splitMarkdownTableCells(line: string): string[] {
+  const trimmed = line.trim().replace(/^\|/, "").replace(/\|$/, "");
+  return trimmed.split("|").map((cell) => cell.trim());
+}
+
+function joinMarkdownTableCells(cells: string[]): string {
+  return `| ${cells.join(" | ")} |`;
+}
+
+/**
+ * Pad GFM tables so every row has the same column count.
+ * Fixes agent tables with a missing blank header cell (hotels as columns)
+ * or short rows that otherwise render misaligned in chat.
+ */
+export function normalizeMarkdownTables(markdown: string): string {
+  const lines = markdown.split("\n");
+  const out: string[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const header = lines[i] ?? "";
+    const sep = lines[i + 1] ?? "";
+    if (!isMarkdownTableRow(header) || !isMarkdownTableSeparator(sep)) {
+      out.push(header);
+      i += 1;
+      continue;
+    }
+    const start = i;
+    i += 2;
+    while (i < lines.length && isMarkdownTableRow(lines[i] ?? "")) i += 1;
+    const block = lines.slice(start, i);
+    const rows = block.map(splitMarkdownTableCells);
+    const headerCells = rows[0] ?? [];
+    const bodyRows = rows.slice(2);
+    const bodyMax = bodyRows.reduce((max, row) => Math.max(max, row.length), 0);
+    // Common compare shape: body has a label column the header omitted.
+    if (bodyMax === headerCells.length + 1) {
+      rows[0] = ["", ...headerCells];
+    }
+    const colCount = rows.reduce((max, row) => Math.max(max, row.length), 0);
+    for (let r = 0; r < rows.length; r += 1) {
+      const cells = [...(rows[r] ?? [])];
+      while (cells.length < colCount) cells.push("");
+      if (r === 1) {
+        out.push(joinMarkdownTableCells(cells.map(() => "---")));
+      } else {
+        out.push(joinMarkdownTableCells(cells.slice(0, colCount)));
+      }
+    }
+  }
+  return out.join("\n");
+}
+
 /** The local calendar day of a message time, e.g. "2026-10-23". Null when it doesn't parse. */
 export function chatDayKey(iso: string): string | null {
   const date = new Date(iso);
@@ -150,9 +213,22 @@ export function shortStayDate(iso: string): string {
 
 export function formatMoney(amount: number | null, currency: string | null) {
   if (amount == null) return "";
-  const code = currency?.trim() || "";
-  const figure = amount.toLocaleString("en-US", { maximumFractionDigits: 2 });
-  return code ? `${code} ${figure}` : figure;
+  const code = currency?.trim().toUpperCase() || "";
+  if (!code) {
+    return amount.toLocaleString("en-US", { maximumFractionDigits: 2 });
+  }
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: code,
+      currencyDisplay: "narrowSymbol",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    const figure = amount.toLocaleString("en-US", { maximumFractionDigits: 2 });
+    return `${code} ${figure}`;
+  }
 }
 
 export function stayFieldsDiffer(

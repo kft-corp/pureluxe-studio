@@ -22,7 +22,14 @@ export const stayInput = z
     city: z.string().trim().min(1).max(200).describe("City, island or destination name only, without labels such as \"City:\"."),
     check_in: looseDate.optional(),
     check_out: looseDate.optional(),
-    hotel: z.string().trim().min(2).max(200).nullable().optional().describe("Hotel name. Omit to keep the current one."),
+    hotel: z
+      .string()
+      .trim()
+      .min(2)
+      .max(200)
+      .nullable()
+      .optional()
+      .describe("Hotel name. Omit to keep the current one; null to clear it (quote rooms for that hotel go too)."),
     rooms: z.number().int().min(1).max(20).optional(),
   })
   .strict();

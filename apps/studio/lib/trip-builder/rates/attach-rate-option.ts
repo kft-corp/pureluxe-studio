@@ -18,6 +18,32 @@ import { markQuoteStale } from "../stays/stay-side-effects";
 
 import { selectAccommodationRate } from "./select-accommodation-rate";
 
+function readQuoteMeta(raw: Record<string, unknown> | null | undefined): {
+  sell_amount?: number | null;
+  markup_percent?: number | null;
+  option_rank?: number | null;
+  rate_search_result_id?: string | null;
+  added_via?: "agent" | "button" | "paste" | "manual" | null;
+} {
+  const meta = raw?.quote_meta;
+  if (!meta || typeof meta !== "object") return {};
+  const row = meta as Record<string, unknown>;
+  return {
+    sell_amount: typeof row.sell_amount === "number" ? row.sell_amount : undefined,
+    markup_percent: typeof row.markup_percent === "number" ? row.markup_percent : null,
+    option_rank: typeof row.option_rank === "number" ? row.option_rank : null,
+    rate_search_result_id:
+      typeof row.rate_search_result_id === "string" ? row.rate_search_result_id : null,
+    added_via:
+      row.added_via === "agent" ||
+      row.added_via === "button" ||
+      row.added_via === "paste" ||
+      row.added_via === "manual"
+        ? row.added_via
+        : null,
+  };
+}
+
 /**
  * Attach a search option as a trip line item.
  * When select=true, marks it as the selected accommodation for the leg.
@@ -50,6 +76,7 @@ export async function attachRateOption(
   }
 
   const draft = toLineItemFields(input.option as NormalizedRateOption);
+  const quoteMeta = readQuoteMeta((input.option as NormalizedRateOption).raw);
   if (legId) {
     const saved = await listPricedAccommodationLineItems(input.trip_id, legId);
     const room = (draft.subtitle ?? draft.title).trim().toLowerCase();
@@ -87,6 +114,11 @@ export async function attachRateOption(
     source: "manual",
     extracted_json: draft.extracted,
     created_by_id: actor.memberId,
+    sell_amount: quoteMeta.sell_amount,
+    markup_percent: quoteMeta.markup_percent,
+    option_rank: quoteMeta.option_rank,
+    rate_search_result_id: quoteMeta.rate_search_result_id,
+    added_via: quoteMeta.added_via,
   });
 
   if (!input.select || !legId) {

@@ -406,6 +406,7 @@ export function useTripRates(core: TripCore, chat: TripChat) {
     );
   }
 
+  /** Summary panel: record the client's room at once (Stage 3d — no confirm chip). */
   function offerChooseSaved(lineItemId: string) {
     if (!detail) return;
     const row = detail.rates.candidates.find((item) => item.id === lineItemId && !item.selected);
@@ -424,17 +425,8 @@ export function useTripRates(core: TripCore, chat: TripChat) {
     };
     const draft = draftFromChoice(choice);
     setPendingOptionDraft(null);
-    setOffer({ type: "select-room", room: draft });
     setQuietChips(false);
-    const room = draft.title.length > 32 ? `${draft.title.slice(0, 32).trim()}…` : draft.title;
-    void appendTurn(
-      "Client chose this",
-      `**${draft.title}** stays. ${
-        draft.sellLabel
-          ? `Client price on the options quote **${draft.sellLabel}**, and that becomes the trip's client price once every stay has a room. Team cost **${draft.costLabel}**.`
-          : `Team cost **${draft.costLabel}**. No client price is set on the options quote for this room, so set the client price after choosing.`
-      } The other options for this stay come off, and a pending booking is created.\n\nSay **yes** or tap **Client chose · ${room}**. Say **no** to cancel.`,
-    );
+    void commitSelect(draft, "Client chose this");
   }
 
   /** Ask for a new client price on the client's chosen room. The reply runs the usual price confirm. */
@@ -632,7 +624,6 @@ export function useTripRates(core: TripCore, chat: TripChat) {
       );
     } catch (error) {
       showApiError(error);
-      setOffer({ type: "paste", text: pasteText });
     } finally {
       setBusy(false);
     }
@@ -685,7 +676,6 @@ export function useTripRates(core: TripCore, chat: TripChat) {
       );
     } catch (error) {
       showApiError(error);
-      setOffer({ type: "sell", sell });
     } finally {
       setBusy(false);
     }
@@ -703,8 +693,8 @@ export function useTripRates(core: TripCore, chat: TripChat) {
     if (options.length === 0) {
       const note = message?.trim();
       return note
-        ? `${note}\n\nPaste a supplier quote in chat, with the total, and I'll confirm it before saving.`
-        : "No rates came back for this stay. Paste a supplier quote in chat, with the total, and I'll confirm it before saving.";
+        ? `${note}\n\nAsk for alternatives, or paste a supplier quote in chat with the total — I'll add it to the quote.`
+        : "No rates came back for this stay. Ask for alternatives, or paste a supplier quote in chat with the total — I'll add it to the quote.";
     }
     const first = explainRate(options[0]);
     const hotel = options[0].property_name?.trim() || first.room;
@@ -727,7 +717,7 @@ export function useTripRates(core: TripCore, chat: TripChat) {
     const suggestion =
       markupPercent == null
         ? null
-        : `Minimum markup on file is ${markupPercent}%. The suggested client price is the team cost plus that percent. It is not saved.`;
+        : `Commission rate on file is ${markupPercent}%. The suggested client price is the team cost plus that percent. It is not saved.`;
     return [
       `**${hotel}** · ${from} – ${to} · ${first.nightsLabel} · ${party}`,
       `${rateWord}. Each amount on the card is the team cost.`,

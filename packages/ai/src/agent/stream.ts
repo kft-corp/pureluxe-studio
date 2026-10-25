@@ -50,7 +50,7 @@ function textFromMessagesEvent(event: unknown): string {
 }
 
 /** Chunks the tools send themselves (LangGraph "custom" mode). */
-const TOOL_CHUNKS = new Set(["changed", "choices", "opened"]);
+const TOOL_CHUNKS = new Set(["changed", "choices", "opened", "rate_compare", "quote_preview"]);
 
 function isChunk(value: unknown): value is AgentStreamChunk {
   return isRecord(value) && TOOL_CHUNKS.has(value.kind as string);

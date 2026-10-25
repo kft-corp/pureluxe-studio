@@ -12,6 +12,14 @@ export type EvalTrip = {
   stays: Array<{ destination: string; checkIn: string; checkOut: string; hotel: string | null }>;
   /** Values the agent assumed, e.g. "year". */
   assumed: string[];
+  /** Options on the quote (Stage 3d). */
+  quoteOptions: Array<{
+    hotel: string;
+    room: string;
+    markupPercent: number | null;
+    clientPrice: number | null;
+  }>;
+  quoteStatus: "draft" | "sent";
 };
 
 export function newEvalTrip(tripId: string): EvalTrip {
@@ -23,6 +31,8 @@ export function newEvalTrip(tripId: string): EvalTrip {
     endsOn: null,
     stays: [],
     assumed: [],
+    quoteOptions: [],
+    quoteStatus: "draft",
   };
 }
 
@@ -126,13 +136,12 @@ export function toEvalTripFacts(trip: EvalTrip, seed: ScenarioSeed, today: strin
     rates: { selected: null, candidates: [] },
     quote: {
       title: null,
-      intro: null,
       notes: null,
-      highlights: [],
       sell_total: null,
       sell_currency: null,
       document_status: null,
       has_file: false,
+      line_edit_count: 0,
     },
     readiness: [],
   };

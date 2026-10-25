@@ -78,20 +78,6 @@ const DUBAI = makeStay({
   children: 0,
   rooms: 1,
 });
-const MUSCAT = makeStay({
-  leg_id: "leg-muscat",
-  city: "Muscat",
-  check_in: "2026-10-14",
-  check_out: "2026-10-18",
-});
-const MUSCAT_BOOKED = {
-  ...MUSCAT,
-  property_id: "prop-shangri",
-  property_name: "Shangri-La",
-  adults: 1,
-  children: 0,
-  rooms: 1,
-};
 const OCEAN_SUITE = makeRate({
   id: "r1",
   leg_id: "leg-dubai",
@@ -131,10 +117,6 @@ type View = Awaited<ReturnType<typeof openBuilder>>;
 
 function labels(view: View): string[] {
   return view.result.current.chips.map((chip) => chip.label);
-}
-
-function lastReply(view: View): string | undefined {
-  return view.result.current.messages.at(-1)?.content;
 }
 
 async function settle(view: View) {
@@ -239,178 +221,85 @@ describe("useTripBuilder flows", () => {
       );
     });
 
-    it("drops an open question when another trip opens", async () => {
+    it("drops an open approval when another trip opens", async () => {
       const tripA = planned([DUBAI]);
       const view = await openBuilder(tripA);
-      await send(view, "search rates");
-      expect(labels(view)).toContain("Don't search");
+      agentReplies({
+        content: "This moves every stay 2 days later.",
+        cards: { approval: "Move the trip 2 days later." },
+      });
+      await send(view, "Push the whole trip by 2 days");
+      expect(labels(view)).toEqual(["Confirm", "Cancel"]);
 
       const tripB = makeTripDetail({ ...tripA, trip: { ...tripA.trip, id: "trip-2" } });
       api.getTripBuilderTrip.mockResolvedValue(ok(tripB));
+      api.listTripChatMessages.mockResolvedValue(ok({ messages: [], hasMore: false }));
       nav.tripParam = "trip-2";
       view.rerender();
       await waitFor(() => expect(view.result.current.detail?.trip.id).toBe("trip-2"));
       await waitFor(() => expect(view.result.current.chatLoading).toBe(false));
 
-      expect(labels(view)).not.toContain("Don't search");
+      expect(labels(view)).not.toContain("Confirm");
       await send(view, "yes");
-      expect(api.searchTripBuilderRates).not.toHaveBeenCalled();
+      expect(api.streamTripChat).toHaveBeenLastCalledWith(
+        "trip-2",
+        expect.objectContaining({ kind: "message", message: "yes" }),
+        expect.anything(),
+      );
     });
   });
 
   describe("rates and the quote", () => {
-    beforeEach(() => {
-      api.searchTripBuilderRates.mockResolvedValue(
-        ok({
-          options: [],
-          message: null,
-          stay_notes: null,
-          hotel_brief: null,
-          rate_context: null,
-          recommended: null,
-          sources_tried: [],
-        }),
-      );
-    });
+    it("sends rate and quote lines to the agent with no confirm chips", async () => {
+      const view = await openBuilder(planned([DUBAI], [OCEAN_SUITE]));
 
-    it("asks before searching rates", async () => {
-      const trip = planned([DUBAI]);
-      const view = await openBuilder(trip);
+      for (const message of [
+        "search rates",
+        "Atlantis total USD 3000",
+        "sell 4500 USD",
+        "client price 2400 USD for Ocean Suite",
+        "options title: Maldives escape",
+        "change breakfast to half board",
+        "show the options quote",
+      ]) {
+        api.streamTripChat.mockClear();
+        await send(view, message);
+        expect(api.streamTripChat).toHaveBeenCalledWith(
+          "trip-1",
+          expect.objectContaining({ kind: "message", message }),
+          expect.anything(),
+        );
+        expect(labels(view)).not.toContain("Don't search");
+        expect(labels(view)).not.toContain("Don't use");
+        expect(labels(view)).not.toContain("Keep current price");
+        expect(labels(view)).not.toContain("Don't save");
+        expect(labels(view)).not.toContain("Keep wording");
+        expect(labels(view)).not.toContain("Keep as is");
+        expect(labels(view)).not.toContain("Not now");
+      }
 
-      await send(view, "search rates");
-      expect(labels(view)).toEqual(["Search rates · 1 adults · 1 room", "Don't search"]);
-
-      await send(view, "yes");
-      expect(api.searchTripBuilderRates).toHaveBeenCalledWith(
-        expect.objectContaining({ trip_id: trip.trip.id, leg_id: "leg-dubai", rooms: 1 }),
-      );
-      expect(labels(view)).not.toContain("Don't search");
-    });
-
-    it("drops an open rate search when another stay opens", async () => {
-      const view = await openBuilder(planned([DUBAI, MUSCAT_BOOKED]));
-
-      await send(view, "search rates");
-      expect(labels(view)).toContain("Don't search");
-
-      act(() => view.result.current.selectLeg("leg-muscat"));
-      expect(labels(view)).not.toContain("Don't search");
-
-      await send(view, "yes");
       expect(api.searchTripBuilderRates).not.toHaveBeenCalled();
+      expect(api.pasteTripBuilderLineItem).not.toHaveBeenCalled();
+      expect(api.updateTripBuilderQuote).not.toHaveBeenCalled();
+      expect(api.updateTripBuilderStayOption).not.toHaveBeenCalled();
+      expect(api.updateTripBuilderOptionsQuote).not.toHaveBeenCalled();
+      expect(api.generateTripBuilderOptionsQuote).not.toHaveBeenCalled();
     });
 
-    it("uses a pasted quote after the chip", async () => {
-      const view = await openBuilder(planned([DUBAI]));
-      api.pasteTripBuilderLineItem.mockResolvedValue(ok({ id: "li-1" }));
-      api.selectTripBuilderLineItem.mockResolvedValue(ok({ id: "li-1" }));
-
-      await send(view, "Atlantis total USD 3000");
-      expect(labels(view)).toEqual(["Use pasted quote", "Don't use"]);
-
-      await tap(view, "Use pasted quote");
-      expect(api.pasteTripBuilderLineItem).toHaveBeenCalledWith(
-        expect.objectContaining({ leg_id: "leg-dubai", paste_text: "Atlantis total USD 3000" }),
-      );
-      expect(api.selectTripBuilderLineItem).toHaveBeenCalledWith("li-1");
-      expect(labels(view)).not.toContain("Don't use");
-    });
-
-    it("keeps the pasted quote on offer when saving it fails", async () => {
-      const view = await openBuilder(planned([DUBAI]));
-      api.pasteTripBuilderLineItem.mockRejectedValue(new Error("Network down"));
-
-      await send(view, "Atlantis total USD 3000");
-      await tap(view, "Use pasted quote");
-
-      expect(labels(view)).toContain("Use pasted quote");
-    });
-
-    it("asks before setting the trip client price", async () => {
-      const chosen = { ...OCEAN_SUITE, selected: true, sell_amount: 4000 };
-      const trip = planned([DUBAI], [chosen]);
-      const view = await openBuilder(trip);
-      api.updateTripBuilderQuote.mockResolvedValue(ok({ detail: trip, quote: trip.quote }));
-
-      await send(view, "sell 4500 USD");
-      expect(labels(view)).toEqual(["Set client price · USD 4,500", "Keep current price"]);
-
-      await send(view, "yes");
-      expect(api.updateTripBuilderQuote).toHaveBeenCalledWith(trip.trip.id, {
-        sell_total: 4500,
-        sell_currency: "USD",
-      });
-      expect(labels(view)).not.toContain("Keep current price");
-    });
-
-    it("asks before setting a room's client price", async () => {
+    it("records the client's room from the summary without a confirm chip", async () => {
       const trip = planned([DUBAI], [OCEAN_SUITE]);
       const view = await openBuilder(trip);
-      api.updateTripBuilderStayOption.mockResolvedValue(ok(trip));
-
-      await send(view, "client price 2400 USD for Ocean Suite");
-      expect(labels(view)).toEqual(["Set price · Ocean Suite · USD 2,400", "Don't save"]);
-
-      await send(view, "yes");
-      expect(api.updateTripBuilderStayOption).toHaveBeenCalledWith("r1", { sell_amount: 2400 });
-      expect(labels(view)).not.toContain("Don't save");
-    });
-
-    it("asks before recording the client's room", async () => {
-      const view = await openBuilder(planned([DUBAI], [OCEAN_SUITE]));
       api.selectTripBuilderLineItem.mockResolvedValue(ok({ id: "r1" }));
+      api.getTripBuilderTrip.mockResolvedValue(ok(trip));
 
-      act(() => view.result.current.offerChooseSaved("r1"));
-      expect(labels(view)).toEqual(["Client chose · Ocean Suite", "Not yet"]);
+      await act(async () => {
+        view.result.current.offerChooseSaved("r1");
+      });
+      await settle(view);
 
-      await send(view, "yes");
       expect(api.selectTripBuilderLineItem).toHaveBeenCalledWith("r1");
       expect(labels(view)).not.toContain("Not yet");
-    });
-
-    it("asks before changing the options quote title", async () => {
-      const trip = planned([DUBAI], [OCEAN_SUITE]);
-      const view = await openBuilder(trip);
-      api.updateTripBuilderOptionsQuote.mockResolvedValue(ok(trip));
-
-      await send(view, "options title: Maldives escape");
-      expect(labels(view)).toEqual(["Set options title", "Keep wording"]);
-
-      await send(view, "yes");
-      expect(api.updateTripBuilderOptionsQuote).toHaveBeenCalledWith(trip.trip.id, {
-        title: "Maldives escape",
-      });
-    });
-
-    it("asks before changing a line on the options quote", async () => {
-      const trip = planned([DUBAI], [OCEAN_SUITE]);
-      const view = await openBuilder(trip);
-      api.proposeTripBuilderOptionsEdit.mockResolvedValue(
-        ok({
-          kind: "matches",
-          matches: [{ id: "line-1", label: "Ocean Suite", text: "Breakfast", after: "Half board" }],
-        }),
-      );
-      api.updateTripBuilderOptionsQuote.mockResolvedValue(ok(trip));
-
-      await send(view, "change breakfast to half board");
-      expect(labels(view)).toEqual(["Change this line", "Keep as is"]);
-
-      await send(view, "yes");
-      expect(api.updateTripBuilderOptionsQuote).toHaveBeenCalledWith(trip.trip.id, {
-        line_edits: [{ id: "line-1", text: "Half board" }],
-      });
-    });
-
-    it("does not open the options quote on no", async () => {
-      const view = await openBuilder(planned([DUBAI], [OCEAN_SUITE]));
-
-      await send(view, "show the options quote");
-      expect(labels(view)).toEqual(["Open options quote", "Not now"]);
-
-      await send(view, "no");
-      expect(api.generateTripBuilderOptionsQuote).not.toHaveBeenCalled();
-      expect(lastReply(view)).toBe("Okay. I won't open the options quote.");
+      expect(labels(view)).not.toContain("Client chose · Ocean Suite");
     });
   });
 });

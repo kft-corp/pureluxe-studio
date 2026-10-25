@@ -14,14 +14,15 @@ function previousCalendarDay(isoDate: string): string {
   return dt.toISOString().slice(0, 10);
 }
 
-function coversStay(
+/** True when the row's date band overlaps any night of the stay (R1 / festive nights). */
+function overlapsStay(
   validFrom: string | null,
   validTo: string | null,
   checkIn: string,
   lastNight: string,
 ): boolean {
-  const fromOk = validFrom == null || validFrom <= checkIn;
-  const toOk = validTo == null || validTo >= lastNight;
+  const fromOk = validFrom == null || validFrom <= lastNight;
+  const toOk = validTo == null || validTo >= checkIn;
   return fromOk && toOk;
 }
 
@@ -77,7 +78,7 @@ export async function listActiveRateAddonsForStay(
 
   const lastNight = previousCalendarDay(input.check_out);
   return ((data ?? []) as PropertyRateAddon[]).filter((row) =>
-    coversStay(row.valid_from, row.valid_to, input.check_in, lastNight),
+    overlapsStay(row.valid_from, row.valid_to, input.check_in, lastNight),
   );
 }
 
@@ -105,6 +106,6 @@ export async function listActiveContractOffersForStay(
 
   const lastNight = previousCalendarDay(input.check_out);
   return ((data ?? []) as PropertyContractOffer[]).filter((row) =>
-    coversStay(row.valid_from, row.valid_to, input.check_in, lastNight),
+    overlapsStay(row.valid_from, row.valid_to, input.check_in, lastNight),
   );
 }

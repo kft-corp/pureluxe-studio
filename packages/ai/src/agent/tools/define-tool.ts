@@ -42,8 +42,12 @@ export type AgentToolSpec<Schema extends ToolSchema = ToolSchema, Handlers = Tri
   repeatable?: true;
   /** Buttons to show under the reply for this result. */
   choices?(result: unknown, trip: TripFacts | null): AgentChoice[];
+  /** Multi-hotel compare card to show under the reply (rates_search). */
+  rateCompare?(result: unknown): import("../../tools").RateCompareCard | null;
   /** The trip this result opens for the advisor (home chat). */
   opens?(result: unknown): { tripId: string; created: boolean } | null;
+  /** Open the options quote PDF (short-lived signed URL). */
+  quotePreview?(result: unknown): { url: string } | null;
 };
 
 function toolDefiner<Handlers>() {
@@ -131,8 +135,12 @@ export function bindAgentTools<Handlers>(
       }
       const choices = spec.choices?.(result, context.trip?.() ?? null) ?? [];
       if (choices.length > 0) emit({ kind: "choices", choices });
+      const compare = spec.rateCompare?.(result) ?? null;
+      if (compare) emit({ kind: "rate_compare", compare });
       const opened = spec.opens?.(result);
       if (opened) emit({ kind: "opened", ...opened });
+      const preview = spec.quotePreview?.(result);
+      if (preview) emit({ kind: "quote_preview", url: preview.url });
       return toToolContent(result);
     } catch (cause) {
       const code = errorCodeOf(cause);

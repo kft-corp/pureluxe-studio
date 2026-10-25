@@ -1,3 +1,5 @@
+import { getCurrencyName } from "@pureluxe/shared";
+
 import type { TripDetail, TripRateSnapshot, TripStaySnapshot } from "../trip/trip-detail";
 
 const MONTHS = [
@@ -43,11 +45,13 @@ export type OptionsQuoteRoom = {
   /** Saved option row. Line edits use this id. */
   id: string;
   name: string;
-  /** Board or other short line under the room name. */
+  /** Meal plan for the Meal plan column (Half Board, Bed and Breakfast, …). */
   detail: string | null;
-  /** Amount only. The column heading carries the currency when every room shares one. */
+  /** Amount only. The PDF paints the currency symbol beside it. */
   price: string;
   currency: string | null;
+  /** Max occupancy for the optional Occupancy column, e.g. "Up to 3 adults, 1 child". */
+  sleeps: string | null;
   inclusions: string[];
   /** Cancel rule for these dates only. Null when the stored text is for other seasons. */
   cancellation: string | null;
@@ -161,6 +165,22 @@ function stayBlock(stay: TripStaySnapshot, rows: TripRateSnapshot[]): OptionsQuo
   };
 }
 
+/** Common board codes → client wording on the PDF. */
+const BOARD_LABEL: Record<string, string> = {
+  ro: "Room Only",
+  ep: "Room Only",
+  bb: "Bed and Breakfast",
+  hb: "Half Board",
+  fb: "Full Board",
+  ai: "All Inclusive",
+  uai: "Ultra All Inclusive",
+};
+
+function expandBoardLabel(part: string): string {
+  const key = part.trim().toLowerCase().replace(/\./g, "");
+  return BOARD_LABEL[key] ?? part.trim();
+}
+
 function roomLine(row: TripRateSnapshot): OptionsQuoteRoom {
   const currency = row.currency?.trim() || null;
   const raw = row.subtitle?.trim() || row.title.trim();
@@ -168,9 +188,14 @@ function roomLine(row: TripRateSnapshot): OptionsQuoteRoom {
   return {
     id: row.id,
     name: name?.trim() || "Room",
-    detail: rest.map((part) => part.trim()).filter(Boolean).join(", ") || null,
+    detail:
+      rest
+        .map((part) => expandBoardLabel(part))
+        .filter(Boolean)
+        .join(", ") || null,
     price: row.sell_amount == null ? "To be confirmed" : formatAmount(row.sell_amount),
     currency,
+    sleeps: sleepsLabel(row.max_adults, row.max_children),
     inclusions: clientInclusions(row.inclusions),
     cancellation: clientRule(row.cancellation_policy, row.season_code),
     payment: clientRule(row.payment_policy, row.season_code),
@@ -180,6 +205,19 @@ function roomLine(row: TripRateSnapshot): OptionsQuoteRoom {
     season: row.season_code?.trim() || null,
     extras: [],
   };
+}
+
+/** Client label for room capacity. Null when the rate has no max occupancy. */
+function sleepsLabel(maxAdults: number | null, maxChildren: number | null): string | null {
+  const parts: string[] = [];
+  if (maxAdults != null && maxAdults > 0) {
+    parts.push(maxAdults === 1 ? "1 adult" : `${maxAdults} adults`);
+  }
+  if (maxChildren != null && maxChildren > 0) {
+    parts.push(maxChildren === 1 ? "1 child" : `${maxChildren} children`);
+  }
+  if (parts.length === 0) return null;
+  return `Up to ${parts.join(", ")}`;
 }
 
 const SEASON_LABEL = /^(peak|high|low|shoulder|other)\s*:\s*/i;
@@ -260,10 +298,13 @@ function basisLine(stays: OptionsQuoteStay[]): string {
     ),
   ];
   if (codes.length === 1) {
-    return `All prices in ${codes[0]} for the full stay · Subject to availability`;
+    const code = codes[0]!;
+    const name = getCurrencyName(code);
+    return `All prices in ${name ? `${name} (${code})` : code} for the full stay · Subject to availability`;
   }
   if (codes.length > 1) {
-    return `Prices are in ${codes.join(" or ")} for the full stay · Subject to availability`;
+    const labels = codes.map((code) => getCurrencyName(code) ?? code);
+    return `Prices are in ${labels.join(" or ")} for the full stay · Subject to availability`;
   }
   return "Prices are for the full stay · Subject to availability";
 }

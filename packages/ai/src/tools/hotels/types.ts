@@ -13,6 +13,28 @@ export type HotelBrief = {
   facts: string | null;
 };
 
+export type HotelPriceTier = "ultra_luxury" | "luxury" | "premium";
+
+/** One hotel from hotel_find (suggestions and fuzzy search). */
+export type HotelFindHit = {
+  name: string;
+  destination: string | null;
+  city: string | null;
+  country: string | null;
+  tier: HotelPriceTier | null;
+  style_tags: string[];
+  score: number;
+  /** Always true: results are PureLuxe Rate Layer hotels only. */
+  contracted: true;
+};
+
+export type HotelFindResult = {
+  hotels: HotelFindHit[];
+  /** Suggested names when the typed name was unclear. */
+  did_you_mean: string[];
+  note: string | null;
+};
+
 /**
  * Host callbacks for hotel lookups.
  * Studio injects these — @pureluxe/ai never hits DB.
@@ -23,4 +45,12 @@ export type HotelToolHandlers = {
     checkIn?: string;
     checkOut?: string;
   }) => Promise<{ hotels: HotelBrief[] }>;
+  findHotels: (input: {
+    name?: string;
+    destination?: string;
+    tier?: HotelPriceTier;
+    similarTo?: string;
+    priceBandLike?: string;
+    limit?: number;
+  }) => Promise<HotelFindResult>;
 };

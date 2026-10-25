@@ -216,12 +216,19 @@ export type KbEntity = {
   updated_at: string;
 };
 
+/** Hotels-sheet price tier (021). Same values as Property HotelPriceTier. */
+export type KbHotelPriceTier = "ultra_luxury" | "luxury" | "premium";
+
 /** Row from public.kb_hotel_details (1:1 hotel entity). */
 export type KbHotelDetails = {
   entity_id: string;
   amenities: string[];
   dining_notes: string | null;
   wellness_notes: string | null;
+  /** Style labels for similar-hotel matching (021). */
+  style_tags: string[];
+  /** Hotels-sheet tier; null until imported (021). */
+  price_tier: KbHotelPriceTier | null;
   created_at: string;
   updated_at: string;
 };

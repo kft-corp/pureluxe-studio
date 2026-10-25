@@ -1,6 +1,6 @@
 import {
   findActiveRoutingOverride,
-  listActiveContractedRatesForStay,
+  listActiveContractedRatesOverlappingStay,
   listActiveDestinationTypeDefaults,
   listActivePeakWindowsForStay,
   type DestinationProfile,
@@ -50,9 +50,9 @@ export async function resolveRoutingLayer(
     destination_type,
   });
 
-  // Layer 1 — property has active contracted rate(s) covering the stay.
+  // Layer 1 — property has contracted rate(s) overlapping the stay (R1 night-by-night).
   if (input.property_id) {
-    const contracted_rates = await listActiveContractedRatesForStay({
+    const contracted_rates = await listActiveContractedRatesOverlappingStay({
       property_id: input.property_id,
       check_in: input.check_in,
       check_out: input.check_out,

@@ -42,7 +42,12 @@ describe("createChatStream", () => {
 
     expect(events.map((event) => event.type)).toEqual(["meta", "status", "progress", "delta", "done"]);
     expect(events[2]).toEqual({ type: "progress", label: "Searching clients…" });
-    expect(prepared.complete).toHaveBeenCalledWith("Four Mehtas.", { undo: false, choices: [], approval: null });
+    expect(prepared.complete).toHaveBeenCalledWith("Four Mehtas.", {
+      undo: false,
+      choices: [],
+      rateCompare: null,
+      approval: null,
+    });
     expect(prepared.finish).toHaveBeenCalledWith({ status: "ok" });
   });
 
@@ -61,6 +66,7 @@ describe("createChatStream", () => {
     expect(prepared.complete).toHaveBeenCalledWith("Dates set. Moving the trip needs your OK.", {
       undo: true,
       choices: [],
+      rateCompare: null,
       approval,
     });
   });

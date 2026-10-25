@@ -73,6 +73,10 @@ export type TripRateSnapshot = {
   contract_id: string | null;
   /** Supplier note stored on the rate. The options PDF keeps only a client-facing line. */
   rate_note: string | null;
+  /** Max adults from the contracted rate, when stored. */
+  max_adults: number | null;
+  /** Max children from the contracted rate, when stored. */
+  max_children: number | null;
   inclusions: string[];
   status: TripLineItem["status"];
   selected: boolean;
@@ -173,6 +177,15 @@ function textFromExtracted(extracted: Record<string, unknown> | null, key: strin
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+function numberFromExtracted(extracted: Record<string, unknown> | null, key: string): number | null {
+  if (!extracted) return null;
+  const raw = extracted.raw;
+  if (!raw || typeof raw !== "object") return null;
+  const value = (raw as Record<string, unknown>)[key];
+  const amount = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  return Number.isFinite(amount) ? amount : null;
+}
+
 function toRateSnapshot(row: TripLineItem): TripRateSnapshot {
   return {
     id: row.id,
@@ -194,6 +207,8 @@ function toRateSnapshot(row: TripLineItem): TripRateSnapshot {
     property_id: row.property_id,
     contract_id: textFromExtracted(row.extracted_json, "contract_id"),
     rate_note: textFromExtracted(row.extracted_json, "notes"),
+    max_adults: numberFromExtracted(row.extracted_json, "max_adults"),
+    max_children: numberFromExtracted(row.extracted_json, "max_children"),
     inclusions: Array.isArray(row.inclusions)
       ? row.inclusions.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
       : [],

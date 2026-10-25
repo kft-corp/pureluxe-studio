@@ -3,7 +3,11 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { LuArrowDown, LuCheck, LuCopy } from "react-icons/lu";
 
-import { AGENT_PHASE_LABEL, type AgentPhase } from "@pureluxe/ai/chat-stream";
+import {
+  AGENT_PHASE_LABEL,
+  type AgentPhase,
+  type RateCompareCard,
+} from "@pureluxe/ai/chat-stream";
 
 import { studioFocusRing } from "@/components/ui";
 import { showWarningToast } from "@/lib/feedback";
@@ -20,6 +24,10 @@ import {
   type TripBuilderRateCard as RateCard,
   type TripBuilderStayNotes,
 } from "./trip-builder-rate-card";
+import {
+  TripBuilderRateCompare,
+  type RateCompareAddOption,
+} from "./trip-builder-rate-compare";
 import { CHAT_COLUMN_CLASS, chatDayKey, chatDayLabel, plainReplyText } from "./trip-builder-helpers";
 import { ChatSkeleton } from "./trip-builder-skeleton";
 
@@ -39,9 +47,12 @@ type TripBuilderChatPaneProps = {
   /** This reply's steps so far, e.g. "Finding the client…". */
   agentSteps: string[];
   rateCards: RateCard[];
+  rateCompare?: RateCompareCard | null;
   stayNotes: TripBuilderStayNotes | null;
   activeLegId?: string | null;
   onLoadOlder: () => void;
+  /** Add a room from the compare card (Stage 3d). */
+  onAddRateOption?: (option: RateCompareAddOption) => void;
 };
 
 /** Full-width chat thread — agent left, you right. */
@@ -57,9 +68,11 @@ export function TripBuilderChatPane({
   agentPhase,
   agentSteps,
   rateCards,
+  rateCompare = null,
   stayNotes,
   activeLegId = null,
   onLoadOlder,
+  onAddRateOption,
 }: TripBuilderChatPaneProps) {
   const hasDraftThread =
     !detail && (messages.length > 0 || streamingContent != null);
@@ -113,8 +126,10 @@ export function TripBuilderChatPane({
           : null
       }
       rateCards={streamingContent ? [] : rateCards}
+      rateCompare={streamingContent ? null : rateCompare}
       stayNotes={streamingContent ? null : stayNotes}
       offersDisabled={busy}
+      onAddRateOption={canWrite ? onAddRateOption : undefined}
     />
   );
 }
@@ -145,8 +160,10 @@ function ChatScrollArea({
   busy,
   welcomeContent,
   rateCards,
+  rateCompare,
   stayNotes,
   offersDisabled,
+  onAddRateOption,
 }: {
   chatLoading: boolean;
   chatLoadingOlder: boolean;
@@ -159,8 +176,10 @@ function ChatScrollArea({
   busy: boolean;
   welcomeContent: string | null;
   rateCards: RateCard[];
+  rateCompare: RateCompareCard | null;
   stayNotes: TripBuilderStayNotes | null;
   offersDisabled: boolean;
+  onAddRateOption?: (option: RateCompareAddOption) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
@@ -281,8 +300,10 @@ function ChatScrollArea({
           loadingOlder={chatLoadingOlder}
           welcomeContent={welcomeContent}
           rateCards={rateCards}
+          rateCompare={rateCompare}
           stayNotes={stayNotes}
           offersDisabled={offersDisabled}
+          onAddRateOption={onAddRateOption}
           endRef={endRef}
         />
       )}
@@ -334,7 +355,7 @@ function stageCueFor(
       detail.stays[0] ??
       detail.stay;
     return open?.city
-      ? `Which hotel for **${open.city}** (${open.check_in} to ${open.check_out})? Name one, or ask for suggestions. Switch stays from the row under the header.`
+      ? `Which hotel for **${open.city}** (${open.check_in} to ${open.check_out})? Name one, ask for suggestions, or say **suggest 3 and get rates**. Switch stays from the row under the header.`
       : "Tell me where they're staying.";
   }
   if (stage === "rates") {
@@ -343,9 +364,14 @@ function stageCueFor(
       detail.stays[0] ??
       detail.stay;
     const hotel = open?.property_name?.trim();
-    return hotel
-      ? `Stay set for ${hotel}. Ask me to search rates, or paste a supplier quote. I'll confirm before I search. Switch stays from the row under the header. A date or hotel change clears the selected rate.`
-      : "Ask me to search rates for the open stay, or paste a supplier quote. I'll confirm before I search.";
+    const place = open?.city?.trim();
+    if (hotel) {
+      return `**${hotel}** is on the trip. Ask for rates or more hotels to compare — I'll search at once and show a compare card. Or paste a supplier quote. Switch stays from the row under the header.`;
+    }
+    if (place) {
+      return `Dates are set for **${place}**. Name hotels, ask for suggestions, or say **suggest 3 and get rates** — I'll search without needing a saved stay first.`;
+    }
+    return "Name hotels or ask for suggestions for the trip dates — I'll search rates at once (no stay save needed). Or paste a supplier quote.";
   }
   const status = detail.trip.status;
   if (status === "cancelled") return "This trip is cancelled. It is read-only.";
@@ -370,8 +396,10 @@ function ChatMessageList({
   loadingOlder,
   welcomeContent,
   rateCards,
+  rateCompare,
   stayNotes,
   offersDisabled,
+  onAddRateOption,
   endRef,
 }: {
   messages: ChatMessage[];
@@ -382,8 +410,10 @@ function ChatMessageList({
   loadingOlder: boolean;
   welcomeContent: string | null;
   rateCards: RateCard[];
+  rateCompare: RateCompareCard | null;
   stayNotes: TripBuilderStayNotes | null;
   offersDisabled: boolean;
+  onAddRateOption?: (option: RateCompareAddOption) => void;
   endRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const showWelcome =
@@ -405,8 +435,46 @@ function ChatMessageList({
   const lastAssistantId = [...messages]
     .reverse()
     .find((message) => message.role === "assistant")?.id;
-  const offers =
-    rateCards.length > 0 ? (
+
+  /** Rate table is stored on the message (like hotel-compare markdown) so it stays after later replies. */
+  function offersForMessage(message: ChatMessage, isLastAssistant: boolean): React.ReactNode {
+    const savedCompare = message.cards?.rateCompare ?? null;
+    if (savedCompare) {
+      return (
+        <TripBuilderRateCompare
+          compare={savedCompare}
+          disabled={offersDisabled}
+          onAddOption={onAddRateOption}
+        />
+      );
+    }
+    // Live fallback: last reply only, when cards were not on the row yet / legacy rate cards.
+    if (!isLastAssistant) return null;
+    if (rateCompare != null) {
+      return (
+        <TripBuilderRateCompare
+          compare={rateCompare}
+          disabled={offersDisabled}
+          onAddOption={onAddRateOption}
+        />
+      );
+    }
+    if (rateCards.length > 0) {
+      return (
+        <MessageOffers rateCards={rateCards} stayNotes={stayNotes} disabled={offersDisabled} />
+      );
+    }
+    return null;
+  }
+
+  const welcomeOffers =
+    rateCompare != null ? (
+      <TripBuilderRateCompare
+        compare={rateCompare}
+        disabled={offersDisabled}
+        onAddOption={onAddRateOption}
+      />
+    ) : rateCards.length > 0 ? (
       <MessageOffers rateCards={rateCards} stayNotes={stayNotes} disabled={offersDisabled} />
     ) : null;
 
@@ -418,11 +486,12 @@ function ChatMessageList({
         </p>
       ) : null}
       {showWelcome && welcomeContent ? (
-        <AgentMessage content={welcomeContent} offers={offers} />
+        <AgentMessage content={welcomeContent} offers={welcomeOffers} />
       ) : null}
       {messages.map((message, index) => {
         const day = chatDayKey(message.created_at);
         const newDay = day !== null && day !== chatDayKey(messages[index - 1]?.created_at ?? "");
+        const isLastAssistant = message.id === lastAssistantId;
         return (
           <Fragment key={message.id}>
             {newDay ? <DaySeparator label={chatDayLabel(message.created_at)} /> : null}
@@ -430,7 +499,7 @@ function ChatMessageList({
               <AgentMessage
                 incomplete={message.incomplete}
                 content={message.content}
-                offers={message.id === lastAssistantId ? offers : null}
+                offers={offersForMessage(message, isLastAssistant)}
                 copyable
               />
             ) : message.kind === "action" ? (
@@ -441,7 +510,9 @@ function ChatMessageList({
           </Fragment>
         );
       })}
-      {!showWelcome && !lastAssistantId && offers ? <AgentMessage content="" offers={offers} /> : null}
+      {!showWelcome && !lastAssistantId && welcomeOffers ? (
+        <AgentMessage content="" offers={welcomeOffers} />
+      ) : null}
       {streamingContent != null ? (
         <AgentMessage content={streamingContent} status={liveStatus} />
       ) : busy ? (

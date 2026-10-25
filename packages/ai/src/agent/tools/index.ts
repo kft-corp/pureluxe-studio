@@ -11,9 +11,21 @@ import {
   historySearchTripsTool,
 } from "./history";
 import { tripCreateTool, tripOpenTool } from "./home";
-import { hotelGetTool } from "./hotels";
+import { hotelFindTool, hotelGetTool } from "./hotels";
 import { placeGetNotesTool } from "./places";
-import { ratesGetSnapshotTool } from "./rates";
+import {
+  quoteAddOptionsTool,
+  quoteEditLinesTool,
+  quoteListLinesTool,
+  quotePreviewTool,
+  quoteRemoveOptionTool,
+  quoteRewriteSectionTool,
+  quoteSendTool,
+  quoteSetClientPriceTool,
+  quoteSetWordingTool,
+  ratesUsePastedQuoteTool,
+} from "./quote";
+import { ratesGetSnapshotTool, ratesSearchTool } from "./rates";
 import {
   tripGetTool,
   tripRemoveStayTool,
@@ -33,6 +45,7 @@ const DESK_TOOLS = [
   historySearchTripsTool,
   historySearchBookingsTool,
   historyGetBookingTool,
+  hotelFindTool,
   hotelGetTool,
   placeGetNotesTool,
 ];
@@ -47,7 +60,18 @@ export const TRIP_AGENT_TOOLS: readonly AgentToolSpec<ToolSchema, TripAgentHandl
   tripShiftDatesTool,
   tripUndoTool,
   ...DESK_TOOLS,
+  ratesSearchTool,
   ratesGetSnapshotTool,
+  quoteAddOptionsTool,
+  quoteSetClientPriceTool,
+  quoteRemoveOptionTool,
+  quoteSetWordingTool,
+  quoteListLinesTool,
+  quoteEditLinesTool,
+  quoteRewriteSectionTool,
+  quotePreviewTool,
+  ratesUsePastedQuoteTool,
+  quoteSendTool,
 ];
 
 export const HOME_AGENT_TOOLS: readonly AgentToolSpec<ToolSchema, HomeAgentHandlers>[] = [

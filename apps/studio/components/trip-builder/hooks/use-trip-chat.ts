@@ -250,6 +250,10 @@ export function useTripChat(core: TripCore, initialDetail: TripDetail | null) {
             onChanged: () => {
               changed = true;
             },
+            onQuotePreview: (url) => {
+              changed = true;
+              window.open(url, "_blank", "noopener,noreferrer");
+            },
             showError: showApiError,
             onError: () => {
               void loadChatMessages(tripId);

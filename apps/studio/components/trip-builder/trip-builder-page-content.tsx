@@ -90,9 +90,11 @@ export function TripBuilderPageContent({
               agentPhase={builder.agentPhase}
               agentSteps={builder.agentSteps}
               rateCards={builder.rateCards}
+              rateCompare={builder.rateCompare}
               stayNotes={builder.stayNotes}
               activeLegId={builder.activeLegId}
               onLoadOlder={() => void builder.loadOlderMessages()}
+              onAddRateOption={builder.addRateOption}
             />
           </div>
 

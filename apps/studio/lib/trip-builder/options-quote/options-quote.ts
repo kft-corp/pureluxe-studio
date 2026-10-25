@@ -124,7 +124,7 @@ function fingerprintFor(
   return createHash("sha256")
     .update(
       JSON.stringify({
-        layout: "client-quote-line-edits",
+        layout: "client-quote-v4-room-columns",
         title,
         notes,
         lineEdits,
@@ -141,6 +141,8 @@ function fingerprintFor(
             id: row.id,
             sell: row.sell_amount,
             currency: row.currency,
+            max_adults: row.max_adults,
+            max_children: row.max_children,
             property: row.property_name,
             title: row.title,
             subtitle: row.subtitle,
@@ -182,7 +184,10 @@ export async function updateOptionsQuote(
   if (input.notes !== undefined) delete lineEdits.notes;
   const incoming = input.line_edits ?? [];
   if (incoming.length > 0) {
-    if (roomsForOptionsQuote(detail).length === 0) {
+    const headerOnly = incoming.every((row) =>
+      /^(?:title|notes|subtitle|basis|notice|fact:.+)$/i.test(row.id),
+    );
+    if (!headerOnly && roomsForOptionsQuote(detail).length === 0) {
       throw new AppError({
         userMessage: tripMessages.error.optionsNotReady,
         code: "trips.options_not_ready",
@@ -245,7 +250,9 @@ export async function updateOptionsQuote(
 function moneyFromQuoteLine(text: string): number | null | undefined {
   const trimmed = text.trim();
   if (/^to be confirmed$/i.test(trimmed)) return null;
-  const match = trimmed.replace(/,/g, "").match(/^(?:[A-Z]{3}\s*)?(\d+(?:\.\d+)?)(?:\s*[A-Z]{3})?$/i);
+  const match = trimmed
+    .replace(/,/g, "")
+    .match(/^(?:[A-Z]{3}\s*|[$€£¥₹]\s*)?(\d+(?:\.\d+)?)(?:\s*[A-Z]{3})?$/i);
   if (!match?.[1]) return undefined;
   const amount = Number(match[1]);
   return Number.isFinite(amount) ? amount : undefined;

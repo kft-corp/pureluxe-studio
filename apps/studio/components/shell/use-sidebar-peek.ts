@@ -6,8 +6,8 @@ const OPEN_DELAY_MS = 180;
 const CLOSE_DELAY_MS = 220;
 
 /**
- * Hover "peek" for the collapsed sidebar: a mouse resting on the rail slides the full
- * sidebar out over the page; moving away tucks it back. Touch and pen never peek.
+ * Hover "peek" for the collapsed sidebar: a mouse resting on the rail widens the rail
+ * and pushes the main column right; moving away tucks it back. Touch and pen never peek.
  */
 export function useSidebarPeek(enabled: boolean) {
   const [peeking, setPeeking] = useState(false);

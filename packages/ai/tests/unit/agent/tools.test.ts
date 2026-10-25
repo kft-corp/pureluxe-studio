@@ -14,13 +14,14 @@ function bind(handlers = makeHandlers()) {
 }
 
 describe("trip agent tools", () => {
-  it("are grouped by area, and only trip_ tools change anything", () => {
+  it("are grouped by area; trip_, quote_, and rates_use_pasted_quote can change the trip", () => {
     for (const spec of TRIP_AGENT_TOOLS) {
-      expect(spec.name).toMatch(/^(?:trip|client|history|hotel|place|rates)_[a-z_]+$/);
-      if (spec.risk !== "read") expect(spec.name).toMatch(/^trip_/);
+      expect(spec.name).toMatch(/^(?:trip|client|history|hotel|place|rates|quote)_[a-z_]+$/);
+      if (spec.risk === "read") continue;
+      expect(spec.name).toMatch(/^(?:trip_|quote_|rates_use_pasted_quote)/);
     }
-    expect(TRIP_AGENT_TOOLS.filter((spec) => spec.risk === "approval")).toEqual([]);
-    expect(findAgentTool("quote_send")).toBeNull();
+    expect(findAgentTool("quote_send")?.risk).toBe("approval");
+    expect(findAgentTool("rates_search")?.risk).toBe("read");
   });
 
   it("asks before moving the trip only when a stay has the client's room", () => {

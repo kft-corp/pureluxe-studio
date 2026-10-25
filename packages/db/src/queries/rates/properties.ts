@@ -93,11 +93,17 @@ function previousCalendarDay(isoDate: string): string {
   return dt.toISOString().slice(0, 10);
 }
 
-/**
- * Active contracted rates whose date band covers the stay
- * ([check_in, check_out) nights). Ordered by sort_order, then room name.
- */
-export async function listActiveContractedRatesForStay(
+function sortContractedRates(
+  rows: PropertyContractedRate[],
+): PropertyContractedRate[] {
+  return rows.sort((a, b) => {
+    const byOrder = (a.sort_order ?? 0) - (b.sort_order ?? 0);
+    if (byOrder !== 0) return byOrder;
+    return (a.room_category ?? "").localeCompare(b.room_category ?? "");
+  });
+}
+
+async function loadActiveContractedRates(
   input: FindContractedRateInput,
 ): Promise<PropertyContractedRate[]> {
   const supabase = getServiceClient();
@@ -118,18 +124,41 @@ export async function listActiveContractedRatesForStay(
     throw dbQueryError(error);
   }
 
+  return (data ?? []) as PropertyContractedRate[];
+}
+
+/**
+ * Active contracted rates whose date band covers the whole stay
+ * ([check_in, check_out) nights). Ordered by sort_order, then room name.
+ */
+export async function listActiveContractedRatesForStay(
+  input: FindContractedRateInput,
+): Promise<PropertyContractedRate[]> {
   const lastNight = previousCalendarDay(input.check_out);
-  const covering = ((data ?? []) as PropertyContractedRate[]).filter((row) => {
+  const covering = (await loadActiveContractedRates(input)).filter((row) => {
     const fromOk = row.valid_from == null || row.valid_from <= input.check_in;
     const toOk = row.valid_to == null || row.valid_to >= lastNight;
     return fromOk && toOk;
   });
 
-  return covering.sort((a, b) => {
-    const byOrder = (a.sort_order ?? 0) - (b.sort_order ?? 0);
-    if (byOrder !== 0) return byOrder;
-    return (a.room_category ?? "").localeCompare(b.room_category ?? "");
+  return sortContractedRates(covering);
+}
+
+/**
+ * Active contracted rates that overlap any night of the stay (R1 night-by-night).
+ * A December trip that crosses two seasons returns both season rows.
+ */
+export async function listActiveContractedRatesOverlappingStay(
+  input: FindContractedRateInput,
+): Promise<PropertyContractedRate[]> {
+  const lastNight = previousCalendarDay(input.check_out);
+  const overlapping = (await loadActiveContractedRates(input)).filter((row) => {
+    const fromOk = row.valid_from == null || row.valid_from <= lastNight;
+    const toOk = row.valid_to == null || row.valid_to >= input.check_in;
+    return fromOk && toOk;
   });
+
+  return sortContractedRates(overlapping);
 }
 
 export type PropertyWithSupplierCodes = {

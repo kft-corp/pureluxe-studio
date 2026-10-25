@@ -20,13 +20,12 @@ export function makeTripFacts(partial: Partial<TripFacts> = {}): TripFacts {
     rates: { selected: null, candidates: [] },
     quote: {
       title: null,
-      intro: null,
       notes: null,
-      highlights: [],
       sell_total: null,
       sell_currency: null,
       document_status: null,
       has_file: false,
+      line_edit_count: 0,
     },
     ...partial,
   };
@@ -56,8 +55,10 @@ export function makeHandlers(trip: TripFacts = makeTripFacts()) {
     searchBookings: vi.fn(async () => ({ bookings: [], total: 0 })),
     getBooking: vi.fn(),
     getHotel: vi.fn(async () => ({ hotels: [] })),
+    findHotels: vi.fn(async () => ({ hotels: [], did_you_mean: [], note: null })),
     getPlaceNotes: vi.fn(async () => ({ matched: false, notes: null, hotels: [] })),
     getRateSnapshot: vi.fn(async () => ({ status: "none" as const })),
+    searchRates: vi.fn(async () => ({ hotels: [], compare: null, notes: "" })),
     setClient: changed("Client set to Aarav Mehta"),
     setTravellers: changed("Added Anika Mehta"),
     setDates: changed("Dates set to 10 Dec – 15 Dec 2026"),
@@ -65,6 +66,21 @@ export function makeHandlers(trip: TripFacts = makeTripFacts()) {
     removeStay: changed("Removed Maldives"),
     shiftDates: changed("Trip moved 2 days later"),
     undo: changed("Undone: Dates set to 10 Dec – 15 Dec 2026", false),
+    addQuoteOptions: changed("Added 2 options to the quote"),
+    setQuoteClientPrices: changed("Updated client prices"),
+    removeQuoteOption: changed("Removed Beach Villa"),
+    setQuoteWording: changed("Updated the quote wording"),
+    editQuoteLines: changed("Updated 1 line on the options quote"),
+    rewriteQuoteSection: changed("Rewrote 3 lines in clear client wording on the options quote"),
+    listQuoteLines: vi.fn(async () => ({ lines: [] })),
+    previewQuote: vi.fn(async () => ({
+      ok: true as const,
+      summary: "The options quote is open.",
+      url: "https://example.test/options-quote.pdf",
+      expires_in: 120,
+    })),
+    usePastedQuote: changed("Added room from the pasted quote"),
+    sendQuote: changed("Sent 6 options to Aarav Mehta", false),
   } satisfies TripAgentHandlers;
 }
 
@@ -81,6 +97,7 @@ export function makeHomeHandlers() {
     searchBookings: desk.searchBookings,
     getBooking: desk.getBooking,
     getHotel: desk.getHotel,
+    findHotels: desk.findHotels,
     getPlaceNotes: desk.getPlaceNotes,
     createTrip: vi.fn(
       async (): Promise<TripCreateResult> => ({

@@ -140,7 +140,7 @@ function hotelFacts(hotel: SeedHotel): string {
     `Cancellation: ${hotel.cancellation}`,
     `Required charges: ${charges}.`,
     `Rooms on contract: ${rooms}.`,
-    `Minimum markup: ${hotel.minMarkupPercent}%.`,
+    `Commission rate: ${hotel.minMarkupPercent}%.`,
   ].join("\n");
 }
 
@@ -272,6 +272,63 @@ function createSeedDeskHandlers(seed: ScenarioSeed, today: string): Omit<DeskAge
       return { hotels };
     },
 
+    async findHotels({ name, destination, tier, similarTo, priceBandLike, limit }) {
+      const max = Math.min(Math.max(limit ?? 5, 1), 10);
+      const place = destination?.trim().toLowerCase() || null;
+      const refName = similarTo || priceBandLike || name;
+      const reference = refName
+        ? seed.hotels.find((hotel) => hotelMatches(hotel, refName))
+        : undefined;
+      const targetTier = tier ?? reference?.tier;
+      const dest =
+        place ||
+        reference?.destination.toLowerCase() ||
+        null;
+
+      let hotels = seed.hotels.filter((hotel) => {
+        if (dest && hotel.destination.toLowerCase() !== dest) return false;
+        if (targetTier && hotel.tier && hotel.tier !== targetTier) return false;
+        if (name && !similarTo && !priceBandLike && !tier) {
+          return hotelMatches(hotel, name);
+        }
+        return true;
+      });
+
+      if (reference && (similarTo || priceBandLike || tier)) {
+        hotels = [
+          reference,
+          ...hotels.filter((hotel) => hotel.propertyId !== reference.propertyId),
+        ];
+      }
+
+      if (name && !similarTo && !priceBandLike && !tier && hotels.length === 0) {
+        const close = seed.hotels
+          .filter((hotel) => !dest || hotel.destination.toLowerCase() === dest)
+          .slice(0, 3)
+          .map((hotel) => hotel.name);
+        return {
+          hotels: [],
+          did_you_mean: close,
+          note: close.length > 0 ? "Did you mean one of these?" : `No PureLuxe hotel matched "${name}".`,
+        };
+      }
+
+      return {
+        hotels: hotels.slice(0, max).map((hotel) => ({
+          name: hotel.name,
+          destination: hotel.destination,
+          city: null,
+          country: hotel.destination,
+          tier: hotel.tier ?? null,
+          style_tags: hotel.styleTags,
+          score: 1,
+          contracted: true as const,
+        })),
+        did_you_mean: [],
+        note: hotels.length === 0 ? `No PureLuxe hotels found${dest ? ` in ${dest}` : ""}.` : null,
+      };
+    },
+
     async getPlaceNotes({ query, cityHint }): Promise<PlaceNotes> {
       const text = `${query} ${cityHint ?? ""}`.toLowerCase();
       const hotel = seed.hotels.find((row) => hotelMatches(row, query));
@@ -315,7 +372,243 @@ export function createSeedHandlers(
     },
 
     async getRateSnapshot() {
-      return { status: "none" };
+      return { status: "none" as const };
+    },
+
+    async searchRates(input) {
+      const hotels = input.hotels.slice(0, 5).map((name, hotelIndex) => {
+        const hit = seed.hotels.find((row) => hotelMatches(row, name));
+        const markupPercent = hit?.minMarkupPercent ?? 25;
+        const rooms = (hit?.rooms ?? []).map((room, index) => {
+          const teamCost = room.nightlyCost * 5 * input.rooms;
+          const clientTotal = Math.round(teamCost * (1 + markupPercent / 100) * 100) / 100;
+          return {
+            rate_ref: `00000000-0000-4000-8${String(hotelIndex).padStart(3, "0")}-${String(index).padStart(12, "0")}`,
+            room_name: room.name,
+            team_cost: teamCost,
+            client_total: clientTotal,
+            client_per_night: Math.round((clientTotal / 5) * 100) / 100,
+            team_per_night: Math.round((teamCost / 5) * 100) / 100,
+            currency: "USD",
+            pricing_scope: "total" as const,
+            rooms: input.rooms,
+            board: null as string | null,
+            source: "Contracted",
+            cancel: "Cancel within 30 days",
+            cancel_by: null as string | null,
+            cancel_days: 30 as number | null,
+            inclusions: ["Breakfast"] as string[],
+            markup_percent: markupPercent,
+            recommended: index === 0 && hotelIndex === 0,
+            markup_buttons: [markupPercent, 30],
+          };
+        });
+        const primaryRoom = rooms[0]?.room_name ?? null;
+        const valueRoom = rooms[1]?.room_name ?? null;
+        const suggestToClient =
+          primaryRoom && valueRoom
+            ? `${primaryRoom} (primary) · ${valueRoom} (value)`
+            : primaryRoom
+              ? `${primaryRoom} (primary)`
+              : null;
+        return {
+          hotel: hit?.name ?? name,
+          status: hit ? ("ok" as const) : ("not_in_pureluxe" as const),
+          from_cost: rooms[0]?.team_cost ?? null,
+          currency: rooms[0]?.currency ?? null,
+          source: hit ? "Contracted" : null,
+          recommended: hotelIndex === 0 && Boolean(hit),
+          rooms,
+          notes: {
+            cancellation: "Cancel within 30 days",
+            markup: `Commission rate ${markupPercent}% — client per-night and total use this`,
+            inclusions: ["Breakfast"],
+          },
+          suggest_to_client: suggestToClient,
+          note: hit ? null : `No PureLuxe hotel matched "${name}".`,
+          alternatives: [],
+        };
+      });
+      const preference =
+        seed.clients
+          .find((client) => client.id === trip.leadClientId)
+          ?.preferences?.find((row) => /connect/i.test(row.label))?.label ?? null;
+      const topSuggest = hotels.find((hotel) => hotel.recommended)?.suggest_to_client ?? null;
+      const topHotel = hotels.find((hotel) => hotel.recommended)?.hotel ?? null;
+      const cardSuggest =
+        topHotel && topSuggest
+          ? `${topHotel} · ${topSuggest.replace(" (primary)", "").split(" · ")[0]}${
+              preference ? " · matches client preference" : ""
+            }`
+          : null;
+      return {
+        destination: input.destination,
+        check_in: input.checkIn,
+        check_out: input.checkOut,
+        adults: input.adults,
+        children: input.children,
+        rooms: input.rooms,
+        hotels: hotels.map((hotel) => ({
+          hotel: hotel.hotel,
+          status: hotel.status,
+          property_id: null,
+          result_ids: hotel.rooms.map((room) => room.rate_ref),
+          min_markup_percent: null,
+          note: hotel.note,
+          alternatives: [],
+          option_count: hotel.rooms.length,
+        })),
+        compare: {
+          destination: input.destination,
+          check_in: input.checkIn,
+          check_out: input.checkOut,
+          adults: input.adults,
+          children: input.children,
+          rooms: input.rooms,
+          nights: 5,
+          shared_terms: [],
+          preference,
+          suggest_to_client: cardSuggest,
+          hotels,
+        },
+        notes: hotels.map((hotel) => hotel.hotel).join(", "),
+        preference,
+      };
+    },
+
+    async addQuoteOptions(input) {
+      for (const option of input.options) {
+        const existing = trip.quoteOptions.findIndex(
+          (row) =>
+            row.hotel.toLowerCase().includes(option.hotel.toLowerCase()) &&
+            row.room.toLowerCase().includes(option.room.toLowerCase()),
+        );
+        const next = {
+          hotel: option.hotel,
+          room: option.room,
+          markupPercent: option.markupPercent ?? null,
+          clientPrice: option.clientPrice ?? null,
+        };
+        if (existing >= 0) trip.quoteOptions[existing] = next;
+        else trip.quoteOptions.push(next);
+      }
+      return {
+        ok: true as const,
+        summary: `Added ${input.options.length} options to the quote. Below the hotel minimum once.`,
+        undo: true,
+      };
+    },
+
+    async setQuoteClientPrices(input) {
+      for (const price of input.prices) {
+        const row = trip.quoteOptions.find(
+          (option) =>
+            option.hotel.toLowerCase().includes(price.hotel.toLowerCase()) &&
+            option.room.toLowerCase().includes(price.room.toLowerCase()),
+        );
+        if (row) {
+          row.clientPrice = price.clientPrice;
+          row.markupPercent = null;
+        }
+      }
+      return { ok: true as const, summary: `Updated ${input.prices.length} client prices.`, undo: true };
+    },
+
+    async removeQuoteOption(input) {
+      if (input.clearAll) {
+        const n = trip.quoteOptions.length;
+        trip.quoteOptions = [];
+        return {
+          ok: true as const,
+          summary: `Removed all ${n} room${n === 1 ? "" : "s"} from the quote.`,
+          undo: true,
+        };
+      }
+      const targets = [
+        ...(input.options ?? []),
+        ...(input.hotel && input.room ? [{ hotel: input.hotel, room: input.room }] : []),
+      ];
+      let removed = 0;
+      for (const target of targets) {
+        const before = trip.quoteOptions.length;
+        trip.quoteOptions = trip.quoteOptions.filter(
+          (row) =>
+            !(
+              row.hotel.toLowerCase().includes(target.hotel.toLowerCase()) &&
+              row.room.toLowerCase().includes(target.room.toLowerCase())
+            ),
+        );
+        removed += before - trip.quoteOptions.length;
+      }
+      return {
+        ok: true as const,
+        summary: `Removed ${removed} room${removed === 1 ? "" : "s"} from the quote.`,
+        undo: true,
+      };
+    },
+
+    async setQuoteWording() {
+      return { ok: true as const, summary: "Updated the quote wording.", undo: true };
+    },
+
+    async editQuoteLines(input) {
+      const count = input.lines?.length ?? (input.find ? 1 : 0);
+      return {
+        ok: true as const,
+        summary:
+          count <= 1
+            ? "Updated 1 line on the options quote."
+            : `Updated ${count} lines on the options quote.`,
+        undo: true,
+      };
+    },
+
+    async rewriteQuoteSection() {
+      return {
+        ok: true as const,
+        summary: "Rewrote 3 lines in clear client wording on the options quote.",
+        undo: true,
+      };
+    },
+
+    async listQuoteLines() {
+      return {
+        lines: trip.quoteOptions.map((row, index) => ({
+          id: `room:seed-${index}:name`,
+          label: `Room · ${row.room}`,
+          text: row.room,
+        })),
+      };
+    },
+
+    async previewQuote() {
+      return {
+        ok: true as const,
+        summary: "The options quote is open.",
+        url: "https://example.test/options-quote.pdf",
+        expires_in: 120,
+      };
+    },
+
+    async usePastedQuote(input) {
+      trip.quoteOptions.push({
+        hotel: input.hotel,
+        room: input.room,
+        markupPercent: null,
+        clientPrice: input.clientPrice ?? null,
+      });
+      return { ok: true as const, summary: `Added ${input.room} from the pasted quote.`, undo: true };
+    },
+
+    async sendQuote() {
+      trip.quoteStatus = "sent";
+      const name =
+        seed.clients.find((client) => client.id === trip.leadClientId)?.displayName ?? "the client";
+      return {
+        ok: true as const,
+        summary: `Sent ${trip.quoteOptions.length} options to ${name}.`,
+        undo: false,
+      };
     },
 
     ...createSeedTripChanges(seed, trip, today),

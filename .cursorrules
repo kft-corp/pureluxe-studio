@@ -1,0 +1,33 @@
+# Agent Execution & Token Preservation Rules
+
+## 1. Scope & File Editing
+- Make surgical, targeted edits. Do not rewrite entire files if only modifying specific functions or blocks.
+- Respect folder boundaries: do not touch frontend files when working on backend tasks, and vice-versa.
+- When working on 30+ files, perform work sequentially by layer (e.g., schemas -> business logic -> UI views) rather than haphazardly jumping across files.
+
+## 2. Test Policy (Strict Token Guardrail)
+- Do NOT create, update, or expand unit/integration/e2e test files unless I explicitly ask.
+- NEVER run test commands (`npm test`, `jest`, `vitest`, `playwright`, etc.).
+- Focus on production code: types, edge cases, clear APIs, and small diffs so my tests are easy to write.
+- Terminal: only builds/linters when I ask; no test loops.
+- Stop once the implementation edits are done.
+
+## 3. Communication
+- Be direct. No long preambles or restating unchanged code.
+- After edits: short confirmation (what changed + any risk I should test). No essays.
+
+## 4. Code quality without tests
+- Prefer typed, narrow functions; handle null/empty/error paths in production code.
+- Match existing patterns in the touched package/app; do not invent new abstractions.
+
+## 5. Consistency & simplicity
+- Match the nearest existing file in the same package; copy its shape before inventing a new one.
+- No over-engineering: no new abstractions, wrappers, or frameworks unless the same pattern already exists nearby.
+- Prefer the smallest change that solves the task. Delete dead code you introduce; do not leave TODOs for unused helpers.
+- Layering (do not skip):
+  - Zod + messages + AppError → `@pureluxe/shared`
+  - HTTP route → thin; domain logic → `apps/studio/lib/<feature>/`
+  - DB access → `@pureluxe/db` queries only (no ad-hoc Supabase in routes/UI)
+  - AI agent/tools/prompts → `@pureluxe/ai`; Studio wires handlers
+- User-facing strings live in `@pureluxe/shared` messages (or `config/page-copy.ts` for page chrome)—never hardcode copy in db/ai/routes.
+- Efficient by default: explicit columns, avoid N+1, reuse shared helpers; do not micro-optimize or add caching unless asked.

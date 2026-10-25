@@ -169,6 +169,12 @@ export type PropertyContractOfferType =
   | "bundle"
   | "other";
 
+/** Hotels-sheet price tier on kb_hotel_details (021). */
+export type HotelPriceTier = "ultra_luxury" | "luxury" | "premium";
+
+/** How a quote option was added (trip_line_items.added_via, 021). */
+export type TripLineItemAddedVia = "agent" | "button" | "paste" | "manual";
+
 /** Row from public.properties (thin hotel master — shared by all rate sources). */
 export type Property = {
   id: string;
@@ -182,6 +188,12 @@ export type Property = {
   property_type: string | null;
   destination_profile_id: string | null;
   curated_hotel_id: string | null;
+  /** Alternate names for fuzzy search (021). */
+  aliases: string[];
+  /** Atlas country id for matching (021); country text stays for display. */
+  kb_country_id: string | null;
+  /** Atlas city id for matching (021); city text stays for display. */
+  kb_city_id: string | null;
   default_currency: string;
   min_markup_percent: number | null;
   contracting_entity_name: string | null;
@@ -196,6 +208,30 @@ export type Property = {
   active: boolean;
   created_at: string;
   updated_at: string;
+};
+
+/** One row from search_properties() (021). */
+export type PropertySearchHit = {
+  id: string;
+  name: string;
+  destination: string | null;
+  city: string | null;
+  country: string | null;
+  score: number;
+  aliases: string[];
+  price_tier: HotelPriceTier | null;
+  style_tags: string[];
+};
+
+/** One row from property_price_bands (021). */
+export type PropertyPriceBand = {
+  property_id: string;
+  season_code: string | null;
+  currency: string;
+  typical_nightly: number;
+  min_nightly: number;
+  max_nightly: number;
+  rate_count: number;
 };
 
 /** Row from public.property_supplier_codes. */
@@ -251,6 +287,8 @@ export type PropertyContract = {
   name: string;
   contract_type: PropertyContractType;
   market: string | null;
+  /** ISO country codes this contract may be sold to; empty = all (021 / R11). */
+  market_codes: string[];
   valid_from: string | null;
   valid_to: string | null;
   currency: string;
@@ -260,6 +298,12 @@ export type PropertyContract = {
   policies: PropertyContractPolicies;
   benefits: PropertyContractBenefit[];
   payout: PropertyContractPayout;
+  /** Room cost already includes tax (021 / R10). */
+  taxes_included: boolean;
+  service_charge_pct: number | null;
+  tax_pct: number | null;
+  /** Tax applies to room + service charge (021 / R10). */
+  tax_on_service_charge: boolean;
   notes: string | null;
   active: boolean;
   created_at: string;

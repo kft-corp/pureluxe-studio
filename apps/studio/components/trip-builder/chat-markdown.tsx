@@ -5,6 +5,8 @@ import remarkGfm from "remark-gfm";
 
 import { cn } from "@/lib/utils/cn";
 
+import { normalizeMarkdownTables } from "./trip-builder-helpers";
+
 type ChatMarkdownProps = {
   content: string;
   className?: string;
@@ -25,14 +27,17 @@ function statusTone(label: string): string {
 /**
  * Markdown for agent replies. Safe subset only (no raw HTML). A quote is the agent's
  * heads-up (a champagne callout) and inline code is a status pill.
+ * Tables are normalized and keep real table layout (never display:block).
  */
 export function ChatMarkdown({ content, className }: ChatMarkdownProps) {
+  const normalized = normalizeMarkdownTables(content);
+
   return (
     <div
       className={cn(
         "chat-md text-[15px] leading-[1.6] break-words text-ink",
         "[&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
-        "[&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto",
+        "[&_pre]:max-w-full [&_pre]:overflow-x-auto",
         className,
       )}
     >
@@ -112,17 +117,28 @@ export function ChatMarkdown({ content, className }: ChatMarkdownProps) {
           ),
           hr: () => <hr className="my-3 border-border" />,
           table: ({ children }) => (
-            <div className="my-3 overflow-x-auto rounded-lg ring-1 ring-border">
-              <table className="w-full border-collapse text-left text-[13.5px]">{children}</table>
+            <div className="my-3 w-full max-w-full overflow-x-auto rounded-lg ring-1 ring-border">
+              <table className="w-full min-w-[18rem] table-fixed border-collapse text-left text-[13.5px]">
+                {children}
+              </table>
             </div>
           ),
+          thead: ({ children }) => <thead className="bg-surface-subtle">{children}</thead>,
+          tbody: ({ children }) => <tbody>{children}</tbody>,
+          tr: ({ children }) => <tr className="align-top">{children}</tr>,
           th: ({ children }) => (
-            <th className="bg-surface-subtle px-3 py-2 text-[12px] font-semibold text-ink-muted">{children}</th>
+            <th className="break-words px-3 py-2 text-[12px] font-semibold text-ink-muted first:w-[28%] first:min-w-[6.5rem]">
+              {children}
+            </th>
           ),
-          td: ({ children }) => <td className="border-t border-divider px-3 py-2 align-top text-ink">{children}</td>,
+          td: ({ children }) => (
+            <td className="break-words border-t border-divider px-3 py-2 align-top text-ink first:w-[28%] first:min-w-[6.5rem] first:font-medium first:text-ink-muted">
+              {children == null || children === "" ? "—" : children}
+            </td>
+          ),
         }}
       >
-        {content}
+        {normalized}
       </ReactMarkdown>
     </div>
   );

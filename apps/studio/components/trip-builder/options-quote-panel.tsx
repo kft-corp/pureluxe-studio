@@ -16,10 +16,53 @@ type OptionsQuotePanelProps = {
   onChoose: (lineItemId: string) => void;
 };
 
+type HotelGroup = {
+  key: string;
+  name: string;
+  place: string | null;
+  rooms: TripRateSnapshot[];
+};
+
 function moneyLabel(amount: number | null, currency: string | null): string {
   if (amount == null) return "To be confirmed";
   const code = currency?.trim() || "";
   return code ? `${code} ${amount}` : String(amount);
+}
+
+function hotelNameFor(
+  row: TripRateSnapshot,
+  stays: TripStaySnapshot[],
+): string {
+  const stay = stays.find((item) => item.leg_id === row.leg_id);
+  return row.property_name?.trim() || stay?.property_name?.trim() || stay?.city || "Hotel";
+}
+
+function hotelKeyFor(row: TripRateSnapshot, stays: TripStaySnapshot[]): string {
+  if (row.property_id?.trim()) return `id:${row.property_id.trim()}`;
+  return `name:${hotelNameFor(row, stays).toLowerCase()}`;
+}
+
+/** Keep rooms under one hotel box so several options at the same property stay together. */
+function groupByHotel(
+  rows: TripRateSnapshot[],
+  stays: TripStaySnapshot[],
+): HotelGroup[] {
+  const order: string[] = [];
+  const byKey = new Map<string, HotelGroup>();
+  for (const row of rows) {
+    const key = hotelKeyFor(row, stays);
+    const existing = byKey.get(key);
+    if (existing) {
+      existing.rooms.push(row);
+      continue;
+    }
+    const stay = stays.find((item) => item.leg_id === row.leg_id);
+    const name = hotelNameFor(row, stays);
+    const place = stay?.city?.trim() && stay.city.trim() !== name ? stay.city.trim() : null;
+    order.push(key);
+    byKey.set(key, { key, name, place, rooms: [row] });
+  }
+  return order.map((key) => byKey.get(key)!);
 }
 
 export function OptionsQuotePanel({
@@ -38,6 +81,7 @@ export function OptionsQuotePanel({
       !row.selected ||
       candidates.some((other) => !other.selected && other.leg_id === row.leg_id),
   );
+  const hotels = groupByHotel(options, stays);
   const hasRoom = candidates.length > 0;
   const status = detail.options_quote.document?.status;
   const hasFile = Boolean(detail.options_quote.document?.has_file);
@@ -64,12 +108,12 @@ export function OptionsQuotePanel({
             : "Open or regenerate the options quote to check the rooms saved on this trip."}
       </p>
       <div className="space-y-2">
-        {options.map((row) => (
-          <OptionRow
-            key={row.id}
-            row={row}
-            stays={stays}
-            canWrite={canChoose && (!detail.pricing_locked || row.sell_amount != null)}
+        {hotels.map((hotel) => (
+          <HotelGroupCard
+            key={hotel.key}
+            hotel={hotel}
+            canWrite={canChoose}
+            pricingLocked={detail.pricing_locked}
             busy={busy}
             onChoose={onChoose}
           />
@@ -108,27 +152,64 @@ export function OptionsQuotePanel({
   );
 }
 
-function OptionRow({
+function HotelGroupCard({
+  hotel,
+  canWrite,
+  pricingLocked,
+  busy,
+  onChoose,
+}: {
+  hotel: HotelGroup;
+  canWrite: boolean;
+  pricingLocked: boolean;
+  busy: boolean;
+  onChoose: (lineItemId: string) => void;
+}) {
+  const roomLabel =
+    hotel.rooms.length === 1 ? "1 room" : `${hotel.rooms.length} rooms`;
+
+  return (
+    <div className="rounded-[10px] border border-border bg-surface-raised px-2.5 py-2">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-[12px] font-semibold text-ink">{hotel.name}</p>
+          {hotel.place ? (
+            <p className="text-[11px] text-ink-muted">{hotel.place}</p>
+          ) : null}
+        </div>
+        <span className="shrink-0 text-[11px] text-ink-muted">{roomLabel}</span>
+      </div>
+      <div className="mt-1.5 space-y-1.5">
+        {hotel.rooms.map((row) => (
+          <OptionRoomRow
+            key={row.id}
+            row={row}
+            canWrite={canWrite && (!pricingLocked || row.sell_amount != null)}
+            busy={busy}
+            onChoose={onChoose}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function OptionRoomRow({
   row,
-  stays,
   canWrite,
   busy,
   onChoose,
 }: {
   row: TripRateSnapshot;
-  stays: TripStaySnapshot[];
   canWrite: boolean;
   busy: boolean;
   onChoose: (lineItemId: string) => void;
 }) {
-  const stay = stays.find((item) => item.leg_id === row.leg_id);
-  const hotel = row.property_name?.trim() || stay?.city || "Hotel";
   const room = row.subtitle?.trim() || row.title;
   const team = moneyLabel(row.cost_internal, row.currency);
   return (
-    <div className="rounded-[10px] border border-border bg-surface-raised px-2.5 py-2">
-      <p className="text-[12px] font-semibold text-ink">{hotel}</p>
-      <p className="text-[12px] text-ink-muted">{room}</p>
+    <div className="rounded-[8px] border border-border bg-surface px-2.5 py-2">
+      <p className="text-[12px] font-medium text-ink">{room}</p>
       <p className="mt-1 text-[12px] text-ink">Team cost {team}</p>
       <p className="text-[12px] text-ink">
         Client price {moneyLabel(row.sell_amount, row.currency)}

@@ -24,7 +24,13 @@ export type StepCheck = {
 };
 
 /** Cards the agent can show so far. */
-const CHECKED_CARDS: readonly CardKind[] = ["undo", "client_picker", "approval", "trip_opened"];
+const CHECKED_CARDS: readonly CardKind[] = [
+  "undo",
+  "client_picker",
+  "approval",
+  "trip_opened",
+  "rate_compare",
+];
 
 /** Yes/no prompts the agent should never need; risky changes use an approval card. */
 const CONFIRMATION_PROMPT =
@@ -99,7 +105,38 @@ function checkTrip(expect: StepExpect, observed: ObservedStep, failures: string[
     const wanted = [...expected.client.travellers].sort().join(", ");
     if (travellers !== wanted) failures.push(`travellers "${travellers || "none"}", expected "${wanted}"`);
   }
-  for (const key of ["quoteOptions", "quoteStatus", "chosenOption", "booking", "preArrival"] as const) {
+  if (expected.quoteOptions) {
+    if (trip.quoteOptions.length !== expected.quoteOptions.count) {
+      failures.push(
+        `quote has ${trip.quoteOptions.length} option(s), expected ${expected.quoteOptions.count}`,
+      );
+    }
+    for (const want of expected.quoteOptions.includes ?? []) {
+      const hit = trip.quoteOptions.find(
+        (row) =>
+          row.hotel.toLowerCase().includes(want.hotel.toLowerCase()) &&
+          row.room.toLowerCase().includes(want.room.toLowerCase()),
+      );
+      if (!hit) {
+        failures.push(`quote missing ${want.hotel} · ${want.room}`);
+        continue;
+      }
+      if (want.markupPercent != null && hit.markupPercent !== want.markupPercent) {
+        failures.push(
+          `${want.room} markup ${hit.markupPercent ?? "none"}%, expected ${want.markupPercent}%`,
+        );
+      }
+      if (want.clientPrice != null && hit.clientPrice !== want.clientPrice) {
+        failures.push(
+          `${want.room} client price ${hit.clientPrice ?? "none"}, expected ${want.clientPrice}`,
+        );
+      }
+    }
+  }
+  if (expected.quoteStatus && trip.quoteStatus !== expected.quoteStatus) {
+    failures.push(`quote status ${trip.quoteStatus}, expected ${expected.quoteStatus}`);
+  }
+  for (const key of ["chosenOption", "booking", "preArrival"] as const) {
     if (expected[key]) notChecked.push(`trip.${key}`);
   }
 }
@@ -132,7 +169,11 @@ export function checkStep(
   for (const word of expect.memoryMustNot ?? []) {
     if (observed.memory.includes(word)) failures.push(`agent memory must not contain "${word}"`);
   }
-  if (expect.rateCompare) notChecked.push("rateCompare");
+  if (expect.rateCompare) {
+    if (!observed.cards.includes("rate_compare")) {
+      failures.push("expected a rate_compare card");
+    }
+  }
 
   return { failures, notChecked };
 }

@@ -111,7 +111,7 @@ export const tripSetStaysTool = defineAgentTool({
   description: [
     "Set every stay on the trip at once, in order, with an optional hotel and rooms for each. One stay without dates covers the whole trip.",
     "Use when the advisor names where they go, changes a stay's dates, city or hotel, or adds a stay. Pass the full list, existing stays included; stays left out are removed.",
-    "Pass start and end too when the trip dates change at the same time; like all dates here, MM-DD when the advisor gave no year. Rooms default to one per two adults when a hotel is set.",
+    "Pass hotel null to clear a hotel on a stay — quote rooms on that stay (and any rooms labelled with that hotel) are removed with it. Pass start and end too when the trip dates change at the same time; like all dates here, MM-DD when the advisor gave no year. Rooms default to one per two adults when a hotel is set.",
     "Do not use to remove a stay that has the client's room (use trip_remove_stay).",
     "Returns a summary of the change; the advisor gets Undo.",
   ].join(" "),

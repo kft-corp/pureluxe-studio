@@ -1,5 +1,7 @@
 import {
+  findActivePropertyById,
   searchActivePropertiesByName,
+  searchPropertiesRanked,
   type Property,
 } from "@pureluxe/db";
 
@@ -8,6 +10,10 @@ export type PropertyNameMatch = {
   names: string[];
   property: Property | null;
 };
+
+const LINKED_SCORE = 0.7;
+const UNSURE_SCORE = 0.35;
+const SCORE_GAP = 0.15;
 
 const STOP = new Set([
   "change",
@@ -86,8 +92,8 @@ function pickMatch(query: string, rows: Property[]): PropertyNameMatch {
 }
 
 /**
- * Match a typed hotel to one active property.
- * One clear name links. Several names stay unlinked so the advisor can choose.
+ * Match a typed hotel to one active property (aliases + fuzzy score).
+ * One clear name links. Several close matches stay unlinked so the advisor can choose.
  */
 export async function matchPropertyByName(
   name: string,
@@ -95,6 +101,34 @@ export async function matchPropertyByName(
   const trimmed = name.trim();
   if (trimmed.length < 2) {
     return { status: "none", names: [], property: null };
+  }
+
+  try {
+    const ranked = await searchPropertiesRanked({ query: trimmed, limit: 5 });
+    if (ranked.length > 0) {
+      const top = ranked[0]!;
+      const second = ranked[1];
+      const clear =
+        top.score >= LINKED_SCORE &&
+        (!second || top.score - second.score >= SCORE_GAP || top.score >= 0.95);
+
+      if (clear) {
+        const property = await findActivePropertyById(top.id);
+        if (property) {
+          return { status: "linked", names: [property.name], property };
+        }
+      }
+
+      if (top.score >= UNSURE_SCORE) {
+        return {
+          status: "several",
+          names: ranked.filter((h) => h.score >= UNSURE_SCORE).map((h) => h.name),
+          property: null,
+        };
+      }
+    }
+  } catch {
+    // Fall back to ilike search when the ranked RPC is not available yet.
   }
 
   const direct = await searchActivePropertiesByName(trimmed);

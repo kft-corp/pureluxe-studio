@@ -1,5 +1,5 @@
 import type { DeskAgentHandlers } from "@pureluxe/ai";
-import { searchActivePropertiesByName } from "@pureluxe/db";
+import { searchActivePropertiesByName, searchPropertiesRanked } from "@pureluxe/db";
 import {
   AppError,
   hasPermission,
@@ -11,6 +11,7 @@ import {
 
 import { getBookingDetail, listBookingDirectory } from "@/lib/bookings";
 import { listClientDirectory, searchClients } from "@/lib/clients";
+import { findHotels } from "@/lib/rates/find-hotels";
 import { answerAtlasStay, type AtlasHotelChoice } from "@/lib/trip-builder/stays/atlas-stay";
 import { loadHotelStayFacts } from "@/lib/trip-builder/stays/hotel-contract-facts";
 import { listJourneyDirectory } from "@/lib/trips";
@@ -128,7 +129,19 @@ export function createDeskTools(actor: DeskActor): Omit<DeskAgentHandlers, "getC
     },
 
     async getHotel({ name, checkIn, checkOut }) {
-      const properties = await searchActivePropertiesByName(name, HOTEL_MATCHES);
+      type HotelRow = { id: string; name: string; city: string | null; country: string | null };
+      let properties: HotelRow[] = [];
+      try {
+        const ranked = await searchPropertiesRanked({ query: name, limit: HOTEL_MATCHES });
+        properties = ranked.map((hit) => ({
+          id: hit.id,
+          name: hit.name,
+          city: hit.city,
+          country: hit.country,
+        }));
+      } catch {
+        properties = await searchActivePropertiesByName(name, HOTEL_MATCHES);
+      }
       const hotels = await Promise.all(
         properties.map(async (property) => {
           const facts = await loadHotelStayFacts({
@@ -148,5 +161,7 @@ export function createDeskTools(actor: DeskActor): Omit<DeskAgentHandlers, "getC
       );
       return { hotels };
     },
+
+    findHotels: (input) => findHotels(input),
   };
 }

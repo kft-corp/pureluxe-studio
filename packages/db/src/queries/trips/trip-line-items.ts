@@ -44,6 +44,11 @@ export type InsertTripLineItemInput = {
   raw_input?: string | null;
   extracted_json?: Record<string, unknown> | null;
   created_by_id?: string | null;
+  /** Stage 3d quote columns (021). */
+  rate_search_result_id?: string | null;
+  markup_percent?: number | null;
+  option_rank?: number | null;
+  added_via?: "agent" | "button" | "paste" | "manual" | null;
 };
 
 /** Insert a trip line item; returns the created row. */
@@ -88,6 +93,10 @@ export async function insertTripLineItem(
         raw_input: input.raw_input ?? null,
         extracted_json: input.extracted_json ?? null,
         created_by_id: input.created_by_id ?? null,
+        rate_search_result_id: input.rate_search_result_id ?? null,
+        markup_percent: input.markup_percent ?? null,
+        option_rank: input.option_rank ?? null,
+        added_via: input.added_via ?? null,
       })
       .select("*")
       .single(),
@@ -246,6 +255,10 @@ export async function updateStayOption(
     cost_internal?: number;
     cancellation_policy?: string | null;
     inclusions?: string[];
+    markup_percent?: number | null;
+    option_rank?: number | null;
+    rate_search_result_id?: string | null;
+    added_via?: "agent" | "button" | "paste" | "manual" | null;
   },
 ): Promise<TripLineItem | null> {
   const supabase = getServiceClient();

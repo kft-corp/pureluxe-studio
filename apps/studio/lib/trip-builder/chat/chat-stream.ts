@@ -47,7 +47,8 @@ export function createChatStream(
         send({ type: "meta", user: prepared.user });
 
         let full = "";
-        const outcome: ReplyOutcome = { undo: false, choices: [], approval: null };
+        const outcome: ReplyOutcome = { undo: false, choices: [], rateCompare: null, approval: null };
+        let quotePreviewUrl: string | null = null;
         try {
           for await (const chunk of prepared.chunks) {
             switch (chunk.kind) {
@@ -68,13 +69,20 @@ export function createChatStream(
               case "choices":
                 outcome.choices = chunk.choices;
                 break;
+              case "rate_compare":
+                outcome.rateCompare = chunk.compare;
+                break;
               case "approval":
                 outcome.approval = chunk.approval;
+                break;
+              case "quote_preview":
+                quotePreviewUrl = chunk.url;
                 break;
             }
           }
           const assistant = await prepared.complete(full, outcome);
           send({ type: "done", assistant });
+          if (quotePreviewUrl) send({ type: "quote_preview", url: quotePreviewUrl });
           await prepared.finish({ status: "ok" });
         } catch (cause) {
           await prepared.abandon(full).catch(() => null);

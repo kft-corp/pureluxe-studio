@@ -19,13 +19,13 @@ export function staySavedText(input: {
 }): string {
   const lead = `Stay saved for **${input.hotel}** in **${input.city}**, ${input.checkIn} to ${input.checkOut}, ${input.party}.`;
   if (input.status === "linked") {
-    return `${lead}\n\nAsk me to search rates, or paste a supplier quote. I'll confirm before I search.`;
+    return `${lead}\n\nAsk for rates (or more hotels to compare) — I'll search at once and show a compare card. Or paste a supplier quote.`;
   }
   if (input.status === "several") {
     const names = input.names.map((name) => `**${name}**`).join(", ");
-    return `${lead}\n\nI found more than one hotel: ${names}. Send **Hotel:** with the exact name and tap **Update stay** before I search rates.`;
+    return `${lead}\n\nI found more than one hotel: ${names}. Ask for rates with the exact name, or tap a **Rates** button — no need to update the stay first.`;
   }
-  return `${lead}\n\nI don't have that hotel on file, so a rate search may not find a price. Send **Hotel:** with the stored name and tap **Update stay**, or paste a supplier quote.`;
+  return `${lead}\n\nI don't have that hotel on file. Ask for alternatives in the same destination, or paste a supplier quote.`;
 }
 
 /** Points the advisor to the trip page once the client quote is ready to send. */

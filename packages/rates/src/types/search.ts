@@ -22,6 +22,16 @@ export type SearchRatesRequest = {
   adults: number;
   children?: number;
   rooms?: number;
+  /**
+   * Child ages on check-in (years). Used for age-banded extras (R12 / Fix 8).
+   * When omitted and bands change the price, pricing assumes a default age.
+   */
+  child_ages?: number[];
+  /**
+   * ISO country codes for the client's market (usually lead nationality).
+   * Used to hide market-restricted contracts (R11).
+   */
+  client_market_codes?: string[];
   currency?: string;
   channel?: RateSearchChannel;
   /** Team member running the search (Studio). */

@@ -138,6 +138,10 @@ export type TripLeg = {
   itinerary_status: TripLegItineraryStatus;
   /** Atlas gate: pending → resolved | empty after resolve-candidates. */
   kb_selection_status: KbSelectionStatus;
+  /** Atlas country for matching (021); destination text stays for display. */
+  kb_country_id: string | null;
+  /** Atlas city for matching (021); destination text stays for display. */
+  kb_city_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -198,6 +202,14 @@ export type TripLineItem = {
   availability_status: TripLineItemAvailabilityStatus | null;
   raw_input: string | null;
   extracted_json: Record<string, unknown> | null;
+  /** Stored rate offer this option was copied from (021). */
+  rate_search_result_id: string | null;
+  /** Markup used when the option was added (021). */
+  markup_percent: number | null;
+  /** Option 1 / option 2 order per hotel (021). */
+  option_rank: number | null;
+  /** How the option was added: agent / button / paste / manual (021). */
+  added_via: "agent" | "button" | "paste" | "manual" | null;
   created_by_id: string | null;
   created_at: string;
   updated_at: string;

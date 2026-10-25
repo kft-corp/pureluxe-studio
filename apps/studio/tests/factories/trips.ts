@@ -99,6 +99,8 @@ export function makeRate(
     property_id: null,
     contract_id: null,
     rate_note: null,
+    max_adults: null,
+    max_children: null,
     inclusions: [],
     status: "pending",
     selected: false,

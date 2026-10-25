@@ -169,18 +169,13 @@ export function buildTripContext(trip: TripFacts): string {
 
   lines.push(
     "",
-    "Quote draft (client-facing):",
+    "Options quote PDF (client-facing):",
     `- Title: ${textOrMissing(trip.quote.title)}`,
-    `- Intro: ${textOrMissing(trip.quote.intro)}`,
     `- Notes: ${textOrMissing(trip.quote.notes)}`,
-    `- Highlights: ${
-      trip.quote.highlights.length
-        ? trip.quote.highlights.map(clip).join(" | ")
-        : "none"
-    }`,
     `- Sell price (client): ${money(trip.quote.sell_total, trip.quote.sell_currency)}`,
     `- Document status: ${trip.quote.document_status ?? "none"}`,
     `- PDF file ready: ${trip.quote.has_file ? "yes" : "no"}`,
+    `- Rewritten lines: ${trip.quote.line_edit_count}`,
   );
 
   if (trip.price) {

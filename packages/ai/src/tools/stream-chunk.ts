@@ -3,6 +3,16 @@
  * (the package root also loads the agent runtime). Keep this file dependency-free.
  */
 
+import type { RateCompareCard } from "./rate-compare";
+
+export type {
+  RateCompareCard,
+  RateCompareHotel,
+  RateCompareHotelNotes,
+  RateCompareHotelStatus,
+  RateCompareRoom,
+} from "./rate-compare";
+
 /** Lightweight phases for chat UI (Phase 1). */
 export type AgentPhase = "thinking" | "looking_up" | "writing";
 
@@ -32,10 +42,14 @@ export type AgentStreamChunk =
   /** The agent changed the trip. */
   | { kind: "changed"; summary: string; undo: boolean }
   | { kind: "choices"; choices: AgentChoice[] }
+  /** Multi-hotel rate comparison card (Stage 3c). */
+  | { kind: "rate_compare"; compare: RateCompareCard }
   /** The run paused; it continues when the advisor confirms or cancels. */
   | { kind: "approval"; approval: AgentApproval }
   /** Open this trip for the advisor (home chat). `created`: it was made in this turn. */
-  | { kind: "opened"; tripId: string; created: boolean };
+  | { kind: "opened"; tripId: string; created: boolean }
+  /** Open the options quote PDF in a new tab (short-lived signed URL). */
+  | { kind: "quote_preview"; url: string };
 
 export const AGENT_PHASE_LABEL: Record<AgentPhase, string> = {
   thinking: "Thinking…",

@@ -10,6 +10,8 @@ import { matchPropertyByName } from "@/lib/rates/match-property";
 import { buildRateSearchNotes } from "@/lib/rates/rate-search-pack";
 import { saveTripRateSearch } from "@/lib/rates/rate-search-store";
 
+import { loadPartyPricingContext } from "./party-pricing-context";
+
 /** Facts already stored for this hotel and these dates. Shown with the rate cards. */
 export type RateStayNotes = {
   checkIn: string | null;
@@ -69,6 +71,19 @@ export async function searchTripRates(
     }
   }
 
+  let childAges = input.child_ages ?? [];
+  let clientMarketCodes = input.client_market_codes ?? [];
+  if (input.trip_id && (childAges.length === 0 || clientMarketCodes.length === 0)) {
+    const party = await loadPartyPricingContext({
+      tripId: input.trip_id,
+      checkIn: input.check_in,
+    });
+    if (childAges.length === 0) childAges = party.child_ages;
+    if (clientMarketCodes.length === 0) {
+      clientMarketCodes = party.client_market_codes;
+    }
+  }
+
   const result = await searchRatesForLeg({
     trip_id: input.trip_id ?? undefined,
     leg_id: input.leg_id ?? undefined,
@@ -79,6 +94,8 @@ export async function searchTripRates(
     adults: input.adults,
     children: input.children,
     rooms: input.rooms,
+    child_ages: childAges,
+    client_market_codes: clientMarketCodes,
     currency: input.currency,
     channel: "studio",
     requested_by_id: actor.memberId,

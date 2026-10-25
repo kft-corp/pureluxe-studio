@@ -84,14 +84,17 @@ export type TripFacts = {
     candidates: TripRateFact[];
   };
   quote: {
+    /** Options quote PDF title. */
     title: string | null;
-    intro: string | null;
+    /** Closing note on the options quote PDF. */
     notes: string | null;
-    highlights: string[];
     sell_total: number | null;
     sell_currency: string | null;
+    /** Options quote PDF document status. */
     document_status: string | null;
     has_file: boolean;
+    /** How many printable lines the advisor has rewritten. */
+    line_edit_count: number;
   };
   /** Advisor money view, already calculated. Strings are formatted with the currency. */
   price?: {

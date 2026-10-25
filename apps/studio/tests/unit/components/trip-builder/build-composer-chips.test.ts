@@ -46,16 +46,6 @@ const RATES_STAGE = makeTripDetail({
   },
 });
 
-const DUBAI_DRAFT = {
-  hotel: "Atlantis",
-  city: "Dubai",
-  checkIn: "2026-10-10",
-  checkOut: "2026-10-14",
-  adults: 2,
-  children: 0,
-  rooms: 1,
-};
-
 function ids(chips: TripBuilderChip[]): string[] {
   return chips.map((chip) => chip.id);
 }
@@ -124,8 +114,6 @@ describe("buildComposerChips", () => {
     it("shows only Confirm and Cancel while the agent waits for approval", () => {
       const input = makeChipInput({
         detail: RATES_STAGE,
-        activeLegId: "leg-dubai",
-        stayDraft: DUBAI_DRAFT,
         replyCards: { approval: "Move the trip 2 days later." },
       });
       const { chips, rateCards } = buildComposerChips(input);
@@ -172,22 +160,6 @@ describe("buildComposerChips", () => {
     });
   });
 
-  describe("confirmations", () => {
-    it("puts the yes chip first and its no chip right after", () => {
-      const input = makeChipInput({
-        detail: RATES_STAGE,
-        activeLegId: "leg-dubai",
-        stayDraft: DUBAI_DRAFT,
-        offer: { type: "rate-search" },
-      });
-      const { chips } = buildComposerChips(input);
-
-      expect(chips.map((item) => item.label)).toEqual(["Search rates · 2 adults · 1 room", "Don't search"]);
-      chips[1]!.onClick();
-      expect(input.actions.declineOffer).toHaveBeenCalledOnce();
-    });
-  });
-
   describe("rates stage", () => {
     const ROOM = makeRate({
       id: "r1",
@@ -200,54 +172,24 @@ describe("buildComposerChips", () => {
     });
     const WITH_ROOM = { ...RATES_STAGE, rates: { selected: null, candidates: [ROOM] } };
 
-    it("offers a rate search with the party", () => {
-      const input = makeChipInput({ detail: RATES_STAGE, activeLegId: "leg-dubai", stayDraft: DUBAI_DRAFT });
-      const { chips } = buildComposerChips(input);
-
-      expect(chips.map((item) => item.label)).toEqual(["Search rates · 2 adults · 1 room"]);
-      chips[0]!.onClick();
-      expect(input.actions.searchRates).toHaveBeenCalledWith();
+    it("does not offer rate-search confirm chips (Stage 3d)", () => {
+      const { chips, rateCards } = buildComposerChips(makeChipInput({ detail: RATES_STAGE }));
+      expect(chips).toEqual([]);
+      expect(rateCards).toEqual([]);
     });
 
     it("hides ready chips while the agent answers a question", () => {
       const { chips } = buildComposerChips(
         makeChipInput({
           detail: RATES_STAGE,
-          activeLegId: "leg-dubai",
-          stayDraft: DUBAI_DRAFT,
           quietChips: true,
         }),
       );
       expect(chips).toEqual([]);
     });
 
-    it("turns saved rooms into rate cards", () => {
-      const input = makeChipInput({ detail: WITH_ROOM, activeLegId: "leg-dubai", stayDraft: DUBAI_DRAFT });
-      const { rateCards } = buildComposerChips(input);
-
-      expect(rateCards).toHaveLength(1);
-      expect(rateCards[0]).toMatchObject({
-        id: "rate-cand-r1",
-        index: 1,
-        recommended: false,
-        room: "Ocean Suite",
-        board: "Bed and breakfast",
-        price: "USD 3,000",
-        inclusions: ["Breakfast", "Airport transfer"],
-      });
-      expect(rateCards[0]!.onAddToOptions).toBeUndefined();
-
-      rateCards[0]!.onSelect!();
-      expect(input.actions.offerSelectRoom).toHaveBeenCalledWith(
-        { title: "Ocean Suite", kind: "saved", row: ROOM },
-        "Client chose this",
-      );
-    });
-
-    it("shows no rate cards once pricing is locked", () => {
-      const { rateCards } = buildComposerChips(
-        makeChipInput({ detail: { ...WITH_ROOM, pricing_locked: true }, activeLegId: "leg-dubai" }),
-      );
+    it("does not build composer rate cards from saved rooms", () => {
+      const { rateCards } = buildComposerChips(makeChipInput({ detail: WITH_ROOM }));
       expect(rateCards).toEqual([]);
     });
   });

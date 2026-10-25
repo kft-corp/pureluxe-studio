@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "eval:agent": "node --require ./scripts/load-root-env.cjs ./node_modules/vitest/vitest.mjs run --config agent-eval.config.mts"
+    "eval:agent": "node --require ./scripts/load-root-env.cjs ./node_modules/vitest/vitest.mjs run --config agent-eval.config.mts",
+    "import:hotel-tiers": "node --require ./scripts/load-root-env.cjs ./scripts/import-hotel-tiers.cjs"
   },
   "dependencies": {
     "@fontsource/source-sans-3": "^5.3.1",

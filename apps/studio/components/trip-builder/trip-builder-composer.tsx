@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { LuArrowUp } from "react-icons/lu";
+import { LuArrowUp, LuChevronDown, LuChevronUp } from "react-icons/lu";
 
 import { studioButtonClass } from "@/components/ui";
 import { cn } from "@/lib/utils/cn";
@@ -40,12 +40,23 @@ export function TripBuilderComposer({
   const [value, setValue] = useState("");
   const [runningChipId, setRunningChipId] = useState<string | null>(null);
   const [expandedFor, setExpandedFor] = useState<string | null>(null);
+  /** Choice lists stay collapsed by default — a long list must not jump the composer open. */
+  const [choicesOpen, setChoicesOpen] = useState(false);
+  const choicesKeyRef = useRef("");
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const approval = chips.filter((chip) => chip.kind === "confirm" || chip.kind === "cancel");
   const choices = chips.filter((chip) => chip.kind === "choice");
   const undo = chips.filter((chip) => chip.kind === "undo");
   const ready = chips.filter((chip) => !chip.kind);
+
+  const nextChoicesKey = choices.map((chip) => chip.id).join("|");
+  useEffect(() => {
+    if (nextChoicesKey === choicesKeyRef.current) return;
+    choicesKeyRef.current = nextChoicesKey;
+    // New option set: keep collapsed so the advisor taps Show when ready.
+    setChoicesOpen(false);
+  }, [nextChoicesKey]);
 
   const chipSet = ready.map((chip) => chip.id).join("|");
   const folded = ready.length > VISIBLE_CHIPS + 1 && expandedFor !== chipSet;
@@ -94,6 +105,8 @@ export function TripBuilderComposer({
 
   const showChips = !streaming && chips.length > 0;
   const helper = notice ?? (streaming ? undefined : helperText);
+  const choiceCountLabel =
+    choices.length === 1 ? "1 option" : `${choices.length} options`;
 
   return (
     <div className="shrink-0 border-t border-border bg-surface-raised px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:px-4 sm:pb-2">
@@ -104,8 +117,37 @@ export function TripBuilderComposer({
               <div className="flex items-center gap-1">{approval.map(renderChip)}</div>
             ) : null}
             {choices.length > 0 ? (
-              <div className="divide-y divide-divider overflow-hidden rounded-lg border border-border bg-surface-raised">
-                {choices.map(renderChip)}
+              <div className="overflow-hidden rounded-lg border border-border bg-surface-raised">
+                <div className="flex items-center gap-2 border-b border-border px-2 py-1">
+                  <p className="min-w-0 flex-1 truncate px-1 text-[12px] font-medium text-ink-muted">
+                    {choicesOpen ? choiceCountLabel : `${choiceCountLabel} · tap to show`}
+                  </p>
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => setChoicesOpen((open) => !open)}
+                    aria-expanded={choicesOpen}
+                    aria-label={choicesOpen ? "Hide options" : "Show options"}
+                    className={studioButtonClass("ghost", "sm", "shrink-0 gap-1 !px-2")}
+                  >
+                    {choicesOpen ? (
+                      <>
+                        Hide
+                        <LuChevronUp className="size-3.5" strokeWidth={2} aria-hidden />
+                      </>
+                    ) : (
+                      <>
+                        Show
+                        <LuChevronDown className="size-3.5" strokeWidth={2} aria-hidden />
+                      </>
+                    )}
+                  </button>
+                </div>
+                {choicesOpen ? (
+                  <div className="max-h-[40vh] divide-y divide-divider overflow-y-auto">
+                    {choices.map(renderChip)}
+                  </div>
+                ) : null}
               </div>
             ) : null}
             {visibleReady.length > 0 ? (

@@ -40,7 +40,8 @@ export function listQuoteLines(document: OptionsQuoteDocument): QuoteLine[] {
       push(lines, `${hotelId}:city`, "Hotel city", hotel.city);
       for (const room of hotel.rooms) {
         push(lines, `room:${room.id}:name`, `Room · ${room.name}`, room.name);
-        if (room.detail) push(lines, `room:${room.id}:detail`, `Board · ${room.name}`, room.detail);
+        if (room.detail) push(lines, `room:${room.id}:detail`, `Meal plan · ${room.name}`, room.detail);
+        if (room.sleeps) push(lines, `room:${room.id}:sleeps`, `Occupancy · ${room.name}`, room.sleeps);
         push(lines, `room:${room.id}:price`, `Price · ${room.name}`, room.price);
         room.inclusions.forEach((item, index) => {
           push(lines, `room:${room.id}:inclusion:${index}`, `Included · ${room.name}`, item);
@@ -97,6 +98,8 @@ export function applyQuoteEdits(
         room.name = keep(edits, `room:${room.id}:name`, room.name);
         const detail = read(edits, `room:${room.id}:detail`);
         if (detail != null) room.detail = detail.trim() || null;
+        const sleeps = read(edits, `room:${room.id}:sleeps`);
+        if (sleeps != null) room.sleeps = sleeps.trim() || null;
         room.price = keep(edits, `room:${room.id}:price`, room.price);
         room.inclusions = editedLines(edits, room.inclusions, `room:${room.id}:inclusion`);
         room.extras = editedLines(edits, room.extras, `room:${room.id}:extra`);

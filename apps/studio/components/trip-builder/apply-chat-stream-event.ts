@@ -18,6 +18,8 @@ type ApplyOptions = {
   onChanged?: () => void;
   /** Home chat: the agent created or chose a trip to open. */
   onOpened?: (tripId: string) => void;
+  /** Open the options quote PDF in a new tab. */
+  onQuotePreview?: (url: string) => void;
   onError?: () => void;
   showError: (error: unknown) => void;
 };
@@ -40,6 +42,7 @@ export function applyChatStreamEvent(options: ApplyOptions): void {
     onBusy,
     onChanged,
     onOpened,
+    onQuotePreview,
     onError,
     showError,
   } = options;
@@ -74,6 +77,10 @@ export function applyChatStreamEvent(options: ApplyOptions): void {
     }
     case "opened": {
       onOpened?.(event.tripId);
+      return;
+    }
+    case "quote_preview": {
+      onQuotePreview?.(event.url);
       return;
     }
     case "done": {

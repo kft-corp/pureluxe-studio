@@ -38,10 +38,20 @@ export {
   findActivePropertyWithSupplierCodes,
   searchActivePropertiesByName,
   listActiveContractedRatesForStay,
+  listActiveContractedRatesOverlappingStay,
   listActiveSupplierCodesForProperty,
   type FindContractedRateInput,
   type PropertyWithSupplierCodes,
 } from "./properties";
+export {
+  listActiveHotelsInDestination,
+  listHotelDetailsByPropertyIds,
+  listPropertyPriceBands,
+  searchPropertiesRanked,
+  typicalNightlyForProperty,
+  updateHotelPriceTierByPropertyId,
+  updatePropertyAliases,
+} from "./property-search";
 export {
   listActivePeakWindowsForStay,
   type ListPeakWindowsInput,
@@ -49,6 +59,8 @@ export {
 export {
   expireRateSearches,
   findLatestRateSearch,
+  findRateSearchByEventId,
+  findRateSearchResultById,
   insertRateSearch,
   type InsertRateSearchEventInput,
   type InsertRateSearchResultInput,

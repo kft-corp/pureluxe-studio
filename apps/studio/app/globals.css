@@ -52,13 +52,13 @@
   --accent-ink-strong: #5e4b30;
 
   /*
-   * Navigation sidebar (Ice Mist) — slate charcoal text in a regular weight, the active
-   * item as a white pill. Contrast on --nav: ink 14:1, icon 7:1, label and muted 5.1:1.
+   * Navigation sidebar (Ice Mist) — a step darker than the white main panel so the
+   * rail reads as chrome; active item stays a white pill. Contrast on --nav stays strong.
    */
-  --nav: #ebf1f5;
-  --nav-hover: #dfe8ee;
+  --nav: #e4ecf2;
+  --nav-hover: #d7e2ea;
   --nav-active: #ffffff;
-  --nav-line: #d3dde5;
+  --nav-line: #cfd9e2;
   --nav-ink: #1a202c;
   --nav-ink-strong: #0f141c;
   --nav-icon: #4a5157;
