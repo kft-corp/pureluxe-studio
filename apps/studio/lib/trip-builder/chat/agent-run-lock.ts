@@ -3,11 +3,11 @@ import { beginAgentRun, endAgentRun } from "@pureluxe/db";
 
 /**
  * A crashed / hard-killed run frees the trip after this long.
- * Kept under ~Hobby turn budget so a Vercel 60s kill does not leave "busy" for 2 minutes.
+ * Renewed during the turn; after a hard kill the trip unlocks within this window.
  */
-const LOCK_TTL_SECONDS = 75;
-/** Renewed well inside the TTL while the agent is still working. */
-const RENEW_EVERY_MS = 25_000;
+const LOCK_TTL_SECONDS = 90;
+/** Renewed well inside the TTL while the agent is still working (supports ~300s turns). */
+const RENEW_EVERY_MS = 30_000;
 
 export type TripRunLock = {
   runId: string;

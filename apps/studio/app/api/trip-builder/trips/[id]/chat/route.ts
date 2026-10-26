@@ -16,10 +16,10 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 /**
- * Seconds. Vercel Hobby hard-caps at 60; soft budget (~48s) aborts earlier so we can
+ * Seconds. Hobby Fluid max is 300; soft budget (~285s) aborts earlier so we can
  * save an incomplete reply, free the run lock, and let Continue resume via checkpointer.
  */
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 /** List a recent page of studio chat messages for an assigned trip. */
 export const GET = apiRoute<{ id: string }>(

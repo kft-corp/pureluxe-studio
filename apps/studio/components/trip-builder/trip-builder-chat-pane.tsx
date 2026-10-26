@@ -313,6 +313,7 @@ function ChatScrollArea({
           stayNotes={stayNotes}
           offersDisabled={offersDisabled}
           onAddRateOption={onAddRateOption}
+          onContinueIncomplete={onContinueIncomplete}
           endRef={endRef}
         />
       )}
@@ -412,6 +413,7 @@ function ChatMessageList({
   stayNotes,
   offersDisabled,
   onAddRateOption,
+  onContinueIncomplete,
   endRef,
 }: {
   messages: ChatMessage[];
@@ -426,6 +428,7 @@ function ChatMessageList({
   stayNotes: TripBuilderStayNotes | null;
   offersDisabled: boolean;
   onAddRateOption?: (option: RateCompareAddOption) => void;
+  onContinueIncomplete?: () => void;
   endRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const showWelcome =

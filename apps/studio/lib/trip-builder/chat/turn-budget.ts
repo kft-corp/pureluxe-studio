@@ -1,10 +1,10 @@
 /**
- * Soft deadline for one agent turn on Vercel Hobby (maxDuration = 60s).
+ * Soft deadline for one agent turn (aligned with route maxDuration = 300s).
  * Abort slightly early so abandon + lock release can finish before the hard kill.
  */
-export const TURN_MAX_DURATION_SECONDS = 60;
-/** Abort the agent this many ms before the platform hard timeout. */
-export const TURN_BUDGET_MS = 48_000;
+export const TURN_MAX_DURATION_SECONDS = 300;
+/** Leave ~15s for saving the incomplete reply and releasing the run lock. */
+export const TURN_BUDGET_MS = 285_000;
 
 export type TurnBudget = {
   /** True after the soft timer fires (not a client cancel). */
@@ -15,7 +15,7 @@ export type TurnBudget = {
 
 /**
  * Abort `controller` after TURN_BUDGET_MS so we can save progress and free the
- * trip lock before Vercel kills the function at 60s.
+ * trip lock before Vercel kills the function at maxDuration.
  */
 export function armTurnBudget(
   controller: AbortController,
