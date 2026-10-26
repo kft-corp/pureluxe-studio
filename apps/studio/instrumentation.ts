@@ -11,6 +11,8 @@ export async function register() {
     vercelUrl: process.env.VERCEL_URL ?? null,
     hasDatabaseUrl: Boolean(process.env.DATABASE_URL?.trim()),
     hasAnthropicKey: Boolean(process.env.ANTHROPIC_API_KEY?.trim()),
+    hasAnthropicModel: Boolean(process.env.ANTHROPIC_MODEL?.trim()),
+    hasAnthropicFallback: Boolean(process.env.ANTHROPIC_FALLBACK_MODEL?.trim()),
     hasSupabaseUrl: Boolean(process.env.SUPABASE_URL?.trim()),
     hasSessionSecret: Boolean(process.env.STUDIO_SESSION_SECRET?.trim()),
     hasGoogleClientId: Boolean(process.env.GOOGLE_CLIENT_ID?.trim()),

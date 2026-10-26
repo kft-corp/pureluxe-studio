@@ -14,7 +14,7 @@ import {
   type TripAgentDeps,
   type TripAgentNode,
 } from "./graph";
-import type { AgentModelOptions } from "./model";
+import { isProviderOutage, type AgentModelOptions } from "./model";
 import { redactSensitive, redactText } from "./redact";
 import type { TripAgentStateUpdate } from "./state";
 import { toAgentChunks } from "./stream";
@@ -23,6 +23,20 @@ import type { AgentTurnRequest, ApprovalDecision, HomeAgentHandlers, TripAgentHa
 
 /** Graph steps per turn. The tool-round cap ends a turn well before this; it is a safety net. */
 const RECURSION_LIMIT = 25;
+/** Extra full-turn attempts after a provider outage or empty reply (SDK already retries per model call). */
+const PROVIDER_TURN_RETRIES = 1;
+
+function isAbortError(cause: unknown, signal?: AbortSignal): boolean {
+  if (signal?.aborted) return true;
+  return cause instanceof Error && (cause.name === "AbortError" || cause.name === "TimeoutError");
+}
+
+function isRetryableProviderFailure(cause: unknown): boolean {
+  if (cause instanceof AppError && cause.code === "ai.provider_failed") {
+    return cause.cause === undefined || isProviderOutage(cause.cause);
+  }
+  return isProviderOutage(cause);
+}
 
 type TurnOptions = {
   /** YYYY-MM-DD in the agency's time zone. */
@@ -123,7 +137,7 @@ function assertKnownAction(request: AgentTurnRequest, tools: ReadonlyArray<{ nam
 
 /**
  * Build the graph and stream one turn. Provider failures become one clear error;
- * rule and access errors pass through.
+ * rule and access errors pass through. One automatic retry on outage / empty reply.
  */
 async function* runTurn(input: {
   buildGraph: () => AgentGraph;
@@ -134,21 +148,65 @@ async function* runTurn(input: {
   signal?: AbortSignal;
 }): AsyncGenerator<AgentStreamChunk, void, unknown> {
   yield { kind: "status", phase: "thinking" };
-  try {
-    const graph = input.buildGraph();
-    const config = { configurable: { thread_id: input.threadId } };
-    const graphInput = await toGraphInput(graph, config, input.request, input.retry);
-    const stream = await graph.stream(graphInput, {
-      ...config,
-      streamMode: ["messages", "updates", "custom"],
-      recursionLimit: RECURSION_LIMIT,
-      signal: input.signal,
-    });
-    const summary = yield* toAgentChunks(stream, input.meter);
-    if (!summary.sawText && !summary.paused) throw aiProviderFailedError();
-  } catch (cause) {
-    if (cause instanceof AppError) throw cause;
-    throw aiProviderFailedError(cause);
+
+  let lastCause: unknown;
+  for (let attempt = 0; attempt <= PROVIDER_TURN_RETRIES; attempt += 1) {
+    if (input.signal?.aborted) {
+      const aborted = lastCause ?? new Error("Aborted");
+      if (aborted instanceof Error) aborted.name = "AbortError";
+      throw aborted;
+    }
+    const resume = input.retry || attempt > 0;
+    let emittedText = false;
+    try {
+      const graph = input.buildGraph();
+      const config = { configurable: { thread_id: input.threadId } };
+      const graphInput = await toGraphInput(graph, config, input.request, resume);
+      const stream = await graph.stream(graphInput, {
+        ...config,
+        streamMode: ["messages", "updates", "custom"],
+        recursionLimit: RECURSION_LIMIT,
+        signal: input.signal,
+      });
+      const summary = yield* (async function* () {
+        const gen = toAgentChunks(stream, input.meter);
+        while (true) {
+          const step = await gen.next();
+          if (step.done) return step.value;
+          if (step.value.kind === "delta" && step.value.text) emittedText = true;
+          yield step.value;
+        }
+      })();
+      if (summary.sawText || summary.paused) return;
+      if (isAbortError(undefined, input.signal)) return;
+      lastCause = aiProviderFailedError();
+      if (attempt < PROVIDER_TURN_RETRIES) {
+        console.warn("[ai] provider turn empty reply; retrying once", {
+          threadId: input.threadId,
+          attempt: attempt + 1,
+        });
+        continue;
+      }
+      throw lastCause;
+    } catch (cause) {
+      if (isAbortError(cause, input.signal)) throw cause;
+      if (cause instanceof AppError && cause.code !== "ai.provider_failed") throw cause;
+      lastCause = cause instanceof AppError ? cause : aiProviderFailedError(cause);
+      // Never retry after the client already saw text — that would duplicate the stream.
+      if (
+        !emittedText &&
+        attempt < PROVIDER_TURN_RETRIES &&
+        isRetryableProviderFailure(lastCause)
+      ) {
+        console.warn("[ai] provider turn failed; retrying once", {
+          threadId: input.threadId,
+          attempt: attempt + 1,
+          code: lastCause instanceof AppError ? lastCause.code : null,
+        });
+        continue;
+      }
+      throw lastCause;
+    }
   }
 }
 

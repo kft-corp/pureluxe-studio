@@ -46,6 +46,7 @@ describe("createChatStream", () => {
       undo: false,
       choices: [],
       rateCompare: null,
+      legSplit: null,
       approval: null,
     });
     expect(prepared.finish).toHaveBeenCalledWith({ status: "ok" });
@@ -67,6 +68,7 @@ describe("createChatStream", () => {
       undo: true,
       choices: [],
       rateCompare: null,
+      legSplit: null,
       approval,
     });
   });
@@ -84,6 +86,7 @@ function streamTurn(items: AgentStreamChunk[]) {
     complete: vi.fn(async () => assistant),
     abandon: vi.fn(async () => null),
     abort: vi.fn(),
+    budgetHit: () => false,
     finish: vi.fn(async () => {}),
   } satisfies PreparedChatTurn;
 }

@@ -1,10 +1,13 @@
 import { errorCodeOf } from "@pureluxe/ai";
 import { beginAgentRun, endAgentRun } from "@pureluxe/db";
 
-/** A crashed run frees the trip after this long. */
-const LOCK_TTL_SECONDS = 120;
+/**
+ * A crashed / hard-killed run frees the trip after this long.
+ * Kept under ~Hobby turn budget so a Vercel 60s kill does not leave "busy" for 2 minutes.
+ */
+const LOCK_TTL_SECONDS = 75;
 /** Renewed well inside the TTL while the agent is still working. */
-const RENEW_EVERY_MS = 45_000;
+const RENEW_EVERY_MS = 25_000;
 
 export type TripRunLock = {
   runId: string;
@@ -37,6 +40,7 @@ export async function holdTripRunLock(tripId: string): Promise<TripRunLock | nul
       clearInterval(renew);
       try {
         await endAgentRun({ tripId, runId });
+        console.info("[trip-chat] trip run lock released", { tripId, runId });
       } catch (cause) {
         console.error("[agent] run lock release failed:", errorCodeOf(cause));
       }

@@ -41,6 +41,7 @@ export function useTripBuilder(options: UseTripBuilderOptions) {
     sendTripChat,
     sendTripAction,
     sendApproval,
+    continueIncomplete,
     beginTap,
     clearTap,
     queuedCount,
@@ -179,5 +180,6 @@ export function useTripBuilder(options: UseTripBuilderOptions) {
     regenerateOptionsQuote,
     offerChooseSaved,
     addRateOption,
+    continueIncomplete,
   };
 }

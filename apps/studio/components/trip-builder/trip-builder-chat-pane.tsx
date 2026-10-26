@@ -9,6 +9,8 @@ import {
   type RateCompareCard,
 } from "@pureluxe/ai/chat-stream";
 
+import { tripMessages } from "@pureluxe/shared";
+
 import { studioFocusRing } from "@/components/ui";
 import { showWarningToast } from "@/lib/feedback";
 import type { ChatMessage, TripDetail } from "@/lib/trip-builder";
@@ -54,6 +56,8 @@ type TripBuilderChatPaneProps = {
   onLoadOlder: () => void;
   /** Add a room from the compare card (Stage 3d). */
   onAddRateOption?: (option: RateCompareAddOption) => void;
+  /** Resume an incomplete assistant reply from the checkpointer. */
+  onContinueIncomplete?: () => void;
 };
 
 /** Full-width chat thread — agent left, you right. */
@@ -74,6 +78,7 @@ export function TripBuilderChatPane({
   activeLegId = null,
   onLoadOlder,
   onAddRateOption,
+  onContinueIncomplete,
 }: TripBuilderChatPaneProps) {
   const hasDraftThread =
     !detail && (messages.length > 0 || streamingContent != null);
@@ -131,6 +136,7 @@ export function TripBuilderChatPane({
       stayNotes={streamingContent ? null : stayNotes}
       offersDisabled={busy}
       onAddRateOption={canWrite ? onAddRateOption : undefined}
+      onContinueIncomplete={canWrite && !busy ? onContinueIncomplete : undefined}
     />
   );
 }
@@ -165,6 +171,7 @@ function ChatScrollArea({
   stayNotes,
   offersDisabled,
   onAddRateOption,
+  onContinueIncomplete,
 }: {
   chatLoading: boolean;
   chatLoadingOlder: boolean;
@@ -181,6 +188,7 @@ function ChatScrollArea({
   stayNotes: TripBuilderStayNotes | null;
   offersDisabled: boolean;
   onAddRateOption?: (option: RateCompareAddOption) => void;
+  onContinueIncomplete?: () => void;
 }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
@@ -511,6 +519,11 @@ function ChatMessageList({
                 content={message.content}
                 offers={offersForMessage(message, isLastAssistant)}
                 copyable
+                onContinue={
+                  message.incomplete && isLastAssistant && onContinueIncomplete
+                    ? onContinueIncomplete
+                    : undefined
+                }
               />
             ) : message.kind === "action" ? (
               <YouTapped>{message.content}</YouTapped>
@@ -588,6 +601,7 @@ function AgentMessage({
   status,
   offers,
   copyable = false,
+  onContinue,
 }: {
   content: string;
   incomplete?: boolean;
@@ -596,6 +610,7 @@ function AgentMessage({
   offers?: React.ReactNode;
   /** A finished reply: show Copy under it. */
   copyable?: boolean;
+  onContinue?: () => void;
 }) {
   return (
     <div className="w-full self-start text-[15px] leading-[1.6] break-words text-ink">
@@ -603,9 +618,23 @@ function AgentMessage({
       {content.trim() ? <ChatMarkdown content={content} /> : null}
       {status ? <AgentStatusLine key={status} label={status} /> : null}
       {incomplete ? (
-        <p className="mt-2 text-[11px] text-ink-subtle">
-          Interrupted — send again if you still need this.
-        </p>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <p className="text-[11px] text-ink-subtle">
+            Interrupted — tap Continue to pick up where we left off.
+          </p>
+          {onContinue ? (
+            <button
+              type="button"
+              onClick={onContinue}
+              className={cn(
+                "rounded-md bg-accent-soft px-2.5 py-1 text-[12px] font-semibold text-accent-ink ring-1 ring-inset ring-accent-line transition hover:bg-accent-soft/80",
+                studioFocusRing,
+              )}
+            >
+              {tripMessages.error.replyContinue}
+            </button>
+          ) : null}
+        </div>
       ) : null}
       {offers}
       {copyable && content.trim() ? <CopyReplyButton content={content} /> : null}

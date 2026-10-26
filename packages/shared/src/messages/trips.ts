@@ -72,10 +72,14 @@ export const tripMessages = {
       "AI is not configured. Add ANTHROPIC_API_KEY to the environment.",
     aiFailed: "We couldn't get an AI reply. Try again.",
     replyInterrupted:
-      "That reply was interrupted. Please try again.",
+      "That reply was interrupted. Tap Continue to pick up where we left off.",
+    replyTimedOut:
+      "That reply hit the time limit. Tap Continue to keep going from where it stopped.",
     chatListFailed: "We couldn't load chat. Refresh and try again.",
     chatSendFailed: "We couldn't send that message. Try again.",
-    agentBusy: "Still working on your last message… This one sends when it finishes.",
+    agentBusy:
+      "Still working on your last message… Wait a moment, then try again (or tap Continue if the reply stopped).",
+    replyContinue: "Continue",
     agentNoApproval: "Nothing is waiting for approval on this trip.",
     agentActionUnavailable: "That action isn't available yet. Type what you need instead.",
     agentMemoryNotConfigured:

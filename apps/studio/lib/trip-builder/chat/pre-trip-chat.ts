@@ -21,6 +21,7 @@ import { saveTripChatLines, type ChatMessage, type ChatStreamEvent } from "./cha
 import { encodeChatStreamEvent } from "./chat-stream";
 import { logChatFailure } from "./log-chat-error";
 import { recordAgentTurn, type AgentTurnOutcome } from "./record-agent-turn";
+import { armTurnBudget, isAbortCause } from "./turn-budget";
 
 /** Lines of the home conversation copied into a trip it creates. */
 const COPIED_LINES = 20;
@@ -88,6 +89,10 @@ export function createPreTripChatStream(
 
   const meter = createTurnMeter();
   const controller = new AbortController();
+  const budget = armTurnBudget(controller, {
+    scope: "home turn",
+    details: { clientRequestId: input.client_request_id },
+  });
   const finish = (outcome: AgentTurnOutcome) =>
     recordAgentTurn({
       meter,
@@ -115,6 +120,7 @@ export function createPreTripChatStream(
       let reply = "";
       let choices: AgentChoice[] = [];
       let opened: { tripId: string; created: boolean } | null = null;
+      let finishOutcome: AgentTurnOutcome = { status: "ok" };
       try {
         for await (const chunk of streamHomeAgentTurn({
           request: toAgentRequest(input),
@@ -140,7 +146,7 @@ export function createPreTripChatStream(
           assistant: localMessage("assistant", content, choices.length > 0 ? { cards: { choices } } : {}),
         });
         if (opened) send({ type: "opened", tripId: opened.tripId });
-        await finish({ status: "ok" });
+        finishOutcome = { status: "ok" };
         console.info("[trip-chat] home stream ok", {
           clientRequestId: input.client_request_id,
           replyChars: reply.length,
@@ -148,20 +154,38 @@ export function createPreTripChatStream(
           created: opened?.created ?? false,
         });
       } catch (cause) {
+        const aborted = cancelled || budget.hit || isAbortCause(cause, controller.signal);
         logChatFailure("home stream failed", {
           clientRequestId: input.client_request_id,
           kind: input.kind,
           cancelled,
+          budgetHit: budget.hit,
+          aborted,
           partialChars: reply.length,
           cause,
         });
-        const content = reply.trim() || tripMessages.error.replyInterrupted;
+        const fallback = budget.hit
+          ? tripMessages.error.replyTimedOut
+          : tripMessages.error.replyInterrupted;
+        const content = reply.trim() || fallback;
         send({
           type: "error",
-          message: cause instanceof AppError ? cause.userMessage : tripMessages.error.aiFailed,
+          message: budget.hit
+            ? tripMessages.error.replyTimedOut
+            : cause instanceof AppError
+              ? cause.userMessage
+              : tripMessages.error.aiFailed,
           assistant: localMessage("assistant", content, { incomplete: true }),
         });
-        await finish({ status: cancelled ? "aborted" : "error", cause });
+        finishOutcome = { status: aborted ? "aborted" : "error", cause };
+      } finally {
+        budget.clear();
+        await finish(finishOutcome).catch((finishCause) => {
+          logChatFailure("home stream finish failed", {
+            clientRequestId: input.client_request_id,
+            cause: finishCause,
+          });
+        });
       }
       if (!cancelled) stream.close();
     },

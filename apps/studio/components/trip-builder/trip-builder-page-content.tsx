@@ -102,6 +102,9 @@ export function TripBuilderPageContent({
               activeLegId={builder.activeLegId}
               onLoadOlder={() => void builder.loadOlderMessages()}
               onAddRateOption={builder.addRateOption}
+              onContinueIncomplete={
+                builder.canWrite ? () => void builder.continueIncomplete() : undefined
+              }
             />
           </div>
 

@@ -2,6 +2,8 @@ import { AppError, tripMessages } from "@pureluxe/shared";
 
 import type { ChatStreamEvent, PreparedChatTurn, ReplyOutcome } from "./chat";
 import { logChatFailure } from "./log-chat-error";
+import { isAbortCause } from "./turn-budget";
+import type { AgentTurnOutcome } from "./record-agent-turn";
 
 /** Encode one NDJSON chat event. */
 export function encodeChatStreamEvent(event: ChatStreamEvent): Uint8Array {
@@ -11,7 +13,7 @@ export function encodeChatStreamEvent(event: ChatStreamEvent): Uint8Array {
 /**
  * Pipe a prepared chat turn into an NDJSON ReadableStream.
  * Pre-stream failures should be handled by the route as JSON errors.
- * When the advisor leaves mid-reply the agent is stopped; the partial reply is kept.
+ * Soft budget abort (Hobby 60s) saves an incomplete reply and frees the trip lock.
  */
 export function createChatStream(
   prepared: PreparedChatTurn,
@@ -61,6 +63,8 @@ export function createChatStream(
           approval: null,
         };
         let quotePreviewUrl: string | null = null;
+        let finishOutcome: AgentTurnOutcome = { status: "ok" };
+
         try {
           for await (const chunk of prepared.chunks) {
             switch (chunk.kind) {
@@ -98,29 +102,51 @@ export function createChatStream(
           const assistant = await prepared.complete(full, outcome);
           send({ type: "done", assistant });
           if (quotePreviewUrl) send({ type: "quote_preview", url: quotePreviewUrl });
-          await prepared.finish({ status: "ok" });
+          finishOutcome = { status: "ok" };
           console.info("[trip-chat] trip stream ok", {
             userId: prepared.user.id,
             replyChars: full.length,
           });
         } catch (cause) {
+          const budgetHit = prepared.budgetHit();
+          const aborted = cancelled || budgetHit || isAbortCause(cause);
           logChatFailure("trip stream failed", {
             userId: prepared.user.id,
             clientRequestId: prepared.user.client_request_id,
             cancelled,
+            budgetHit,
+            aborted,
             partialChars: full.length,
             cause,
           });
-          const assistant = await prepared.abandon(full).catch(() => null);
+          const assistant = await prepared.abandon(full).catch((abandonCause) => {
+            logChatFailure("trip stream abandon failed", {
+              userId: prepared.user.id,
+              cause: abandonCause,
+            });
+            return null;
+          });
+          const message = budgetHit
+            ? tripMessages.error.replyTimedOut
+            : cause instanceof AppError
+              ? cause.userMessage
+              : tripMessages.error.aiFailed;
           send({
             type: "error",
-            message:
-              cause instanceof AppError
-                ? cause.userMessage
-                : tripMessages.error.aiFailed,
+            message,
             ...(assistant ? { assistant } : {}),
           });
-          await prepared.finish({ status: cancelled ? "aborted" : "error", cause });
+          finishOutcome = {
+            status: aborted ? "aborted" : "error",
+            cause,
+          };
+        } finally {
+          await prepared.finish(finishOutcome).catch((finishCause) => {
+            logChatFailure("trip stream finish failed", {
+              userId: prepared.user.id,
+              cause: finishCause,
+            });
+          });
         }
 
         close();
@@ -133,6 +159,9 @@ export function createChatStream(
               ? cause.userMessage
               : tripMessages.error.chatSendFailed,
         });
+        if (prepared.kind === "stream") {
+          await prepared.finish({ status: "error", cause }).catch(() => undefined);
+        }
         close();
       }
     },

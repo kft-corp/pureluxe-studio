@@ -37,6 +37,7 @@ import { prefetchAgentTurn, streamAgentTurn, type AgentPrefetch } from "./agent-
 import { advisorRowFields, agentRequestFromRow } from "./chat-turn-request";
 import { logChatFailure } from "./log-chat-error";
 import { recordAgentTurn, type AgentTurnOutcome } from "./record-agent-turn";
+import { armTurnBudget, type TurnBudget } from "./turn-budget";
 
 /** Cards under an agent reply. */
 export type ChatReplyCards = {
@@ -180,6 +181,8 @@ type StreamTurn = {
   abandon: (partialText: string) => Promise<ChatMessage | null>;
   /** Stop the agent (the advisor left). */
   abort: () => void;
+  /** Soft Hobby budget hit — prefer continue copy when abandoning. */
+  budgetHit: () => boolean;
   /** Free the trip and save reply metrics. Call after the last event is sent; never throws. */
   finish: (outcome: AgentTurnOutcome) => Promise<void>;
 };
@@ -386,6 +389,10 @@ function buildStreamTurn(input: {
 }): StreamTurn {
   const { tripId, userRow, draftAssistant, actor, prefetch, lock, meter } = input;
   const controller = new AbortController();
+  const budget: TurnBudget = armTurnBudget(controller, {
+    scope: "trip turn",
+    details: { tripId, clientRequestId: userRow.client_request_id },
+  });
   const traceId = lock.runId;
   const threadId = tripThreadId(tripId);
 
@@ -455,25 +462,35 @@ function buildStreamTurn(input: {
       return saveAssistant(content, false, cards);
     },
     abandon: async (partialText) => {
+      const fallback = budget.hit
+        ? tripMessages.error.replyTimedOut
+        : tripMessages.error.replyInterrupted;
       const content =
-        partialText.trim() ||
-        draftAssistant?.content?.trim() ||
-        tripMessages.error.replyInterrupted;
+        partialText.trim() || draftAssistant?.content?.trim() || fallback;
       return saveAssistant(content, true);
     },
     abort: () => controller.abort(),
+    budgetHit: () => budget.hit,
     finish: async (outcome) => {
-      await lock.release();
-      await recordAgentTurn({
-        meter,
-        outcome,
-        channel: "trip",
-        tripId,
-        memberId: actor.memberId,
-        clientRequestId: userRow.client_request_id,
-        threadId,
-        promptVersion: TRIP_PROMPT_V2_VERSION,
-      });
+      budget.clear();
+      try {
+        await lock.release();
+      } finally {
+        try {
+          await recordAgentTurn({
+            meter,
+            outcome,
+            channel: "trip",
+            tripId,
+            memberId: actor.memberId,
+            clientRequestId: userRow.client_request_id,
+            threadId,
+            promptVersion: TRIP_PROMPT_V2_VERSION,
+          });
+        } catch (cause) {
+          logChatFailure("trip turn metrics failed", { tripId, cause });
+        }
+      }
     },
   };
 }

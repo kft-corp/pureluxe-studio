@@ -15,7 +15,10 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-/** Seconds. An agent reply with several lookups takes 20–60 s; saved progress covers the rest. */
+/**
+ * Seconds. Vercel Hobby hard-caps at 60; soft budget (~48s) aborts earlier so we can
+ * save an incomplete reply, free the run lock, and let Continue resume via checkpointer.
+ */
 export const maxDuration = 60;
 
 /** List a recent page of studio chat messages for an assigned trip. */

@@ -20,7 +20,7 @@ import type { TripCore } from "./use-trip-core";
 
 const CHAT_PAGE_SIZE = 30;
 /** Wait before re-sending a message that hit another reply still running on this trip. */
-const BUSY_RETRY_MS = 3000;
+const BUSY_RETRY_MS = 5000;
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 
@@ -226,22 +226,25 @@ export function useTripChat(core: TripCore, initialDetail: TripDetail | null) {
   async function streamTripTurn(
     tripId: string,
     body: TripBuilderChatSendBody,
-    optimisticUser: ChatMessage,
+    optimisticUser: ChatMessage | null,
     onBusy: (message: string) => void,
   ) {
     setChatBusy(true);
-    setMessages((prev) => [...prev, optimisticUser]);
+    if (optimisticUser) {
+      setMessages((prev) => [...prev, optimisticUser]);
+    }
     setStreamingContent("");
     setAgentPhase("thinking");
     setAgentSteps([]);
     let changed = false;
+    const optimisticId = optimisticUser?.id ?? `retry-${body.client_request_id}`;
 
     try {
       await streamTripChat(tripId, body, {
         onEvent: (event) =>
           applyChatStreamEvent({
             event,
-            optimisticId: optimisticUser.id,
+            optimisticId,
             setMessages,
             setStreamingContent,
             setAgentPhase,
@@ -264,9 +267,11 @@ export function useTripChat(core: TripCore, initialDetail: TripDetail | null) {
       setStreamingContent(null);
       setAgentPhase(null);
       setAgentSteps([]);
-      setMessages((prev) =>
-        prev.filter((row) => row.id !== optimisticUser.id),
-      );
+      if (optimisticUser) {
+        setMessages((prev) =>
+          prev.filter((row) => row.id !== optimisticUser.id),
+        );
+      }
       showApiError(error);
       void loadChatMessages(tripId);
     } finally {
@@ -274,6 +279,42 @@ export function useTripChat(core: TripCore, initialDetail: TripDetail | null) {
     }
     // Also after a failed reply: changes made before it stopped are saved.
     if (changed) await refreshAfterMutation(tripId).catch(showApiError);
+  }
+
+  /**
+   * Resume an incomplete assistant reply using the same client_request_id so the
+   * server continues from the LangGraph checkpointer.
+   */
+  async function continueIncomplete() {
+    if (!canWrite || !detail || chatBusy) return;
+    clearTap();
+
+    let incompleteIdx = -1;
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const row = messages[i];
+      if (row?.role === "assistant" && row.incomplete) {
+        incompleteIdx = i;
+        break;
+      }
+    }
+    if (incompleteIdx < 1) return;
+    const user = messages[incompleteIdx - 1];
+    if (!user || user.role !== "user" || !user.client_request_id) {
+      showWarningToast("Nothing to continue — send a new message instead.");
+      return;
+    }
+
+    setMessages((prev) => prev.slice(0, incompleteIdx));
+    await streamTripTurn(
+      detail.trip.id,
+      {
+        kind: "message",
+        message: user.content.trim() || "Continue",
+        client_request_id: user.client_request_id,
+      },
+      null,
+      (message) => showWarningToast(message),
+    );
   }
 
   /** Trip chat — persisted messages + full trip tools. */
@@ -394,6 +435,7 @@ export function useTripChat(core: TripCore, initialDetail: TripDetail | null) {
     sendTripChat,
     sendTripAction,
     sendApproval,
+    continueIncomplete,
     appendTurn,
     localChatMessage,
     beginTap,

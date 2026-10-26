@@ -5,6 +5,8 @@ import { createPreTripChatStream } from "@/lib/trip-builder";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+/** Seconds. Hobby hard cap is 60; soft budget aborts earlier inside the stream. */
+export const maxDuration = 60;
 
 /**
  * Pre-trip home chat — real agent with client, history, and hotel tools.
