@@ -25,29 +25,26 @@ export function roundMoney(amount: number): number {
   return Math.round(amount * 100) / 100;
 }
 
-/** Advisor-facing money with a currency symbol when the code is known (e.g. $5,580). */
+/** Advisor-facing money with a currency symbol when the code is known (e.g. $5,580.00). */
 export function formatRoomMoney(amount: number, currency: string | null): string {
   const value = roundMoney(amount);
   const code = currency?.trim().toUpperCase() || "";
+  const moneyDigits = {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  } as const;
   if (!code) {
-    return new Intl.NumberFormat("en-US", {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    }).format(value);
+    return new Intl.NumberFormat("en-US", moneyDigits).format(value);
   }
   try {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: code,
       currencyDisplay: "narrowSymbol",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
+      ...moneyDigits,
     }).format(value);
   } catch {
-    const formatted = new Intl.NumberFormat("en-US", {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    }).format(value);
+    const formatted = new Intl.NumberFormat("en-US", moneyDigits).format(value);
     return `${code} ${formatted}`;
   }
 }

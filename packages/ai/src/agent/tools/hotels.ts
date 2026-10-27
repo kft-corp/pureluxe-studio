@@ -125,7 +125,8 @@ export const hotelFindTool = defineDeskTool({
     "Do not use for hotel rules or charges (hotel_get), place notes (place_get_notes), or room prices (rates tools).",
     "Returns contracted hotels only, with tier and style tags. When the name is unclear, did_you_mean lists close matches instead of guessing.",
     "When the trip has dates, a Rates button appears for each hotel (and Did you mean when unsure).",
-    "When the advisor also wants prices in the same message, call rates_search next in the same turn with the hotels found — do not wait for a Rates tap.",
+    "Suggest / find hotels alone: call this tool only — do not call rates_search. Reply with a short numbered shortlist; the advisor asks for rates next (or taps Rates).",
+    "Only when the same message also asks for prices, rates, cheapest, or \"suggest and get rates\": call rates_search next in the same turn for the top 1–2 picks (or the hotels they named).",
   ].join(" "),
   schema: z
     .object({

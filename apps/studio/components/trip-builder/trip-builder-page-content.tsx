@@ -54,7 +54,7 @@ export function TripBuilderPageContent({
               ? "List each stay inside the trip. A city alone uses the full trip for the first stay."
               : "Plan the open stay. You can add a stay, change one, or change the trip dates in chat."
           : stage === "rates"
-            ? "Tap Add for the client on a room. Ask if you want help choosing."
+            ? "Ask in chat to add a room to the quote, or for help choosing."
             : stage === "quote"
               ? builder.detail?.trip.status === "building"
                 ? "Check the options quote, then send it and update the status on the trip page."

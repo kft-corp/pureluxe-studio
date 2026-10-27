@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import type { RateCompareCard, RateCompareHotel, RateCompareRoom } from "@pureluxe/ai/chat-stream";
 
 import { clientPriceAtMarkup, formatRoomMoney, roundMoney } from "@/lib/rates/price-math";
@@ -12,6 +14,9 @@ export type RateCompareAddOption = {
   markupPercent: number;
   rateRef: string;
 };
+
+/** First rooms shown per hotel; advisor expands for the rest. */
+const INITIAL_ROOMS_VISIBLE = 3;
 
 function ratesAgeLabel(searchedAt: string | null | undefined): string | null {
   if (!searchedAt) return null;
@@ -84,21 +89,48 @@ function roomPrices(room: RateCompareRoom, nights: number | null) {
   return { teamTotal, clientTotal, clientPerNight, teamPerNight };
 }
 
+/** Cheapest client stay total for the hotel header / summary strip. */
+function hotelFromClient(hotel: RateCompareHotel): {
+  amount: number;
+  currency: string;
+} | null {
+  if (hotel.status !== "ok" || hotel.rooms.length === 0) return null;
+  let best: { amount: number; currency: string } | null = null;
+  for (const room of hotel.rooms) {
+    const { clientTotal } = roomPrices(room, null);
+    if (!best || clientTotal < best.amount) {
+      best = { amount: clientTotal, currency: room.currency };
+    }
+  }
+  return best;
+}
+
+/** Hide Source column when every visible room shares the same source (usual for contracted). */
+function roomsShareOneSource(rooms: RateCompareRoom[]): boolean {
+  if (rooms.length === 0) return true;
+  const first = rooms[0]?.source?.trim() ?? "";
+  return rooms.every((room) => (room.source?.trim() ?? "") === first);
+}
+
 function MoneyCell({
   client,
   team,
   currency,
+  showTeam,
 }: {
   client: number;
   team: number;
   currency: string;
+  showTeam: boolean;
 }) {
   return (
     <>
       {formatRoomMoney(client, currency)}
-      <span className="mt-0.5 block text-[12px] text-ink-subtle">
-        team {formatRoomMoney(team, currency)}
-      </span>
+      {showTeam ? (
+        <span className="mt-0.5 block text-[12px] text-ink-subtle">
+          team {formatRoomMoney(team, currency)}
+        </span>
+      ) : null}
     </>
   );
 }
@@ -131,6 +163,7 @@ export function TripBuilderRateCompare({
   disabled?: boolean;
   onAddOption?: (option: RateCompareAddOption) => void;
 }) {
+  const [showTeam, setShowTeam] = useState(true);
   const party = [
     `${compare.adults} adult${compare.adults === 1 ? "" : "s"}`,
     compare.children > 0
@@ -146,6 +179,13 @@ export function TripBuilderRateCompare({
       : null;
   const age = ratesAgeLabel(compare.searched_at);
   const hotels = compare.hotels ?? [];
+  const fromLines = hotels
+    .map((hotel) => {
+      const from = hotelFromClient(hotel);
+      if (!from) return null;
+      return `${hotel.hotel} from ${formatRoomMoney(from.amount, from.currency)}`;
+    })
+    .filter(Boolean);
 
   return (
     <div className="mt-3 space-y-4 text-[13.5px] leading-snug text-ink">
@@ -154,23 +194,35 @@ export function TripBuilderRateCompare({
           {compare.destination}
           {nights ? ` · ${nights}` : ""} · {compare.check_in} → {compare.check_out} · {party}
         </span>
-        {age ? <span className="shrink-0 text-ink-subtle">{age}</span> : null}
+        <span className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1">
+          {age ? <span className="text-ink-subtle">{age}</span> : null}
+          <button
+            type="button"
+            className="text-[12.5px] text-ink-muted underline-offset-2 hover:text-ink hover:underline"
+            onClick={() => setShowTeam((prev) => !prev)}
+            aria-pressed={showTeam}
+          >
+            {showTeam ? "Hide team cost" : "Show team cost"}
+          </button>
+        </span>
       </div>
 
       {compare.preference ? (
         <p className="text-[13.5px] text-ink-muted">Preference: {compare.preference}</p>
       ) : null}
 
-      {compare.suggest_to_client ? (
-        <p className="text-[13.5px] text-ink">
-          <span className="font-medium">Suggest to client: </span>
-          {compare.suggest_to_client}
-        </p>
+      {fromLines.length > 1 ? (
+        <p className="text-[13.5px] text-ink">{fromLines.join(" · ")}</p>
       ) : null}
 
       <div className="space-y-5">
         {hotels.map((hotel) => (
-          <HotelRates key={hotel.hotel} hotel={hotel} nights={compare.nights ?? null} />
+          <HotelRates
+            key={hotel.hotel}
+            hotel={hotel}
+            nights={compare.nights ?? null}
+            showTeam={showTeam}
+          />
         ))}
       </div>
     </div>
@@ -180,12 +232,22 @@ export function TripBuilderRateCompare({
 function HotelRates({
   hotel,
   nights,
+  showTeam,
 }: {
   hotel: RateCompareHotel;
   nights: number | null;
+  showTeam: boolean;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const rooms = hotel.rooms ?? [];
   const packageMode = hotelUsesPackageColumns(rooms);
+  const hideSourceColumn = roomsShareOneSource(rooms);
+  const sharedSource = hideSourceColumn ? (rooms[0]?.source?.trim() || hotel.source) : null;
+  const visibleRooms =
+    expanded || rooms.length <= INITIAL_ROOMS_VISIBLE
+      ? rooms
+      : rooms.slice(0, INITIAL_ROOMS_VISIBLE);
+  const hiddenCount = rooms.length - visibleRooms.length;
 
   return (
     <div className="space-y-2">
@@ -196,8 +258,8 @@ function HotelRates({
             <span className="ml-1.5 text-[12px] font-normal text-accent-ink">Best fit</span>
           ) : null}
         </h4>
-        {hotel.status === "ok" && hotel.source ? (
-          <span className="text-[12px] text-ink-subtle">{hotel.source}</span>
+        {hotel.status === "ok" && sharedSource ? (
+          <span className="text-[12px] text-ink-subtle">{sharedSource}</span>
         ) : null}
         {hotel.status === "ok" && packageMode ? (
           <span className="text-[12px] text-ink-subtle">Package rates</span>
@@ -217,12 +279,14 @@ function HotelRates({
       {rooms.length > 0 ? (
         <>
           <div className="space-y-2 md:hidden">
-            {rooms.map((room) => (
+            {visibleRooms.map((room) => (
               <RoomMobileCard
                 key={room.rate_ref}
                 room={room}
                 nights={nights}
                 packageMode={packageMode}
+                showTeam={showTeam}
+                showSource={!hideSourceColumn}
               />
             ))}
           </div>
@@ -230,7 +294,14 @@ function HotelRates({
             <table className="w-full min-w-[26rem] table-fixed border-collapse text-left text-[13.5px]">
               <thead>
                 <tr className="border-b border-divider bg-surface-subtle text-ink-muted">
-                  <th className="w-[32%] px-3 py-2 text-[12px] font-semibold">Room</th>
+                  <th
+                    className={cn(
+                      "px-3 py-2 text-[12px] font-semibold",
+                      hideSourceColumn ? "w-[36%]" : "w-[32%]",
+                    )}
+                  >
+                    Room
+                  </th>
                   <th className="w-[16%] px-3 py-2 text-[12px] font-semibold">Meal plan</th>
                   {packageMode ? (
                     <>
@@ -251,21 +322,43 @@ function HotelRates({
                       </th>
                     </>
                   )}
-                  <th className="w-[12%] px-3 py-2 text-[12px] font-semibold">Source</th>
+                  {!hideSourceColumn ? (
+                    <th className="w-[12%] px-3 py-2 text-[12px] font-semibold">Source</th>
+                  ) : null}
                 </tr>
               </thead>
               <tbody>
-                {rooms.map((room) => (
+                {visibleRooms.map((room) => (
                   <RoomTableRow
                     key={room.rate_ref}
                     room={room}
                     nights={nights}
                     packageMode={packageMode}
+                    showTeam={showTeam}
+                    showSource={!hideSourceColumn}
                   />
                 ))}
               </tbody>
             </table>
           </div>
+          {hiddenCount > 0 ? (
+            <button
+              type="button"
+              className="text-[12.5px] text-ink-muted underline-offset-2 hover:text-ink hover:underline"
+              onClick={() => setExpanded(true)}
+            >
+              Show all rooms ({rooms.length})
+            </button>
+          ) : null}
+          {expanded && rooms.length > INITIAL_ROOMS_VISIBLE ? (
+            <button
+              type="button"
+              className="text-[12.5px] text-ink-muted underline-offset-2 hover:text-ink hover:underline"
+              onClick={() => setExpanded(false)}
+            >
+              Show fewer rooms
+            </button>
+          ) : null}
           <HotelNotes hotel={hotel} packageMode={packageMode} />
         </>
       ) : null}
@@ -277,10 +370,14 @@ function RoomTableRow({
   room,
   nights,
   packageMode,
+  showTeam,
+  showSource,
 }: {
   room: RateCompareRoom;
   nights: number | null;
   packageMode: boolean;
+  showTeam: boolean;
+  showSource: boolean;
 }) {
   const { teamTotal, clientTotal, clientPerNight, teamPerNight } = roomPrices(room, nights);
   const showAsPackage = packageMode || isPackageRoom(room);
@@ -301,11 +398,21 @@ function RoomTableRow({
       {showAsPackage ? (
         <>
           <td className="px-3 py-2 tabular-nums text-ink">
-            <MoneyCell client={clientTotal} team={teamTotal} currency={room.currency} />
+            <MoneyCell
+              client={clientTotal}
+              team={teamTotal}
+              currency={room.currency}
+              showTeam={showTeam}
+            />
           </td>
           <td className="px-3 py-2 tabular-nums text-ink">
             {extraClient != null && extraTeam != null ? (
-              <MoneyCell client={extraClient} team={extraTeam} currency={room.currency} />
+              <MoneyCell
+                client={extraClient}
+                team={extraTeam}
+                currency={room.currency}
+                showTeam={showTeam}
+              />
             ) : (
               <span className="text-ink-subtle">—</span>
             )}
@@ -318,14 +425,22 @@ function RoomTableRow({
               client={clientPerNight}
               team={teamPerNight}
               currency={room.currency}
+              showTeam={showTeam}
             />
           </td>
           <td className="px-3 py-2 tabular-nums text-ink">
-            <MoneyCell client={clientTotal} team={teamTotal} currency={room.currency} />
+            <MoneyCell
+              client={clientTotal}
+              team={teamTotal}
+              currency={room.currency}
+              showTeam={showTeam}
+            />
           </td>
         </>
       )}
-      <td className="break-words px-3 py-2 text-ink-muted">{room.source ?? "—"}</td>
+      {showSource ? (
+        <td className="break-words px-3 py-2 text-ink-muted">{room.source ?? "—"}</td>
+      ) : null}
     </tr>
   );
 }
@@ -335,10 +450,14 @@ function RoomMobileCard({
   room,
   nights,
   packageMode,
+  showTeam,
+  showSource,
 }: {
   room: RateCompareRoom;
   nights: number | null;
   packageMode: boolean;
+  showTeam: boolean;
+  showSource: boolean;
 }) {
   const { teamTotal, clientTotal, clientPerNight, teamPerNight } = roomPrices(room, nights);
   const showAsPackage = packageMode || isPackageRoom(room);
@@ -359,7 +478,9 @@ function RoomMobileCard({
             <span className="ml-1.5 text-[12px] font-medium text-accent-ink">Pick</span>
           ) : null}
         </h5>
-        <span className="shrink-0 text-[12px] text-ink-subtle">{room.source ?? "—"}</span>
+        {showSource ? (
+          <span className="shrink-0 text-[12px] text-ink-subtle">{room.source ?? "—"}</span>
+        ) : null}
       </div>
       <p className="mt-0.5 text-[12.5px] text-ink-muted">
         {mealPlanLabel(room.board)}
@@ -371,7 +492,12 @@ function RoomMobileCard({
             <div>
               <dt className="text-[11px] font-medium text-ink-muted">Package total</dt>
               <dd className="tabular-nums text-ink">
-                <MoneyCell client={clientTotal} team={teamTotal} currency={room.currency} />
+                <MoneyCell
+                  client={clientTotal}
+                  team={teamTotal}
+                  currency={room.currency}
+                  showTeam={showTeam}
+                />
               </dd>
             </div>
             <div>
@@ -382,6 +508,7 @@ function RoomMobileCard({
                     client={extraClient}
                     team={extraTeam}
                     currency={room.currency}
+                    showTeam={showTeam}
                   />
                 ) : (
                   <span className="text-ink-subtle">—</span>
@@ -398,13 +525,19 @@ function RoomMobileCard({
                   client={clientPerNight}
                   team={teamPerNight}
                   currency={room.currency}
+                  showTeam={showTeam}
                 />
               </dd>
             </div>
             <div>
               <dt className="text-[11px] font-medium text-ink-muted">Stay total</dt>
               <dd className="tabular-nums text-ink">
-                <MoneyCell client={clientTotal} team={teamTotal} currency={room.currency} />
+                <MoneyCell
+                  client={clientTotal}
+                  team={teamTotal}
+                  currency={room.currency}
+                  showTeam={showTeam}
+                />
               </dd>
             </div>
           </>
@@ -425,19 +558,12 @@ function HotelNotes({
   const cancellation = notes.cancellation ?? null;
   const markup = notes.markup ?? null;
   const inclusions = notes.inclusions ?? [];
-  const suggest = hotel.suggest_to_client ?? null;
-  if (!cancellation && !markup && inclusions.length === 0 && !suggest && !packageMode) {
+  if (!cancellation && !markup && inclusions.length === 0 && !packageMode) {
     return null;
   }
 
   return (
     <dl className="space-y-1 text-[13.5px] text-ink-muted">
-      {suggest ? (
-        <div>
-          <dt className="inline font-medium text-ink">Suggest to client: </dt>
-          <dd className="inline">{suggest}</dd>
-        </div>
-      ) : null}
       {packageMode ? (
         <div>
           <dt className="inline font-medium text-ink">Pricing: </dt>
