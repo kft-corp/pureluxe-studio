@@ -223,8 +223,8 @@ async function searchOneHotel(input: {
       result_ids: [],
       min_markup_percent: null,
       note: alternatives.length
-        ? `PureLuxe doesn't have "${input.hotel}". Similar: ${alternatives.join(", ")}, or paste a supplier quote.`
-        : `PureLuxe doesn't have "${input.hotel}". Paste a supplier quote, or ask for suggestions.`,
+        ? `No match for "${input.hotel}". Similar: ${alternatives.join(", ")}, or paste a supplier quote.`
+        : `No match for "${input.hotel}". Paste a supplier quote, or ask for suggestions.`,
       alternatives,
     };
   }

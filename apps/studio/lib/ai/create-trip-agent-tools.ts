@@ -5,7 +5,9 @@ import { getClientProfile } from "@/lib/clients";
 import { readRateSnapshot } from "@/lib/rates/rate-search-store";
 import { getTripDetail, getTripReadiness, type TripDetail } from "@/lib/trip-builder";
 import {
+  addQuoteLines,
   addQuoteOptions,
+  clearQuoteSection,
   editQuoteLines,
   listQuoteLinesForAgent,
   previewQuote,
@@ -147,6 +149,18 @@ export function createTripAgentTools(options: Options): TripAgentHandlers {
         options.tripId,
         actor,
         await editQuoteLines(change("quote_edit_lines", input, call), input),
+      ),
+    addQuoteLines: async (input, call) =>
+      withQuotePdfPreview(
+        options.tripId,
+        actor,
+        await addQuoteLines(change("quote_add_lines", input, call), input),
+      ),
+    clearQuoteSection: async (input, call) =>
+      withQuotePdfPreview(
+        options.tripId,
+        actor,
+        await clearQuoteSection(change("quote_clear_section", input, call), input),
       ),
     rewriteQuoteSection: async (input, call) =>
       withQuotePdfPreview(

@@ -10,12 +10,68 @@ export type QuoteLineMatch = QuoteLine & {
   after: string;
 };
 
+/** Bullet lists the advisor can add to or clear (not letterhead). */
+export const QUOTE_LIST_SECTIONS = [
+  "inclusions",
+  "extras",
+  "arrival",
+  "transfers",
+  "shared",
+] as const;
+
+export type QuoteListSection = (typeof QUOTE_LIST_SECTIONS)[number];
+
+/** Sections that can be wiped; scalars clear to empty, lists drop every line. */
+export const QUOTE_CLEARABLE_SECTIONS = [
+  ...QUOTE_LIST_SECTIONS,
+  "notice",
+  "notes",
+  "board",
+  "terms",
+] as const;
+
+export type QuoteClearableSection = (typeof QUOTE_CLEARABLE_SECTIONS)[number];
+
 const BLOCKED =
   /\b(team cost|markup|confidential|bank payout|swift|booking code|commission)\b/i;
+
+const LIST_LINE_ID =
+  /^(?:room:[0-9a-f-]{36}:(?:inclusion|extra)|stay:\d+:hotel:\d+:(?:arrival|transfer|shared)):\d+$/i;
+
+const CLEARABLE_SCALAR_ID =
+  /^(?:notice|notes|room:[0-9a-f-]{36}:(?:detail|terms))$/i;
 
 /** Words that stay off the client PDF even when the advisor asks. */
 export function quoteLineBlocked(text: string): boolean {
   return BLOCKED.test(text);
+}
+
+/** List bullets and clearable scalars — empty text removes them from the PDF. */
+export function isDeletableQuoteLineId(id: string): boolean {
+  return LIST_LINE_ID.test(id) || CLEARABLE_SCALAR_ID.test(id);
+}
+
+/** Title, hotel/room names, prices, and stay facts stay; letterhead is never listed. */
+export function isProtectedQuoteLineId(id: string): boolean {
+  return !isDeletableQuoteLineId(id);
+}
+
+/** Append slot for a list line (room/hotel must exist on the document). */
+export function isValidAppendLineId(id: string, document: OptionsQuoteDocument): boolean {
+  const roomMatch = id.match(/^room:([0-9a-f-]{36}):(inclusion|extra):(\d+)$/i);
+  if (roomMatch) {
+    const room = findRoom(document, roomMatch[1]!);
+    if (!room) return false;
+    const index = Number(roomMatch[3]);
+    return Number.isInteger(index) && index >= 0 && index < 80;
+  }
+  const hotelMatch = id.match(/^stay:(\d+):hotel:(\d+):(arrival|transfer|shared):(\d+)$/i);
+  if (!hotelMatch) return false;
+  const stay = document.stays[Number(hotelMatch[1])];
+  const hotel = stay?.hotels[Number(hotelMatch[2])];
+  if (!hotel) return false;
+  const index = Number(hotelMatch[4]);
+  return Number.isInteger(index) && index >= 0 && index < 80;
 }
 
 /** Lines the advisor can rewrite. Header and footer are not in this list. */
@@ -79,7 +135,9 @@ export function applyQuoteEdits(
   document.dates = keep(edits, "fact:dates", document.dates);
   document.guests = keep(edits, "fact:guests", document.guests);
   document.basis = keep(edits, "basis", document.basis);
-  document.notice = keep(edits, "notice", document.notice);
+  if (Object.prototype.hasOwnProperty.call(edits, "notice")) {
+    document.notice = edits.notice?.trim() ?? "";
+  }
   if (Object.prototype.hasOwnProperty.call(edits, "notes")) {
     const notes = edits.notes?.trim() ?? "";
     document.notes = notes || null;
@@ -120,6 +178,8 @@ export function printedTermLines(hotel: OptionsQuoteHotel): string[] {
 
 export function quoteTermLines(hotel: OptionsQuoteHotel): Array<{ id: string; label: string; text: string }> {
   const rows = hotel.rooms.flatMap((room) => {
+    // Empty string means the advisor cleared terms; null means use supplier rules.
+    if (room.terms === "") return [];
     const rule = [room.cancellation, room.payment].filter(Boolean).join(" ");
     const override = room.terms?.trim() || null;
     if (!rule && !override) return [];
@@ -181,11 +241,152 @@ export function matchQuoteReplace(
   return matches;
 }
 
+/**
+ * Apply list edits: empty text drops a line; keys past the current length append.
+ */
 function editedLines(edits: Record<string, string>, lines: string[], prefix: string): string[] {
-  return lines
-    .map((item, index) => read(edits, `${prefix}:${index}`) ?? item)
-    .map((item) => item.trim())
-    .filter(Boolean);
+  const prefixColon = `${prefix}:`;
+  let maxIndex = lines.length - 1;
+  for (const key of Object.keys(edits)) {
+    if (!key.startsWith(prefixColon)) continue;
+    const index = Number(key.slice(prefixColon.length));
+    if (Number.isInteger(index) && index > maxIndex) maxIndex = index;
+  }
+  if (maxIndex < 0) return [];
+  const out: string[] = [];
+  for (let index = 0; index <= maxIndex; index++) {
+    const next = read(edits, `${prefix}:${index}`);
+    const value = (next ?? lines[index] ?? "").trim();
+    if (value) out.push(value);
+  }
+  return out;
+}
+
+/** Wipe every line in a clearable section (hotel/room optional filters). */
+export function clearSectionLineEdits(
+  document: OptionsQuoteDocument,
+  section: QuoteClearableSection,
+  hotel?: string,
+  room?: string,
+): { id: string; text: string }[] {
+  const edits: { id: string; text: string }[] = [];
+  if (section === "notice") {
+    if (document.notice?.trim()) edits.push({ id: "notice", text: "" });
+    return edits;
+  }
+  if (section === "notes") {
+    if (document.notes?.trim()) edits.push({ id: "notes", text: "" });
+    return edits;
+  }
+  document.stays.forEach((stay, stayIndex) => {
+    stay.hotels.forEach((hotelRow, hotelIndex) => {
+      if (!nameMatches(hotelRow.name, hotel)) return;
+      const hotelId = `stay:${stayIndex}:hotel:${hotelIndex}`;
+      if (section === "arrival") {
+        hotelRow.arrival.forEach((_, index) =>
+          edits.push({ id: `${hotelId}:arrival:${index}`, text: "" }),
+        );
+      }
+      if (section === "transfers") {
+        hotelRow.transfers.forEach((_, index) =>
+          edits.push({ id: `${hotelId}:transfer:${index}`, text: "" }),
+        );
+      }
+      if (section === "shared") {
+        hotelRow.shared.forEach((_, index) =>
+          edits.push({ id: `${hotelId}:shared:${index}`, text: "" }),
+        );
+      }
+      for (const roomRow of hotelRow.rooms) {
+        if (!nameMatches(roomRow.name, room)) continue;
+        if (section === "board" && roomRow.detail?.trim()) {
+          edits.push({ id: `room:${roomRow.id}:detail`, text: "" });
+        }
+        if (section === "terms") {
+          const term =
+            roomRow.terms?.trim() ||
+            [roomRow.cancellation, roomRow.payment].filter(Boolean).join(" ");
+          if (term) edits.push({ id: `room:${roomRow.id}:terms`, text: "" });
+        }
+        if (section === "inclusions") {
+          roomRow.inclusions.forEach((_, index) =>
+            edits.push({ id: `room:${roomRow.id}:inclusion:${index}`, text: "" }),
+          );
+        }
+        if (section === "extras") {
+          roomRow.extras.forEach((_, index) =>
+            edits.push({ id: `room:${roomRow.id}:extra:${index}`, text: "" }),
+          );
+        }
+      }
+    });
+  });
+  return edits;
+}
+
+/** Append bullets to list sections; indices continue past current lines. */
+export function appendSectionLineEdits(
+  document: OptionsQuoteDocument,
+  lines: Array<{ section: QuoteListSection; text: string; hotel?: string; room?: string }>,
+): { edits: { id: string; text: string }[]; missing: QuoteListSection | null } {
+  const pending = new Map<string, number>();
+  const edits: { id: string; text: string }[] = [];
+  for (const row of lines) {
+    const target = resolveListTarget(document, row.section, row.hotel, row.room);
+    if (!target) return { edits: [], missing: row.section };
+    const nextIndex = pending.get(target.prefix) ?? target.length;
+    pending.set(target.prefix, nextIndex + 1);
+    edits.push({ id: `${target.prefix}:${nextIndex}`, text: row.text.trim() });
+  }
+  return { edits, missing: null };
+}
+
+function resolveListTarget(
+  document: OptionsQuoteDocument,
+  section: QuoteListSection,
+  hotel?: string,
+  room?: string,
+): { prefix: string; length: number } | null {
+  for (let stayIndex = 0; stayIndex < document.stays.length; stayIndex++) {
+    const stay = document.stays[stayIndex]!;
+    for (let hotelIndex = 0; hotelIndex < stay.hotels.length; hotelIndex++) {
+      const hotelRow = stay.hotels[hotelIndex]!;
+      if (!nameMatches(hotelRow.name, hotel)) continue;
+      const hotelId = `stay:${stayIndex}:hotel:${hotelIndex}`;
+      if (section === "arrival") return { prefix: `${hotelId}:arrival`, length: hotelRow.arrival.length };
+      if (section === "transfers") {
+        return { prefix: `${hotelId}:transfer`, length: hotelRow.transfers.length };
+      }
+      if (section === "shared") return { prefix: `${hotelId}:shared`, length: hotelRow.shared.length };
+      for (const roomRow of hotelRow.rooms) {
+        if (!nameMatches(roomRow.name, room)) continue;
+        if (section === "inclusions") {
+          return { prefix: `room:${roomRow.id}:inclusion`, length: roomRow.inclusions.length };
+        }
+        if (section === "extras") {
+          return { prefix: `room:${roomRow.id}:extra`, length: roomRow.extras.length };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function findRoom(document: OptionsQuoteDocument, roomId: string) {
+  for (const stay of document.stays) {
+    for (const hotel of stay.hotels) {
+      const room = hotel.rooms.find((row) => row.id === roomId);
+      if (room) return room;
+    }
+  }
+  return null;
+}
+
+function nameMatches(value: string, needle: string | undefined): boolean {
+  if (!needle) return true;
+  const left = value.trim().toLowerCase();
+  const right = needle.trim().toLowerCase();
+  return left === right || left.includes(right) || right.includes(left);
 }
 
 function push(lines: QuoteLine[], id: string, label: string, text: string) {

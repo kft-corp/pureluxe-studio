@@ -11,7 +11,10 @@ import {
   type PropertyContractPayout,
   type PropertyRateAddon,
 } from "@pureluxe/db";
-import { cancellationLinesFromPolicies } from "@pureluxe/rates";
+import {
+  readContractPolicies,
+  type PolicyRuleV2,
+} from "@pureluxe/rates";
 
 export type HotelStayFacts = {
   property: Property | null;
@@ -83,16 +86,64 @@ function stringList(value: unknown): string[] {
     .filter(Boolean);
 }
 
+function ensureSentence(value: string): string {
+  const text = value.trim();
+  if (!text) return text;
+  return /[.!?]$/.test(text) ? text : `${text}.`;
+}
+
+/** Advisor-facing lines from a policy section (client + team). */
+function advisorRuleLines(rules: PolicyRuleV2[] | undefined): string[] {
+  if (!rules?.length) return [];
+  const lines: string[] = [];
+  for (const rule of rules) {
+    const season = rule.season?.trim() ?? "";
+    const cancel = rule.cancel_days;
+    const charge = rule.charge_pct;
+    if (cancel != null || charge != null) {
+      const detail =
+        cancel != null && charge != null
+          ? `cancel within ${cancel} days and the charge is ${charge}%`
+          : cancel != null
+            ? `cancel within ${cancel} days`
+            : `cancellation charge is ${charge}%`;
+      lines.push(
+        ensureSentence(
+          season
+            ? `${season.charAt(0).toUpperCase()}${season.slice(1)}: ${detail}`
+            : `${detail.charAt(0).toUpperCase()}${detail.slice(1)}`,
+        ),
+      );
+      continue;
+    }
+    const text = rule.text.trim();
+    if (text) lines.push(ensureSentence(text));
+  }
+  return lines;
+}
+
+/** Prepay-style payment lines for HotelStayFacts.paymentLines (advisor). */
+function advisorPaymentLines(rules: PolicyRuleV2[] | undefined): string[] {
+  if (!rules?.length) return [];
+  return rules
+    .map((rule) => rule.text.trim())
+    .filter((text) => text.length > 0 && !/\bcancel/i.test(text))
+    .map(ensureSentence);
+}
+
 function timesFromPolicies(policies: PropertyContractPolicies): {
   checkIn: string | null;
   checkOut: string | null;
 } {
+  const parsed = readContractPolicies(policies);
   let checkIn = clockTime(textValue(policies.check_in_time));
   let checkOut = clockTime(textValue(policies.check_out_time));
-  for (const rule of stringList(policies.stay_rules)) {
+  for (const rule of parsed.stay ?? []) {
+    checkIn = checkIn ?? clockTime(rule.check_in_time ?? null);
+    checkOut = checkOut ?? clockTime(rule.check_out_time ?? null);
     const match =
       /check-?in\s+([0-2]?\d:[0-5]\d)[^\d]{0,40}check-?out\s+([0-2]?\d:[0-5]\d)/i.exec(
-        rule,
+        rule.text,
       );
     if (!match) continue;
     checkIn = checkIn ?? clockTime(match[1] ?? null);
@@ -228,15 +279,30 @@ function contractSections(
   required: string[];
 } {
   const policies = contract.policies ?? {};
-  const stayRules = stringList(policies.stay_rules).filter(
+  // v2 + legacy: stay / payment / cancel / transfer / legal via readContractPolicies.
+  const parsed = readContractPolicies(policies);
+  const stayRules = advisorRuleLines(parsed.stay).filter(
     (rule) => !/check-?in\s+[0-2]?\d:[0-5]\d/i.test(rule),
   );
-  const payment = (Array.isArray(policies.payment_rules) ? policies.payment_rules : [])
-    .map(paymentLine)
-    .filter((line): line is string => Boolean(line));
-  const cancellation = cancellationLinesFromPolicies(policies);
-  const transfers = stringList(policies.transfer_policies);
-  const legal = legalLines(policies.legal);
+  const payment = advisorPaymentLines(parsed.payment);
+  // Legacy structured prepay objects (prepay_days) when no text payment lines.
+  if (payment.length === 0 && Array.isArray(policies.payment_rules)) {
+    for (const rule of policies.payment_rules) {
+      const line = paymentLine(rule);
+      if (line) payment.push(line);
+    }
+  }
+  const cancellation = advisorRuleLines(parsed.cancellation);
+  const transfers = advisorRuleLines(parsed.transfer);
+  // Legacy boolean legal flags (Kanuhura) + v2/legacy legal text rules.
+  const legal = [
+    ...legalLines(
+      policies.legal && !Array.isArray(policies.legal)
+        ? (policies.legal as Record<string, unknown>)
+        : undefined,
+    ),
+    ...advisorRuleLines(parsed.legal),
+  ];
   const benefits = (Array.isArray(contract.benefits) ? contract.benefits : [])
     .map(benefitLine)
     .filter((line): line is string => Boolean(line));
@@ -263,7 +329,7 @@ function contractSections(
     section("Contract terms", legal),
     section("Benefits", benefits),
     section("Charges that must be added", required),
-    section("Optional extras in PureLuxe", optional),
+    section("Optional extras", optional),
     section("Offers that cover these dates", offerLines),
   ].filter((block): block is string => Boolean(block));
 
@@ -379,7 +445,7 @@ export async function loadHotelStayFacts(input: {
 
   const intro =
     checkInTime || checkOutTime
-      ? `Check-in ${checkInTime ?? "time not in PureLuxe"}, check-out ${checkOutTime ?? "time not in PureLuxe"}.`
+      ? `Check-in ${checkInTime ?? "time not available"}, check-out ${checkOutTime ?? "time not available"}.`
       : null;
 
   const markupPercent = selected?.min_markup_percent ?? property?.min_markup_percent ?? null;
@@ -482,11 +548,17 @@ export async function clientQuotePolicies(input: {
     const line = clientClauses(rule);
     if (line && forStaySeason(line, input.seasons)) target.push(line);
   };
-  for (const rule of stringList(policies.stay_rules)) {
-    if (/check-?in\s+[0-2]?\d:[0-5]\d/i.test(rule)) continue;
-    keepSeasonLine(rule, stay);
+  // Client PDF: only audience=client rules (v2) / legacy mapped as client.
+  const parsed = readContractPolicies(policies);
+  for (const rule of parsed.stay ?? []) {
+    if (rule.audience === "team") continue;
+    if (/check-?in\s+[0-2]?\d:[0-5]\d/i.test(rule.text)) continue;
+    keepSeasonLine(rule.text, stay);
   }
-  for (const rule of stringList(policies.transfer_policies)) keepSeasonLine(rule, transfers);
+  for (const rule of parsed.transfer ?? []) {
+    if (rule.audience === "team") continue;
+    keepSeasonLine(rule.text, transfers);
+  }
   for (const benefit of contract.benefits ?? []) {
     const line = benefitLine(benefit);
     const guest = line ? clientClauses(line) : null;

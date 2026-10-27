@@ -625,13 +625,34 @@ export function createSeedHandlers(
     },
 
     async editQuoteLines(input) {
-      const count = input.lines?.length ?? (input.find ? 1 : 0);
+      const count =
+        (input.lines?.length ?? 0) + (input.delete_ids?.length ?? 0) || (input.find ? 1 : 0);
       return {
         ok: true as const,
         summary:
           count <= 1
             ? "Updated 1 line on the options quote."
             : `Updated ${count} lines on the options quote.`,
+        undo: true,
+      };
+    },
+
+    async addQuoteLines(input) {
+      const count = input.lines.length;
+      return {
+        ok: true as const,
+        summary:
+          count === 1
+            ? "Added 1 line on the options quote."
+            : `Added ${count} lines on the options quote.`,
+        undo: true,
+      };
+    },
+
+    async clearQuoteSection() {
+      return {
+        ok: true as const,
+        summary: "Cleared 1 line from that section on the options quote.",
         undo: true,
       };
     },

@@ -22,7 +22,13 @@ import {
   type OptionsQuoteDocument,
   type OptionsQuoteHotel,
 } from "./options-quote-document";
-import { applyQuoteEdits, listQuoteLines, quoteLineBlocked } from "./options-quote-lines";
+import {
+  applyQuoteEdits,
+  isDeletableQuoteLineId,
+  isValidAppendLineId,
+  listQuoteLines,
+  quoteLineBlocked,
+} from "./options-quote-lines";
 import { refreshTripAfterRateChange, syncClientPriceFromChoices } from "../pricing/sync-trip-commercials";
 import { closeTripRateSearches } from "@/lib/rates/rate-search-store";
 import { getTripDetail } from "../trip/get-trip-detail";
@@ -194,19 +200,25 @@ export async function updateOptionsQuote(
         status: 409,
       });
     }
-    const allowed = new Set(listQuoteLines(await loadOptionsQuoteDocument(detail)).map((line) => line.id));
+    const document = await loadOptionsQuoteDocument(detail);
+    const allowed = new Set(listQuoteLines(document).map((line) => line.id));
     for (const id of ["title", "notes", "subtitle", "basis", "notice"]) allowed.add(id);
     let applied = 0;
     for (const row of incoming) {
-      if (quoteLineBlocked(row.text)) {
+      const text = row.text;
+      if (text.trim() && quoteLineBlocked(text)) {
         throw new AppError({
           userMessage: "Team cost, markup, bank details, and booking codes stay off the client quote.",
           code: "trips.options_line_blocked",
           status: 400,
         });
       }
-      if (!allowed.has(row.id)) continue;
-      lineEdits[row.id] = row.text;
+      const known = allowed.has(row.id);
+      const append = !known && isValidAppendLineId(row.id, document);
+      if (!known && !append) continue;
+      if (!text.trim() && !isDeletableQuoteLineId(row.id)) continue;
+      if (append && !text.trim()) continue;
+      lineEdits[row.id] = text;
       applied += 1;
     }
     if (applied === 0) {

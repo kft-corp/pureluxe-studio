@@ -7,13 +7,13 @@ export type RateCompareRoom = {
   /** Stored rate_search_results.id — used when adding to the quote. */
   rate_ref: string;
   room_name: string;
-  /** All-in team cost for the party as searched (stay total). */
+  /** All-in team cost for the party as searched (stay total / package total). */
   team_cost: number;
   /** Client stay total at the suggested markup. */
   client_total: number;
-  /** Client cost per night (client_total / nights). */
+  /** Client cost per night (client_total / nights). Nightly rates only in the UI. */
   client_per_night: number;
-  /** Team cost per night (team_cost / nights). */
+  /** Team cost per night (team_cost / nights). Nightly rates only in the UI. */
   team_per_night: number;
   currency: string;
   /** "per_room" or "total" for how many rooms were searched. */
@@ -23,6 +23,19 @@ export type RateCompareRoom = {
   board: string | null;
   /** Advisor-facing source, e.g. "Contracted" / "Sabre". */
   source: string;
+  /**
+   * nightly = villa/night contract; package = fixed 3N/4N (or similar) product.
+   * Null when the source did not say.
+   */
+  rate_basis: "nightly" | "package" | null;
+  /** Package length from the contract (e.g. 3). Null when not a package. */
+  package_nights: number | null;
+  /** Team extra-night amount when the stay is longer than the package. */
+  extra_night_team: number | null;
+  /** Client extra-night at the suggested markup. */
+  extra_night_client: number | null;
+  /** Short advisor label, e.g. "3N package" or "3N + 1 extra". */
+  package_label: string | null;
   /** One-line cancel summary when known. */
   cancel: string | null;
   /** Absolute cancel-by date (YYYY-MM-DD) from check-in minus cancel days. */

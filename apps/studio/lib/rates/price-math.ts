@@ -183,7 +183,7 @@ export function answerPriceQuestion(
 
   if (percent == null && /\b(?:what should we|how much should we)\b/i.test(message)) {
     if (markupPercent == null) {
-      return "PureLuxe has no minimum markup, so there is no suggested client price. The card amount is the team cost.";
+      return "No minimum markup is set, so there is no suggested client price. The card amount is the team cost.";
     }
     const targets = room ? [room] : rooms;
     if (targets.length === 0) return "Search rates first, then ask for a suggested client price.";
@@ -192,7 +192,7 @@ export function answerPriceQuestion(
         `**${item.title}** — team cost ${formatRoomMoney(item.teamCost, item.currency)} · suggest **${formatRoomMoney(clientPriceAtMarkup(item.teamCost, markupPercent), item.currency)}**`,
     );
     return [
-      `The minimum markup in PureLuxe is ${markupPercent}%. A client price at that markup:`,
+      `The minimum markup is ${markupPercent}%. A client price at that markup:`,
       lines.join("\n"),
       "That suggestion is not saved. Send the amount if you want to use it.",
     ].join("\n\n");

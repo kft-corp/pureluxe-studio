@@ -14,7 +14,9 @@ import { tripCreateTool, tripOpenTool } from "./home";
 import { hotelFindTool, hotelGetTool } from "./hotels";
 import { placeGetNotesTool } from "./places";
 import {
+  quoteAddLinesTool,
   quoteAddOptionsTool,
+  quoteClearSectionTool,
   quoteEditLinesTool,
   quoteListLinesTool,
   quotePreviewTool,
@@ -71,6 +73,8 @@ export const TRIP_AGENT_TOOLS: readonly AgentToolSpec<ToolSchema, TripAgentHandl
   quoteSetWordingTool,
   quoteListLinesTool,
   quoteEditLinesTool,
+  quoteAddLinesTool,
+  quoteClearSectionTool,
   quoteRewriteSectionTool,
   quotePreviewTool,
   ratesUsePastedQuoteTool,

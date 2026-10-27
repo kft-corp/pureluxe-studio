@@ -1,5 +1,7 @@
 import type {
+  QuoteAddLinesInput,
   QuoteAddOptionsInput,
+  QuoteClearSectionInput,
   QuoteEditLinesInput,
   QuoteListLinesResult,
   QuotePreviewInput,
@@ -48,6 +50,10 @@ import {
 import { expandClientWording } from "../options-quote/client-wording";
 import type { OptionsQuoteDocument } from "../options-quote/options-quote-document";
 import {
+  appendSectionLineEdits,
+  clearSectionLineEdits,
+  isDeletableQuoteLineId,
+  isProtectedQuoteLineId,
   listQuoteLines,
   matchQuoteReplace,
   quoteLineBlocked,
@@ -493,7 +499,7 @@ export function setQuoteWording(
   });
 }
 
-/** Rewrite printable lines on the options quote (find/replace or full line ids). */
+/** Rewrite, delete, or find/replace printable lines on the options quote. */
 export function editQuoteLines(
   context: TripChangeContext,
   input: QuoteEditLinesInput,
@@ -502,29 +508,52 @@ export function editQuoteLines(
     const document = await loadOptionsQuoteDocument(before);
     const catalog = listQuoteLines(document);
     const allowed = new Set(catalog.map((line) => line.id));
+    for (const id of ["title", "notes", "subtitle", "basis", "notice"]) allowed.add(id);
     const edits: { id: string; text: string }[] = [];
 
     if (input.find != null && input.replace != null) {
       const matches = matchQuoteReplace(catalog, input.find, input.replace);
       for (const row of matches) edits.push({ id: row.id, text: row.after });
     }
+    for (const id of input.delete_ids ?? []) {
+      if (!allowed.has(id)) {
+        throw new AppError({
+          userMessage: `Line “${id}” is not on the options quote. Call quote_list_lines and use an id from that list.`,
+          code: "trips.options_line_missing",
+          status: 409,
+        });
+      }
+      if (isProtectedQuoteLineId(id)) {
+        throw new AppError({
+          userMessage:
+            "That line can’t be removed. Delete inclusions, transfers, arrival, shared, notice, notes, board, or terms — not titles, hotel names, or prices.",
+          code: "trips.options_line_protected",
+          status: 400,
+        });
+      }
+      edits.push({ id, text: "" });
+    }
     if (input.lines) {
       for (const row of input.lines) {
         const text = row.text.trim();
-        if (!text) {
-          throw new AppError({
-            userMessage:
-              "Each rewritten line needs both id and text. Call quote_list_lines first, then pass the full new wording.",
-            code: "trips.options_line_text_required",
-            status: 400,
-          });
-        }
         if (!allowed.has(row.id)) {
           throw new AppError({
             userMessage: `Line “${row.id}” is not on the options quote. Call quote_list_lines and use an id from that list.`,
             code: "trips.options_line_missing",
             status: 409,
           });
+        }
+        if (!text) {
+          if (!isDeletableQuoteLineId(row.id)) {
+            throw new AppError({
+              userMessage:
+                "That line can’t be removed. Pass the full new wording, or delete an inclusion / transfer / arrival / shared / notice / notes / board / terms line.",
+              code: "trips.options_line_protected",
+              status: 400,
+            });
+          }
+          edits.push({ id: row.id, text: "" });
+          continue;
         }
         if (quoteLineBlocked(text)) {
           throw new AppError({
@@ -546,24 +575,101 @@ export function editQuoteLines(
         userMessage:
           input.find != null
             ? `“${input.find}” is not on the options quote. Call quote_list_lines, or use quote_rewrite_section for plain-English inclusions.`
-            : "No matching lines on the options quote to change. Pass lines with id and text from quote_list_lines, or find and replace.",
+            : "No matching lines on the options quote to change. Pass lines with id and text from quote_list_lines, delete_ids, or find and replace.",
         code: "trips.options_line_missing",
         status: 409,
       });
     }
 
     await updateOptionsQuote(context.tripId, { line_edits: lineEdits }, context.actor);
-    const count = lineEdits.length;
+    const deleted = lineEdits.filter((row) => !row.text.trim()).length;
+    const updated = lineEdits.length - deleted;
+    const parts = [
+      updated === 1 ? "updated 1 line" : updated > 1 ? `updated ${updated} lines` : null,
+      deleted === 1 ? "removed 1 line" : deleted > 1 ? `removed ${deleted} lines` : null,
+    ].filter(Boolean);
+    const body = parts.join(" and ");
     return {
-      summary:
-        count === 1
-          ? "Updated 1 line on the options quote."
-          : `Updated ${count} lines on the options quote.`,
+      summary: `${body.charAt(0).toUpperCase()}${body.slice(1)} on the options quote.`,
       undoable: true,
       after: await getTripDetail(context.tripId, context.actor),
     };
   });
 }
+
+/** Add bullets to What's included, transfers, arrival, shared, or room extras. */
+export function addQuoteLines(
+  context: TripChangeContext,
+  input: QuoteAddLinesInput,
+): Promise<TripChange> {
+  return withTripChange(context, async (before) => {
+    const document = await loadOptionsQuoteDocument(before);
+    for (const row of input.lines) {
+      if (quoteLineBlocked(row.text)) {
+        throw new AppError({
+          userMessage: "Team cost, markup, bank details, and booking codes stay off the client quote.",
+          code: "trips.options_line_blocked",
+          status: 400,
+        });
+      }
+    }
+    const { edits, missing } = appendSectionLineEdits(document, input.lines);
+    if (missing) {
+      throw new AppError({
+        userMessage:
+          "Couldn’t find that hotel or room on the options quote. Name the hotel (and room for inclusions) that already appears on the PDF.",
+        code: "trips.options_section_missing",
+        status: 409,
+      });
+    }
+    if (edits.length === 0) {
+      throw new AppError({
+        userMessage: "Add at least one line with section and text.",
+        code: "trips.options_line_text_required",
+        status: 400,
+      });
+    }
+    await updateOptionsQuote(context.tripId, { line_edits: edits }, context.actor);
+    const count = edits.length;
+    return {
+      summary:
+        count === 1
+          ? "Added 1 line on the options quote."
+          : `Added ${count} lines on the options quote.`,
+      undoable: true,
+      after: await getTripDetail(context.tripId, context.actor),
+    };
+  });
+}
+
+/** Remove every line in a clearable PDF section (letterhead stays fixed). */
+export function clearQuoteSection(
+  context: TripChangeContext,
+  input: QuoteClearSectionInput,
+): Promise<TripChange> {
+  return withTripChange(context, async (before) => {
+    const document = await loadOptionsQuoteDocument(before);
+    const lineEdits = clearSectionLineEdits(document, input.section, input.hotel, input.room);
+    if (lineEdits.length === 0) {
+      return {
+        summary: "That section is already empty on the options quote.",
+        undoable: false,
+        after: null,
+      };
+    }
+    await updateOptionsQuote(context.tripId, { line_edits: lineEdits }, context.actor);
+    const count = lineEdits.length;
+    return {
+      summary:
+        count === 1
+          ? "Cleared 1 line from that section on the options quote."
+          : `Cleared ${count} lines from that section on the options quote.`,
+      undoable: true,
+      after: await getTripDetail(context.tripId, context.actor),
+    };
+  });
+}
+
 
 function nameMatches(value: string, needle: string | undefined): boolean {
   if (!needle) return true;

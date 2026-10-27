@@ -190,8 +190,9 @@ export const quoteListLinesTool = defineAgentTool({
 export const quoteEditLinesTool = defineAgentTool({
   name: "quote_edit_lines",
   description: [
-    "Rewrite specific client wording on the options quote PDF: board, inclusions, arrival, transfers, cancel/payment, notice, or other printable lines.",
-    "Every lines entry MUST include both id and the full new text. Call quote_list_lines first when you need ids.",
+    "Rewrite or delete specific client wording on the options quote PDF: board, inclusions, arrival, transfers, cancel/payment, notice, or other printable lines.",
+    "Call quote_list_lines first when you need ids. Pass lines with id and the full new text to rewrite; pass delete_ids (or lines with empty text) to remove a deletable line.",
+    "Cannot delete titles, hotel/room names, prices, or letterhead — use quote_clear_section to wipe a whole section, quote_add_lines to append bullets.",
     "Use find+replace for the same words everywhere (e.g. \"10% SC\" → the long client sentence).",
     "For \"make What's included clear\" / plain English on a whole section, prefer quote_rewrite_section.",
     "Client-facing only: never put team cost, markup, booking codes or bank details on the PDF. Letterhead stays fixed.",
@@ -205,13 +206,14 @@ export const quoteEditLinesTool = defineAgentTool({
           z
             .object({
               id: z.string().trim().min(1).max(120),
-              text: z.string().trim().min(1).max(2000),
+              text: z.string().max(2000),
             })
             .strict(),
         )
         .min(1)
         .max(40)
         .optional(),
+      delete_ids: z.array(z.string().trim().min(1).max(120)).min(1).max(40).optional(),
       find: z.string().trim().min(2).max(200).optional(),
       replace: z.string().trim().min(1).max(500).optional(),
     })
@@ -219,8 +221,9 @@ export const quoteEditLinesTool = defineAgentTool({
     .refine(
       (row) =>
         (row.lines != null && row.lines.length > 0) ||
+        (row.delete_ids != null && row.delete_ids.length > 0) ||
         (row.find != null && row.replace != null),
-      "Pass lines with id and text, or find and replace.",
+      "Pass lines with id and text, delete_ids, or find and replace.",
     ),
   risk: "undo",
   progress: () => "Updating the options quote wording…",
@@ -230,8 +233,102 @@ export const quoteEditLinesTool = defineAgentTool({
     handlers.editQuoteLines(
       {
         lines: input.lines,
+        delete_ids: input.delete_ids,
         find: input.find,
         replace: input.replace,
+      },
+      call,
+    ),
+});
+
+const quoteListSection = z.enum([
+  "inclusions",
+  "extras",
+  "arrival",
+  "transfers",
+  "shared",
+]);
+
+export const quoteAddLinesTool = defineAgentTool({
+  name: "quote_add_lines",
+  description: [
+    "Add one or more bullets to a list section on the options quote PDF: inclusions, extras (This room), arrival, transfers, or shared (For every room).",
+    "Use when the advisor wants a new line in What's included or similar. Pass hotel (and room for inclusions/extras) when more than one is on the quote.",
+    "Cannot change letterhead, header, footer, or brand. Do not use to rewrite an existing line (quote_edit_lines) or clear a section (quote_clear_section).",
+    "On success the PDF is rebuilt and opened automatically — do not call quote_preview again unless they ask to open it again.",
+    "Returns a summary; the advisor gets Undo.",
+  ].join(" "),
+  schema: z
+    .object({
+      lines: z
+        .array(
+          z
+            .object({
+              section: quoteListSection,
+              text: z.string().trim().min(1).max(2000),
+              hotel: hotelName.optional(),
+              room: roomName.optional(),
+            })
+            .strict(),
+        )
+        .min(1)
+        .max(20),
+    })
+    .strict(),
+  risk: "undo",
+  progress: () => "Adding lines to the options quote…",
+  quickReply: true,
+  quotePreview: quotePreviewFromChange,
+  run: (input, handlers, call) =>
+    handlers.addQuoteLines(
+      {
+        lines: input.lines.map((row) => ({
+          section: row.section,
+          text: row.text,
+          hotel: row.hotel,
+          room: row.room,
+        })),
+      },
+      call,
+    ),
+});
+
+export const quoteClearSectionTool = defineAgentTool({
+  name: "quote_clear_section",
+  description: [
+    "Remove every line in one options quote PDF section: inclusions, extras, arrival, transfers, shared, notice, notes, board, or terms.",
+    "Use when the advisor wants a whole section gone (e.g. clear What's included, drop all transfers). Optional hotel or room narrows the scope.",
+    "Letterhead, header, footer, and brand stay fixed. To delete one line only, use quote_edit_lines with delete_ids. To add lines, use quote_add_lines.",
+    "On success the PDF is rebuilt and opened automatically — do not call quote_preview again unless they ask to open it again.",
+    "Returns a summary; the advisor gets Undo.",
+  ].join(" "),
+  schema: z
+    .object({
+      section: z.enum([
+        "inclusions",
+        "extras",
+        "arrival",
+        "transfers",
+        "shared",
+        "notice",
+        "notes",
+        "board",
+        "terms",
+      ]),
+      hotel: hotelName.optional(),
+      room: roomName.optional(),
+    })
+    .strict(),
+  risk: "undo",
+  progress: () => "Clearing that section on the options quote…",
+  quickReply: true,
+  quotePreview: quotePreviewFromChange,
+  run: (input, handlers, call) =>
+    handlers.clearQuoteSection(
+      {
+        section: input.section,
+        hotel: input.hotel,
+        room: input.room,
       },
       call,
     ),
@@ -284,7 +381,7 @@ export const quotePreviewTool = defineAgentTool({
   description: [
     "Open the options quote PDF for the advisor (builds it when needed).",
     "Use when they ask to show, open, view, preview or regenerate the options quote.",
-    "After quote_edit_lines, quote_rewrite_section, quote_set_wording or quote_set_client_price the PDF already rebuilds and opens — do not call this again in the same turn unless they ask.",
+    "After quote_edit_lines, quote_add_lines, quote_clear_section, quote_rewrite_section, quote_set_wording or quote_set_client_price the PDF already rebuilds and opens — do not call this again in the same turn unless they ask.",
     "Pass force true when they ask to regenerate, or when opening after other quote changes that did not auto-preview.",
     "Do not use to send the quote (quote_send). The browser opens the file; return a short confirmation.",
   ].join(" "),
@@ -303,7 +400,7 @@ export const quotePreviewTool = defineAgentTool({
 export const ratesUsePastedQuoteTool = defineAgentTool({
   name: "rates_use_pasted_quote",
   description: [
-    "Add a room from a pasted supplier quote when PureLuxe has no contracted rate.",
+    "Add a room from a pasted supplier quote when there is no contracted rate.",
     "Use when the advisor pastes a supplier total, or when rates_search returned no_rates and they want to paste.",
     "Returns a summary; the advisor gets Undo.",
   ].join(" "),

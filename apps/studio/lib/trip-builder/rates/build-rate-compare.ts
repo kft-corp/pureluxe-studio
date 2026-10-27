@@ -126,6 +126,29 @@ function sortRooms(rooms: RateCompareRoom[]): RateCompareRoom[] {
   });
 }
 
+function asRateBasis(raw: Record<string, unknown> | null | undefined): "nightly" | "package" | null {
+  const value = raw?.rate_basis;
+  if (value === "package" || value === "nightly") return value;
+  return null;
+}
+
+function asPositiveNumber(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return null;
+  return value;
+}
+
+function packageLabel(
+  packageNights: number | null,
+  stayNights: number | null,
+): string | null {
+  if (packageNights == null || packageNights <= 0) return "Package";
+  if (stayNights != null && stayNights > packageNights) {
+    const extra = stayNights - packageNights;
+    return `${packageNights}N + ${extra} extra`;
+  }
+  return `${packageNights}N package`;
+}
+
 function toRoom(
   option: NormalizedRateOption,
   rateRef: string,
@@ -146,6 +169,11 @@ function toRoom(
     .map((line) => line.trim())
     .filter(Boolean)
     .slice(0, MAX_INCLUSIONS);
+  const rateBasis = asRateBasis(option.raw);
+  const packageNights = asPositiveNumber(option.raw?.package_nights);
+  const extraNightTeam = asPositiveNumber(option.raw?.extra_night_amount);
+  const extraNightClient =
+    extraNightTeam == null ? null : clientPriceAtMarkup(extraNightTeam, markup);
 
   return {
     rate_ref: rateRef,
@@ -159,6 +187,11 @@ function toRoom(
     rooms,
     board: shortLine(option.board, 24),
     source: sourceLabel(option.rate_source_code),
+    rate_basis: rateBasis,
+    package_nights: rateBasis === "package" ? packageNights : null,
+    extra_night_team: rateBasis === "package" ? extraNightTeam : null,
+    extra_night_client: rateBasis === "package" ? extraNightClient : null,
+    package_label: rateBasis === "package" ? packageLabel(packageNights, nights) : null,
     cancel,
     cancel_by: cancelBy,
     cancel_days: cancelDays,

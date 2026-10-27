@@ -617,7 +617,7 @@ function AgentMessage({
 }) {
   return (
     <div className="w-full self-start text-[15px] leading-[1.6] break-words text-ink">
-      <span className="sr-only">PureLuxe Agent: </span>
+      <span className="sr-only">Agent: </span>
       {content.trim() ? <ChatMarkdown content={content} /> : null}
       {status ? <AgentStatusLine key={status} label={status} /> : null}
       {incomplete ? (

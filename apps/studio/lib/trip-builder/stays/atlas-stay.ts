@@ -34,9 +34,9 @@ export type AtlasStayAnswer = {
 };
 
 const CONTRACT_LABEL: Record<AtlasHotelChoice["contractStatus"], string> = {
-  contracted: "Contract in PureLuxe",
-  not_yet_contracted: "No contract in PureLuxe yet",
-  unknown: "Contract status not in PureLuxe",
+  contracted: "Contract available",
+  not_yet_contracted: "No contract yet",
+  unknown: "Contract status unknown",
 };
 
 const PLACE_QUESTION =
@@ -201,7 +201,7 @@ async function describeHotel(hotel: KbEntity): Promise<string[]> {
     details?.dining_notes,
     details?.wellness_notes,
     rooms.length > 0
-      ? `Rooms in PureLuxe: ${rooms.map((room) => room.name).join(", ")}`
+      ? `Rooms: ${rooms.map((room) => room.name).join(", ")}`
       : null,
     ...facts.map((fact) =>
       fact.title ? `${fact.title}: ${fact.body}` : fact.body,
@@ -339,7 +339,7 @@ export async function answerAtlasStay(input: {
     const facts = bundle?.facts;
     const visaLine = bundle?.visa
       ? `Visa for a ${passport} passport: ${bundle.visa.summary}${visaLabel(bundle.visa.entry_type) ? ` (${visaLabel(bundle.visa.entry_type)})` : ""}${bundle.visa.details ? `. ${bundle.visa.details}` : ""}`
-      : `No visa rule in PureLuxe for a ${passport} passport.`;
+      : `No visa rule available for a ${passport} passport.`;
     blocks.push(
       section(placeCountry.name, [
         facts?.currency_code ? `Currency: ${facts.currency_code}` : null,
@@ -378,7 +378,7 @@ export async function answerAtlasStay(input: {
   if (listHotels && choices.length > 0) {
     blocks.push(
       section(
-        "Hotels in PureLuxe",
+        "Hotels",
         choices.map(
           (hotel) =>
             `${hotel.name}${hotel.brand ? ` (${hotel.brand})` : ""} — ${CONTRACT_LABEL[hotel.contractStatus]}`,
@@ -387,7 +387,7 @@ export async function answerAtlasStay(input: {
     );
   } else if (listHotels && (placeCity || placeCountry)) {
     const where = placeCity?.name ?? placeCountry?.name ?? "that place";
-    blocks.push(`PureLuxe has no hotels for ${where}.`);
+    blocks.push(`No hotels listed for ${where} yet.`);
   }
 
   if (namedHotel) {

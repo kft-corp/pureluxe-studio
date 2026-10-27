@@ -89,13 +89,41 @@ export type QuoteSetWordingInput = {
   notes?: string;
 };
 
-/** Rewrite one or more printable lines on the options quote PDF. */
+/** Rewrite or delete printable lines on the options quote PDF. */
 export type QuoteEditLinesInput = {
-  /** Set full new text for known line ids from quote_list_lines. */
+  /** Set full new text for known line ids from quote_list_lines. Empty text deletes a deletable line. */
   lines?: Array<{ id: string; text: string }>;
+  /** Remove these line ids (inclusions, transfers, arrival, shared, notice, notes, board, terms). */
+  delete_ids?: string[];
   /** Replace these words wherever they appear on the PDF (case-insensitive). */
   find?: string;
   replace?: string;
+};
+
+/** Append bullets to a list section on the options quote PDF. */
+export type QuoteAddLinesInput = {
+  lines: Array<{
+    section: "inclusions" | "extras" | "arrival" | "transfers" | "shared";
+    text: string;
+    hotel?: string;
+    room?: string;
+  }>;
+};
+
+/** Clear every line in a PDF section (letterhead stays fixed). */
+export type QuoteClearSectionInput = {
+  section:
+    | "inclusions"
+    | "extras"
+    | "arrival"
+    | "transfers"
+    | "shared"
+    | "notice"
+    | "notes"
+    | "board"
+    | "terms";
+  hotel?: string;
+  room?: string;
 };
 
 /** Expand supplier shorthand on a quote section into client plain English. */
@@ -231,6 +259,8 @@ export type TripAgentHandlers = DeskAgentHandlers & {
   removeQuoteOption: (input: QuoteRemoveOptionInput, call: ToolCallRef) => Promise<TripChange>;
   setQuoteWording: (input: QuoteSetWordingInput, call: ToolCallRef) => Promise<TripChange>;
   editQuoteLines: (input: QuoteEditLinesInput, call: ToolCallRef) => Promise<TripChange>;
+  addQuoteLines: (input: QuoteAddLinesInput, call: ToolCallRef) => Promise<TripChange>;
+  clearQuoteSection: (input: QuoteClearSectionInput, call: ToolCallRef) => Promise<TripChange>;
   rewriteQuoteSection: (input: QuoteRewriteSectionInput, call: ToolCallRef) => Promise<TripChange>;
   listQuoteLines: () => Promise<QuoteListLinesResult>;
   previewQuote: (input: QuotePreviewInput) => Promise<QuotePreviewResult>;

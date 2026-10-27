@@ -164,8 +164,8 @@ export async function findHotels(input: FindHotelsInput): Promise<FindHotelsResu
       hotels: [],
       did_you_mean: [],
       note: destination
-        ? `No PureLuxe hotel matched "${name}" in ${destination}.`
-        : `No PureLuxe hotel matched "${name}".`,
+        ? `No hotel matched "${name}" in ${destination}.`
+        : `No hotel matched "${name}".`,
     };
   }
 
@@ -188,7 +188,7 @@ export async function findHotels(input: FindHotelsInput): Promise<FindHotelsResu
       return {
         hotels: [],
         did_you_mean: [],
-        note: `No PureLuxe hotel matched "${refName}".`,
+        note: `No hotel matched "${refName}".`,
       };
     }
   }
@@ -247,8 +247,8 @@ export async function findHotels(input: FindHotelsInput): Promise<FindHotelsResu
       hotels: [],
       did_you_mean: [],
       note: targetTier
-        ? `No PureLuxe ${targetTier.replaceAll("_", " ")} hotels found in ${place}.`
-        : `No PureLuxe hotels found in ${place}.`,
+        ? `No ${targetTier.replaceAll("_", " ")} hotels found in ${place}.`
+        : `No hotels found in ${place}.`,
     };
   }
 

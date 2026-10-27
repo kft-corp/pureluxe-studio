@@ -89,8 +89,9 @@ function hotelFindChoices(result: unknown, trip: TripFacts | null): AgentChoice[
 export const hotelGetTool = defineDeskTool({
   name: "hotel_get",
   description: [
-    "Load the details held for a hotel by name, including a hotel that is not on this trip: check-in and check-out times, stay rules, cancellation, payment, transfers, benefits, required charges, extras, offers, blackout dates and minimum markup.",
-    "Use for hotel rules, offers or charges, or to compare hotels (one call per hotel, in the same turn). Pass the stay dates when known so only the contracts and offers for those dates come back.",
+    "Load the details held for a hotel by name, including a hotel that is not on this trip: check-in and check-out times, stay rules, cancellation, payment, transfers, market limits, benefits, required charges, extras, offers, blackout dates and minimum markup.",
+    "Use for hotel rules, offers, charges or market/passport restrictions, or to compare hotels (one call per hotel, in the same turn). Pass the stay dates when known so only the contracts and offers for those dates come back.",
+    "When Market is set on the contract, surface it as a short heads-up in the reply.",
     "Do not use to list or suggest hotels (use hotel_find), for prices of rooms (use rates_get_snapshot) or for what a place is like (use place_get_notes).",
     "Returns matching hotels with facts. An empty list means no hotel with that name; facts null means nothing is on file.",
   ].join(" "),
@@ -118,11 +119,11 @@ export const hotelGetTool = defineDeskTool({
 export const hotelFindTool = defineDeskTool({
   name: "hotel_find",
   description: [
-    "Find PureLuxe hotels by name (fuzzy), destination, price tier (ultra_luxury / luxury / premium), similar to another hotel, or a similar price band.",
+    "Find contracted hotels by name (fuzzy), destination, price tier (ultra_luxury / luxury / premium), similar to another hotel, or a similar price band.",
     "Use when the advisor names a hotel, asks for suggestions, wants others in the same tier, or says \"similar to X\". A saved stay is not required.",
     "For \"similar\" / \"same tier\" / \"same price range\", pass similar_to or tier so results stay in that band — do not list cheaper out-of-tier hotels from general knowledge.",
     "Do not use for hotel rules or charges (hotel_get), place notes (place_get_notes), or room prices (rates tools).",
-    "Returns PureLuxe hotels only, with tier and style tags. When the name is unclear, did_you_mean lists close matches instead of guessing.",
+    "Returns contracted hotels only, with tier and style tags. When the name is unclear, did_you_mean lists close matches instead of guessing.",
     "When the trip has dates, a Rates button appears for each hotel (and Did you mean when unsure).",
     "When the advisor also wants prices in the same message, call rates_search next in the same turn with the hotels found — do not wait for a Rates tap.",
   ].join(" "),

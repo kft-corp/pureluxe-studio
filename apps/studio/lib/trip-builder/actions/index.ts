@@ -13,7 +13,9 @@ export {
   undoTripChange,
 } from "./trip-changes";
 export {
+  addQuoteLines,
   addQuoteOptions,
+  clearQuoteSection,
   editQuoteLines,
   listQuoteLinesForAgent,
   previewQuote,

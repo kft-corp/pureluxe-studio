@@ -71,6 +71,8 @@ export function makeHandlers(trip: TripFacts = makeTripFacts()) {
     removeQuoteOption: changed("Removed Beach Villa"),
     setQuoteWording: changed("Updated the quote wording"),
     editQuoteLines: changed("Updated 1 line on the options quote"),
+    addQuoteLines: changed("Added 1 line on the options quote"),
+    clearQuoteSection: changed("Cleared 1 line from that section on the options quote"),
     rewriteQuoteSection: changed("Rewrote 3 lines in clear client wording on the options quote"),
     listQuoteLines: vi.fn(async () => ({ lines: [] })),
     previewQuote: vi.fn(async () => ({

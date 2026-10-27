@@ -22,7 +22,18 @@ migrations. Prefer seeds (or Settings UI) for those.
 |---|---|---|
 | [`011_rate_layer.sql`](./011_rate_layer.sql) | `011_rate_layer.sql` | Maldives/Dubai/Bali/Doha profiles, Layer 2 overrides, Pure Escapes binding (inactive), ski peak windows, negotiated code **placeholder slugs** (`active = false`) |
 | [`011_rate_layer_kanuhura.sql`](./011_rate_layer_kanuhura.sql) | `011` + run `011_rate_layer.sql` seed first (Maldives profile) | Six Senses Kanuhura property, wholesale 2026–27 + India package `SSK26IN` contracts, villa rates, add-ons, offers |
+| [`011_rate_layer_contracted_pilot.sql`](./011_rate_layer_contracted_pilot.sql) | `011` + run `011_rate_layer.sql` seed first | Pilot contracted hotels from founder Excel/PDFs: Waldorf Ithaafushi, SUJÁN ×3, COMO Cocoa + Maalifushi, JOALI Maldives + BEING — properties, contracts, rates, add-ons, offers |
+| [`016_atlas_kb_contracted.sql`](./016_atlas_kb_contracted.sql) | `016_atlas_kb.sql` (+ rate seeds above for linking) | Atlas geography + `kb_entities` / details / room categories for **every contracted hotel** (incl. Kanuhura); links `properties.curated_hotel_id` ↔ `kb_entities.property_id` |
 | [`015_trip_builder_flow.sql`](./015_trip_builder_flow.sql) | `015_trip_builder_flow.sql` | Starter `pdf_branding` company setting |
+
+## Trip Builder contracted pilot (recommended local order)
+
+1. `011_rate_layer.sql` (destination profiles)
+2. `011_rate_layer_kanuhura.sql` (optional — Kanuhura)
+3. `011_rate_layer_contracted_pilot.sql` (money)
+4. `016_atlas_kb_contracted.sql` (Atlas KB + link to properties)
+
+Sources: `docs/excel sheets/Contracted Rates Master (Pilot).xlsx`, `docs/excel sheets/PureLuxe Atlas KB — Hotels (…).xlsx`, `docs/contracted rate pdf/`.
 
 ## How to run
 
