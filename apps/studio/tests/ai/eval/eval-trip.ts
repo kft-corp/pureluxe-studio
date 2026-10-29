@@ -19,7 +19,7 @@ export type EvalTrip = {
     markupPercent: number | null;
     clientPrice: number | null;
   }>;
-  quoteStatus: "draft" | "sent";
+  quoteStatus: "draft" | "sent" | "accepted";
   /** Rooms used on the last rates search (default 1). */
   rooms: number;
   /** Client's final room (Stage 4). */

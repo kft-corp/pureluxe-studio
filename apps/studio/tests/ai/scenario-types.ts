@@ -90,7 +90,7 @@ export type TripExpectation = {
       clientPrice?: number;
     }>;
   };
-  quoteStatus?: "draft" | "sent";
+  quoteStatus?: "draft" | "sent" | "accepted";
   chosenOption?: { hotel: string; room: string };
   booking?: { hotel: string; status: "pending" | "confirmed" };
   preArrival?: { started: boolean; prefilled: Array<"travellers" | "dates" | "stays" | "preferences"> };
