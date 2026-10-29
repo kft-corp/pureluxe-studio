@@ -105,7 +105,7 @@ export function OptionsQuotePanel({
       <p className="mb-2 text-[12px] leading-relaxed text-ink-muted">
         {accepted
           ? options.length > 0
-            ? "Client said yes. Tap This is their room on the room they picked. Its client price from the quote becomes the trip price."
+            ? "Client said yes. Tap This is their room on the room they picked. Its sell from the quote becomes the trip sell."
             : "Client said yes. The quote opens as sent. To change it, reopen the quote on the trip page."
           : withClient
             ? "Quote is with the client. When they agree, mark Client said yes on the trip page, then tap This is their room. Changing the quote moves the trip back to Building."
@@ -216,9 +216,9 @@ function OptionRoomRow({
   return (
     <div className="rounded-[8px] border border-border bg-surface px-2.5 py-2">
       <p className="text-[12px] font-medium text-ink">{room}</p>
-      <p className="mt-1 text-[12px] text-ink">Team cost {team}</p>
+      <p className="mt-1 text-[12px] text-ink">Cost {team}</p>
       <p className="text-[12px] text-ink">
-        Client price {moneyLabel(row.sell_amount, row.currency)}
+        Sell {moneyLabel(row.sell_amount, row.currency) ?? "Set markup"}
       </p>
       {row.selected ? (
         <p className="mt-1 text-[11px] font-semibold text-success-ink">Client&apos;s current choice</p>

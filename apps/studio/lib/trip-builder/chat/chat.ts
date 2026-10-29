@@ -75,8 +75,11 @@ export type ChatStreamEvent =
   | { type: "delta"; text: string }
   /** The agent changed the trip; reload it. */
   | { type: "changed"; summary: string }
-  /** Home chat: open this trip (just created, or chosen). Sent after `done`. */
-  | { type: "opened"; tripId: string }
+  /**
+   * Home chat: open this trip. Sent after `done`.
+   * `created` true = new trip (conversation already on screen); false = open existing.
+   */
+  | { type: "opened"; tripId: string; created: boolean }
   /** Open the options quote PDF (short-lived signed URL; not stored on the message). */
   | { type: "quote_preview"; url: string }
   | { type: "done"; assistant: ChatMessage }

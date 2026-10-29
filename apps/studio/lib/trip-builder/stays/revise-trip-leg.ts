@@ -11,8 +11,8 @@ import { requireEditableTrip } from "../access/require-assigned-trip";
 import {
   assertNoUnconfirmedOverlap,
   cancelStayBooking,
-  markQuoteStale,
 } from "./stay-side-effects";
+import { refreshOptionsQuotePdfAfterChange } from "../options-quote/options-quote";
 import { syncTripCommercials } from "../pricing/sync-trip-commercials";
 import { syncTripHotelBooking } from "../pricing/sync-trip-booking";
 import { closeTripRateSearches } from "@/lib/rates/rate-search-store";
@@ -74,7 +74,7 @@ export async function reviseTripLeg(
     destination_profile_id: existing.destination_profile_id,
   });
 
-  await markQuoteStale(trip.id);
+  await refreshOptionsQuotePdfAfterChange(trip.id, actor);
   await syncTripCommercials(trip.id);
   const fresh = (await findTripById(trip.id)) ?? trip;
   await closeTripRateSearches(trip.id);

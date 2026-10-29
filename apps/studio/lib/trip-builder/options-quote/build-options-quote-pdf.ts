@@ -358,7 +358,15 @@ function paintRoom(
   doc.font(FONT.bold).fontSize(TYPE.room).fillColor(INK).text(room.name, cols.roomX, top, {
     width: cols.roomW,
   });
-  doc.font(FONT.regular).fontSize(TYPE.roomMeta).fillColor(MUTED).text(room.detail?.trim() || "—", cols.mealX, top, {
+  const party = room.party?.trim();
+  let mealY = top;
+  if (party) {
+    doc.font(FONT.regular).fontSize(TYPE.roomMeta).fillColor(MUTED).text(party, cols.roomX, top + TYPE.room + 2, {
+      width: cols.roomW,
+    });
+    mealY = top;
+  }
+  doc.font(FONT.regular).fontSize(TYPE.roomMeta).fillColor(MUTED).text(room.detail?.trim() || "—", cols.mealX, mealY, {
     width: cols.mealW,
   });
   if (cols.showSleeps) {
@@ -366,7 +374,7 @@ function paintRoom(
       .font(FONT.regular)
       .fontSize(TYPE.roomMeta)
       .fillColor(MUTED)
-      .text(room.sleeps?.trim() || "—", cols.sleepsX, top, { width: cols.sleepsW });
+      .text(room.sleeps?.trim() || "—", cols.sleepsX, mealY, { width: cols.sleepsW });
   }
   doc.font(FONT.bold).fontSize(TYPE.room).fillColor(INK).text(amount, cols.priceX, top, {
     width: cols.priceW,
@@ -464,11 +472,14 @@ function roomHeight(doc: PDFKit.PDFDocument, room: OptionsQuoteRoom, cols: Table
   doc.font(FONT.bold).fontSize(TYPE.room);
   const name = doc.heightOfString(room.name, { width: cols.roomW });
   doc.font(FONT.regular).fontSize(TYPE.roomMeta);
+  const party = room.party?.trim()
+    ? doc.heightOfString(room.party.trim(), { width: cols.roomW }) + 2
+    : 0;
   const meal = doc.heightOfString(room.detail?.trim() || "—", { width: cols.mealW });
   const sleeps = cols.showSleeps
     ? doc.heightOfString(room.sleeps?.trim() || "—", { width: cols.sleepsW })
     : 0;
-  return Math.max(28, Math.max(name, meal, sleeps) + 14);
+  return Math.max(28, Math.max(name + party, meal, sleeps) + 14);
 }
 
 function bulletHeight(doc: PDFKit.PDFDocument, items: string[]): number {

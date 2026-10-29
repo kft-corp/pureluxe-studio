@@ -84,6 +84,7 @@ export function makeHandlers(trip: TripFacts = makeTripFacts()) {
     usePastedQuote: changed("Added room from the pasted quote"),
     sendQuote: changed("Sent 6 options to Aarav Mehta", false),
     selectFinal: changed("Recorded Over Water Pool Villa at Anantara Kihavah as the client's choice. A pending booking is ready."),
+    acceptAndSelect: changed("Marked as accepted and recorded Over Water Pool Villa at Anantara Kihavah. A pending booking is ready."),
     proposeSplit: vi.fn(async () => ({
       ok: true as const,
       summary: "Proposed split: Malé 10–12, Baa Atoll 12–15. Tap Accept to apply.",

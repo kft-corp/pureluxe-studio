@@ -79,6 +79,8 @@ export type SearchRatesForHotelsInput = {
   rooms: number;
   adults: number;
   children: number;
+  /** Stated child ages; preferred over passport DOBs when set. */
+  childAges?: number[];
 };
 
 export type SearchRatesForHotelsResult = {
@@ -279,7 +281,11 @@ export async function searchRatesForHotels(
   const hotels = [...new Set(input.hotels.map((name) => name.trim()).filter(Boolean))].slice(0, 5);
 
   const [party, preference] = await Promise.all([
-    loadPartyPricingContext({ tripId: input.tripId, checkIn: input.checkIn }),
+    loadPartyPricingContext({
+      tripId: input.tripId,
+      checkIn: input.checkIn,
+      childAges: input.childAges,
+    }),
     loadRatePreference(input.tripId),
   ]);
   const outcomes =

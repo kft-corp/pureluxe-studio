@@ -52,6 +52,8 @@ export type OptionsQuoteRoom = {
   currency: string | null;
   /** Max occupancy for the optional Occupancy column, e.g. "Up to 3 adults, 1 child". */
   sleeps: string | null;
+  /** Units · guests (or villa · bedrooms) for this option, e.g. "2 rooms · 4 adults". */
+  party: string | null;
   inclusions: string[];
   /** Cancel rule for these dates only. Null when the stored text is for other seasons. */
   cancellation: string | null;
@@ -138,6 +140,7 @@ function stayBlock(stay: TripStaySnapshot, rows: TripRateSnapshot[]): OptionsQuo
   }
   const checkIn = stay.check_in;
   const checkOut = stay.check_out;
+  const occupancy = stayPartyLabel(stay);
   const hotels = [...byHotel.entries()].map(([name, rooms]) => ({
     name,
     city: stay.city.trim(),
@@ -145,7 +148,7 @@ function stayBlock(stay: TripStaySnapshot, rows: TripRateSnapshot[]): OptionsQuo
     arrival: [] as string[],
     transfers: [] as string[],
     shared: [] as string[],
-    rooms: rooms.map(roomLine),
+    rooms: rooms.map((row) => roomLine(row, stay)),
   }));
   const hotelLabel = hotels.length === 1 ? "one hotel" : `${hotels.length} hotels`;
   const roomCount = hotels.reduce((sum, hotel) => sum + hotel.rooms.length, 0);
@@ -160,7 +163,7 @@ function stayBlock(stay: TripStaySnapshot, rows: TripRateSnapshot[]): OptionsQuo
     when: [when, nightCount(checkIn, checkOut), `${hotelLabel}, ${roomLabel}`]
       .filter(Boolean)
       .join(" | "),
-    occupancy: partyBits(stay.adults, stay.children) || "Not set",
+    occupancy: occupancy || "Not set",
     hotels,
   };
 }
@@ -181,7 +184,7 @@ function expandBoardLabel(part: string): string {
   return BOARD_LABEL[key] ?? part.trim();
 }
 
-function roomLine(row: TripRateSnapshot): OptionsQuoteRoom {
+function roomLine(row: TripRateSnapshot, stay: TripStaySnapshot): OptionsQuoteRoom {
   const currency = row.currency?.trim() || null;
   const raw = row.subtitle?.trim() || row.title.trim();
   const [name, ...rest] = raw.split(/\s*·\s*/);
@@ -196,6 +199,7 @@ function roomLine(row: TripRateSnapshot): OptionsQuoteRoom {
     price: row.sell_amount == null ? "To be confirmed" : formatAmount(row.sell_amount),
     currency,
     sleeps: sleepsLabel(row.max_adults, row.max_children),
+    party: optionPartyLabel(row, stay),
     inclusions: clientInclusions(row.inclusions),
     cancellation: clientRule(row.cancellation_policy, row.season_code),
     payment: clientRule(row.payment_policy, row.season_code),
@@ -314,6 +318,78 @@ function partyBits(adults: number | null, children: number | null): string {
   if (adults) parts.push(adults === 1 ? "1 adult" : `${adults} adults`);
   if (children) parts.push(children === 1 ? "1 child" : `${children} children`);
   return parts.join(", ");
+}
+
+/** e.g. "2 rooms · 4 adults" for the stay Occupancy field. */
+function stayPartyLabel(stay: TripStaySnapshot): string | null {
+  const guests = partyBits(stay.adults, stay.children);
+  const rooms =
+    stay.rooms != null && stay.rooms > 0
+      ? stay.rooms === 1
+        ? "1 room"
+        : `${stay.rooms} rooms`
+      : null;
+  if (rooms && guests) return `${rooms} · ${guests}`;
+  return rooms || guests || null;
+}
+
+const BEDROOM_WORDS: Record<string, number> = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+};
+
+/** Bedroom count from a room name, e.g. "Two Bedroom Beach Villa" → 2. */
+function bedroomCount(name: string): number | null {
+  const digit =
+    name.match(/\b(\d+)\s*[-–]?\s*bed(?:room)?s?\b/i) ?? name.match(/\b(\d+)\s*br\b/i);
+  if (digit) {
+    const n = Number(digit[1]);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+  const word = name.match(/\b(one|two|three|four|five|six)\s*[-–]?\s*bed(?:room)?s?\b/i);
+  if (!word?.[1]) return null;
+  return BEDROOM_WORDS[word[1].toLowerCase()] ?? null;
+}
+
+function unitKind(name: string): "villa" | "suite" | null {
+  if (/\bvillas?\b/i.test(name)) return "villa";
+  if (/\bsuites?\b/i.test(name)) return "suite";
+  return null;
+}
+
+function optionRoomName(row: TripRateSnapshot): string {
+  const raw = row.subtitle?.trim() || row.title.trim();
+  return raw.split(/\s*·\s*/)[0]?.trim() || raw;
+}
+
+/**
+ * Per-option party line for the PDF.
+ * Multi-bed villa/suite → "1 villa · 2 bedrooms"; other villas → "2 villas · 4 adults";
+ * else stay rooms · guests.
+ */
+function optionPartyLabel(row: TripRateSnapshot, stay: TripStaySnapshot): string | null {
+  const name = optionRoomName(row);
+  const beds = bedroomCount(name);
+  const kind = unitKind(name);
+  const guests = partyBits(stay.adults, stay.children);
+
+  if (beds != null && beds >= 2 && kind) {
+    const bedLabel = beds === 1 ? "1 bedroom" : `${beds} bedrooms`;
+    return `1 ${kind} · ${bedLabel}`;
+  }
+
+  if (kind) {
+    const count = stay.rooms != null && stay.rooms > 0 ? stay.rooms : 1;
+    const unit = count === 1 ? `1 ${kind}` : `${count} ${kind}s`;
+    if (guests) return `${unit} · ${guests}`;
+    return unit;
+  }
+
+  return stayPartyLabel(stay);
 }
 
 function formatDate(iso: string | null): string {

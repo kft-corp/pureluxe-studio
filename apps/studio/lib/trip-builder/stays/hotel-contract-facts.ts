@@ -190,9 +190,7 @@ function legalLines(legal: Record<string, unknown> | unknown[] | undefined): str
   if (legal.no_ota_bedbank_resell === true) {
     lines.push("Do not resell through an OTA or bedbank.");
   }
-  if (typeof legal.min_markup_percent === "number") {
-    lines.push(`Commission rate ${legal.min_markup_percent}%.`);
-  }
+  // Hotel min markup is not used for MVP pricing (#29) — do not surface it to the agent.
   return lines;
 }
 
@@ -314,9 +312,6 @@ function contractSections(
   const header = [
     contract.market ? `Market: ${contract.market}.` : null,
     contract.booking_code ? `Quote booking code ${contract.booking_code}.` : null,
-    contract.min_markup_percent != null
-      ? `Commission rate ${contract.min_markup_percent}%.`
-      : null,
     contract.notes?.trim() || null,
   ].filter((line): line is string => Boolean(line));
 
@@ -352,9 +347,6 @@ function propertyLines(property: Property | null): string[] {
     property.general_phone?.trim() ? `Phone: ${property.general_phone.trim()}` : null,
     property.vip_contact_notes?.trim()
       ? `VIP contact: ${property.vip_contact_notes.trim()}`
-      : null,
-    property.min_markup_percent != null
-      ? `Hotel minimum markup ${property.min_markup_percent}%.`
       : null,
   ].filter((line): line is string => Boolean(line));
 }
@@ -448,7 +440,6 @@ export async function loadHotelStayFacts(input: {
       ? `Check-in ${checkInTime ?? "time not available"}, check-out ${checkOutTime ?? "time not available"}.`
       : null;
 
-  const markupPercent = selected?.min_markup_percent ?? property?.min_markup_percent ?? null;
   return {
     property,
     contract: selected ?? null,
@@ -461,7 +452,8 @@ export async function loadHotelStayFacts(input: {
     cancellationLines,
     offers: offerLines,
     requiredCharges,
-    markup: markupPercent == null ? null : `Commission rate ${markupPercent}%.`,
+    // MVP (#29): never surface hotel commission / min markup as pricing guidance.
+    markup: null,
   };
 }
 

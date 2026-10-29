@@ -17,7 +17,7 @@ type ApplyOptions = {
   /** The agent changed the trip. */
   onChanged?: () => void;
   /** Home chat: the agent created or chose a trip to open. */
-  onOpened?: (tripId: string) => void;
+  onOpened?: (tripId: string, meta: { created: boolean }) => void;
   /** Open the options quote PDF in a new tab. */
   onQuotePreview?: (url: string) => void;
   onError?: () => void;
@@ -76,7 +76,7 @@ export function applyChatStreamEvent(options: ApplyOptions): void {
       return;
     }
     case "opened": {
-      onOpened?.(event.tripId);
+      onOpened?.(event.tripId, { created: event.created });
       return;
     }
     case "quote_preview": {

@@ -1,11 +1,14 @@
 import {
   clearSelectedAccommodationForLeg,
+  deleteTripLineItemsByIds,
+  deleteUnselectedStayOptions,
   findActivePropertyById,
   findClientById,
   findStayShellLineItem,
   findSelectedAccommodationLineItem,
   findTripById,
   findTripLegById,
+  listPricedAccommodationLineItems,
   listTripLegs,
   listTripTravellers,
   updateTrip as dbUpdateTrip,
@@ -25,8 +28,8 @@ import { requireEditableTrip } from "../access/require-assigned-trip";
 import {
   assertNoUnconfirmedOverlap,
   cancelStayBooking,
-  markQuoteStale,
 } from "./stay-side-effects";
+import { refreshOptionsQuotePdfAfterChange } from "../options-quote/options-quote";
 import { syncTripCommercials } from "../pricing/sync-trip-commercials";
 import { closeTripRateSearches } from "@/lib/rates/rate-search-store";
 import { buildTripDetail, type TripDetail } from "../trip/trip-detail";
@@ -141,8 +144,19 @@ export async function setTripStay(
     const previousHotel = selected?.property_name ?? shell?.property_name ?? "";
     const hotelChanged =
       Boolean(previousHotel.trim()) && !namesLooselyMatch(previousHotel, hotelName);
-    if (datesChanged || cityChanged || hotelChanged) {
+    const shellRooms =
+      typeof shell?.extracted_json?.rooms === "number" ? shell.extracted_json.rooms : null;
+    const roomsChanged =
+      input.rooms != null && shellRooms != null && input.rooms !== shellRooms;
+    if (datesChanged || cityChanged || hotelChanged || roomsChanged) {
       await clearSelectedAccommodationForLeg(trip.id, existing.id);
+      if (roomsChanged) {
+        await deleteUnselectedStayOptions(trip.id, existing.id);
+        const priced = await listPricedAccommodationLineItems(trip.id, existing.id);
+        if (priced.length > 0) {
+          await deleteTripLineItemsByIds(priced.map((row) => row.id));
+        }
+      }
       if (selected) {
         await cancelStayBooking(trip.id, existing.id, actor, {
           pendingOnly: true,
@@ -202,7 +216,7 @@ export async function setTripStay(
     await dbUpdateTrip(trip.id, { title: autoTitle });
   }
 
-  await markQuoteStale(trip.id);
+  await refreshOptionsQuotePdfAfterChange(trip.id, actor);
   await syncTripCommercials(trip.id);
   const fresh = (await findTripById(trip.id)) ?? trip;
   const detail = await buildTripDetail(fresh);

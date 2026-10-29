@@ -173,7 +173,7 @@ export function resolveNextStep(detail: TripDetail | null): string {
   if (!legsConfirmed(detail)) return "Add places or search rates";
   // Stage 3c/3d: rates and quote options can exist before every stay has a hotel.
   if (quoteOptionsPriced(detail)) return fromStatus();
-  if (quoteOptionsNeedPrice(detail)) return "Set client prices on the quote";
+  if (quoteOptionsNeedPrice(detail)) return "Set sell prices on the quote";
   if (!staysComplete(detail)) return "Suggest hotels and search rates";
   return "Add rooms to the options quote";
 }

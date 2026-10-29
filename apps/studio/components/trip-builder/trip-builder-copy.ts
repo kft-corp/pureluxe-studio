@@ -37,8 +37,8 @@ export function sendHandoff(detail: TripDetail): string {
 export const AFTER_ACCEPT_STEPS = [
   "**Before you book**",
   "1. Tap **Search rates again** to see today's availability and hotel price for this room.",
-  "2. If the hotel price changed, tap **Use today's cost** to update the team cost.",
-  "3. Tap **Set client price** if the client price needs to change.",
+  "2. If the hotel price changed, tap **Use today's cost** to update the cost.",
+  "3. Tap **Set sell** if the sell price needs to change.",
   "4. Book with the hotel offline, then **Confirm hotel booking** in **Bookings** (confirmation / PNR required).",
   "5. On the **trip page**, record client payment, then mark **Trip ready for travel** when every stay is confirmed.",
   "",
@@ -50,7 +50,7 @@ export const AFTER_ACCEPT_STEPS = [
 ].join("\n");
 
 export const CHOSEN_ROOM_NEXT =
-  "Tap **Set client price** to set or change what the client pays, or **Search rates again** to check today's hotel price for this room.";
+  "Tap **Set sell** to set or change the sell price, or **Search rates again** to check today's hotel price for this room.";
 
 /** Shown once every stay has the client's room after accept. */
 export const BOOKING_PREP_GUIDE =
@@ -65,16 +65,16 @@ export function choiceSummary(
   const sell = row ? formatMoney(row.sell_amount, row.currency) : "";
   const cost = row ? formatMoney(row.cost_internal, row.currency) : "";
   const price = sell
-    ? `Client price **${sell}** from the options quote. Team cost **${cost || "not set"}**.`
-    : `Team cost **${cost || "not set"}**. This room has no client price on the options quote.`;
+    ? `Sell **${sell}** from the options quote. Cost **${cost || "not set"}**.`
+    : `Cost **${cost || "not set"}**. This room has no sell price on the options quote.`;
   const open = staysAwaitingRoom(next);
   const total = formatMoney(next.trip.sell_total, next.trip.sell_currency);
   const trip =
     open > 0
       ? `${open === 1 ? "1 more stay needs" : `${open} more stays need`} the client's room before the trip price is set.`
       : total
-        ? `Every stay has a room. The trip client price is **${total}**.`
-        : "Every stay has a room. Set the trip client price, for example **sell 4500 USD**.";
+        ? `Every stay has a room. The trip sell is **${total}**.`
+        : "Every stay has a room. Set the trip sell, for example **sell 4500 USD**.";
   return `**${room}** is the client's room for this stay. ${price} The other options were removed, and a pending hotel booking is in **Bookings**.\n\n${trip}`;
 }
 

@@ -10,6 +10,7 @@ import { journeyToday } from "@pureluxe/shared";
 
 import { requireActiveClient } from "@/lib/clients/require-active-client";
 
+import { saveStatedAgesOnPassports } from "../party/save-stated-ages";
 import { getTripDetail } from "../trip/get-trip-detail";
 import { shiftTripDates } from "../trip/shift-trip-dates";
 import type { TripDetail } from "../trip/trip-detail";
@@ -65,12 +66,20 @@ export async function setTripClient(
 /** Add or remove companions, or change who is a child. The lead stays. */
 export async function setTripTravellers(
   context: TripChangeContext,
-  input: { add: Array<{ clientId: string; partyRole: TripPartyRole }>; remove: string[] },
+  input: {
+    add: Array<{ clientId: string; partyRole: TripPartyRole; age?: number }>;
+    remove: string[];
+  },
 ): Promise<TripChangeResult> {
   const added = await Promise.all(input.add.map((person) => requireActiveClient(person.clientId)));
   const removed = await Promise.all(input.remove.map((id) => findClientById(id)));
+  const withAges = input.add.filter((person) => person.age != null);
+  const onDateHint =
+    context.loaded?.trip.starts_on ??
+    context.loaded?.stays[0]?.check_in ??
+    null;
 
-  return changeTripShape(context, (before) => {
+  const result = await changeTripShape(context, (before) => {
     const shape = tripShapeOf(before);
     if (!shape.lead_client_id) throw refuse("Set the lead client first.", "trips.client_required");
     if (input.remove.includes(shape.lead_client_id)) {
@@ -81,9 +90,12 @@ export async function setTripTravellers(
     for (const person of input.add) {
       if (person.clientId !== shape.lead_client_id) companions.set(person.clientId, person.partyRole);
     }
-    const parts = input.add.map(
-      (person, index) => `${added[index]!.display_name}${person.partyRole === "child" ? " (child)" : ""}`,
-    );
+    const parts = input.add.map((person, index) => {
+      const name = added[index]!.display_name;
+      const ageBit = person.age != null ? ` (age ${person.age})` : "";
+      const roleBit = person.partyRole === "child" ? " (child)" : "";
+      return `${name}${ageBit}${roleBit}`;
+    });
     const gone = removed.flatMap((row) => (row ? [row.display_name] : []));
     return {
       target: {
@@ -92,13 +104,22 @@ export async function setTripTravellers(
         travellers_confirmed: true,
       },
       summary: [
-        parts.length > 0 ? `Added ${parts.join(", ")}` : null,
+        parts.length > 0 ? `Updated travellers: ${parts.join(", ")}` : null,
         gone.length > 0 ? `Removed ${gone.join(", ")}` : null,
       ]
         .filter(Boolean)
         .join("; "),
     };
   });
+
+  if (withAges.length > 0) {
+    await saveStatedAgesOnPassports(
+      withAges.map((person) => ({ clientId: person.clientId, age: person.age })),
+      onDateHint ?? new Date().toISOString().slice(0, 10),
+    );
+  }
+
+  return result;
 }
 
 /** Trip dates from what the advisor said. A single stay that covered the trip moves with it. */

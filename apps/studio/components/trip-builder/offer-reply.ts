@@ -18,7 +18,7 @@ export const DECLINE_LABELS: Record<Offer["type"], string> = {
 export const DECLINE_REPLIES: Record<Offer["type"], string> = {
   "rate-search": "Okay. I won't search. Ask again when you want prices, or paste a supplier quote.",
   paste: "Okay. I won't use that quote.",
-  sell: "Okay. I won't change the client price.",
+  sell: "Okay. I won't change the sell.",
   "add-option": "Okay. I won't save that room.",
   "select-room": "Okay. That room stays unselected.",
   "options-text": "Okay. I won't change that wording.",

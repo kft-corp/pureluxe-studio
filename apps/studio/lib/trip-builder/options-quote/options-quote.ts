@@ -76,6 +76,18 @@ async function fillHotelPolicies(document: OptionsQuoteDocument) {
   }
 }
 
+/** Prefix required extras that are not already in the rate wording. */
+function notIncludedLine(line: string, includedText: string): string {
+  const trimmed = line.trim();
+  if (!trimmed) return trimmed;
+  if (/^not included:/i.test(trimmed)) return trimmed;
+  const alreadyInRate =
+    /\bincluded\b/i.test(trimmed) ||
+    (includedText.length > 0 && includedText.toLowerCase().includes(trimmed.toLowerCase().slice(0, 24)));
+  if (alreadyInRate) return trimmed;
+  return `Not included: ${trimmed}`;
+}
+
 /** Keep a line on the hotel only when every room has that same line. */
 function placeHotelFacts(hotel: OptionsQuoteHotel, loaded: ClientQuoteFacts[]) {
   const arrival = onEveryRoom(loaded.map((row) => row.arrival));
@@ -85,18 +97,24 @@ function placeHotelFacts(hotel: OptionsQuoteHotel, loaded: ClientQuoteFacts[]) {
   const charges = onEveryRoom(loaded.map((row) => row.charges));
   const notes = hotel.rooms.map((room) => room.note?.trim() || "");
   const sharedNote = notes.length > 0 && notes.every((note) => note && note === notes[0]) ? notes[0]! : "";
+  const sharedIncludedText = hotel.rooms.flatMap((room) => room.inclusions).join(" ");
+  const chargeLines = charges.map((line) => notIncludedLine(line, sharedIncludedText));
   hotel.arrival = arrival;
   hotel.transfers = transfers;
-  hotel.shared = distinct([...stay, ...benefits, ...charges, ...(sharedNote ? [sharedNote] : [])]);
+  hotel.shared = distinct([...stay, ...benefits, ...chargeLines, ...(sharedNote ? [sharedNote] : [])]);
   hotel.rooms.forEach((room, index) => {
     const facts = loaded[index] ?? emptyFacts();
     const note = room.note?.trim() || "";
+    const includedText = [...room.inclusions, sharedIncludedText].join(" ");
+    const roomCharges = onlyHere(facts.charges, charges).map((line) =>
+      notIncludedLine(line, includedText),
+    );
     room.extras = distinct([
       ...onlyHere(facts.arrival, arrival),
       ...onlyHere(facts.transfers, transfers),
       ...onlyHere(facts.stay, stay),
       ...onlyHere(facts.benefits, benefits),
-      ...onlyHere(facts.charges, charges),
+      ...roomCharges,
       ...(note && note !== sharedNote ? [note] : []),
     ]);
   });
@@ -121,6 +139,31 @@ function optionsReady(detail: TripDetail): boolean {
   return roomsForOptionsQuote(detail).length > 0;
 }
 
+/**
+ * Founder #4 / #25: after a quote change, rebuild the PDF when rooms exist.
+ * Clears "out of date". Falls back to markQuoteStale when there is nothing to paint
+ * or rebuild fails. Does not open a URL — quote_preview does that on request.
+ */
+export async function refreshOptionsQuotePdfAfterChange(
+  tripId: string,
+  actor: { memberId: string },
+): Promise<void> {
+  const detail = await getTripDetail(tripId, actor);
+  if (isQuoteAccepted(detail.trip.status)) {
+    await markQuoteStale(tripId, { clientChoice: true });
+    return;
+  }
+  if (!optionsReady(detail)) {
+    await markQuoteStale(tripId);
+    return;
+  }
+  try {
+    await generateOptionsQuotePdf(tripId, { force: true }, actor);
+  } catch {
+    await markQuoteStale(tripId);
+  }
+}
+
 function fingerprintFor(
   detail: TripDetail,
   notes: string | null,
@@ -142,6 +185,7 @@ function fingerprintFor(
           check_out: stay.check_out,
           adults: stay.adults,
           children: stay.children,
+          rooms: stay.rooms,
         })),
         rooms: roomsForOptionsQuote(detail).map((row) => ({
             id: row.id,
@@ -254,7 +298,7 @@ export async function updateOptionsQuote(
     if (amount === undefined) continue;
     await updateStayOption(price[1]!, { sell_amount: amount });
   }
-  if (priceEdits.length > 0) await markQuoteStale(tripId);
+  await refreshOptionsQuotePdfAfterChange(tripId, actor);
   await closeTripRateSearches(tripId);
   return getTripDetail(tripId, actor);
 }
@@ -334,7 +378,7 @@ export async function updateSavedStayOption(
     await syncClientPriceFromChoices(row.trip_id);
     await refreshTripAfterRateChange(row.trip_id, actor);
   }
-  if (!accepted) await markQuoteStale(row.trip_id);
+  if (!accepted) await refreshOptionsQuotePdfAfterChange(row.trip_id, actor);
   await closeTripRateSearches(row.trip_id);
   return getTripDetail(row.trip_id, actor);
 }

@@ -18,18 +18,6 @@ export type RateCompareAddOption = {
 /** First rooms shown per hotel; advisor expands for the rest. */
 const INITIAL_ROOMS_VISIBLE = 3;
 
-function ratesAgeLabel(searchedAt: string | null | undefined): string | null {
-  if (!searchedAt) return null;
-  const ageMs = Date.now() - new Date(searchedAt).getTime();
-  if (!Number.isFinite(ageMs) || ageMs < 0) return null;
-  const minutes = Math.floor(ageMs / 60_000);
-  if (minutes < 1) return "Just now";
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return "Earlier";
-}
-
 function statusLabel(status: RateCompareHotel["status"]): string {
   switch (status) {
     case "no_rates":
@@ -71,25 +59,59 @@ function isPackageRoom(room: RateCompareRoom): boolean {
 }
 
 function roomPrices(room: RateCompareRoom, nights: number | null) {
-  const markup = room.markup_percent || room.markup_buttons?.[0] || 30;
   const teamTotal = Number.isFinite(room.team_cost) ? room.team_cost : 0;
   const nightCount = nights != null && nights > 0 ? nights : 1;
+  const hasMarkup =
+    typeof room.markup_percent === "number" && Number.isFinite(room.markup_percent);
+  const markupPct = hasMarkup ? room.markup_percent! : null;
   const clientTotal =
-    typeof room.client_total === "number" && Number.isFinite(room.client_total)
+    hasMarkup && typeof room.client_total === "number" && Number.isFinite(room.client_total)
       ? room.client_total
-      : clientPriceAtMarkup(teamTotal, markup);
+      : markupPct != null
+        ? clientPriceAtMarkup(teamTotal, markupPct)
+        : null;
   const clientPerNight =
-    typeof room.client_per_night === "number" && Number.isFinite(room.client_per_night)
-      ? room.client_per_night
-      : roundMoney(clientTotal / nightCount);
+    clientTotal == null
+      ? null
+      : typeof room.client_per_night === "number" && Number.isFinite(room.client_per_night)
+        ? room.client_per_night
+        : roundMoney(clientTotal / nightCount);
   const teamPerNight =
     typeof room.team_per_night === "number" && Number.isFinite(room.team_per_night)
       ? room.team_per_night
       : roundMoney(teamTotal / nightCount);
-  return { teamTotal, clientTotal, clientPerNight, teamPerNight };
+  /** DMC sheet package amount (before extra nights); fall back to stay total. */
+  const packageTeam =
+    typeof room.package_team === "number" && Number.isFinite(room.package_team)
+      ? room.package_team
+      : teamTotal;
+  const packageClient =
+    markupPct == null ? null : clientPriceAtMarkup(packageTeam, markupPct);
+  const extraTeam =
+    typeof room.extra_night_team === "number" && Number.isFinite(room.extra_night_team)
+      ? room.extra_night_team
+      : null;
+  const extraClient =
+    markupPct == null || extraTeam == null
+      ? null
+      : typeof room.extra_night_client === "number" &&
+          Number.isFinite(room.extra_night_client)
+        ? room.extra_night_client
+        : clientPriceAtMarkup(extraTeam, markupPct);
+  return {
+    teamTotal,
+    clientTotal,
+    clientPerNight,
+    teamPerNight,
+    hasMarkup,
+    packageTeam,
+    packageClient,
+    extraTeam,
+    extraClient,
+  };
 }
 
-/** Cheapest client stay total for the hotel header / summary strip. */
+/** Cheapest client stay total for the hotel header / summary strip (null until markup). */
 function hotelFromClient(hotel: RateCompareHotel): {
   amount: number;
   currency: string;
@@ -98,6 +120,7 @@ function hotelFromClient(hotel: RateCompareHotel): {
   let best: { amount: number; currency: string } | null = null;
   for (const room of hotel.rooms) {
     const { clientTotal } = roomPrices(room, null);
+    if (clientTotal == null) continue;
     if (!best || clientTotal < best.amount) {
       best = { amount: clientTotal, currency: room.currency };
     }
@@ -112,25 +135,26 @@ function roomsShareOneSource(rooms: RateCompareRoom[]): boolean {
   return rooms.every((room) => (room.source?.trim() ?? "") === first);
 }
 
+/** Sell (top) + cost (bottom). Empty sell prompts for markup. */
 function MoneyCell({
   client,
   team,
   currency,
-  showTeam,
 }: {
-  client: number;
+  client: number | null;
   team: number;
   currency: string;
-  showTeam: boolean;
 }) {
   return (
     <>
-      {formatRoomMoney(client, currency)}
-      {showTeam ? (
-        <span className="mt-0.5 block text-[12px] text-ink-subtle">
-          team {formatRoomMoney(team, currency)}
-        </span>
-      ) : null}
+      {client == null ? (
+        <span className="text-ink-subtle">Set markup</span>
+      ) : (
+        formatRoomMoney(client, currency)
+      )}
+      <span className="mt-0.5 block text-[12px] text-ink-subtle">
+        cost {formatRoomMoney(team, currency)}
+      </span>
     </>
   );
 }
@@ -163,21 +187,7 @@ export function TripBuilderRateCompare({
   disabled?: boolean;
   onAddOption?: (option: RateCompareAddOption) => void;
 }) {
-  const [showTeam, setShowTeam] = useState(true);
-  const party = [
-    `${compare.adults} adult${compare.adults === 1 ? "" : "s"}`,
-    compare.children > 0
-      ? `${compare.children} child${compare.children === 1 ? "" : "ren"}`
-      : null,
-    `${compare.rooms} room${compare.rooms === 1 ? "" : "s"}`,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-  const nights =
-    compare.nights != null && compare.nights > 0
-      ? `${compare.nights} night${compare.nights === 1 ? "" : "s"}`
-      : null;
-  const age = ratesAgeLabel(compare.searched_at);
+  // Destination / dates / party / age / preference stay in trip header + sidebar.
   const hotels = compare.hotels ?? [];
   const fromLines = hotels
     .map((hotel) => {
@@ -189,28 +199,6 @@ export function TripBuilderRateCompare({
 
   return (
     <div className="mt-3 space-y-4 text-[13.5px] leading-snug text-ink">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1 text-[13.5px] text-ink-muted">
-        <span className="min-w-0 break-words">
-          {compare.destination}
-          {nights ? ` · ${nights}` : ""} · {compare.check_in} → {compare.check_out} · {party}
-        </span>
-        <span className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1">
-          {age ? <span className="text-ink-subtle">{age}</span> : null}
-          <button
-            type="button"
-            className="text-[12.5px] text-ink-muted underline-offset-2 hover:text-ink hover:underline"
-            onClick={() => setShowTeam((prev) => !prev)}
-            aria-pressed={showTeam}
-          >
-            {showTeam ? "Hide team cost" : "Show team cost"}
-          </button>
-        </span>
-      </div>
-
-      {compare.preference ? (
-        <p className="text-[13.5px] text-ink-muted">Preference: {compare.preference}</p>
-      ) : null}
-
       {fromLines.length > 1 ? (
         <p className="text-[13.5px] text-ink">{fromLines.join(" · ")}</p>
       ) : null}
@@ -221,7 +209,6 @@ export function TripBuilderRateCompare({
             key={hotel.hotel}
             hotel={hotel}
             nights={compare.nights ?? null}
-            showTeam={showTeam}
           />
         ))}
       </div>
@@ -232,11 +219,9 @@ export function TripBuilderRateCompare({
 function HotelRates({
   hotel,
   nights,
-  showTeam,
 }: {
   hotel: RateCompareHotel;
   nights: number | null;
-  showTeam: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const rooms = hotel.rooms ?? [];
@@ -285,7 +270,6 @@ function HotelRates({
                 room={room}
                 nights={nights}
                 packageMode={packageMode}
-                showTeam={showTeam}
                 showSource={!hideSourceColumn}
               />
             ))}
@@ -334,7 +318,6 @@ function HotelRates({
                     room={room}
                     nights={nights}
                     packageMode={packageMode}
-                    showTeam={showTeam}
                     showSource={!hideSourceColumn}
                   />
                 ))}
@@ -370,19 +353,24 @@ function RoomTableRow({
   room,
   nights,
   packageMode,
-  showTeam,
   showSource,
 }: {
   room: RateCompareRoom;
   nights: number | null;
   packageMode: boolean;
-  showTeam: boolean;
   showSource: boolean;
 }) {
-  const { teamTotal, clientTotal, clientPerNight, teamPerNight } = roomPrices(room, nights);
+  const {
+    teamTotal,
+    clientTotal,
+    clientPerNight,
+    teamPerNight,
+    packageTeam,
+    packageClient,
+    extraTeam,
+    extraClient,
+  } = roomPrices(room, nights);
   const showAsPackage = packageMode || isPackageRoom(room);
-  const extraClient = room.extra_night_client;
-  const extraTeam = room.extra_night_team;
 
   return (
     <tr
@@ -399,19 +387,17 @@ function RoomTableRow({
         <>
           <td className="px-3 py-2 tabular-nums text-ink">
             <MoneyCell
-              client={clientTotal}
-              team={teamTotal}
+              client={packageClient}
+              team={packageTeam}
               currency={room.currency}
-              showTeam={showTeam}
             />
           </td>
           <td className="px-3 py-2 tabular-nums text-ink">
-            {extraClient != null && extraTeam != null ? (
+            {extraTeam != null ? (
               <MoneyCell
                 client={extraClient}
                 team={extraTeam}
                 currency={room.currency}
-                showTeam={showTeam}
               />
             ) : (
               <span className="text-ink-subtle">—</span>
@@ -425,7 +411,6 @@ function RoomTableRow({
               client={clientPerNight}
               team={teamPerNight}
               currency={room.currency}
-              showTeam={showTeam}
             />
           </td>
           <td className="px-3 py-2 tabular-nums text-ink">
@@ -433,7 +418,6 @@ function RoomTableRow({
               client={clientTotal}
               team={teamTotal}
               currency={room.currency}
-              showTeam={showTeam}
             />
           </td>
         </>
@@ -450,19 +434,24 @@ function RoomMobileCard({
   room,
   nights,
   packageMode,
-  showTeam,
   showSource,
 }: {
   room: RateCompareRoom;
   nights: number | null;
   packageMode: boolean;
-  showTeam: boolean;
   showSource: boolean;
 }) {
-  const { teamTotal, clientTotal, clientPerNight, teamPerNight } = roomPrices(room, nights);
+  const {
+    teamTotal,
+    clientTotal,
+    clientPerNight,
+    teamPerNight,
+    packageTeam,
+    packageClient,
+    extraTeam,
+    extraClient,
+  } = roomPrices(room, nights);
   const showAsPackage = packageMode || isPackageRoom(room);
-  const extraClient = room.extra_night_client;
-  const extraTeam = room.extra_night_team;
 
   return (
     <article
@@ -493,22 +482,20 @@ function RoomMobileCard({
               <dt className="text-[11px] font-medium text-ink-muted">Package total</dt>
               <dd className="tabular-nums text-ink">
                 <MoneyCell
-                  client={clientTotal}
-                  team={teamTotal}
+                  client={packageClient}
+                  team={packageTeam}
                   currency={room.currency}
-                  showTeam={showTeam}
                 />
               </dd>
             </div>
             <div>
               <dt className="text-[11px] font-medium text-ink-muted">Extra night</dt>
               <dd className="tabular-nums text-ink">
-                {extraClient != null && extraTeam != null ? (
+                {extraTeam != null ? (
                   <MoneyCell
                     client={extraClient}
                     team={extraTeam}
                     currency={room.currency}
-                    showTeam={showTeam}
                   />
                 ) : (
                   <span className="text-ink-subtle">—</span>
@@ -525,7 +512,6 @@ function RoomMobileCard({
                   client={clientPerNight}
                   team={teamPerNight}
                   currency={room.currency}
-                  showTeam={showTeam}
                 />
               </dd>
             </div>
@@ -536,7 +522,6 @@ function RoomMobileCard({
                   client={clientTotal}
                   team={teamTotal}
                   currency={room.currency}
-                  showTeam={showTeam}
                 />
               </dd>
             </div>
@@ -568,8 +553,8 @@ function HotelNotes({
         <div>
           <dt className="inline font-medium text-ink">Pricing: </dt>
           <dd className="inline">
-            Package total is for this stay. Extra night applies when the stay is longer than the
-            package.
+            Package total is the package amount. Extra night is per night beyond the package.
+            Sell = package + extra nights, each at your markup.
           </dd>
         </div>
       ) : null}
@@ -581,7 +566,7 @@ function HotelNotes({
       ) : null}
       {markup ? (
         <div>
-          <dt className="inline font-medium text-ink">Commission rate: </dt>
+          <dt className="inline font-medium text-ink">Applied markup: </dt>
           <dd className="inline">{markup}</dd>
         </div>
       ) : null}

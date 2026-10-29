@@ -157,7 +157,7 @@ export function buildQuoteBreakup(input: {
       ...empty,
       hotelNet,
       tax,
-      note: "Client price and hotel net use different currencies, so margin is not calculated.",
+      note: "Sell and cost use different currencies, so margin is not calculated.",
     };
   }
 
@@ -172,8 +172,8 @@ export function buildQuoteBreakup(input: {
     clientPrice,
     pricedLabel,
     note: taxReady
-      ? "Margin is the client price minus the hotel net and tax."
-      : "Margin is the client price minus the hotel net. Tax is not set.",
+      ? "Margin is the sell minus the cost and tax."
+      : "Margin is the sell minus the cost. Tax is not set.",
     teamCostAmount,
   };
 }

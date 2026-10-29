@@ -1,6 +1,6 @@
 import type { NormalizedRateOption } from "@pureluxe/rates";
 
-import { clientPriceAtMarkup, formatRoomMoney, markupPercentFromNotes } from "./price-math";
+import { formatRoomMoney } from "./price-math";
 
 /**
  * A question about the hotel, the rooms, or the rules on the last search.
@@ -54,15 +54,12 @@ export function occupancyLine(raw: Record<string, unknown>): string | null {
   return parts.length > 0 ? parts.join(", ") : null;
 }
 
-function roomLine(option: NormalizedRateOption, index: number, markupPercent: number | null): string {
+function roomLine(option: NormalizedRateOption, index: number): string {
   const room = option.room_name?.trim() || option.property_name?.trim() || "Room";
   const bits = [
     `${index}. ${room}`,
     option.board ? `board ${option.board}` : null,
-    `team cost ${formatRoomMoney(option.cost_internal, option.currency)}`,
-    markupPercent == null
-      ? null
-      : `suggested client price at ${markupPercent}% commission rate ${formatRoomMoney(clientPriceAtMarkup(option.cost_internal, markupPercent), option.currency)}`,
+    `cost ${formatRoomMoney(option.cost_internal, option.currency)}`,
     typeof option.raw.cost_amount === "number" && typeof option.raw.cost_unit === "string"
       ? `${formatRoomMoney(option.raw.cost_amount, option.currency)} ${option.raw.cost_unit.replaceAll("_", " ")}`
       : null,
@@ -95,23 +92,18 @@ function roomLine(option: NormalizedRateOption, index: number, markupPercent: nu
 export function buildRateSearchNotes(
   options: NormalizedRateOption[],
   hotelBrief: string | null,
-  markupNote?: string | null,
+  _markupNote?: string | null,
 ): string {
   const hotel = options[0]?.property_name?.trim() || "This hotel";
   const stay =
     options[0] != null ? `${options[0].check_in} to ${options[0].check_out}` : "these dates";
-  const markupPercent = markupPercentFromNotes(markupNote);
   const rooms =
     options.length > 0
-      ? options.map((option, index) => roomLine(option, index + 1, markupPercent)).join("\n")
+      ? options.map((option, index) => roomLine(option, index + 1)).join("\n")
       : "No room rate covers these dates.";
   const facts = hotelBrief?.trim() || "No other hotel facts for these dates.";
-  const suggestion =
-    markupPercent == null
-      ? "No minimum markup is set, so there is no suggested client price."
-      : `Suggested client price is the team cost plus the minimum markup of ${markupPercent}%. It is not saved.`;
   return [
-    `Hotel rates for ${hotel}, ${stay}. Team cost is the advisor cost. ${suggestion}`,
+    `Hotel rates for ${hotel}, ${stay}. Cost is the advisor net. Sell needs a markup % or amount from the advisor — do not suggest a hotel minimum markup.`,
     "Rooms:",
     rooms,
     "Hotel facts:",

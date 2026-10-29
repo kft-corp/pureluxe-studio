@@ -1,7 +1,10 @@
 import {
   clearSelectedAccommodationForLeg,
   deleteTripCompanion,
+  deleteTripLineItemsByIds,
+  deleteUnselectedStayOptions,
   findStayShellLineItem,
+  listPricedAccommodationLineItems,
   listTripLegs,
   listTripTravellers,
   patchStayShellParty,
@@ -17,7 +20,7 @@ import { AppError, tripMessages } from "@pureluxe/shared";
 import { requireActiveClient } from "@/lib/clients/require-active-client";
 
 import { requireEditableTrip } from "../access/require-assigned-trip";
-import { markQuoteStale } from "../stays/stay-side-effects";
+import { refreshOptionsQuotePdfAfterChange } from "../options-quote/options-quote";
 import { syncTripCommercials } from "../pricing/sync-trip-commercials";
 import { syncTripHotelBooking } from "../pricing/sync-trip-booking";
 import { closeTripRateSearches } from "@/lib/rates/rate-search-store";
@@ -41,7 +44,11 @@ function storedCount(value: unknown): number | null {
 }
 
 /** Copy the named party onto each stay. A real count change clears that stay's rate. */
-async function applyPartyToStays(tripId: string, after: TripTravellerRow[]): Promise<void> {
+async function applyPartyToStays(
+  tripId: string,
+  after: TripTravellerRow[],
+  actor: { memberId: string },
+): Promise<void> {
   const next = partyCounts(after);
   const legs = await listTripLegs(tripId);
   let changed = false;
@@ -55,10 +62,15 @@ async function applyPartyToStays(tripId: string, after: TripTravellerRow[]): Pro
     if (differs && shell) {
       changed = true;
       await clearSelectedAccommodationForLeg(tripId, leg.id);
+      await deleteUnselectedStayOptions(tripId, leg.id);
+      const priced = await listPricedAccommodationLineItems(tripId, leg.id);
+      if (priced.length > 0) {
+        await deleteTripLineItemsByIds(priced.map((row) => row.id));
+      }
     }
   }
   if (changed) {
-    await markQuoteStale(tripId);
+    await refreshOptionsQuotePdfAfterChange(tripId, actor);
     await syncTripCommercials(tripId);
   }
 }
@@ -108,7 +120,7 @@ export async function changeTripLead(
   await dbUpdateTrip(trip.id, patch);
 
   if (trip.travellers_confirmed_at) {
-    await applyPartyToStays(trip.id, await listTripTravellers(trip.id));
+    await applyPartyToStays(trip.id, await listTripTravellers(trip.id), actor);
   }
   return finish(trip.id, actor);
 }
@@ -173,7 +185,7 @@ export async function addTripTravellers(
     ),
   );
   if (trip.travellers_confirmed_at) {
-    await applyPartyToStays(trip.id, await listTripTravellers(trip.id));
+    await applyPartyToStays(trip.id, await listTripTravellers(trip.id), actor);
   }
   return finish(trip.id, actor);
 }
@@ -212,7 +224,7 @@ export async function removeTripTraveller(
 
   await deleteTripCompanion(trip.id, clientId);
   if (trip.travellers_confirmed_at) {
-    await applyPartyToStays(trip.id, await listTripTravellers(trip.id));
+    await applyPartyToStays(trip.id, await listTripTravellers(trip.id), actor);
   }
   return finish(trip.id, actor);
 }
@@ -259,6 +271,6 @@ export async function confirmTripTravellers(
   if (!trip.travellers_confirmed_at) {
     await dbUpdateTrip(trip.id, { travellers_confirmed_at: new Date().toISOString() });
   }
-  await applyPartyToStays(trip.id, await listTripTravellers(trip.id));
+  await applyPartyToStays(trip.id, await listTripTravellers(trip.id), actor);
   return finish(trip.id, actor);
 }

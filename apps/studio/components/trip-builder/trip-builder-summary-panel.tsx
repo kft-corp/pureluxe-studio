@@ -310,6 +310,9 @@ export function TripBuilderSummaryPanel({
                         stay={stay}
                         stays={stays}
                         rate={selectedRate(detail, stay.leg_id)}
+                        optionsPending={detail.rates.candidates.some(
+                          (row) => row.leg_id === stay.leg_id && !row.selected,
+                        )}
                         active={stay.leg_id === activeLegId}
                         onSelect={() => onSelectStay(stay.leg_id)}
                       />
@@ -368,7 +371,7 @@ export function TripBuilderSummaryPanel({
                         </p>
                         <p className="mt-1 text-ink">
                           {moneyLabel(rate.sell_amount, rate.currency) ??
-                            "Client price not set"}
+                            "Sell not set"}
                         </p>
                       </div>
                     );
@@ -486,10 +489,10 @@ function PriceBreakup({
     sellCurrency: detail.quote.sell_currency,
   });
   const rows = [
-    ["Hotel net", price.hotelNet],
+    ["Cost", price.hotelNet],
     ["Tax", price.tax],
     ["Margin", price.margin && price.marginPercent ? `${price.margin} (${price.marginPercent})` : price.margin],
-    ["Client price", price.clientPrice],
+    ["Sell", price.clientPrice],
   ] as const;
 
   return (
@@ -499,14 +502,14 @@ function PriceBreakup({
           key={label}
           className={cn(
             "grid grid-cols-[6.25rem_1fr] items-baseline gap-2 py-1 text-[13px] leading-5",
-            label === "Client price" && "mt-0.5 border-t border-border pt-1.5",
+            label === "Sell" && "mt-0.5 border-t border-border pt-1.5",
           )}
         >
           <span className="font-normal text-ink-muted">{label}</span>
           <span
             className={cn(
               "font-medium break-words text-ink",
-              label === "Client price" && "font-semibold",
+              label === "Sell" && "font-semibold",
             )}
           >
             {value?.trim() || "Not set"}
@@ -527,18 +530,21 @@ function StayCard({
   stay,
   stays,
   rate,
+  optionsPending,
   active,
   onSelect,
 }: {
   stay: TripStaySnapshot;
   stays: TripStaySnapshot[];
   rate: TripRateSnapshot | null;
+  optionsPending: boolean;
   active: boolean;
   onSelect: () => void;
 }) {
   const dates = datesWithNights(stay.check_in, stay.check_out);
   const party = partyLabel(stay);
-  const hotel = stay.property_name?.trim();
+  const hotel =
+    stay.property_name?.trim() || (optionsPending ? "Options pending" : null);
   const city = stayHeading(stay, stays);
   const rateName = rate ? rate.subtitle?.trim() || rate.title : null;
 

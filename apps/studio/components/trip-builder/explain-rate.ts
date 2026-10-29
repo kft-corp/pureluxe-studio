@@ -90,7 +90,7 @@ export function explainRate(option: NormalizedRateOption): ExplainedRate {
   const priced = amount == null ? null : money(amount, currency);
   const stay = nightLabel(nights);
 
-  let why = `Team cost for ${stay}.`;
+  let why = `Cost for ${stay}.`;
   if (unit === "per_night" && priced) {
     why = `${priced} per night × ${stay}.`;
   } else if (unit === "per_person" && priced) {

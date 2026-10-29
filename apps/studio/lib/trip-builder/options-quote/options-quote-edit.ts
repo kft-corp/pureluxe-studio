@@ -44,7 +44,7 @@ export async function proposeOptionsQuoteEdit(
   if (quoteLineBlocked(text)) {
     return {
       kind: "none",
-      message: "Team cost, markup, bank details, and booking codes stay off the client quote.",
+      message: "Cost, markup, bank details, and booking codes stay off the client quote.",
     };
   }
 

@@ -13,6 +13,7 @@ export {
   undoTripChange,
 } from "./trip-changes";
 export {
+  acceptAndSelectQuoteFinal,
   addQuoteLines,
   addQuoteOptions,
   clearQuoteSection,

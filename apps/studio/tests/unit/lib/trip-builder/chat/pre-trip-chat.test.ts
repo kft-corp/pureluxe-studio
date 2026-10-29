@@ -52,7 +52,7 @@ describe("createPreTripChatStream", () => {
     const events = await readEvents(createPreTripChatStream(REQUEST, ACTOR));
 
     expect(events.map((event) => event.type)).toEqual(["meta", "delta", "done", "opened"]);
-    expect(events.at(-1)).toEqual({ type: "opened", tripId: "trip-new" });
+    expect(events.at(-1)).toEqual({ type: "opened", tripId: "trip-new", created: true });
     expect(agent.saveTripChatLines).toHaveBeenCalledWith(
       "trip-new",
       [

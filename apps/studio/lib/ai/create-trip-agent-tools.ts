@@ -4,7 +4,9 @@ import { AppError } from "@pureluxe/shared";
 import { getClientProfile } from "@/lib/clients";
 import { readRateSnapshot } from "@/lib/rates/rate-search-store";
 import { getTripDetail, getTripReadiness, type TripDetail } from "@/lib/trip-builder";
+import { loadChildAgeFacts } from "@/lib/trip-builder/party/child-ages-for-facts";
 import {
+  acceptAndSelectQuoteFinal,
   addQuoteLines,
   addQuoteOptions,
   clearQuoteSection,
@@ -37,8 +39,8 @@ import { toTripFacts } from "./to-trip-facts";
 type Options = DeskActor & { tripId: string };
 
 /**
- * After a quote wording/price change, rebuild the PDF and attach its URL so the
- * browser opens the new file. Edit still succeeds if preview fails.
+ * After a quote change, rebuild the PDF silently (no URL attach / no open).
+ * Edit still succeeds if rebuild fails.
  */
 async function withQuotePdfPreview(
   tripId: string,
@@ -47,11 +49,10 @@ async function withQuotePdfPreview(
 ): Promise<TripChange> {
   if (change.unchanged) return change;
   try {
-    const preview = await previewQuote(tripId, { force: true }, actor);
+    await previewQuote(tripId, { force: true }, actor);
     return {
       ...change,
-      summary: `${change.summary} The options quote is rebuilt and open.`,
-      url: preview.url,
+      summary: `${change.summary} The options quote is rebuilt.`,
     };
   } catch {
     return change;
@@ -89,7 +90,11 @@ export function createTripAgentTools(options: Options): TripAgentHandlers {
       const detail = changed ?? (await getTripDetail(options.tripId, actor));
       changed = null;
       latest = detail;
-      return toTripFacts(detail, await getTripReadiness(options.tripId, actor, detail));
+      const [readiness, childAges] = await Promise.all([
+        getTripReadiness(options.tripId, actor, detail),
+        loadChildAgeFacts(detail),
+      ]);
+      return toTripFacts(detail, readiness, childAges);
     },
 
     async getClient({ clientId }) {
@@ -117,6 +122,7 @@ export function createTripAgentTools(options: Options): TripAgentHandlers {
           rooms: input.rooms,
           adults: input.adults,
           children: input.children,
+          childAges: input.childAges,
         },
         actor,
       ),
@@ -129,15 +135,24 @@ export function createTripAgentTools(options: Options): TripAgentHandlers {
     shiftDates: (input, call) => shiftTrip(change("trip_shift_dates", input, call), input),
     undo: (call) => undoTripChange(change("trip_undo", {}, call)),
 
-    addQuoteOptions: (input, call) => addQuoteOptions(change("quote_add_options", input, call), input),
+    addQuoteOptions: async (input, call) =>
+      withQuotePdfPreview(
+        options.tripId,
+        actor,
+        await addQuoteOptions(change("quote_add_options", input, call), input),
+      ),
     setQuoteClientPrices: async (input, call) =>
       withQuotePdfPreview(
         options.tripId,
         actor,
         await setQuoteClientPrices(change("quote_set_client_price", input, call), input),
       ),
-    removeQuoteOption: (input, call) =>
-      removeQuoteOption(change("quote_remove_option", input, call), input),
+    removeQuoteOption: async (input, call) =>
+      withQuotePdfPreview(
+        options.tripId,
+        actor,
+        await removeQuoteOption(change("quote_remove_option", input, call), input),
+      ),
     setQuoteWording: async (input, call) =>
       withQuotePdfPreview(
         options.tripId,
@@ -170,10 +185,17 @@ export function createTripAgentTools(options: Options): TripAgentHandlers {
       ),
     listQuoteLines: () => listQuoteLinesForAgent(options.tripId, actor),
     previewQuote: (input) => previewQuote(options.tripId, input, actor),
-    usePastedQuote: (input, call) => usePastedQuote(change("rates_use_pasted_quote", input, call), input),
+    usePastedQuote: async (input, call) =>
+      withQuotePdfPreview(
+        options.tripId,
+        actor,
+        await usePastedQuote(change("rates_use_pasted_quote", input, call), input),
+      ),
     sendQuote: (call) => sendQuote(change("quote_send", {}, call)),
     selectFinal: (input, call) =>
       selectQuoteFinal(change("quote_select_final", input, call), input),
+    acceptAndSelect: (input, call) =>
+      acceptAndSelectQuoteFinal(change("quote_accept_and_select", input, call), input),
     proposeSplit: (input) =>
       proposeTripSplit(options.tripId, input, actor, latest),
   };

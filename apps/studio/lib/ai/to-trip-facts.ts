@@ -2,6 +2,7 @@ import type { TripFacts } from "@pureluxe/ai";
 
 import { buildQuoteBreakup } from "@/components/trip-builder/quote-price";
 import { resolveNextStep, resolveTripStage, tripStays } from "@/components/trip-builder/stages";
+import type { ChildAgeFact } from "@/lib/trip-builder/party/child-ages-for-facts";
 import type { TripDetail, TripRateSnapshot } from "@/lib/trip-builder";
 
 function toRateFact(rate: TripRateSnapshot) {
@@ -35,7 +36,11 @@ function stayFact(
 }
 
 /** Map Studio trip aggregate → lean AI trip facts. */
-export function toTripFacts(detail: TripDetail, readiness?: string[]): TripFacts {
+export function toTripFacts(
+  detail: TripDetail,
+  readiness?: string[],
+  childAges?: Record<string, ChildAgeFact>,
+): TripFacts {
   const selected = detail.rates.selected;
   const price = buildQuoteBreakup({
     stays: tripStays(detail),
@@ -69,12 +74,17 @@ export function toTripFacts(detail: TripDetail, readiness?: string[]): TripFacts
       ? { id: detail.client.id, display_name: detail.client.display_name }
       : null,
     travellers_confirmed: Boolean(detail.trip.travellers_confirmed_at),
-    travellers: detail.travellers.map((person) => ({
-      client_id: person.client_id,
-      display_name: person.display_name,
-      role: person.role,
-      party_role: person.party_role,
-    })),
+    travellers: detail.travellers.map((person) => {
+      const ages = childAges?.[person.client_id];
+      return {
+        client_id: person.client_id,
+        display_name: person.display_name,
+        role: person.role,
+        party_role: person.party_role,
+        ...(ages?.age_on_arrival != null ? { age_on_arrival: ages.age_on_arrival } : {}),
+        ...(ages?.dob_missing ? { dob_missing: true } : {}),
+      };
+    }),
     family_suggestions: detail.family_suggestions.map((person) => ({
       client_id: person.client_id,
       display_name: person.display_name,

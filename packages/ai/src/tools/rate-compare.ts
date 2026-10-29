@@ -7,12 +7,15 @@ export type RateCompareRoom = {
   /** Stored rate_search_results.id — used when adding to the quote. */
   rate_ref: string;
   room_name: string;
-  /** All-in team cost for the party as searched (stay total / package total). */
+  /**
+   * All-in team cost for the stay (package + extra nights when used).
+   * Quote sell / markup applies to this figure.
+   */
   team_cost: number;
-  /** Client stay total at the suggested markup. */
-  client_total: number;
-  /** Client cost per night (client_total / nights). Nightly rates only in the UI. */
-  client_per_night: number;
+  /** Client stay total after advisor markup; null until a markup is chosen. */
+  client_total: number | null;
+  /** Client cost per night; null until a markup is chosen. */
+  client_per_night: number | null;
   /** Team cost per night (team_cost / nights). Nightly rates only in the UI. */
   team_per_night: number;
   currency: string;
@@ -30,9 +33,16 @@ export type RateCompareRoom = {
   rate_basis: "nightly" | "package" | null;
   /** Package length from the contract (e.g. 3). Null when not a package. */
   package_nights: number | null;
+  /**
+   * Team package-sheet amount (before extra nights). Shown in the Package total
+   * column; null when not a package. Stay sell still uses team_cost.
+   */
+  package_team: number | null;
+  /** Extra nights beyond package_nights for this stay (0 when exact package). */
+  extra_nights_count: number | null;
   /** Team extra-night amount when the stay is longer than the package. */
   extra_night_team: number | null;
-  /** Client extra-night at the suggested markup. */
+  /** Client extra-night after advisor markup; null until a markup is chosen. */
   extra_night_client: number | null;
   /** Short advisor label, e.g. "3N package" or "3N + 1 extra". */
   package_label: string | null;
@@ -44,8 +54,8 @@ export type RateCompareRoom = {
   cancel_days: number | null;
   /** Inclusions / amenities for this rate (short list). */
   inclusions: string[];
-  /** Markup % used for client columns. */
-  markup_percent: number;
+  /** Markup % used for client columns; null until the advisor picks one. */
+  markup_percent: number | null;
   /** Best room for this search (at most one across the card). */
   recommended: boolean;
   /** Suggested markup buttons, e.g. 25 / 30. */
@@ -64,7 +74,7 @@ export type RateCompareHotelStatus =
 export type RateCompareHotelNotes = {
   /** Cancel policy with cancel-by date when known. */
   cancellation: string | null;
-  /** Commission rate line for the advisor (min % used for client columns). */
+  /** Applied markup line when the advisor has chosen one; otherwise null. */
   markup: string | null;
   /** Combined inclusions across rooms (deduped, short). */
   inclusions: string[];

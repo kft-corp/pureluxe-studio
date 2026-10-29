@@ -25,11 +25,11 @@ function clientChoseRoom(trip: TripFacts | null): boolean {
 export const ratesGetSnapshotTool = defineAgentTool({
   name: "rates_get_snapshot",
   description: [
-    "Read the last rate search on this trip: the rooms found with team cost, inclusions, cancellation and payment, plus the hotel rules for those dates.",
+    "Read the last rate search on this trip: the rooms found with cost, inclusions, cancellation and payment, plus the hotel rules for those dates.",
     "Use for follow-up questions about rooms, prices, what is included, cancellation, offers or which room suits the client.",
     "When the client already chose a room (trip facts show selected / status booking): prefer this or the trip facts for a price check — answer only for the chosen room(s); do not re-shop other rooms.",
     "Do not use for hotels never searched (use rates_search or hotel_get).",
-    "Returns status none when there is no recent search: tell the advisor to search rates first. Team cost is the advisor's cost, never the client price. Call these the current rates when you speak to the advisor.",
+    "Returns status none when there is no recent search: tell the advisor to search rates first. Cost is the advisor's net, never the sell. Call these the current rates when you speak to the advisor. Never suggest a hotel minimum markup.",
   ].join(" "),
   schema: z.object({}).strict(),
   risk: "read",
@@ -44,13 +44,13 @@ export const ratesSearchTool = defineAgentTool({
     "Use when the advisor names hotels for prices, asks for rates / cheapest / compare costs, or says \"need rates\" / \"suggest and get rates\". Pass hotels in one call (max 5); they run in parallel. Run immediately; never ask \"Search rates?\".",
     "Do not use after hotel_find when the advisor only asked to suggest or find hotels — wait until they ask for rates or tap Rates.",
     "When suggest-and-rates in one message: search the top 1–2 hotel_find picks unless they named more hotels or said all / every.",
-    "When the client already chose a room (selected in trip facts / booking stage) and the advisor only wants today's price for that choice: search only the chosen hotel(s), then reply in short prose comparing the chosen room's quoted client price to today's team cost / commission rate. Do not suggest other rooms or treat it as a new quote.",
+    "When the client already chose a room (selected in trip facts / booking stage) and the advisor only wants today's price for that choice: search only the chosen hotel(s), then reply in short prose comparing the chosen room's quoted sell to today's cost. Do not suggest other rooms or treat it as a new quote. Never mention hotel minimum markup or commission rate.",
     "When the advisor also wants the hotel on the trip itinerary, call trip_set_stays in the same turn, then this. Pricing alone does not need trip_set_stays.",
     "Do not use for place questions (place_get_notes) or to list hotels without prices (hotel_find).",
-    "Returns one entry per hotel: ok | no_rates | not_in_pureluxe | several_matches | offline | timeout, with alternatives when not ok. Team cost is advisor-only. Never echo status codes or brand names in the reply — say \"I can't offer that hotel\" / \"no rates for those dates\" in plain language.",
+    "Returns one entry per hotel: ok | no_rates | not_in_pureluxe | several_matches | offline | timeout, with alternatives when not ok. Cost is advisor-only. Never echo status codes or brand names in the reply — say \"I can't offer that hotel\" / \"no rates for those dates\" in plain language.",
     "When status is no_rates: say so, suggest other stay dates or another hotel from hotel_find, or rates_use_pasted_quote — never invent prices or seasons.",
-    "After this tool (shopping only): Studio shows the room-rate table under the reply. Reply in 2–3 short lines (which room to prefer + next step). Do not restate prices, meal plans, or the full inclusions list. Heads-up only for cancel/market risk. Package rates → package totals (+ extra night) if you must name a figure; nightly → per night / stay total. Never paste a markdown table of rooms or prices. Advisors add rooms via chat with quote_add_options, not row buttons.",
-    "When comparing hotels on fit (which hotel is better), use the fixed hotel-compare markdown table (Entry room, Pool upgrade, Water / overwater, Meal plans, Transfers & taxes, Free cancel until, Commission rate — never Minimum markup; optional Location / Family). That compare table is separate from the room-rate UI table.",
+    "After this tool (shopping only): Studio shows the room-rate table under the reply (Set markup / cost). Reply in 1–2 short lines (which room to prefer + next step). Do not restate hotel, dates, party, preference, prices, meal plans, or the full inclusions list — header/sidebar and the table already have them. Heads-up only for cancel/market risk. Package rates → package sheet + extra-night; sell after markup is package + extras for the stay. Nightly → per night / stay total. Never paste a markdown table of rooms or prices. Advisors add rooms via chat with quote_add_options, not row buttons.",
+    "When comparing hotels on fit (which hotel is better), use the fixed hotel-compare markdown table (Entry room, Pool upgrade, Water / overwater, Meal plans, Transfers & taxes, Free cancel until, Applied markup; optional Location / Family). That compare table is separate from the room-rate UI table. Pass child_ages when the advisor stated ages.",
   ].join(" "),
   schema: z
     .object({
@@ -65,6 +65,11 @@ export const ratesSearchTool = defineAgentTool({
       rooms: z.number().int().min(1).max(10).default(1),
       adults: z.number().int().min(1).max(20),
       children: z.number().int().min(0).max(20).default(0),
+      child_ages: z
+        .array(z.number().int().min(0).max(17))
+        .max(20)
+        .optional()
+        .describe("Stated child ages when known; preferred over passport DOBs."),
     })
     .strict(),
   risk: "read",
@@ -106,5 +111,6 @@ export const ratesSearchTool = defineAgentTool({
       rooms: input.rooms,
       adults: input.adults,
       children: input.children,
+      childAges: input.child_ages,
     }),
 });

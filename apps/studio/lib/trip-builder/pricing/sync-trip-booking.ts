@@ -178,7 +178,7 @@ function tripBuilderNotes(
   recordNotes: string | null,
 ): string {
   const lines = [
-    `${TRIP_BUILDER_NOTE_PREFIX} The client price stays on the trip.`,
+    `${TRIP_BUILDER_NOTE_PREFIX} The sell stays on the trip.`,
   ];
   if (inclusions.length > 0) {
     lines.push(`Includes: ${inclusions.join(", ")}.`);

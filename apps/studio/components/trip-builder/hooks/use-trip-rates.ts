@@ -30,12 +30,7 @@ import {
 } from "../trip-builder-copy";
 import { explainRate } from "../explain-rate";
 
-import {
-  clientPriceAtMarkup,
-  formatRoomMoney,
-  markupPercentFromNotes,
-  type PricedRoom,
-} from "@/lib/rates/price-math";
+import { type PricedRoom } from "@/lib/rates/price-math";
 
 import {
   formatMoney,
@@ -55,7 +50,7 @@ import { partyFromTravellers, travellersConfirmed } from "../stages";
 import type { TripChat } from "./use-trip-chat";
 import type { TripCore } from "./use-trip-core";
 
-/** Rooms and prices: rate searches, room options with client prices, the client's choice, and today's cost. */
+/** Rooms and prices: rate searches, room options with sells, the client's choice, and today's cost. */
 export function useTripRates(core: TripCore, chat: TripChat) {
   const {
     detail,
@@ -252,7 +247,7 @@ export function useTripRates(core: TripCore, chat: TripChat) {
       const explained = explainRate(choice.option);
       return [
         `**${explained.room}**`,
-        `Team cost **${explained.price}**. ${explained.why}`,
+        `Cost **${explained.price}**. ${explained.why}`,
         explained.occupancy ? `Occupancy: ${explained.occupancy}.` : null,
         explained.benefits.length > 0
           ? `Included: ${explained.benefits.join(", ")}.`
@@ -260,7 +255,6 @@ export function useTripRates(core: TripCore, chat: TripChat) {
         explained.cancellation
           ? `Cancellation: ${explained.cancellation}`
           : "Cancellation is not on file.",
-        rateStayNotes?.markup ?? null,
       ]
         .filter((line): line is string => Boolean(line))
         .join("\n\n");
@@ -272,11 +266,10 @@ export function useTripRates(core: TripCore, chat: TripChat) {
     return [
       `**${title}**`,
       sell
-        ? `Client price on the options quote **${sell}**. Team cost **${formatMoney(choice.row.cost_internal, choice.row.currency) || "on the card"}**.`
-        : `Team cost **${formatMoney(choice.row.cost_internal, choice.row.currency) || "on the card"}**. No client price is set on the options quote for this room.`,
+        ? `Sell on the options quote **${sell}**. Cost **${formatMoney(choice.row.cost_internal, choice.row.currency) || "on the card"}**.`
+        : `Cost **${formatMoney(choice.row.cost_internal, choice.row.currency) || "on the card"}**. No sell is set on the options quote for this room.`,
       included.length > 0 ? `Included: ${included.join(", ")}.` : "Nothing is listed as included.",
       cancel ? `Cancellation: ${cancel}` : "Cancellation is not on file.",
-      rateStayNotes?.markup ?? null,
     ]
       .filter((line): line is string => Boolean(line))
       .join("\n\n");
@@ -289,11 +282,11 @@ export function useTripRates(core: TripCore, chat: TripChat) {
     const money = formatMoney(commit.amount, commit.currency);
     const priceLine =
       commit.amount == null
-        ? "The client price stays empty, so the PDF prints To be confirmed."
-        : `Client price **${money}**. The team cost stays **${commit.costLabel}**.`;
+        ? "The sell stays empty, so the PDF prints To be confirmed."
+        : `Sell **${money}**. The cost stays **${commit.costLabel}**.`;
     const action =
       commit.mode === "price"
-        ? `Set the client price for **${commit.title}**?`
+        ? `Set the sell for **${commit.title}**?`
         : `Save **${commit.title}** on the options quote?`;
     void appendTurn(
       userLine,
@@ -308,11 +301,9 @@ export function useTripRates(core: TripCore, chat: TripChat) {
     );
   }
 
-  function markupSuggestion(cost: number | null, currency: string | null): string | null {
-    const percent = markupPercentFromNotes(rateStayNotes?.markup ?? null);
-    if (percent == null || cost == null) return null;
-    const suggested = formatRoomMoney(clientPriceAtMarkup(cost, percent), currency);
-    return `At the minimum markup of ${percent}% on file, the client price would be **${suggested}**. Send that amount, or a different one.`;
+  function markupSuggestion(_cost: number | null, _currency: string | null): string | null {
+    // MVP (#29): do not suggest sells from hotel minimum markup.
+    return null;
   }
 
   function roomsForPriceMath(): PricedRoom[] {
@@ -351,7 +342,7 @@ export function useTripRates(core: TripCore, chat: TripChat) {
       setOffer(null);
       void appendTurn(
         userLine,
-        `**${draft.title}** is priced in **${draft.currency}**. Send the client price in ${draft.currency}.`,
+        `**${draft.title}** is priced in **${draft.currency}**. Send the Sell in ${draft.currency}.`,
       );
       return;
     }
@@ -362,8 +353,8 @@ export function useTripRates(core: TripCore, chat: TripChat) {
       void appendTurn(
         userLine,
         current
-          ? `**${draft.title}** is already on the options quote. Client price **${current}**. Team cost **${draft.costLabel}**. Send a new amount to change it, for example **2400 ${draft.currency ?? "USD"}**.`
-          : `**${draft.title}** is already on the options quote. Team cost **${draft.costLabel}**.\n\nWhat client price should the PDF show? Send the amount, for example **2400 ${draft.currency ?? "USD"}**, or say **to be confirmed**.`,
+          ? `**${draft.title}** is already on the options quote. Sell **${current}**. Cost **${draft.costLabel}**. Send a new amount to change it, for example **2400 ${draft.currency ?? "USD"}**.`
+          : `**${draft.title}** is already on the options quote. Cost **${draft.costLabel}**.\n\nWhat sell should the PDF show? Send the amount, for example **2400 ${draft.currency ?? "USD"}**, or say **to be confirmed**.`,
       );
       return;
     }
@@ -377,7 +368,7 @@ export function useTripRates(core: TripCore, chat: TripChat) {
         [
           roomFacts(choice),
           suggest,
-          `What client price should this room show? Send the amount in **${draft.currency ?? "the room currency"}**, for example **2400 ${draft.currency ?? "USD"}**. Say **to be confirmed** to add it with no price yet.`,
+          `What sell should this room show? Send the amount in **${draft.currency ?? "the room currency"}**, for example **2400 ${draft.currency ?? "USD"}**. Say **to be confirmed** to add it with no price yet.`,
         ]
           .filter((line): line is string => Boolean(line))
           .join("\n\n"),
@@ -416,7 +407,7 @@ export function useTripRates(core: TripCore, chat: TripChat) {
     if (detail.pricing_locked && row.sell_amount == null) {
       void appendTurn(
         "Client chose this",
-        "This room has no client price on the accepted quote, so it cannot be chosen while pricing is locked. Reopen the quote on the trip page to price it.",
+        "This room has no Sell on the accepted quote, so it cannot be chosen while pricing is locked. Reopen the quote on the trip page to price it.",
       );
       return;
     }
@@ -431,7 +422,7 @@ export function useTripRates(core: TripCore, chat: TripChat) {
     void commitSelect(draft, "Client chose this");
   }
 
-  /** Ask for a new client price on the client's chosen room. The reply runs the usual price confirm. */
+  /** Ask for a new sell on the client's chosen room. The reply runs the usual price confirm. */
   function offerRoomPrice(row: SavedRate, userLine: string) {
     const draft = draftFromChoice({
       title: row.subtitle?.trim() || row.title,
@@ -441,15 +432,9 @@ export function useTripRates(core: TripCore, chat: TripChat) {
     setPendingOptionDraft(draft);
     setOffer(null);
     setQuietChips(false);
-    const markup = markupPercentFromNotes(rateStayNotes?.markup ?? null);
-    const cost = row.cost_internal == null ? null : Number(row.cost_internal);
-    const suggestion =
-      markup != null && cost != null && Number.isFinite(cost)
-        ? ` At the ${markup}% minimum markup that is **${formatMoney(clientPriceAtMarkup(cost, markup), row.currency)}**.`
-        : "";
     void appendTurn(
       userLine,
-      `**${draft.title}**: client price ${draft.sellLabel ? `**${draft.sellLabel}**` : "not set"}. Team cost **${draft.costLabel}**.${suggestion}\n\nSend the new client price, for example **2400 ${draft.currency ?? "USD"}**. The trip price and the pending booking update with it.`,
+      `**${draft.title}**: sell ${draft.sellLabel ? `**${draft.sellLabel}**` : "not set"}. Cost **${draft.costLabel}**.\n\nSend the new sell, for example **2400 ${draft.currency ?? "USD"}**. The trip price and the pending booking update with it.`,
     );
   }
 
@@ -467,9 +452,9 @@ export function useTripRates(core: TripCore, chat: TripChat) {
       const sell = row ? formatMoney(row.sell_amount, row.currency) : "";
       appendTurn(
         `Use today's cost · ${money}`,
-        `Team cost for **${update.room}** is now **${money}**. The pending booking and the margin are updated.${
-          sell ? ` The client price stays **${sell}**.` : ""
-        }\n\nTap **Set client price** if the client price needs to change, or book with the hotel and confirm the booking in **Bookings**.`,
+        `Cost for **${update.room}** is now **${money}**. The pending booking and the margin are updated.${
+          sell ? ` The sell stays **${sell}**.` : ""
+        }\n\nTap **Set sell** if the sell needs to change, or book with the hotel and confirm the booking in **Bookings**.`,
       );
     } catch (error) {
       showApiError(error);
@@ -484,7 +469,7 @@ export function useTripRates(core: TripCore, chat: TripChat) {
     if (isPriceSkip(userLine) && quoteFrozen) {
       void appendTurn(
         userLine,
-        `The client accepted this trip, so **${draft.title}** needs a client price. Send the amount, for example **2400 ${draft.currency ?? "USD"}**.`,
+        `The client accepted this trip, so **${draft.title}** needs a sell. Send the amount, for example **2400 ${draft.currency ?? "USD"}**.`,
       );
       return;
     }
@@ -505,7 +490,7 @@ export function useTripRates(core: TripCore, chat: TripChat) {
     if (price.currency && draft.currency && price.currency !== draft.currency) {
       void appendTurn(
         userLine,
-        `**${draft.title}** is priced in **${draft.currency}**. Send the client price in ${draft.currency}.`,
+        `**${draft.title}** is priced in **${draft.currency}**. Send the Sell in ${draft.currency}.`,
       );
       return;
     }
@@ -526,7 +511,7 @@ export function useTripRates(core: TripCore, chat: TripChat) {
     setOffer(null);
     setPendingOptionDraft(null);
     const backToBuilding = isQuoteWithClient(detail.trip.status)
-      ? "\n\nThe client's copy is now out of date, so the trip is back in **Building**. Regenerate the options quote and send it again."
+      ? "\n\nThe client's copy is now out of date, so the trip is back in **Building**. The PDF was rebuilt — open it when you want to check, then send it again."
       : "";
     try {
       if (commit.mode === "price" && commit.lineItemId) {
@@ -542,8 +527,8 @@ export function useTripRates(core: TripCore, chat: TripChat) {
           const total = formatMoney(response.data.trip.sell_total, response.data.trip.sell_currency);
           appendTurn(
             userLine,
-            `Client price for **${commit.title}** is **${offer}**. The team cost stays **${commit.costLabel}**.${
-              total ? ` The trip client price is **${total}**.` : ""
+            `Sell for **${commit.title}** is **${offer}**. The cost stays **${commit.costLabel}**.${
+              total ? ` The trip sell is **${total}**.` : ""
             } The pending booking and the margin are updated, and the trip stays in **Booking**.\n\nBook with the hotel, then confirm the booking in **Bookings**.`,
           );
           return;
@@ -555,10 +540,10 @@ export function useTripRates(core: TripCore, chat: TripChat) {
         appendTurn(
           userLine,
           chosen
-            ? `Client price for **${commit.title}** is **${offer}**. The team cost stays **${commit.costLabel}**.${
-                tripTotal ? ` The trip client price is **${tripTotal}**.` : ""
+            ? `Sell for **${commit.title}** is **${offer}**. The cost stays **${commit.costLabel}**.${
+                tripTotal ? ` The trip sell is **${tripTotal}**.` : ""
               } The pending booking and the margin are updated.${backToBuilding}`
-            : `Client price for **${commit.title}** is **${offer}**. The team cost stays **${commit.costLabel}**.\n\nSay **show the options quote** to see the PDF, or add another room.${backToBuilding}`,
+            : `Sell for **${commit.title}** is **${offer}**. The cost stays **${commit.costLabel}**.\n\nSay **show the options quote** to see the PDF, or add another room.${backToBuilding}`,
         );
         return;
       }
@@ -583,7 +568,7 @@ export function useTripRates(core: TripCore, chat: TripChat) {
           : formatMoney(commit.amount, commit.currency);
       appendTurn(
         userLine,
-        `Added **${commit.title}** to the options quote. Client price **${offer}**. Team cost **${commit.costLabel}**.\n\nAdd another room the same way, say **show the options quote** to see the PDF, or set the wording with **note:**.${backToBuilding}`,
+        `Added **${commit.title}** to the options quote. Sell **${offer}**. Cost **${commit.costLabel}**.\n\nAdd another room the same way, say **show the options quote** to see the PDF, or set the wording with **note:**.${backToBuilding}`,
       );
     } catch (error) {
       showApiError(error);
@@ -622,7 +607,7 @@ export function useTripRates(core: TripCore, chat: TripChat) {
       await refreshAfterMutation(detail.trip.id);
       appendTurn(
         "Use pasted quote",
-        "Saved and selected that pasted quote. The amount is advisor cost, not the client price.\n\nNext, set the client sell price, for example **sell 4500 USD**.",
+        "Saved and selected that pasted quote. The amount is cost, not the sell.\n\nNext, set the sell, for example **sell 4500 USD**.",
       );
     } catch (error) {
       showApiError(error);
@@ -710,28 +695,16 @@ export function useTripRates(core: TripCore, chat: TripChat) {
     const to = shortStayDate(options[0].check_out);
     const count = Math.min(options.length, 6);
     const rateWord = count === 1 ? "1 rate" : `${count} rates`;
-    const markupPercent = markupPercentFromNotes(markup);
+    void markup;
     const lines = options.slice(0, 6).map((option, index) => {
       const explained = explainRate(option);
-      if (markupPercent == null) {
-        return `${index + 1}. **${explained.room}** — ${explained.price}`;
-      }
-      const suggested = formatRoomMoney(
-        clientPriceAtMarkup(option.cost_internal, markupPercent),
-        option.currency,
-      );
-      return `${index + 1}. **${explained.room}** — team cost ${explained.price} · suggest ${suggested}`;
+      return `${index + 1}. **${explained.room}** — Cost ${explained.price}`;
     });
-    const suggestion =
-      markupPercent == null
-        ? null
-        : `Commission rate on file is ${markupPercent}%. The suggested client price is the team cost plus that percent. It is not saved.`;
     return [
       `**${hotel}** · ${from} – ${to} · ${first.nightsLabel} · ${party}`,
-      `${rateWord}. Each amount on the card is the team cost.`,
+      `${rateWord}. Each amount on the card is the cost. Give a markup % or sell to add a room — there is no hotel minimum markup.`,
       lines.join("\n"),
-      suggestion,
-      "Tap **Add for the client** on a room, then send the client price you want. Ask a percent question, such as **10% more on room 1**, and I will calculate it.",
+      "Ask a percent question, such as **10% more on room 1**, and I will calculate it.",
       "Ask me if you want help choosing. Once the client has picked, use **Client chose this** on a saved room.",
     ].filter((line): line is string => Boolean(line)).join("\n\n");
   }

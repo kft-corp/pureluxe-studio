@@ -6,7 +6,7 @@ import { isConfirmReply, isDeclineReply, isTripQuestion } from "@/lib/trip-build
 
 import { buildComposerChips } from "./build-composer-chips";
 import { useOptionsQuote } from "./hooks/use-options-quote";
-import { useTripChat } from "./hooks/use-trip-chat";
+import { useTripChat, type TripOpenedHandler } from "./hooks/use-trip-chat";
 import { useTripCore, type UseTripBuilderOptions } from "./hooks/use-trip-core";
 import { useTripRates } from "./hooks/use-trip-rates";
 import { useTripSession } from "./hooks/use-trip-session";
@@ -14,8 +14,13 @@ import type { TripBuilderChip } from "./trip-builder-action-chip";
 
 export function useTripBuilder(options: UseTripBuilderOptions) {
   const core = useTripCore(options);
-  const chat = useTripChat(core, options.initialDetail);
+  const onTripOpenedRef = useRef<TripOpenedHandler | null>(null);
+  const chat = useTripChat(core, options.initialDetail, onTripOpenedRef);
   const session = useTripSession(core, chat);
+  onTripOpenedRef.current = (tripId, { created }) => {
+    if (created) session.attachTripFromChat(tripId);
+    else session.openTrip(tripId);
+  };
   const {
     trips,
     detail,
@@ -65,6 +70,7 @@ export function useTripBuilder(options: UseTripBuilderOptions) {
     const message = text.trim();
     if (!message || !canWrite) return;
 
+    // Only queue while a reply is streaming; never leave a typed message queued when idle.
     if (chatBusy) {
       enqueueMessage(message);
       return;
@@ -91,10 +97,11 @@ export function useTripBuilder(options: UseTripBuilderOptions) {
   }
 
   // Send what was typed during a reply once the chat is free, one message at a time.
+  // Prefer flush when !chatBusy only — do not block forever on busy/pending.
   const flushingRef = useRef(false);
   const [, setFlushTick] = useState(0);
   useEffect(() => {
-    if (flushingRef.current || chatBusy || busy || pending || queuePaused || queuedCount === 0) {
+    if (flushingRef.current || chatBusy || queuePaused || queuedCount === 0) {
       return;
     }
     const next = dequeueMessage();
@@ -104,7 +111,7 @@ export function useTripBuilder(options: UseTripBuilderOptions) {
       flushingRef.current = false;
       setFlushTick((tick) => tick + 1);
     });
-  });
+  }, [chatBusy, busy, pending, queuePaused, queuedCount]);
 
   const built = buildComposerChips({
     detail,

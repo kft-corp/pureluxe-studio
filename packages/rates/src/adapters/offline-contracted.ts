@@ -195,6 +195,9 @@ export async function searchOfflineContracted(
         contracted_rate_ids: price.rate_ids,
         contract_id: price.contract_id,
         rate_basis: rate.rate_basis,
+        cost_unit: rate.cost_unit,
+        /** Package / row amount before extra nights (DMC sheet “package total”). */
+        package_amount: Number(rate.cost_amount),
         package_nights: rate.package_nights,
         extra_night_amount:
           rate.extra_night_amount == null ? null : Number(rate.extra_night_amount),

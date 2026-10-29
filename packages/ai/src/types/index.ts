@@ -54,7 +54,16 @@ export type TripFacts = {
   next_step?: string;
   client: { id: string; display_name: string } | null;
   travellers_confirmed?: boolean;
-  travellers?: Array<{ client_id?: string; display_name: string; role: string; party_role: string }>;
+  travellers?: Array<{
+    client_id?: string;
+    display_name: string;
+    role: string;
+    party_role: string;
+    /** Age on trip start / first check-in from passport DOB. Children only. */
+    age_on_arrival?: number;
+    /** True when travelling as a child with no passport DOB on file. */
+    dob_missing?: boolean;
+  }>;
   family_suggestions?: Array<{
     client_id?: string;
     display_name: string;

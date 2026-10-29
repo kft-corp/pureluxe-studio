@@ -61,13 +61,28 @@ export const tripSetTravellersTool = defineAgentTool({
   description: [
     "Add or remove travellers, or change someone between adult and child. The lead always stays.",
     "Use when the advisor adds or drops a person, or says someone is a child. Find a new person's id with client_search first.",
+    "When ages are stated (e.g. kids are 16): pass age on add — age 12+ becomes adult for pricing; pass child_ages on rates_search the same turn.",
     "Do not use to change the lead (use trip_set_client).",
     "Returns a summary of the change; the advisor gets Undo.",
   ].join(" "),
   schema: z
     .object({
       add: z
-        .array(z.object({ client_id: clientId, child: z.boolean().default(false) }).strict())
+        .array(
+          z
+            .object({
+              client_id: clientId,
+              child: z.boolean().default(false),
+              age: z
+                .number()
+                .int()
+                .min(0)
+                .max(120)
+                .optional()
+                .describe("Stated age; 12+ is treated as adult for party role."),
+            })
+            .strict(),
+        )
         .max(20)
         .default([])
         .describe("People to add, or to change between adult and child."),
@@ -80,7 +95,15 @@ export const tripSetTravellersTool = defineAgentTool({
     if (input.add.length + input.remove.length === 0) return { error: "Add or remove at least one person." };
     return handlers.setTravellers(
       {
-        add: input.add.map((person) => ({ clientId: person.client_id, partyRole: person.child ? "child" : "adult" })),
+        add: input.add.map((person) => {
+          const age = person.age;
+          const asAdult = age != null ? age >= 12 : !person.child;
+          return {
+            clientId: person.client_id,
+            partyRole: asAdult ? ("adult" as const) : ("child" as const),
+            age,
+          };
+        }),
         remove: input.remove,
       },
       call,

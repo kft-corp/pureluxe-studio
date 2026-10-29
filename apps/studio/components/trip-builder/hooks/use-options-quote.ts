@@ -51,7 +51,7 @@ export function useOptionsQuote(core: TripCore, chat: TripChat) {
           userLine,
           keepSent
             ? "This is the options quote the client has."
-            : `The options quote is open. A room with no client price prints as To be confirmed.${sendHandoff(detail)}`,
+            : `The options quote is open. A room with no sell prints as To be confirmed.${sendHandoff(detail)}`,
         );
       }
     } catch (error) {

@@ -53,11 +53,11 @@ export function priceCheck(
   const room = chosen.subtitle?.trim() || chosen.title;
   const onFile = formatMoney(chosen.cost_internal, chosen.currency) || "not set";
   const sell = formatMoney(chosen.sell_amount, chosen.currency);
-  const header = `**Price check · ${room}**\n\nTeam cost on file **${onFile}**${sell ? `. Client price **${sell}**` : ""}.`;
+  const header = `**Price check · ${room}**\n\nCost on file **${onFile}**${sell ? `. Sell **${sell}**` : ""}.`;
   const today = matchChosenRoom(chosen, options);
   if (!today) {
     return {
-      note: `${header}\n\nThis room is not in today's results, so check availability with the hotel before you book. You can still set the client price.`,
+      note: `${header}\n\nThis room is not in today's results, so check availability with the hotel before you book. You can still set the sell price.`,
       update: null,
     };
   }
@@ -67,14 +67,14 @@ export function priceCheck(
     !chosen.currency ||
     chosen.currency.trim().toUpperCase() === today.currency.trim().toUpperCase();
   const changed = sameCurrency && today.cost_internal !== chosen.cost_internal;
-  const lines = [header, `Today: **${availability}**, team cost **${todayCost}**.`];
+  const lines = [header, `Today: **${availability}**, cost **${todayCost}**.`];
   if (!sameCurrency) {
     lines.push("Today's price is in a different currency, so compare it with the hotel before you book.");
   } else if (!changed) {
-    lines.push("The team cost has not changed. Book with the hotel, then confirm the booking in **Bookings**.");
+    lines.push("The cost has not changed. Book with the hotel, then confirm the booking in **Bookings**.");
   } else {
     lines.push(
-      `The team cost has changed. Tap **Use today's cost** to update the room and the pending booking, then set the client price if it needs to change.`,
+      `The cost has changed. Tap **Use today's cost** to update the room and the pending booking, then set the sell if it needs to change.`,
     );
   }
   return {

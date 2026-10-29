@@ -145,7 +145,9 @@ export function createPreTripChatStream(
           type: "done",
           assistant: localMessage("assistant", content, choices.length > 0 ? { cards: { choices } } : {}),
         });
-        if (opened) send({ type: "opened", tripId: opened.tripId });
+        if (opened) {
+          send({ type: "opened", tripId: opened.tripId, created: opened.created });
+        }
         finishOutcome = { status: "ok" };
         console.info("[trip-chat] home stream ok", {
           clientRequestId: input.client_request_id,

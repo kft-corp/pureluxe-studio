@@ -49,6 +49,8 @@ export type RatesSearchInput = {
   rooms: number;
   adults: number;
   children: number;
+  /** Stated child ages for this search; prefer over passport DOBs when set. */
+  childAges?: number[];
 };
 
 /** One room/hotel to put on the options quote. */
@@ -246,7 +248,10 @@ export type TripAgentHandlers = DeskAgentHandlers & {
     call: ToolCallRef,
   ) => Promise<TripChange>;
   setTravellers: (
-    input: { add: Array<{ clientId: string; partyRole: PartyRole }>; remove: string[] },
+    input: {
+      add: Array<{ clientId: string; partyRole: PartyRole; age?: number }>;
+      remove: string[];
+    },
     call: ToolCallRef,
   ) => Promise<TripChange>;
   setDates: (input: { start: string; end: string }, call: ToolCallRef) => Promise<TripChange>;
@@ -267,6 +272,8 @@ export type TripAgentHandlers = DeskAgentHandlers & {
   usePastedQuote: (input: RatesUsePastedQuoteInput, call: ToolCallRef) => Promise<TripChange>;
   sendQuote: (call: ToolCallRef) => Promise<TripChange>;
   selectFinal: (input: QuoteSelectFinalInput, call: ToolCallRef) => Promise<TripChange>;
+  /** Accept (Client said yes) and record the room in one step. */
+  acceptAndSelect: (input: QuoteSelectFinalInput, call: ToolCallRef) => Promise<TripChange>;
   /** Propose a multi-city date split once; does not apply until the advisor accepts. */
   proposeSplit: (input: TripProposeSplitInput) => Promise<TripProposeSplitResult>;
 };

@@ -62,7 +62,7 @@ export function resolveNextStep(trip: TripFacts): string {
   if (!trip.starts_on || !trip.ends_on) return "Set the trip dates";
   if (trip.legs_confirmed === false) return "Add places or search rates";
   if (quoteOptionsPriced(trip)) return "Send the options quote";
-  if (quoteOptionsNeedPrice(trip)) return "Set client prices on the quote";
+  if (quoteOptionsNeedPrice(trip)) return "Set sell prices on the quote";
   if (!stayComplete(trip)) return "Suggest hotels and search rates";
   return "Add rooms to the options quote";
 }
@@ -108,7 +108,7 @@ export function listTripGaps(trip: TripFacts): string[] {
   const building = !ACCEPTED.has(trip.status) && !WITH_CLIENT.has(trip.status);
   if (building && trip.legs_confirmed !== false && !quoteOptionsPriced(trip)) {
     if (quoteOptionsNeedPrice(trip)) {
-      gaps.push("Rooms on the quote need a client price");
+      gaps.push("Rooms on the quote need a sell");
     } else {
       gaps.push(
         "No rate compare yet — name hotels or ask for suggestions, then search rates (saved stay not required)",

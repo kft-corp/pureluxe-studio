@@ -52,6 +52,7 @@ export { getTripQuote, updateTripQuote } from "./pricing/quote";
 export {
   generateOptionsQuotePdf,
   getOptionsQuoteFileUrl,
+  refreshOptionsQuotePdfAfterChange,
   updateOptionsQuote,
   updateSavedStayOption,
 } from "./options-quote/options-quote";

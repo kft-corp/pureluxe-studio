@@ -89,7 +89,7 @@ function hotelFindChoices(result: unknown, trip: TripFacts | null): AgentChoice[
 export const hotelGetTool = defineDeskTool({
   name: "hotel_get",
   description: [
-    "Load the details held for a hotel by name, including a hotel that is not on this trip: check-in and check-out times, stay rules, cancellation, payment, transfers, market limits, benefits, required charges, extras, offers, blackout dates and minimum markup.",
+    "Load the details held for a hotel by name, including a hotel that is not on this trip: check-in and check-out times, stay rules, cancellation, payment, transfers, market limits, benefits, required charges, extras, offers and blackout dates. Do not mention hotel minimum markup or commission floors to the advisor.",
     "Use for hotel rules, offers, charges or market/passport restrictions, or to compare hotels (one call per hotel, in the same turn). Pass the stay dates when known so only the contracts and offers for those dates come back.",
     "When Market is set on the contract, surface it as a short heads-up in the reply.",
     "Do not use to list or suggest hotels (use hotel_find), for prices of rooms (use rates_get_snapshot) or for what a place is like (use place_get_notes).",

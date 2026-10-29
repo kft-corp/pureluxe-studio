@@ -9,6 +9,7 @@ import { pageRoutes } from "@/lib/routes";
 
 import { EMPTY_STAY, stayOn } from "../trip-builder-helpers";
 
+import { clearSoftTripHandoff } from "./soft-trip-handoff";
 import type { TripChat } from "./use-trip-chat";
 import type { TripCore } from "./use-trip-core";
 
@@ -24,6 +25,7 @@ export function useTripSession(core: TripCore, chat: TripChat) {
     chooseLeg,
     hydrateStayDraft,
     clearOfferedChips,
+    refreshTrips,
   } = core;
   const {
     setMessages,
@@ -31,6 +33,7 @@ export function useTripSession(core: TripCore, chat: TripChat) {
     setHasMoreMessages,
     setStreamingContent,
     setAgentPhase,
+    softRestoredTripId,
     resetChatUi,
     loadChatMessages,
   } = chat;
@@ -38,10 +41,25 @@ export function useTripSession(core: TripCore, chat: TripChat) {
   const searchParams = useSearchParams();
   const tripParam = searchParams.get("trip");
   const [pending, startTransition] = useTransition();
-  const chatLoadedForTripRef = useRef<string | null>(null);
+  const chatLoadedForTripRef = useRef<string | null>(softRestoredTripId);
+  /** Create-from-home: keep the live thread; URL sync must not wipe or skeleton. */
+  const softHandoffTripRef = useRef<string | null>(softRestoredTripId);
+
+  async function hydrateDesk(tripId: string) {
+    const response = await getTripBuilderTrip(tripId);
+    const opened = stayOn(response.data, null);
+    chooseLeg(opened?.leg_id ?? null);
+    setDetail(response.data);
+    hydrateStayDraft(response.data, opened?.leg_id ?? null);
+    clearOfferedChips();
+    setRateOptions([]);
+    void refreshTrips();
+    return response.data;
+  }
 
   const syncFromUrl = useEffectEvent(async (tripId: string | null) => {
     if (!tripId) {
+      softHandoffTripRef.current = null;
       setDetail(null);
       setSummaryOpen(false);
       resetChatUi();
@@ -52,20 +70,30 @@ export function useTripSession(core: TripCore, chat: TripChat) {
     }
 
     try {
+      const soft = softHandoffTripRef.current === tripId;
+
       if (detail?.trip.id !== tripId) {
+        if (soft) {
+          // Keep bubbles; only attach trip chrome around the same thread.
+          softHandoffTripRef.current = null;
+          clearSoftTripHandoff(tripId);
+          await hydrateDesk(tripId);
+          chatLoadedForTripRef.current = tripId;
+          return;
+        }
+
         setChatLoading(true);
         setMessages([]);
         setHasMoreMessages(false);
         setStreamingContent(null);
         setAgentPhase(null);
-        const response = await getTripBuilderTrip(tripId);
-        const opened = stayOn(response.data, null);
-        chooseLeg(opened?.leg_id ?? null);
-        setDetail(response.data);
-        hydrateStayDraft(response.data, opened?.leg_id ?? null);
-        clearOfferedChips();
-        setRateOptions([]);
+        await hydrateDesk(tripId);
         chatLoadedForTripRef.current = null;
+      } else if (soft) {
+        softHandoffTripRef.current = null;
+        clearSoftTripHandoff(tripId);
+        chatLoadedForTripRef.current = tripId;
+        return;
       }
 
       if (chatLoadedForTripRef.current !== tripId) {
@@ -74,6 +102,7 @@ export function useTripSession(core: TripCore, chat: TripChat) {
       }
     } catch (error) {
       showApiError(error);
+      softHandoffTripRef.current = null;
       router.replace(pageRoutes.tripBuilder);
       setDetail(null);
       resetChatUi();
@@ -96,10 +125,42 @@ export function useTripSession(core: TripCore, chat: TripChat) {
     };
   }, [tripParam]);
 
+  /**
+   * Home chat just created this trip: keep the live thread, hydrate the desk,
+   * and quietly put `?trip=` in the URL. No skeleton.
+   */
+  function attachTripFromChat(tripId: string) {
+    if (detail?.trip.id === tripId && chatLoadedForTripRef.current === tripId) {
+      return;
+    }
+    softHandoffTripRef.current = tripId;
+    chatLoadedForTripRef.current = tripId;
+    startTransition(() => {
+      router.replace(pageRoutes.tripBuilderTrip(tripId), { scroll: false });
+    });
+    void hydrateDesk(tripId)
+      .then(() => {
+        clearSoftTripHandoff(tripId);
+      })
+      .catch((error) => {
+        showApiError(error);
+        softHandoffTripRef.current = null;
+        chatLoadedForTripRef.current = null;
+        clearSoftTripHandoff(tripId);
+        router.replace(pageRoutes.tripBuilder, { scroll: false });
+        setDetail(null);
+        resetChatUi();
+        setStayDraft(EMPTY_STAY);
+      });
+  }
+
+  /** Cold open (trips menu / open existing): wipe thread, skeleton, then load. */
   function openTrip(tripId: string) {
     if (detail?.trip.id === tripId && chatLoadedForTripRef.current === tripId) {
       return;
     }
+    softHandoffTripRef.current = null;
+    clearSoftTripHandoff();
     setChatLoading(true);
     setMessages([]);
     setHasMoreMessages(false);
@@ -110,12 +171,14 @@ export function useTripSession(core: TripCore, chat: TripChat) {
     }
     chatLoadedForTripRef.current = null;
     startTransition(() => {
-      router.replace(pageRoutes.tripBuilderTrip(tripId));
+      router.replace(pageRoutes.tripBuilderTrip(tripId), { scroll: false });
     });
   }
 
   /** Clear to home — does not insert a trip. */
   function newChat() {
+    softHandoffTripRef.current = null;
+    clearSoftTripHandoff();
     setSummaryOpen(false);
     setDetail(null);
     resetChatUi();
@@ -123,7 +186,7 @@ export function useTripSession(core: TripCore, chat: TripChat) {
     setStayDraft(EMPTY_STAY);
     chatLoadedForTripRef.current = null;
     startTransition(() => {
-      router.replace(pageRoutes.tripBuilder);
+      router.replace(pageRoutes.tripBuilder, { scroll: false });
     });
   }
 
@@ -135,6 +198,7 @@ export function useTripSession(core: TripCore, chat: TripChat) {
 
   return {
     pending,
+    attachTripFromChat,
     openTrip,
     newChat,
     openTripPage,

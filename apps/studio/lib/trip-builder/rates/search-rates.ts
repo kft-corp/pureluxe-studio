@@ -120,7 +120,7 @@ export async function searchTripRates(
     ...option,
     payment_summary: option.payment_summary ?? payment,
   }));
-  const rateContext = buildRateSearchNotes(options, hotelBrief, stayNotes?.markup ?? null);
+  const rateContext = buildRateSearchNotes(options, hotelBrief, null);
   await saveTripRateSearch({
     search: input,
     propertyId: propertyId ?? null,
@@ -128,7 +128,7 @@ export async function searchTripRates(
     result,
     options,
     hotelBrief,
-    markup: stayNotes?.markup ?? null,
+    markup: null,
   });
 
   if (propertyId && result.status === "stub") {
@@ -167,15 +167,15 @@ function stayNotesFromFacts(facts: {
     payment: facts.paymentLines.slice(0, 3),
     offers: facts.offers.slice(0, 4),
     required: facts.requiredCharges.slice(0, 3),
-    markup: facts.markup,
+    // MVP (#29): never pass hotel commission / min markup into stay notes.
+    markup: null,
   };
   const hasAny =
     notes.checkIn ||
     notes.checkOut ||
     notes.payment.length > 0 ||
     notes.offers.length > 0 ||
-    notes.required.length > 0 ||
-    notes.markup;
+    notes.required.length > 0;
   return hasAny ? notes : null;
 }
 

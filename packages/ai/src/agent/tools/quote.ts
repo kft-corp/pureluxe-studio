@@ -27,8 +27,8 @@ const quoteOption = z
   })
   .strict()
   .refine(
-    (row) => row.markup_percent != null || row.client_price != null || row.rate_ref != null,
-    "Each option needs a markup_percent, client_price, or rate_ref.",
+    (row) => row.markup_percent != null || row.client_price != null,
+    "Each option needs a markup_percent or client_price.",
   );
 
 export const quoteAddOptionsTool = defineAgentTool({
@@ -36,10 +36,10 @@ export const quoteAddOptionsTool = defineAgentTool({
   description: [
     "Add or update any number of rooms from any number of hotels on the options quote in one call, each with a markup percent or a client price.",
     "Use when the advisor names rooms and prices or markups together, e.g. \"Beach Villa at 30% and Water Villa at 25%, for all 3 hotels\", \"add the first two suggested rooms\", or \"make the Kihavah water villa 10% instead\".",
-    "Pass absolute client prices exactly as stated — never multiply by the trip's room count or by nights, and never treat a figure as per-room unless the advisor said so. Pass percentage markups as markup_percent.",
+    "Pass absolute client prices exactly as stated — never multiply by the trip's room count or by nights, and never treat a figure as per-room unless the advisor said so. Pass percentage markups as markup_percent. Every option needs markup_percent or client_price — ask if neither is given.",
     "Call once with every room in this message; do not call again for the same ask.",
-    "If the stay has no hotel yet, this sets the room's hotel on the stay automatically. Does not overwrite a different hotel already on the stay.",
-    "A markup below the hotel's minimum is applied and flagged once in the summary — never call deliberate prices typos.",
+    "Does NOT set the stay hotel — the hotel stays blank / options pending until the client accepts a room (quote_accept_and_select).",
+    "PDF is rebuilt silently; call quote_preview only when the advisor asks to open it.",
     "Do not use to send the quote (quote_send) or to change only wording (quote_set_wording / quote_edit_lines).",
     "Returns a summary; the advisor gets Undo.",
   ].join(" "),
@@ -69,7 +69,7 @@ export const quoteSetClientPriceTool = defineAgentTool({
   description: [
     "Set the absolute client price on one or more rooms already on the options quote, in one call.",
     "Use when the advisor gives a money amount for a room already on the quote. Do not use for a markup percent only (quote_add_options with markup_percent) or to add a new room (quote_add_options).",
-    "On success the PDF is rebuilt and opened automatically — do not call quote_preview again unless they ask to open it again.",
+    "PDF is rebuilt silently; call quote_preview only when the advisor asks to open it.",
     "Returns a summary; the advisor gets Undo.",
   ].join(" "),
   schema: z
@@ -92,7 +92,6 @@ export const quoteSetClientPriceTool = defineAgentTool({
   risk: "undo",
   progress: () => "Updating client prices…",
   quickReply: true,
-  quotePreview: quotePreviewFromChange,
   run: (input, handlers, call) =>
     handlers.setQuoteClientPrices(
       {
@@ -114,6 +113,7 @@ export const quoteRemoveOptionTool = defineAgentTool({
     "Use when the advisor drops rooms, clears the quote options, or wants hotels cleared after rooms are gone.",
     "Works on rooms that were the client's choice while the quote is still editable (not pricing-locked).",
     "To clear hotels on stays after rooms are gone, use trip_set_stays with hotel null — that also drops any rooms still labelled with that hotel.",
+    "PDF is rebuilt silently; call quote_preview only when the advisor asks to open it.",
     "Returns a summary; the advisor gets Undo.",
   ].join(" "),
   schema: z
@@ -156,7 +156,7 @@ export const quoteSetWordingTool = defineAgentTool({
   description: [
     "Set the options quote title and/or closing note for the client PDF.",
     "Use when the advisor sets the quote title or note. Do not use for room prices (quote_set_client_price) or other PDF lines (quote_edit_lines).",
-    "On success the PDF is rebuilt and opened automatically — do not call quote_preview again unless they ask to open it again.",
+    "PDF is rebuilt silently; call quote_preview only when the advisor asks to open it.",
     "Returns a summary; the advisor gets Undo.",
   ].join(" "),
   schema: z
@@ -169,7 +169,6 @@ export const quoteSetWordingTool = defineAgentTool({
   risk: "undo",
   progress: () => "Updating the quote wording…",
   quickReply: true,
-  quotePreview: quotePreviewFromChange,
   run: (input, handlers, call) =>
     handlers.setQuoteWording({ title: input.title, notes: input.notes }, call),
 });
@@ -196,7 +195,7 @@ export const quoteEditLinesTool = defineAgentTool({
     "Use find+replace for the same words everywhere (e.g. \"10% SC\" → the long client sentence).",
     "For \"make What's included clear\" / plain English on a whole section, prefer quote_rewrite_section.",
     "Client-facing only: never put team cost, markup, booking codes or bank details on the PDF. Letterhead stays fixed.",
-    "On success the PDF is rebuilt and opened automatically — do not call quote_preview again unless they ask to open it again.",
+    "PDF is rebuilt silently; call quote_preview only when the advisor asks to open it.",
     "Do not use for title/note only (quote_set_wording) or prices (quote_set_client_price). Returns a summary; the advisor gets Undo.",
   ].join(" "),
   schema: z
@@ -228,7 +227,6 @@ export const quoteEditLinesTool = defineAgentTool({
   risk: "undo",
   progress: () => "Updating the options quote wording…",
   quickReply: true,
-  quotePreview: quotePreviewFromChange,
   run: (input, handlers, call) =>
     handlers.editQuoteLines(
       {
@@ -255,7 +253,7 @@ export const quoteAddLinesTool = defineAgentTool({
     "Add one or more bullets to a list section on the options quote PDF: inclusions, extras (This room), arrival, transfers, or shared (For every room).",
     "Use when the advisor wants a new line in What's included or similar. Pass hotel (and room for inclusions/extras) when more than one is on the quote.",
     "Cannot change letterhead, header, footer, or brand. Do not use to rewrite an existing line (quote_edit_lines) or clear a section (quote_clear_section).",
-    "On success the PDF is rebuilt and opened automatically — do not call quote_preview again unless they ask to open it again.",
+    "PDF is rebuilt silently; call quote_preview only when the advisor asks to open it.",
     "Returns a summary; the advisor gets Undo.",
   ].join(" "),
   schema: z
@@ -278,7 +276,6 @@ export const quoteAddLinesTool = defineAgentTool({
   risk: "undo",
   progress: () => "Adding lines to the options quote…",
   quickReply: true,
-  quotePreview: quotePreviewFromChange,
   run: (input, handlers, call) =>
     handlers.addQuoteLines(
       {
@@ -299,7 +296,7 @@ export const quoteClearSectionTool = defineAgentTool({
     "Remove every line in one options quote PDF section: inclusions, extras, arrival, transfers, shared, notice, notes, board, or terms.",
     "Use when the advisor wants a whole section gone (e.g. clear What's included, drop all transfers). Optional hotel or room narrows the scope.",
     "Letterhead, header, footer, and brand stay fixed. To delete one line only, use quote_edit_lines with delete_ids. To add lines, use quote_add_lines.",
-    "On success the PDF is rebuilt and opened automatically — do not call quote_preview again unless they ask to open it again.",
+    "PDF is rebuilt silently; call quote_preview only when the advisor asks to open it.",
     "Returns a summary; the advisor gets Undo.",
   ].join(" "),
   schema: z
@@ -322,7 +319,6 @@ export const quoteClearSectionTool = defineAgentTool({
   risk: "undo",
   progress: () => "Clearing that section on the options quote…",
   quickReply: true,
-  quotePreview: quotePreviewFromChange,
   run: (input, handlers, call) =>
     handlers.clearQuoteSection(
       {
@@ -341,7 +337,7 @@ export const quoteRewriteSectionTool = defineAgentTool({
     "Use when the advisor asks to make What's included, board, transfers, or the quote wording client-friendly — without naming each line.",
     "section inclusions = What's included; client_wording = inclusions + board + transfers + arrival + shared + terms + notice.",
     "Optional hotel or room narrows the scope. Letterhead stays fixed.",
-    "On success the PDF is rebuilt and opened automatically — do not call quote_preview again unless they ask to open it again.",
+    "PDF is rebuilt silently; call quote_preview only when the advisor asks to open it.",
     "Do not use for a single custom sentence the advisor dictated (quote_edit_lines) or title/note only (quote_set_wording).",
     "Returns a summary; the advisor gets Undo.",
   ].join(" "),
@@ -364,7 +360,6 @@ export const quoteRewriteSectionTool = defineAgentTool({
   risk: "undo",
   progress: () => "Rewriting quote wording for the client…",
   quickReply: true,
-  quotePreview: quotePreviewFromChange,
   run: (input, handlers, call) =>
     handlers.rewriteQuoteSection(
       {
@@ -381,8 +376,8 @@ export const quotePreviewTool = defineAgentTool({
   description: [
     "Open the options quote PDF for the advisor (builds it when needed).",
     "Use when they ask to show, open, view, preview or regenerate the options quote.",
-    "After quote_edit_lines, quote_add_lines, quote_clear_section, quote_rewrite_section, quote_set_wording or quote_set_client_price the PDF already rebuilds and opens — do not call this again in the same turn unless they ask.",
-    "Pass force true when they ask to regenerate, or when opening after other quote changes that did not auto-preview.",
+    "Quote edits rebuild the PDF silently (founder #4) — never ask \"shall I regenerate?\". Call this only when the advisor asks to open or check the PDF.",
+    "Pass force true when they ask to regenerate.",
     "Do not use to send the quote (quote_send). The browser opens the file; return a short confirmation.",
   ].join(" "),
   schema: z
@@ -454,8 +449,9 @@ export const quoteSendTool = defineAgentTool({
 export const quoteSelectFinalTool = defineAgentTool({
   name: "quote_select_final",
   description: [
-    "Record the client's final room from the options quote. Creates a pending hotel booking; Undo cancels it (or restores the previous room).",
-    "Use when the advisor says the client picked a room, chose an option, or went with a named villa — e.g. \"Aarav picked the water villa at Kihavah\", \"they chose option 2\".",
+    "Record the client's final room when the quote is already accepted (Client said yes / pricing locked / booking).",
+    "Creates a pending hotel booking; Undo cancels it (or restores the previous room).",
+    "Use when status is already booking / pricing locked and the advisor names the room. If not yet accepted, use quote_accept_and_select instead.",
     "Do not use to send the quote (quote_send), add rooms (quote_add_options), or change prices. The room must already be on the quote.",
     "Runs immediately with Undo — no Confirm card. Returns a summary.",
   ].join(" "),
@@ -465,4 +461,27 @@ export const quoteSelectFinalTool = defineAgentTool({
   quickReply: true,
   run: (input, handlers, call) =>
     handlers.selectFinal({ hotel: input.hotel, room: input.room }, call),
+});
+
+function acceptAndSelectConfirm(input: { hotel: string; room: string }, trip: TripFacts | null): string {
+  const name = trip?.client?.display_name?.trim() || "the client";
+  return `Mark ${name} as accepted and book ${input.room} at ${input.hotel}?`;
+}
+
+export const quoteAcceptAndSelectTool = defineAgentTool({
+  name: "quote_accept_and_select",
+  description: [
+    "Mark Client said yes (accept) and record their room in one step. Sets the stay hotel to that room's hotel.",
+    "Use when the advisor says the client wants to book a named room / option — e.g. \"Aarav wants the water villa\", \"they chose option 2\", \"client went with Kihavah\".",
+    "Do not send them to the trip page to accept. Prefer this over quote_select_final when not yet accepted.",
+    "When already accepted / pricing locked, quote_select_final is enough. Do not use to send the quote (quote_send) or add rooms.",
+    "Shows a Confirm card first. Returns a summary.",
+  ].join(" "),
+  schema: z.object({ hotel: hotelName, room: roomName }).strict(),
+  risk: "approval",
+  progress: () => "Accepting and recording the room…",
+  quickReply: true,
+  confirm: (input, trip) => acceptAndSelectConfirm(input, trip),
+  run: (input, handlers, call) =>
+    handlers.acceptAndSelect({ hotel: input.hotel, room: input.room }, call),
 });

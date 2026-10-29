@@ -18,8 +18,8 @@ import type {
 import {
   clearSelectedAccommodationForLeg,
   deleteTripLineItemsByIds,
-  findActivePropertyById,
   findLatestRateSearch,
+  pointStayShellAtHotel,
   updateStayOption,
   updateTrip,
 } from "@pureluxe/db";
@@ -45,6 +45,7 @@ import {
   generateOptionsQuotePdf,
   getOptionsQuoteFileUrl,
   loadOptionsQuoteDocument,
+  refreshOptionsQuotePdfAfterChange,
   updateOptionsQuote,
 } from "../options-quote/options-quote";
 import { expandClientWording } from "../options-quote/client-wording";
@@ -134,8 +135,9 @@ function legIdForHotel(detail: TripDetail, hotel: string): string | null {
 }
 
 /**
- * When quote rooms are added for a hotel that is not on any stay yet, put that hotel
- * on a stay with no hotel (or the only stay). Does not overwrite a different hotel.
+ * Pasted quotes still need a hotel name on the stay so the room attaches to a leg.
+ * Multi-option shopping must NOT set the stay hotel (Issue #13) — leave blank until
+ * the client’s room is recorded.
  */
 async function ensureHotelsOnStays(
   detail: TripDetail,
@@ -155,7 +157,6 @@ async function ensureHotelsOnStays(
       stays.find((stay) => !stay.property_name?.trim() && stay.check_in && stay.check_out) ??
       (stays.length === 1 && stays[0]?.check_in && stays[0]?.check_out ? stays[0] : null);
     if (!open?.leg_id || !open.check_in || !open.check_out) continue;
-    // Another hotel is already on this stay — leave quote-only options for compare.
     if (open.property_name?.trim() && !hotelNameMatch(open.property_name, hotel)) continue;
 
     const result = await setTripStay(
@@ -187,47 +188,106 @@ async function resolveOffer(
 ): Promise<{
   rateOption: NonNullable<Awaited<ReturnType<typeof loadStoredRateOption>>>["option"];
   resultId: string | null;
-  minMarkup: number | null;
 } | null> {
   if (option.rateRef) {
     const stored = await loadStoredRateOption(option.rateRef);
     if (stored) {
-      const property = stored.option.property_id
-        ? await findActivePropertyById(stored.option.property_id)
-        : null;
       return {
         rateOption: stored.option,
         resultId: stored.result.id,
-        minMarkup: property?.min_markup_percent ?? null,
       };
     }
   }
   const matched = await findStoredRateByHotelRoom(tripId, option.hotel, option.room);
   if (!matched) return null;
-  const property = matched.option.property_id
-    ? await findActivePropertyById(matched.option.property_id)
-    : null;
   return {
     rateOption: matched.option,
     resultId: matched.resultId,
-    minMarkup: property?.min_markup_percent ?? null,
   };
 }
 
+/**
+ * Stay team cost for quote sell. Package rows must include extra nights when the
+ * stay is longer than the package (never markup the package sheet amount alone).
+ */
+function stayTeamCostForQuote(rateOption: {
+  cost_internal: number;
+  raw?: Record<string, unknown> | null;
+}): number {
+  const base = Number(rateOption.cost_internal);
+  if (!Number.isFinite(base) || base < 0) return 0;
+  const raw = rateOption.raw;
+  if (!raw || raw.rate_basis !== "package") return base;
+
+  const packageNights =
+    typeof raw.package_nights === "number" && Number.isFinite(raw.package_nights)
+      ? raw.package_nights
+      : null;
+  const nights =
+    typeof raw.nights === "number" && Number.isFinite(raw.nights) ? raw.nights : null;
+  const extra =
+    typeof raw.extra_night_amount === "number" && Number.isFinite(raw.extra_night_amount)
+      ? raw.extra_night_amount
+      : null;
+  const packageAmount =
+    typeof raw.package_amount === "number" && Number.isFinite(raw.package_amount)
+      ? raw.package_amount
+      : null;
+
+  if (
+    packageNights == null ||
+    nights == null ||
+    nights <= packageNights ||
+    extra == null ||
+    extra < 0
+  ) {
+    return base;
+  }
+
+  const extraCount = nights - packageNights;
+  const expectedFromPackage =
+    packageAmount != null
+      ? roundMoney(packageAmount + extraCount * extra)
+      : null;
+
+  // cost_internal already includes extras (usual path).
+  if (expectedFromPackage != null && Math.abs(base - expectedFromPackage) <= 0.05) {
+    return base;
+  }
+  // cost_internal looks like the package sheet only — fold in extras.
+  if (
+    packageAmount != null &&
+    Math.abs(base - packageAmount) <= 0.05 &&
+    expectedFromPackage != null
+  ) {
+    return expectedFromPackage;
+  }
+  if (expectedFromPackage != null && base + 0.05 < expectedFromPackage) {
+    return expectedFromPackage;
+  }
+  return base;
+}
+
+/**
+ * Client price = team cost + the markup the advisor stated.
+ * Hotel minimum commission is not used (MVP). Absolute clientPrice wins over %.
+ */
 function sellFor(
   teamCost: number,
   option: QuoteAddOptionsInput["options"][number],
-  minMarkup: number | null,
-): { sell: number; markup: number | null; belowMin: boolean } {
+): { sell: number; markup: number | null } | { missingMarkup: true } {
   if (option.clientPrice != null) {
     const sell = roundMoney(option.clientPrice);
     const markup = teamCost > 0 ? roundMoney(((sell - teamCost) / teamCost) * 100) : null;
-    const belowMin = minMarkup != null && markup != null && markup < minMarkup;
-    return { sell, markup, belowMin };
+    return { sell, markup };
   }
-  const markup = option.markupPercent ?? minMarkup ?? 30;
-  const belowMin = minMarkup != null && markup < minMarkup;
-  return { sell: clientPriceAtMarkup(teamCost, markup), markup, belowMin };
+  if (option.markupPercent == null) {
+    return { missingMarkup: true };
+  }
+  return {
+    sell: clientPriceAtMarkup(teamCost, option.markupPercent),
+    markup: option.markupPercent,
+  };
 }
 
 /** Add many rooms/hotels to the quote in one change (Stage 3d). */
@@ -245,14 +305,15 @@ export function addQuoteOptions(
     }
 
     const added: string[] = [];
-    const belowMin: string[] = [];
     const missing: string[] = [];
+    const needMarkup: string[] = [];
     let rankByHotel = new Map<string, number>();
 
-    // Resolve first so we know which hotels will actually be added, then put them on stays.
     const resolvedOptions: Array<{
       option: QuoteAddOptionsInput["options"][number];
       resolved: NonNullable<Awaited<ReturnType<typeof resolveOffer>>>;
+      sell: number;
+      markup: number | null;
     }> = [];
     for (const option of input.options) {
       const resolved = await resolveOffer(context.tripId, option);
@@ -260,32 +321,46 @@ export function addQuoteOptions(
         missing.push(`${option.hotel} · ${option.room}`);
         continue;
       }
-      resolvedOptions.push({ option, resolved });
+      const teamCost = stayTeamCostForQuote(resolved.rateOption);
+      const priced = sellFor(teamCost, option);
+      if ("missingMarkup" in priced) {
+        needMarkup.push(`${option.room} · ${option.hotel}`);
+        continue;
+      }
+      const rateOption =
+        Math.abs(teamCost - resolved.rateOption.cost_internal) > 0.05
+          ? { ...resolved.rateOption, cost_internal: teamCost }
+          : resolved.rateOption;
+      resolvedOptions.push({
+        option,
+        resolved: { ...resolved, rateOption },
+        sell: priced.sell,
+        markup: priced.markup,
+      });
     }
 
-    const { detail: withHotels, setHotels } = await ensureHotelsOnStays(
-      before,
-      [
-        ...new Map(
-          resolvedOptions.map(({ option, resolved }) => [
-            norm(option.hotel),
-            { hotel: option.hotel, propertyId: resolved.rateOption.property_id },
-          ]),
-        ).values(),
-      ],
-      context.actor,
-    );
-    const detail = withHotels;
-
-    for (const { option, resolved } of resolvedOptions) {
-      const { sell, markup, belowMin: flagged } = sellFor(
-        resolved.rateOption.cost_internal,
-        option,
-        resolved.minMarkup,
-      );
-      if (flagged && markup != null) {
-        belowMin.push(`${option.hotel} ${option.room} at ${markup}%`);
+    if (resolvedOptions.length === 0) {
+      if (needMarkup.length > 0) {
+        return {
+          summary: `Say the markup percent or client price before adding: ${needMarkup.join("; ")}.`,
+          undoable: false,
+          after: null,
+        };
       }
+      return {
+        summary:
+          missing.length > 0
+            ? `Couldn't find rates for: ${missing.join("; ")}. Search rates first.`
+            : "No rooms were added.",
+        undoable: false,
+        after: null,
+      };
+    }
+
+    // Attach by stay dates only — do not set the stay hotel until the client chooses (#13).
+    const detail = before;
+
+    for (const { option, resolved, sell, markup } of resolvedOptions) {
       const hotelKey = norm(option.hotel);
       const nextRank = option.rank ?? (rankByHotel.get(hotelKey) ?? 0) + 1;
       rankByHotel.set(hotelKey, nextRank);
@@ -314,27 +389,13 @@ export function addQuoteOptions(
       added.push(`${option.room} · ${option.hotel}`);
     }
 
-    if (added.length === 0) {
-      return {
-        summary:
-          missing.length > 0
-            ? `Couldn't find rates for: ${missing.join("; ")}. Search rates first.`
-            : "No rooms were added.",
-        undoable: false,
-        after: null,
-      };
-    }
-
     // Re-apply quote columns — attachRateOption may not write them yet.
     const afterAttach = await getTripDetail(context.tripId, context.actor);
-    for (const option of input.options) {
+    for (const { option, resolved, sell, markup } of resolvedOptions) {
       const row = afterAttach.rates.candidates.find((candidate) =>
         sameHotelRoom(candidate, option.hotel, option.room),
       );
       if (!row) continue;
-      const resolved = await resolveOffer(context.tripId, option);
-      if (!resolved) continue;
-      const { sell, markup } = sellFor(resolved.rateOption.cost_internal, option, resolved.minMarkup);
       await updateStayOption(row.id, {
         sell_amount: sell,
         markup_percent: markup,
@@ -344,18 +405,16 @@ export function addQuoteOptions(
       });
     }
 
-    await markQuoteStale(context.tripId);
+    await refreshOptionsQuotePdfAfterChange(context.tripId, context.actor);
     const after = await getTripDetail(context.tripId, context.actor);
-    const flag =
-      belowMin.length > 0
-        ? ` Below the hotel minimum once: ${belowMin[0]}${belowMin.length > 1 ? ` (+${belowMin.length - 1} more)` : ""}.`
+    const needNote =
+      needMarkup.length > 0
+        ? ` Still need markup or client price for: ${needMarkup.join("; ")}.`
         : "";
-    const hotelNote =
-      setHotels.length > 0
-        ? ` Set ${setHotels.join(", ")} on the stay.`
-        : "";
+    const missNote =
+      missing.length > 0 ? ` Not found: ${missing.join("; ")}.` : "";
     return {
-      summary: `Added ${added.length} option${added.length === 1 ? "" : "s"} to the quote.${hotelNote}${flag}`,
+      summary: `Added ${added.length} option${added.length === 1 ? "" : "s"} to the quote.${needNote}${missNote}`,
       undoable: true,
       after,
     };
@@ -389,7 +448,7 @@ export function setQuoteClientPrices(
     if (count === 0) {
       return { summary: "No matching rooms on the quote to update.", undoable: false, after: null };
     }
-    await markQuoteStale(context.tripId);
+    await refreshOptionsQuotePdfAfterChange(context.tripId, context.actor);
     return {
       summary: `Updated ${count} client price${count === 1 ? "" : "s"}.`,
       undoable: true,
@@ -431,7 +490,7 @@ export function removeQuoteOption(
         return { summary: "The options quote already has no rooms.", undoable: false, after: null };
       }
       await deleteTripLineItemsByIds(ids);
-      await markQuoteStale(context.tripId);
+      await refreshOptionsQuotePdfAfterChange(context.tripId, context.actor);
       return {
         summary: `Removed all ${ids.length} room${ids.length === 1 ? "" : "s"} from the quote.`,
         undoable: true,
@@ -467,7 +526,7 @@ export function removeQuoteOption(
     }
 
     await deleteTripLineItemsByIds([...ids]);
-    await markQuoteStale(context.tripId);
+    await refreshOptionsQuotePdfAfterChange(context.tripId, context.actor);
     const miss =
       missing.length > 0 ? ` Not found: ${missing.join("; ")}.` : "";
     return {
@@ -982,9 +1041,53 @@ export function isQuoteSelectFinalUndo(
 }
 
 /**
+ * Mark Client said yes (accept) and record the room in one step (Issue #7).
+ * Used behind a Confirm card from chat so advisors need not open the trip page.
+ * Works from Building when options exist (verbal yes / sent outside Studio).
+ */
+export function acceptAndSelectQuoteFinal(
+  context: TripChangeContext,
+  input: QuoteSelectFinalInput,
+): Promise<TripChange> {
+  return withTripChange(context, async (before) => {
+    if (!isQuoteAccepted(before.trip.status) && !before.pricing_locked) {
+      const hasOptions = before.rates.candidates.some((row) => !row.selected);
+      if (!hasOptions && before.rates.candidates.length === 0) {
+        throw new AppError({
+          userMessage: "Add at least one room to the options quote before recording acceptance.",
+          code: "trips.options_not_ready",
+          status: 409,
+        });
+      }
+      try {
+        await setJourneyStatus(context.tripId, "accept", context.actor);
+      } catch (error) {
+        // Quote may still be Building (sent outside Studio). Lock pricing directly.
+        if (
+          error instanceof AppError &&
+          error.code === "trips.quote_accept_blocked" &&
+          before.trip.status === "building"
+        ) {
+          const now = new Date().toISOString();
+          await updateTrip(context.tripId, {
+            status: "booking",
+            pricing_locked_at: now,
+            pricing_locked_by_id: context.actor.memberId,
+          });
+        } else {
+          throw error;
+        }
+      }
+    }
+    return selectQuoteFinalInner(context, input, await getTripDetail(context.tripId, context.actor));
+  });
+}
+
+/**
  * Record the client's final room: select it, create/update the pending booking.
  * Other quote options stay on the trip so Undo can clear the choice cleanly.
- * Requires Client accepted first (pricing locked / booking stage).
+ * Requires Client accepted first (pricing locked / booking stage), unless
+ * acceptAndSelectQuoteFinal already locked pricing.
  */
 export function selectQuoteFinal(
   context: TripChangeContext,
@@ -994,74 +1097,101 @@ export function selectQuoteFinal(
     if (!isQuoteAccepted(before.trip.status) && !before.pricing_locked) {
       throw new AppError({
         userMessage:
-          "Mark Client said yes on the trip page first, then record the room they chose.",
+          "The client has not accepted yet. Ask to confirm: mark accepted and book this room.",
         code: "trips.quote_accept_required",
         status: 409,
       });
     }
-    const rows = findQuoteRows(before.rates.candidates, input.hotel, input.room);
-    if (rows.length === 0) {
-      throw new AppError({
-        userMessage: `No room matching ${input.room} at ${input.hotel} is on the options quote.`,
-        code: "trips.quote_option_not_found",
-        status: 404,
-      });
-    }
-    if (rows.length > 1) {
-      throw new AppError({
-        userMessage: `Several rooms match ${input.room} at ${input.hotel}. Name the hotel and room more specifically.`,
-        code: "trips.quote_option_ambiguous",
-        status: 409,
-      });
-    }
-    const row = rows[0]!;
-    if (row.selected) {
-      return {
-        summary: `${row.subtitle?.trim() || row.title} at ${row.property_name ?? input.hotel} is already the client's room.`,
-        undoable: false,
-        after: null,
-      };
-    }
-    const legId = row.leg_id;
-    if (!legId) {
-      throw new AppError({
-        userMessage: "That room is not attached to a stay, so it cannot become the booking.",
-        code: "trips.quote_option_no_stay",
-        status: 409,
-      });
-    }
-    if (before.pricing_locked && row.sell_amount == null) {
-      throw new AppError({
-        userMessage: tripMessages.error.pricingLocked,
-        code: "trips.pricing_locked",
-        status: 409,
-      });
-    }
-
-    const previousSelectedId =
-      before.rates.candidates.find((candidate) => candidate.selected && candidate.leg_id === legId)?.id ??
-      null;
-    const previousStatus = before.trip.status;
-
-    await selectAccommodationRate(row.id, context.actor, { keepOtherOptions: true });
-    const after = await getTripDetail(context.tripId, context.actor);
-    const hotel = after.rates.selected?.property_name?.trim() || input.hotel;
-    const room = after.rates.selected?.subtitle?.trim() || input.room;
-    const undoBefore: QuoteSelectFinalUndoPayload = {
-      kind: QUOTE_SELECT_FINAL_UNDO,
-      leg_id: legId,
-      line_item_id: row.id,
-      previous_selected_id: previousSelectedId,
-      previous_status: previousStatus,
-    };
-    return {
-      summary: `Recorded ${room} at ${hotel} as the client's choice. A pending booking is ready.`,
-      undoable: true,
-      after,
-      undoBefore,
-      undoAfter: { kind: QUOTE_SELECT_FINAL_UNDO, leg_id: legId, line_item_id: row.id },
-    };
+    return selectQuoteFinalInner(context, input, before);
   });
+}
+
+async function selectQuoteFinalInner(
+  context: TripChangeContext,
+  input: QuoteSelectFinalInput,
+  before: TripDetail,
+): Promise<{
+  summary: string;
+  undoable: boolean;
+  after: TripDetail | null;
+  undoBefore?: QuoteSelectFinalUndoPayload;
+  undoAfter?: { kind: typeof QUOTE_SELECT_FINAL_UNDO; leg_id: string; line_item_id: string };
+}> {
+  const rows = findQuoteRows(before.rates.candidates, input.hotel, input.room);
+  if (rows.length === 0) {
+    throw new AppError({
+      userMessage: `No room matching ${input.room} at ${input.hotel} is on the options quote.`,
+      code: "trips.quote_option_not_found",
+      status: 404,
+    });
+  }
+  if (rows.length > 1) {
+    throw new AppError({
+      userMessage: `Several rooms match ${input.room} at ${input.hotel}. Name the hotel and room more specifically.`,
+      code: "trips.quote_option_ambiguous",
+      status: 409,
+    });
+  }
+  const row = rows[0]!;
+  if (row.selected) {
+    return {
+      summary: `${row.subtitle?.trim() || row.title} at ${row.property_name ?? input.hotel} is already the client's room.`,
+      undoable: false,
+      after: null,
+    };
+  }
+  const legId = row.leg_id;
+  if (!legId) {
+    throw new AppError({
+      userMessage: "That room is not attached to a stay, so it cannot become the booking.",
+      code: "trips.quote_option_no_stay",
+      status: 409,
+    });
+  }
+  if (before.pricing_locked && row.sell_amount == null) {
+    throw new AppError({
+      userMessage: tripMessages.error.pricingLocked,
+      code: "trips.pricing_locked",
+      status: 409,
+    });
+  }
+
+  const previousSelectedId =
+    before.rates.candidates.find((candidate) => candidate.selected && candidate.leg_id === legId)
+      ?.id ?? null;
+  const previousStatus = before.trip.status;
+
+  // Set stay hotel for the chosen room without setTripStay (that refuses when pricing is locked).
+  // pointStayShellAtHotel is the same path selectAccommodationRate uses after lock (Issues #7 / #13).
+  const hotelName = row.property_name?.trim() || input.hotel;
+  const stay = listedStays(before).find((s) => s.leg_id === legId);
+  if (stay && hotelName && !hotelNameMatch(stay.property_name, hotelName)) {
+    await pointStayShellAtHotel({
+      trip_id: context.tripId,
+      leg_id: legId,
+      property_id: row.property_id,
+      property_name: hotelName,
+    });
+  }
+
+  await selectAccommodationRate(row.id, context.actor, { keepOtherOptions: true });
+  const after = await getTripDetail(context.tripId, context.actor);
+  const hotel = after.rates.selected?.property_name?.trim() || input.hotel;
+  const room = after.rates.selected?.subtitle?.trim() || input.room;
+  const undoBefore: QuoteSelectFinalUndoPayload = {
+    kind: QUOTE_SELECT_FINAL_UNDO,
+    leg_id: legId,
+    line_item_id: row.id,
+    previous_selected_id: previousSelectedId,
+    previous_status: previousStatus,
+  };
+  return {
+    summary: `Recorded ${room} at ${hotel} as the client's choice. A pending booking is ready.`,
+    undoable: true,
+    after,
+    undoBefore,
+    undoAfter: { kind: QUOTE_SELECT_FINAL_UNDO, leg_id: legId, line_item_id: row.id },
+  };
 }
 
 /** Undo quote_select_final: clear the choice and cancel the pending booking (or restore the prior room). */

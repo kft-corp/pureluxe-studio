@@ -83,7 +83,8 @@ export function TripBuilderChatPane({
   const hasDraftThread =
     !detail && (messages.length > 0 || streamingContent != null);
 
-  if (chatLoading && !detail) {
+  // Soft create-handoff may briefly load desk chrome while bubbles are already on screen.
+  if (chatLoading && !detail && messages.length === 0 && streamingContent == null) {
     return (
       <div className="flex h-full min-h-0 w-full flex-1 flex-col px-4 pt-4 pb-3 sm:px-6">
         <ChatSkeleton />
@@ -295,7 +296,7 @@ function ChatScrollArea({
         onScroll={handleScroll}
         className="flex h-full min-h-0 w-full flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain px-3 pt-3 pb-3 sm:px-6 sm:pt-4"
       >
-      {chatLoading ? (
+      {chatLoading && messages.length === 0 && streamingContent == null ? (
         <div className={CHAT_COLUMN_CLASS}>
           <ChatSkeleton />
         </div>
@@ -397,7 +398,7 @@ function stageCueFor(
   if (status === "quote_sent" || status === "waiting_on_client") {
     return "The quote is with the client. When they agree, mark **Client said yes** on the trip page, then tap **This is their room** here.";
   }
-  return "Every stay has a room with a client price. Say **show the options quote** to check the PDF. When you send it, mark **Sent to client** on the trip page.";
+  return "Every stay has a room with a sell price. Say **show the options quote** to check the PDF. When you send it, mark **Sent to client** on the trip page.";
 }
 
 function ChatMessageList({

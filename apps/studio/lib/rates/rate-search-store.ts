@@ -13,6 +13,7 @@ import type { NormalizedRateOption, SearchRatesResult } from "@pureluxe/rates";
 import type { SearchRatesBody } from "@pureluxe/shared";
 
 import { buildRateSearchNotes } from "./rate-search-pack";
+import { bestRoomMatch, hotelNameMatch } from "./room-match";
 import type { HotelRateSearchOutcome } from "@/lib/trip-builder/rates/search-rates-for-hotels";
 
 /** How long the last hotel search stays open for follow-up questions. */
@@ -290,15 +291,11 @@ export async function findStoredRateByHotelRoom(
 ): Promise<{ option: NormalizedRateOption; resultId: string } | null> {
   const search = await findLatestRateSearch(tripId);
   if (!search) return null;
-  const needleHotel = hotel.trim().toLowerCase();
-  const needleRoom = room.trim().toLowerCase();
-  const hit = search.results.find((row) => {
-    const name = (row.property_name ?? "").toLowerCase();
-    const sameHotel = name.includes(needleHotel) || needleHotel.includes(name);
-    const title = row.room_title.toLowerCase();
-    const sameRoom = title === needleRoom || title.includes(needleRoom) || needleRoom.includes(title);
-    return sameHotel && sameRoom;
-  });
+  const atHotel = search.results.filter((row) =>
+    hotelNameMatch(row.property_name ?? "", hotel),
+  );
+  const pool = atHotel.length > 0 ? atHotel : search.results;
+  const hit = bestRoomMatch(pool, room, (row) => row.room_title);
   if (!hit) return null;
   return {
     option: toOption(hit, search),

@@ -127,11 +127,11 @@ function roomLine(room: PricedRoom, percent: number, direction: "up" | "down" | 
   const team = formatRoomMoney(base, room.currency);
   const result = formatRoomMoney(next, room.currency);
   if (direction === "of") {
-    return `**${room.title}** — ${percent}% of the team cost ${team} is **${result}**.`;
+    return `**${room.title}** — ${percent}% of the cost ${team} is **${result}**.`;
   }
   const change = formatRoomMoney(Math.abs(roundMoney(next - base)), room.currency);
   const way = direction === "down" ? "less" : "more";
-  return `**${room.title}** — team cost ${team}. ${percent}% ${way} is ${change}. That figure is **${result}**.`;
+  return `**${room.title}** — cost ${team}. ${percent}% ${way} is ${change}. That figure is **${result}**.`;
 }
 
 /**
@@ -161,7 +161,7 @@ export function answerPriceQuestion(
         return `**${left.title}** is ${formatRoomMoney(left.teamCost, left.currency)}. **${right.title}** is ${formatRoomMoney(right.teamCost, right.currency)}. Those are different currencies, so they are not subtracted.`;
       }
       const gap = roundMoney(Math.abs(left.teamCost - right.teamCost));
-      return `**${left.title}** team cost ${formatRoomMoney(left.teamCost, left.currency)}. **${right.title}** team cost ${formatRoomMoney(right.teamCost, right.currency)}. The difference is **${formatRoomMoney(gap, left.currency)}**.`;
+      return `**${left.title}** cost ${formatRoomMoney(left.teamCost, left.currency)}. **${right.title}** cost ${formatRoomMoney(right.teamCost, right.currency)}. The difference is **${formatRoomMoney(gap, left.currency)}**.`;
     }
   }
 
@@ -175,23 +175,19 @@ export function answerPriceQuestion(
       return "Those rooms are not all in the same currency, so they are not added together.";
     }
     const total = roundMoney(rooms.reduce((sum, item) => sum + item.teamCost, 0));
-    return `The team-cost total of these rooms is **${formatRoomMoney(total, currency)}**. That is not a saved client price.`;
+    return `The cost total of these rooms is **${formatRoomMoney(total, currency)}**. That is not a saved sell.`;
   }
 
   if (percent == null && /\b(?:what should we|how much should we)\b/i.test(message)) {
-    if (markupPercent == null) {
-      return "No minimum markup is set, so there is no suggested client price. The card amount is the team cost.";
-    }
     const targets = room ? [room] : rooms;
-    if (targets.length === 0) return "Search rates first, then ask for a suggested client price.";
+    if (targets.length === 0) return "Search rates first, then ask for a markup or sell.";
     const lines = targets.map(
       (item) =>
-        `**${item.title}** — team cost ${formatRoomMoney(item.teamCost, item.currency)} · suggest **${formatRoomMoney(clientPriceAtMarkup(item.teamCost, markupPercent), item.currency)}**`,
+        `**${item.title}** — cost ${formatRoomMoney(item.teamCost, item.currency)}`,
     );
     return [
-      `The minimum markup is ${markupPercent}%. A client price at that markup:`,
+      "Give a markup % or sell — there is no hotel minimum markup to follow.",
       lines.join("\n"),
-      "That suggestion is not saved. Send the amount if you want to use it.",
     ].join("\n\n");
   }
 
@@ -199,26 +195,26 @@ export function answerPriceQuestion(
 
   if (wantsTrip(message) && !room) {
     if (trip?.amount == null) {
-      return "The trip client price is not set yet. Set it with **sell 4500 USD**, or ask about a room on the list.";
+      return "The trip sell is not set yet. Set it with **sell 4500 USD**, or ask about a room on the list.";
     }
     const next = applyPercent(trip.amount, percent, direction);
     const current = formatRoomMoney(trip.amount, trip.currency);
     const result = formatRoomMoney(next, trip.currency);
     if (direction === "of") {
-      return `${percent}% of the trip client price ${current} is **${result}**.`;
+      return `${percent}% of the trip sell ${current} is **${result}**.`;
     }
     const way = direction === "down" ? "less" : "more";
     const margin =
       trip.teamCost != null && next > 0
         ? ` Margin at that price: ${formatRoomMoney(next - trip.teamCost, trip.currency)} (${(((next - trip.teamCost) / next) * 100).toFixed(1)}%).`
         : "";
-    return `Trip client price ${current}. ${percent}% ${way} is **${result}**.${margin} That figure is not saved.`;
+    return `Trip sell ${current}. ${percent}% ${way} is **${result}**.${margin} That figure is not saved.`;
   }
 
   if (named === "ambiguous") {
     return "More than one room matches that. Name the full room, or say room 1.";
   }
-  const useClient = /\bclient price\b/i.test(message);
+  const useClient = /\b(?:client price|sell)\b/i.test(message);
   const targets = wantsAll(message) || (!room && rooms.length > 1) ? rooms : room ? [room] : rooms;
   if (targets.length === 0) {
     return "Search rates first, then ask for the percent on a room.";
@@ -226,7 +222,7 @@ export function answerPriceQuestion(
   if (useClient) {
     const missing = targets.filter((item) => item.clientPrice == null);
     if (missing.length === targets.length) {
-      return "No client price is saved on that room yet. The figure below would need a saved client price. Ask from the team cost, or send the client price first.";
+      return "No sell is saved on that room yet. The figure below would need a saved sell. Ask from the cost, or send the sell first.";
     }
     const lines = targets
       .filter((item) => item.clientPrice != null)
@@ -236,13 +232,13 @@ export function answerPriceQuestion(
         const current = formatRoomMoney(base, item.currency);
         const result = formatRoomMoney(next, item.currency);
         if (direction === "of") {
-          return `**${item.title}** — ${percent}% of the client price ${current} is **${result}**.`;
+          return `**${item.title}** — ${percent}% of the sell ${current} is **${result}**.`;
         }
         const way = direction === "down" ? "less" : "more";
-        return `**${item.title}** — client price ${current}. ${percent}% ${way} is **${result}**.`;
+        return `**${item.title}** — sell ${current}. ${percent}% ${way} is **${result}**.`;
       });
     return [...lines, "That figure is not saved."].join("\n");
   }
   const lines = targets.map((item) => roomLine(item, percent, direction));
-  return [lines.join("\n"), "This is from the team cost. It is not saved."].join("\n\n");
+  return [lines.join("\n"), "This is from the cost. It is not saved."].join("\n\n");
 }

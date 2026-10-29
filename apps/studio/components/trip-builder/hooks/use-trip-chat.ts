@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type RefObject } from "react";
 import type { AgentPhase } from "@pureluxe/ai/chat-stream";
 import type { TripBuilderChatSendBody, TripBuilderPreTripChatSendBody } from "@pureluxe/shared";
 
@@ -11,12 +11,24 @@ import {
   streamTripChat,
 } from "@/lib/api";
 import { showApiError, showWarningToast } from "@/lib/feedback";
-import { pageRoutes } from "@/lib/routes";
 import type { ChatMessage, TripDetail } from "@/lib/trip-builder";
 
 import { applyChatStreamEvent, makeOptimisticUserMessage } from "../apply-chat-stream-event";
 
+import { peekSoftTripHandoff, stashSoftTripHandoff } from "./soft-trip-handoff";
 import type { TripCore } from "./use-trip-core";
+
+export type TripOpenedHandler = (tripId: string, meta: { created: boolean }) => void;
+
+function initialSoftHandoff(initialDetail: TripDetail | null): {
+  messages: ChatMessage[];
+  tripId: string | null;
+} {
+  if (!initialDetail) return { messages: [], tripId: null };
+  const messages = peekSoftTripHandoff(initialDetail.trip.id);
+  if (!messages) return { messages: [], tripId: null };
+  return { messages, tripId: initialDetail.trip.id };
+}
 
 const CHAT_PAGE_SIZE = 30;
 /** Wait before re-sending a message that hit another reply still running on this trip. */
@@ -32,9 +44,12 @@ export type TripChatAction = {
 };
 
 /** The chat thread: loading it, streaming agent replies, and saving the local turns. */
-export function useTripChat(core: TripCore, initialDetail: TripDetail | null) {
+export function useTripChat(
+  core: TripCore,
+  initialDetail: TripDetail | null,
+  onTripOpenedRef?: RefObject<TripOpenedHandler | null>,
+) {
   const {
-    router,
     detail,
     canWrite,
     setRateOptions,
@@ -43,14 +58,23 @@ export function useTripChat(core: TripCore, initialDetail: TripDetail | null) {
     refreshAfterMutation,
   } = core;
 
+  const softRestoredRef = useRef<ReturnType<typeof initialSoftHandoff> | null>(null);
+  if (softRestoredRef.current == null) {
+    softRestoredRef.current = initialSoftHandoff(initialDetail);
+  }
+  const softRestored = softRestoredRef.current;
   const [chatBusy, setChatBusy] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [chatLoading, setChatLoading] = useState(() => Boolean(initialDetail));
+  const [messages, setMessages] = useState<ChatMessage[]>(() => softRestored.messages);
+  const [chatLoading, setChatLoading] = useState(
+    () => Boolean(initialDetail) && softRestored.tripId == null,
+  );
   const [chatLoadingOlder, setChatLoadingOlder] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [streamingContent, setStreamingContent] = useState<string | null>(null);
   const [agentPhase, setAgentPhase] = useState<AgentPhase | null>(null);
   const [agentSteps, setAgentSteps] = useState<string[]>([]);
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
 
   /** The chip being tapped. Its user line is saved as an action, never as typed text. */
   const tapRef = useRef<{ id: string } | null>(null);
@@ -91,6 +115,11 @@ export function useTripChat(core: TripCore, initialDetail: TripDetail | null) {
   function pauseQueue() {
     setQueuePaused(true);
     window.setTimeout(() => setQueuePaused(false), BUSY_RETRY_MS);
+  }
+
+  /** Clear pause so queued messages can flush as soon as chatBusy drops. */
+  function resumeQueueSoon() {
+    setQueuePaused(false);
   }
 
   function beginTap(chipId: string) {
@@ -193,7 +222,12 @@ export function useTripChat(core: TripCore, initialDetail: TripDetail | null) {
               setStreamingContent,
               setAgentPhase,
               setAgentSteps,
-              onOpened: (tripId) => router.replace(pageRoutes.tripBuilderTrip(tripId)),
+              onOpened: (tripId, meta) => {
+                if (meta.created) {
+                  stashSoftTripHandoff(tripId, messagesRef.current);
+                }
+                onTripOpenedRef?.current?.(tripId, meta);
+              },
               showError: showApiError,
             }),
         },
@@ -276,6 +310,8 @@ export function useTripChat(core: TripCore, initialDetail: TripDetail | null) {
       void loadChatMessages(tripId);
     } finally {
       setChatBusy(false);
+      // Unblock flush as soon as the agent finishes; BUSY_RETRY_MS remains for busy-trip retries.
+      if (queueRef.current.length > 0) resumeQueueSoon();
     }
     // Also after a failed reply: changes made before it stopped are saved.
     if (changed) await refreshAfterMutation(tripId).catch(showApiError);
@@ -427,6 +463,8 @@ export function useTripChat(core: TripCore, initialDetail: TripDetail | null) {
     agentPhase,
     setAgentPhase,
     agentSteps,
+    /** Trip id whose thread was restored after a create soft-nav remount. */
+    softRestoredTripId: softRestored.tripId,
     resetChatUi,
     loadChatMessages,
     loadOlderMessages,

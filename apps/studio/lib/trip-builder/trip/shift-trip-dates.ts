@@ -10,7 +10,8 @@ import {
 import { AppError, tripMessages } from "@pureluxe/shared";
 
 import { requireEditableTrip } from "../access/require-assigned-trip";
-import { cancelStayBooking, markQuoteStale } from "../stays/stay-side-effects";
+import { cancelStayBooking } from "../stays/stay-side-effects";
+import { refreshOptionsQuotePdfAfterChange } from "../options-quote/options-quote";
 import { syncTripCommercials } from "../pricing/sync-trip-commercials";
 import { syncTripHotelBooking } from "../pricing/sync-trip-booking";
 import { closeTripRateSearches } from "@/lib/rates/rate-search-store";
@@ -97,7 +98,7 @@ export async function shiftTripDates(
       reason: "Trip dates shifted in Trip Builder",
     });
   }
-  await markQuoteStale(trip.id);
+  await refreshOptionsQuotePdfAfterChange(trip.id, actor);
   await syncTripCommercials(trip.id);
   const fresh = (await findTripById(trip.id)) ?? trip;
   await closeTripRateSearches(trip.id);

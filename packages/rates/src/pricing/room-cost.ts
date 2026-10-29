@@ -45,6 +45,69 @@ function addOneDay(isoDate: string): string {
   return dt.toISOString().slice(0, 10);
 }
 
+/** Stay cost for ranking package rows without needing real calendar dates. */
+function packageStayCostForNights(
+  rate: PropertyContractedRate,
+  stayNightsCount: number,
+): number | null {
+  const amount = Number(rate.cost_amount);
+  if (!Number.isFinite(amount) || amount < 0) return null;
+  if (rate.cost_unit !== "package") return amount;
+
+  const packageNights = rate.package_nights;
+  const extraRaw = rate.extra_night_amount;
+  const extra = extraRaw == null ? null : Number(extraRaw);
+  if (
+    packageNights != null &&
+    stayNightsCount > packageNights &&
+    extra != null &&
+    Number.isFinite(extra) &&
+    extra >= 0
+  ) {
+    return amount + (stayNightsCount - packageNights) * extra;
+  }
+  return amount;
+}
+
+/**
+ * Prefer an exact package length for the stay; otherwise the cheapest covering
+ * package (package + extra nights). Avoids 3N+extra when a 4N package exists.
+ */
+function pickPackageRate(
+  categoryRates: PropertyContractedRate[],
+  stayNightsCount: number,
+): PropertyContractedRate | null {
+  const covering = categoryRates.filter(
+    (rate) =>
+      rate.rate_basis === "package" &&
+      contractedRateCoversStay(rate, stayNightsCount),
+  );
+  if (covering.length === 0) return null;
+
+  const exact = covering.filter(
+    (rate) => rate.package_nights != null && rate.package_nights === stayNightsCount,
+  );
+  const pool = exact.length > 0 ? exact : covering;
+
+  let best: PropertyContractedRate | null = null;
+  let bestCost = Number.POSITIVE_INFINITY;
+  for (const rate of pool) {
+    const cost = packageStayCostForNights(rate, stayNightsCount);
+    if (cost == null) continue;
+    const sort = rate.sort_order ?? 0;
+    const bestSort = best?.sort_order ?? 0;
+    if (
+      best == null ||
+      cost < bestCost - 0.001 ||
+      (Math.abs(cost - bestCost) <= 0.001 && sort < bestSort)
+    ) {
+      best = rate;
+      bestCost = cost;
+    }
+  }
+  return best;
+}
+
 /**
  * Base room cost for one room (no extras / tax / offers).
  * Nightly rates are summed night-by-night across seasons (R1).
@@ -65,11 +128,7 @@ export function computeRoomStayCost(input: {
   );
   if (categoryRates.length === 0) return null;
 
-  const packageRate = categoryRates.find(
-    (rate) =>
-      rate.rate_basis === "package" &&
-      contractedRateCoversStay(rate, nights.length),
-  );
+  const packageRate = pickPackageRate(categoryRates, nights.length);
   if (packageRate) {
     return {
       cost: roundMoney(

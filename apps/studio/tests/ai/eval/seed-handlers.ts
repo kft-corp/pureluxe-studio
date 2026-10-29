@@ -407,6 +407,13 @@ export function createSeedHandlers(
             rooms: input.rooms,
             board: null as string | null,
             source: "Contracted",
+            rate_basis: "nightly" as const,
+            package_nights: null as number | null,
+            package_team: null as number | null,
+            extra_nights_count: null as number | null,
+            extra_night_team: null as number | null,
+            extra_night_client: null as number | null,
+            package_label: null as string | null,
             cancel: "Cancel within 30 days",
             cancel_by: null as string | null,
             cancel_days: 30 as number | null,
@@ -724,6 +731,28 @@ export function createSeedHandlers(
       return {
         ok: true as const,
         summary: `Recorded ${row.room} at ${row.hotel} as the client's choice. A pending booking is ready.`,
+        undo: true,
+      };
+    },
+
+    async acceptAndSelect(input) {
+      trip.quoteStatus = "accepted";
+      const row = trip.quoteOptions.find(
+        (option) =>
+          option.hotel.toLowerCase().includes(input.hotel.toLowerCase()) &&
+          option.room.toLowerCase().includes(input.room.toLowerCase()),
+      );
+      if (!row) {
+        throw advisorError(
+          `No room matching ${input.room} at ${input.hotel} is on the options quote.`,
+          "trips.quote_option_not_found",
+        );
+      }
+      trip.chosenOption = { hotel: row.hotel, room: row.room };
+      trip.booking = { hotel: row.hotel, status: "pending" };
+      return {
+        ok: true as const,
+        summary: `Marked as accepted and recorded ${row.room} at ${row.hotel}. A pending booking is ready.`,
         undo: true,
       };
     },

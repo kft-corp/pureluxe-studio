@@ -6,7 +6,7 @@ import type {
 } from "@pureluxe/ai";
 import type { NormalizedRateOption, RateSourceCode } from "@pureluxe/rates";
 
-import { clientPriceAtMarkup, roundMoney } from "@/lib/rates/price-math";
+import { roundMoney } from "@/lib/rates/price-math";
 
 import type { HotelRateSearchOutcome } from "./search-rates-for-hotels";
 
@@ -157,9 +157,7 @@ function toRoom(
   checkIn: string,
   markupButtons: number[],
 ): RateCompareRoom {
-  const markup = markupButtons[0] ?? 30;
   const teamCost = option.cost_internal;
-  const clientTotal = clientPriceAtMarkup(teamCost, markup);
   const nightCount = nights != null && nights > 0 ? nights : 1;
   const cancel = shortLine(option.cancellation_summary, 80);
   const cancelDays = parseCancelDays(option.cancellation_summary);
@@ -172,15 +170,34 @@ function toRoom(
   const rateBasis = asRateBasis(option.raw);
   const packageNights = asPositiveNumber(option.raw?.package_nights);
   const extraNightTeam = asPositiveNumber(option.raw?.extra_night_amount);
-  const extraNightClient =
-    extraNightTeam == null ? null : clientPriceAtMarkup(extraNightTeam, markup);
+  const extraNightsCount =
+    rateBasis === "package" &&
+    packageNights != null &&
+    nights != null &&
+    nights > packageNights
+      ? nights - packageNights
+      : rateBasis === "package"
+        ? 0
+        : null;
+  const packageAmount = asPositiveNumber(option.raw?.package_amount);
+  const packageTeam =
+    rateBasis !== "package"
+      ? null
+      : packageAmount != null
+        ? packageAmount
+        : extraNightsCount != null &&
+            extraNightsCount > 0 &&
+            extraNightTeam != null
+          ? roundMoney(teamCost - extraNightsCount * extraNightTeam)
+          : teamCost;
 
   return {
     rate_ref: rateRef,
     room_name: option.room_name?.trim() || option.property_name?.trim() || "Room",
     team_cost: teamCost,
-    client_total: clientTotal,
-    client_per_night: roundMoney(clientTotal / nightCount),
+    // Client columns stay empty until the advisor picks a markup (buttons only).
+    client_total: null,
+    client_per_night: null,
     team_per_night: roundMoney(teamCost / nightCount),
     currency: option.currency,
     pricing_scope: pricingScope(option.raw),
@@ -189,14 +206,16 @@ function toRoom(
     source: sourceLabel(option.rate_source_code),
     rate_basis: rateBasis,
     package_nights: rateBasis === "package" ? packageNights : null,
+    package_team: packageTeam,
+    extra_nights_count: extraNightsCount,
     extra_night_team: rateBasis === "package" ? extraNightTeam : null,
-    extra_night_client: rateBasis === "package" ? extraNightClient : null,
+    extra_night_client: null,
     package_label: rateBasis === "package" ? packageLabel(packageNights, nights) : null,
     cancel,
     cancel_by: cancelBy,
     cancel_days: cancelDays,
     inclusions,
-    markup_percent: markup,
+    markup_percent: null,
     recommended: Boolean(option.recommended),
     markup_buttons: markupButtons,
   };
@@ -231,9 +250,7 @@ function hotelNotes(rooms: RateCompareRoom[], checkIn: string): RateCompareHotel
 
   const markupPct = rooms[0]?.markup_percent ?? null;
   const markup =
-    markupPct != null
-      ? `Commission rate ${markupPct}% — client per-night and total use this`
-      : null;
+    markupPct != null ? `Applied markup ${markupPct}% — sell per-night and total use this` : null;
 
   const seen = new Set<string>();
   const inclusions: string[] = [];
@@ -257,13 +274,8 @@ function hotelRow(
   nights: number | null,
   checkIn: string,
 ): RateCompareHotel {
-  const markups =
-    outcome.min_markup_percent != null && outcome.min_markup_percent > 0
-      ? [
-          outcome.min_markup_percent,
-          ...DEFAULT_MARKUPS.filter((m) => m !== outcome.min_markup_percent),
-        ].slice(0, 2)
-      : DEFAULT_MARKUPS;
+  // Suggested markup buttons only — do not seed client totals from hotel commission.
+  const markups = DEFAULT_MARKUPS;
 
   if (outcome.status !== "ok") {
     return {

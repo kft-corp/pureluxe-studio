@@ -33,7 +33,7 @@ export const QUOTE_CLEARABLE_SECTIONS = [
 export type QuoteClearableSection = (typeof QUOTE_CLEARABLE_SECTIONS)[number];
 
 const BLOCKED =
-  /\b(team cost|markup|confidential|bank payout|swift|booking code|commission)\b/i;
+  /\b(team cost|cost_internal|markup|confidential|bank payout|swift|booking code|commission)\b/i;
 
 const LIST_LINE_ID =
   /^(?:room:[0-9a-f-]{36}:(?:inclusion|extra)|stay:\d+:hotel:\d+:(?:arrival|transfer|shared)):\d+$/i;

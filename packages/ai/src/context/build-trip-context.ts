@@ -38,6 +38,15 @@ function idPart(clientId: string | undefined): string {
   return clientId ? `, client_id ${clientId}` : "";
 }
 
+function agePart(person: {
+  age_on_arrival?: number;
+  dob_missing?: boolean;
+}): string {
+  if (person.age_on_arrival != null) return `, age ${person.age_on_arrival} on arrival`;
+  if (person.dob_missing) return ", child age unknown";
+  return "";
+}
+
 function roomFact(label: string, value: string | null | undefined, empty: string): string {
   const text = value?.trim();
   if (!text) return empty;
@@ -59,10 +68,10 @@ function formatRate(rate: TripRateFact): string {
   const bits = [
     rate.title,
     rate.subtitle ? `(${rate.subtitle})` : null,
-    `team cost ${money(rate.cost_internal, rate.currency)}`,
+    `cost ${money(rate.cost_internal, rate.currency)}`,
     rate.sell_amount != null
-      ? `client price ${money(rate.sell_amount, rate.currency)}`
-      : "client price not set",
+      ? `sell ${money(rate.sell_amount, rate.currency)}`
+      : "sell not set",
     roomFact("included", rate.inclusions?.join(", "), "inclusions not given"),
     roomFact("cancellation", rate.cancellation_policy, "cancellation terms not given"),
     roomFact("payment", rate.payment_policy, "payment terms not given"),
@@ -109,7 +118,7 @@ export function buildTripContext(trip: TripFacts): string {
     `Travellers confirmed: ${trip.travellers_confirmed ? "yes" : "no"}`,
     ...(trip.travellers ?? []).map(
       (person) =>
-        `- ${person.display_name} (${person.role === "primary" ? "lead" : person.party_role}${idPart(person.client_id)})`,
+        `- ${person.display_name} (${person.role === "primary" ? "lead" : person.party_role}${agePart(person)}${idPart(person.client_id)})`,
     ),
     ...(trip.family_suggestions?.length
       ? [
@@ -184,8 +193,8 @@ export function buildTripContext(trip: TripFacts): string {
       "Price (advisor only, already calculated):",
       `- Hotel net: ${trip.price.hotel_net ?? "missing"}`,
       `- Tax: ${trip.price.tax ?? "missing"}`,
-      `- Margin: ${trip.price.margin ?? "missing"}${trip.price.margin_percent ? ` (${trip.price.margin_percent} of the client price)` : ""}`,
-      `- Client price: ${trip.price.client_price ?? "missing"}`,
+      `- Margin: ${trip.price.margin ?? "missing"}${trip.price.margin_percent ? ` (${trip.price.margin_percent} of the sell)` : ""}`,
+      `- Sell: ${trip.price.client_price ?? "missing"}`,
       ...(trip.price.note ? [`- Note: ${trip.price.note}`] : []),
     );
   }
