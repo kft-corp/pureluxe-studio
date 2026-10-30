@@ -1,10 +1,14 @@
 import {
+  clearSelectedAccommodationForLeg,
   deleteLineItemsForLeg,
   deleteTripLeg,
+  deleteTripLineItemsByIds,
+  deleteUnselectedStayOptions,
   findOpenHotelBookingForTrip,
   findTripDocument,
   findTripById,
   insertBookingAuditLogs,
+  listPricedAccommodationLineItems,
   listTripLegs,
   updateBooking,
   updateTrip,
@@ -51,6 +55,22 @@ async function markOneQuoteStale(
     type,
     status: "stale",
   });
+}
+
+/**
+ * Founder #3: drop priced quote options when party / rooms / nights / city change
+ * so old costs cannot remain looking current. Stay shell is kept.
+ */
+export async function clearStaleQuotePricesForLeg(
+  tripId: string,
+  legId: string,
+): Promise<void> {
+  await clearSelectedAccommodationForLeg(tripId, legId);
+  await deleteUnselectedStayOptions(tripId, legId);
+  const priced = await listPricedAccommodationLineItems(tripId, legId);
+  if (priced.length > 0) {
+    await deleteTripLineItemsByIds(priced.map((row) => row.id));
+  }
 }
 
 /**

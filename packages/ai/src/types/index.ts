@@ -110,7 +110,10 @@ export type TripFacts = {
     hotel_net: string | null;
     tax: string | null;
     margin: string | null;
+    /** Margin as a share of sell. */
     margin_percent: string | null;
+    /** Markup as a share of cost. */
+    markup_percent: string | null;
     client_price: string | null;
     /** Why a figure is missing, or how margin was worked out. */
     note: string | null;

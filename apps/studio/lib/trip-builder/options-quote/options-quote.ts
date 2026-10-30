@@ -15,6 +15,12 @@ import {
 import { AppError, tripMessages } from "@pureluxe/shared";
 
 import { buildOptionsQuotePdf } from "./build-options-quote-pdf";
+import {
+  isGreenTaxOrSeaplaneLine,
+  isPricedOrExtraTransfer,
+  rateIncludesExtra,
+  toClientLine,
+} from "./client-wording";
 import { clientQuotePolicies, type ClientQuoteFacts } from "../stays/hotel-contract-facts";
 import {
   optionsQuoteFromTrip,
@@ -88,32 +94,77 @@ function notIncludedLine(line: string, includedText: string): string {
   return `Not included: ${trimmed}`;
 }
 
+/** Layered client wording on every policy line (glossary + pass-through). */
+function clientLines(lines: string[]): string[] {
+  return distinct(lines.map((line) => toClientLine(line)).filter(Boolean));
+}
+
+/**
+ * Founder #21: green tax / seaplane not already in the rate → Not included on the PDF.
+ * Keep included transfer logistics under Getting there with one seaplane phrase.
+ */
+function splitTransferExtras(
+  transfers: string[],
+  includedText: string,
+): { gettingThere: string[]; notIncluded: string[] } {
+  const gettingThere: string[] = [];
+  const notIncluded: string[] = [];
+  for (const line of transfers) {
+    if (!isGreenTaxOrSeaplaneLine(line)) {
+      gettingThere.push(line);
+      continue;
+    }
+    const covered = rateIncludesExtra(line, includedText) && !isPricedOrExtraTransfer(line);
+    if (covered) {
+      gettingThere.push(line);
+      continue;
+    }
+    notIncluded.push(line);
+  }
+  return { gettingThere, notIncluded };
+}
+
 /** Keep a line on the hotel only when every room has that same line. */
 function placeHotelFacts(hotel: OptionsQuoteHotel, loaded: ClientQuoteFacts[]) {
-  const arrival = onEveryRoom(loaded.map((row) => row.arrival));
-  const transfers = onEveryRoom(loaded.map((row) => row.transfers));
-  const stay = onEveryRoom(loaded.map((row) => row.stay));
-  const benefits = onEveryRoom(loaded.map((row) => row.benefits));
-  const charges = onEveryRoom(loaded.map((row) => row.charges));
+  const arrival = clientLines(onEveryRoom(loaded.map((row) => row.arrival)));
+  const rawTransfers = clientLines(onEveryRoom(loaded.map((row) => row.transfers)));
+  const stay = clientLines(onEveryRoom(loaded.map((row) => row.stay)));
+  const benefits = clientLines(onEveryRoom(loaded.map((row) => row.benefits)));
+  const rawCharges = clientLines(onEveryRoom(loaded.map((row) => row.charges)));
   const notes = hotel.rooms.map((room) => room.note?.trim() || "");
   const sharedNote = notes.length > 0 && notes.every((note) => note && note === notes[0]) ? notes[0]! : "";
   const sharedIncludedText = hotel.rooms.flatMap((room) => room.inclusions).join(" ");
+  const { gettingThere, notIncluded: transferExtras } = splitTransferExtras(
+    rawTransfers,
+    sharedIncludedText,
+  );
+  const charges = distinct([...rawCharges, ...transferExtras]);
   const chargeLines = charges.map((line) => notIncludedLine(line, sharedIncludedText));
   hotel.arrival = arrival;
-  hotel.transfers = transfers;
+  hotel.transfers = gettingThere;
   hotel.shared = distinct([...stay, ...benefits, ...chargeLines, ...(sharedNote ? [sharedNote] : [])]);
   hotel.rooms.forEach((room, index) => {
     const facts = loaded[index] ?? emptyFacts();
     const note = room.note?.trim() || "";
     const includedText = [...room.inclusions, sharedIncludedText].join(" ");
-    const roomCharges = onlyHere(facts.charges, charges).map((line) =>
-      notIncludedLine(line, includedText),
+    const roomArrival = clientLines(facts.arrival);
+    const roomTransfers = clientLines(facts.transfers);
+    const roomStay = clientLines(facts.stay);
+    const roomBenefits = clientLines(facts.benefits);
+    const roomChargeFacts = clientLines(facts.charges);
+    const roomTransferSplit = splitTransferExtras(
+      onlyHere(roomTransfers, rawTransfers),
+      includedText,
     );
+    const roomCharges = distinct([
+      ...onlyHere(roomChargeFacts, rawCharges),
+      ...roomTransferSplit.notIncluded,
+    ]).map((line) => notIncludedLine(line, includedText));
     room.extras = distinct([
-      ...onlyHere(facts.arrival, arrival),
-      ...onlyHere(facts.transfers, transfers),
-      ...onlyHere(facts.stay, stay),
-      ...onlyHere(facts.benefits, benefits),
+      ...onlyHere(roomArrival, arrival),
+      ...roomTransferSplit.gettingThere,
+      ...onlyHere(roomStay, stay),
+      ...onlyHere(roomBenefits, benefits),
       ...roomCharges,
       ...(note && note !== sharedNote ? [note] : []),
     ]);

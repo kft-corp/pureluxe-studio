@@ -121,6 +121,7 @@ export function toTripFacts(
       tax: price.tax,
       margin: price.margin,
       margin_percent: price.marginPercent,
+      markup_percent: price.markupPercent,
       client_price: price.clientPrice,
       note: price.pricedLabel ?? price.note,
     },

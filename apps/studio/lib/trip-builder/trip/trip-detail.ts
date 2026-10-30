@@ -404,6 +404,24 @@ export async function buildTripDetail(trip: Trip): Promise<TripDetail> {
       family_role: member.role,
     }));
 
+  // Founder #24: when the stay shell has no party counts, use travellers so PDF
+  // occupancy / option lines are not "Not set" / bare "1 villa".
+  const fromTravellers =
+    travellers.length > 0
+      ? {
+          children: travellers.filter((row) => row.party_role === "child").length,
+          adults: travellers.filter((row) => row.party_role !== "child").length,
+        }
+      : null;
+  const staysWithParty =
+    fromTravellers == null
+      ? stays
+      : stays.map((stay) => ({
+          ...stay,
+          adults: stay.adults ?? fromTravellers.adults,
+          children: stay.children ?? fromTravellers.children,
+        }));
+
   return {
     trip: current,
     client: clientRow
@@ -411,8 +429,8 @@ export async function buildTripDetail(trip: Trip): Promise<TripDetail> {
       : null,
     travellers,
     family_suggestions: familySuggestions,
-    stay: stays[0] ?? null,
-    stays,
+    stay: staysWithParty[0] ?? null,
+    stays: staysWithParty,
     rates,
     quote: toQuoteSnapshot(current, document),
     options_quote: toOptionsQuoteSnapshot(optionsDocument),

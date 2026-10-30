@@ -173,6 +173,29 @@ function RoomNameCell({ room }: { room: RateCompareRoom }) {
   );
 }
 
+/** Party · rooms · nights for this rates_search (does not claim every cell is that total). */
+function searchContextLine(compare: RateCompareCard): string | null {
+  const parts: string[] = [];
+  if (compare.adults > 0) {
+    parts.push(compare.adults === 1 ? "1 adult" : `${compare.adults} adults`);
+  }
+  if (compare.children > 0) {
+    parts.push(compare.children === 1 ? "1 child" : `${compare.children} children`);
+  }
+  if (compare.rooms > 0) {
+    parts.push(compare.rooms === 1 ? "1 room" : `${compare.rooms} rooms`);
+  }
+  if (compare.nights != null && compare.nights > 0) {
+    parts.push(compare.nights === 1 ? "1 night" : `${compare.nights} nights`);
+  }
+  if (parts.length === 0) return null;
+  return `Search: ${parts.join(" · ")}`;
+}
+
+function stayCostColumnLabel(searchRooms: number): string {
+  return searchRooms > 1 ? `Stay cost (${searchRooms} rooms)` : "Stay cost";
+}
+
 /**
  * Single rates table under an agent reply (one or many hotels).
  * Nightly hotels: Per night + Stay total.
@@ -187,8 +210,8 @@ export function TripBuilderRateCompare({
   disabled?: boolean;
   onAddOption?: (option: RateCompareAddOption) => void;
 }) {
-  // Destination / dates / party / age / preference stay in trip header + sidebar.
   const hotels = compare.hotels ?? [];
+  const contextLine = searchContextLine(compare);
   const fromLines = hotels
     .map((hotel) => {
       const from = hotelFromClient(hotel);
@@ -199,6 +222,9 @@ export function TripBuilderRateCompare({
 
   return (
     <div className="mt-3 space-y-4 text-[13.5px] leading-snug text-ink">
+      {contextLine ? (
+        <p className="text-[13px] font-medium text-ink-muted">{contextLine}</p>
+      ) : null}
       {fromLines.length > 1 ? (
         <p className="text-[13.5px] text-ink">{fromLines.join(" · ")}</p>
       ) : null}
@@ -209,6 +235,7 @@ export function TripBuilderRateCompare({
             key={hotel.hotel}
             hotel={hotel}
             nights={compare.nights ?? null}
+            searchRooms={compare.rooms}
           />
         ))}
       </div>
@@ -219,9 +246,12 @@ export function TripBuilderRateCompare({
 function HotelRates({
   hotel,
   nights,
+  searchRooms,
 }: {
   hotel: RateCompareHotel;
   nights: number | null;
+  /** Rooms used in this rates_search (party search), not table row count. */
+  searchRooms: number;
 }) {
   const [expanded, setExpanded] = useState(false);
   const rooms = hotel.rooms ?? [];
@@ -233,6 +263,7 @@ function HotelRates({
       ? rooms
       : rooms.slice(0, INITIAL_ROOMS_VISIBLE);
   const hiddenCount = rooms.length - visibleRooms.length;
+  const searchRoomsLabel = searchRooms > 1 ? `${searchRooms} rooms` : null;
 
   return (
     <div className="space-y-2">
@@ -248,6 +279,9 @@ function HotelRates({
         ) : null}
         {hotel.status === "ok" && packageMode ? (
           <span className="text-[12px] text-ink-subtle">Package rates</span>
+        ) : null}
+        {hotel.status === "ok" && searchRoomsLabel ? (
+          <span className="text-[12px] text-ink-subtle">{searchRoomsLabel}</span>
         ) : null}
       </div>
 
@@ -271,29 +305,44 @@ function HotelRates({
                 nights={nights}
                 packageMode={packageMode}
                 showSource={!hideSourceColumn}
+                searchRooms={searchRooms}
               />
             ))}
           </div>
           <div className="hidden w-full max-w-full overflow-x-auto rounded-lg ring-1 ring-border md:block">
-            <table className="w-full min-w-[26rem] table-fixed border-collapse text-left text-[13.5px]">
+            <table
+              className={cn(
+                "w-full table-fixed border-collapse text-left text-[13.5px]",
+                packageMode ? "min-w-[34rem]" : "min-w-[26rem]",
+              )}
+            >
               <thead>
                 <tr className="border-b border-divider bg-surface-subtle text-ink-muted">
                   <th
                     className={cn(
                       "px-3 py-2 text-[12px] font-semibold",
-                      hideSourceColumn ? "w-[36%]" : "w-[32%]",
+                      packageMode
+                        ? hideSourceColumn
+                          ? "w-[28%]"
+                          : "w-[24%]"
+                        : hideSourceColumn
+                          ? "w-[36%]"
+                          : "w-[32%]",
                     )}
                   >
                     Room
                   </th>
-                  <th className="w-[16%] px-3 py-2 text-[12px] font-semibold">Meal plan</th>
+                  <th className="w-[14%] px-3 py-2 text-[12px] font-semibold">Meal plan</th>
                   {packageMode ? (
                     <>
-                      <th className="w-[20%] px-3 py-2 text-[12px] font-semibold tabular-nums">
-                        Package total
+                      <th className="w-[18%] px-3 py-2 text-[12px] font-semibold tabular-nums">
+                        Package total (per room)
                       </th>
-                      <th className="w-[20%] px-3 py-2 text-[12px] font-semibold tabular-nums">
-                        Extra night
+                      <th className="w-[16%] px-3 py-2 text-[12px] font-semibold tabular-nums">
+                        Extra night (per room)
+                      </th>
+                      <th className="w-[18%] px-3 py-2 text-[12px] font-semibold tabular-nums">
+                        {stayCostColumnLabel(searchRooms)}
                       </th>
                     </>
                   ) : (
@@ -342,7 +391,7 @@ function HotelRates({
               Show fewer rooms
             </button>
           ) : null}
-          <HotelNotes hotel={hotel} packageMode={packageMode} />
+          <HotelNotes hotel={hotel} packageMode={packageMode} searchRooms={searchRooms} />
         </>
       ) : null}
     </div>
@@ -403,6 +452,13 @@ function RoomTableRow({
               <span className="text-ink-subtle">—</span>
             )}
           </td>
+          <td className="px-3 py-2 tabular-nums text-ink">
+            <MoneyCell
+              client={clientTotal}
+              team={teamTotal}
+              currency={room.currency}
+            />
+          </td>
         </>
       ) : (
         <>
@@ -435,11 +491,13 @@ function RoomMobileCard({
   nights,
   packageMode,
   showSource,
+  searchRooms,
 }: {
   room: RateCompareRoom;
   nights: number | null;
   packageMode: boolean;
   showSource: boolean;
+  searchRooms: number;
 }) {
   const {
     teamTotal,
@@ -479,7 +537,7 @@ function RoomMobileCard({
         {showAsPackage ? (
           <>
             <div>
-              <dt className="text-[11px] font-medium text-ink-muted">Package total</dt>
+              <dt className="text-[11px] font-medium text-ink-muted">Package total (per room)</dt>
               <dd className="tabular-nums text-ink">
                 <MoneyCell
                   client={packageClient}
@@ -489,7 +547,7 @@ function RoomMobileCard({
               </dd>
             </div>
             <div>
-              <dt className="text-[11px] font-medium text-ink-muted">Extra night</dt>
+              <dt className="text-[11px] font-medium text-ink-muted">Extra night (per room)</dt>
               <dd className="tabular-nums text-ink">
                 {extraTeam != null ? (
                   <MoneyCell
@@ -500,6 +558,18 @@ function RoomMobileCard({
                 ) : (
                   <span className="text-ink-subtle">—</span>
                 )}
+              </dd>
+            </div>
+            <div className="col-span-2">
+              <dt className="text-[11px] font-medium text-ink-muted">
+                {stayCostColumnLabel(searchRooms)}
+              </dt>
+              <dd className="tabular-nums text-ink">
+                <MoneyCell
+                  client={clientTotal}
+                  team={teamTotal}
+                  currency={room.currency}
+                />
               </dd>
             </div>
           </>
@@ -535,9 +605,11 @@ function RoomMobileCard({
 function HotelNotes({
   hotel,
   packageMode,
+  searchRooms,
 }: {
   hotel: RateCompareHotel;
   packageMode: boolean;
+  searchRooms: number;
 }) {
   const notes = hotel.notes ?? { cancellation: null, markup: null, inclusions: [] };
   const cancellation = notes.cancellation ?? null;
@@ -546,6 +618,7 @@ function HotelNotes({
   if (!cancellation && !markup && inclusions.length === 0 && !packageMode) {
     return null;
   }
+  const stayLabel = stayCostColumnLabel(searchRooms);
 
   return (
     <dl className="space-y-1 text-[13.5px] text-ink-muted">
@@ -553,8 +626,9 @@ function HotelNotes({
         <div>
           <dt className="inline font-medium text-ink">Pricing: </dt>
           <dd className="inline">
-            Package total is the package amount. Extra night is per night beyond the package.
-            Sell = package + extra nights, each at your markup.
+            Package total and extra night are per room (sheet amounts). {stayLabel} is the
+            all-in cost for this search — that figure is what the quote uses. Sell = stay cost
+            at your markup.
           </dd>
         </div>
       ) : null}

@@ -193,6 +193,7 @@ export function buildTripContext(trip: TripFacts): string {
       "Price (advisor only, already calculated):",
       `- Hotel net: ${trip.price.hotel_net ?? "missing"}`,
       `- Tax: ${trip.price.tax ?? "missing"}`,
+      `- Markup: ${trip.price.markup_percent ?? "missing"} (on cost)`,
       `- Margin: ${trip.price.margin ?? "missing"}${trip.price.margin_percent ? ` (${trip.price.margin_percent} of the sell)` : ""}`,
       `- Sell: ${trip.price.client_price ?? "missing"}`,
       ...(trip.price.note ? [`- Note: ${trip.price.note}`] : []),

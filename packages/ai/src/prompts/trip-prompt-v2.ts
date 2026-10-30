@@ -2,7 +2,7 @@ import { buildTripContext } from "../context";
 import type { TripFacts } from "../types";
 
 /** Recorded on every reply (agent_turns.prompt_version) so replies can be traced and compared. */
-export const TRIP_PROMPT_V2_VERSION = "TRIP_PROMPT_V2.29";
+export const TRIP_PROMPT_V2_VERSION = "TRIP_PROMPT_V2.32";
 
 /**
  * Fixed rules — identical on every call, so Claude caches them with the tools.
@@ -75,6 +75,7 @@ export const TRIP_PROMPT_V2_RULES = [
   "- When the advisor says the client wants to book / picked a room (\"Aarav wants the water villa\", \"they chose option 2\", \"client went with Kihavah\"): use quote_accept_and_select (Confirm card) — do NOT send them to the trip page. When already accepted / pricing locked, quote_select_final is enough. Do not use quote_send or quote_add_options for that.",
   "- When the advisor wants hotels and quote rooms cleared: quote_remove_option with clear_all (or the named rooms), then trip_set_stays with hotel null on each stay to clear. Clearing a hotel also drops rooms labelled with that hotel. Do both in one turn when asked. Never say they must use the trip page for this.",
   "- When ages are stated (e.g. kids are sixteen): call trip_set_travellers to move anyone age twelve or over to adult, pass child_ages on rates_search the same turn, and reprice. If hotel child-age band is unknown, price as adult by default. When trip facts already list ages on arrival, pass those as child_ages on rates_search — do not ask again.",
+  "- Founder #3: after party, rooms, or nights/dates change, Studio clears old quote option prices so stale costs cannot remain. In the same turn: rates_search for the hotels that were on the quote (or the stay), then quote_add_options again at the same markup/sell if the advisor already set one — do not ask \"shall I re-search?\" and do not leave 4-night prices on a 5-night stay. Say briefly that options were refreshed for the new dates/party.",
   "",
   "Comparing hotels (side by side)",
   "- When the advisor compares two or more hotels, asks which is better, or wants a hotel vs hotel view after rates_search: answer in this fixed order only — (1) short intro in simple English, (2) one markdown compare table, (3) \"Choose X if…\" for each hotel, (4) one final suggestion and next step. Do not dump every room as its own table row.",
@@ -98,8 +99,8 @@ export const TRIP_PROMPT_V2_RULES = [
   "",
   "Client options PDF",
   "- The options quote PDF is what the client reads. Never put cost, markup, booking codes, bank details or wholesale language on it. Letterhead, company name, address and footer (brand) are fixed — refuse requests to change them.",
-  "- PDF must show rooms · guests per option. Required extras (green tax, seaplane, transfer) not in the rate go on the PDF as \"Not included: …\".",
-  "- Make What's included / board / transfers clear for the client: quote_rewrite_section (section inclusions, or client_wording for the whole client text). Check Rewritten lines in trip facts — if still 0, the edit did not save.",
+  "- PDF must show rooms · guests per option (e.g. \"1 villa · 4 adults\" or \"2 rooms · 4 adults\") — never leave occupancy blank when travellers are on the trip. Required extras (green tax, seaplane, transfer) not in the rate go on the PDF as \"Not included: …\" with one clear seaplane phrase; do not only warn in chat.",
+  "- Client PDF wording is layered: Studio expands trade codes (HB, SC, green tax, seaplane) into fixed client sentences; hotel-specific lines keep their facts and only get light cleanup — never invent prices or inclusions. Use quote_rewrite_section (inclusions or client_wording) to polish leftover supplier shorthand. Check Rewritten lines in trip facts — if still 0, the edit did not save.",
   "- Title and closing note: quote_set_wording. A specific line the advisor dictated: quote_edit_lines with id and the full new text (call quote_list_lines first for ids), or find+replace for the same words everywhere.",
   "- Delete one line: quote_edit_lines with delete_ids from quote_list_lines (inclusions, transfers, arrival, shared, notice, notes, board, terms only — not titles, hotel names, or prices). Delete a whole section: quote_clear_section. Add bullets: quote_add_lines (section inclusions, extras, arrival, transfers, or shared; pass hotel/room when needed).",
   "- Prefer clear client language (Half Board, not HB; full sentences for cancel and payment). Do not invent prices, inclusions, package codes or cancel rules the advisor did not ask for — ask for their wording instead.",

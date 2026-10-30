@@ -333,7 +333,7 @@ export const quoteClearSectionTool = defineAgentTool({
 export const quoteRewriteSectionTool = defineAgentTool({
   name: "quote_rewrite_section",
   description: [
-    "Expand supplier shorthand on the options quote into clear client English (SC, GST, HB, green tax, seaplane, and similar).",
+    "Expand known supplier codes on the options quote into clear client English (SC, GST, HB, green tax, seaplane). Hotel-specific lines keep their facts — do not invent prices or inclusions.",
     "Use when the advisor asks to make What's included, board, transfers, or the quote wording client-friendly — without naming each line.",
     "section inclusions = What's included; client_wording = inclusions + board + transfers + arrival + shared + terms + notice.",
     "Optional hotel or room narrows the scope. Letterhead stays fixed.",

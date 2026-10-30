@@ -4,8 +4,10 @@ export type QuoteBreakup = {
   hotelNet: string | null;
   tax: string | null;
   margin: string | null;
-  /** Margin as a share of the client price, for example "18.5%". */
+  /** Margin as a share of the sell (client price), for example "13.04%". */
   marginPercent: string | null;
+  /** Markup as a share of cost, for example "15%". */
+  markupPercent: string | null;
   clientPrice: string | null;
   /** Set when at least one stay has no selected net, for example "2 of 3 stays priced". */
   pricedLabel: string | null;
@@ -111,6 +113,7 @@ export function buildQuoteBreakup(input: {
     tax: null,
     margin: null,
     marginPercent: null,
+    markupPercent: null,
     clientPrice,
     pricedLabel,
     note: null,
@@ -169,11 +172,11 @@ export function buildQuoteBreakup(input: {
     margin: money(marginAmount, marginCurrency),
     marginPercent:
       input.sellTotal > 0 ? percentLabel((marginAmount / input.sellTotal) * 100) : null,
+    markupPercent:
+      teamCostAmount > 0 ? percentLabel((marginAmount / teamCostAmount) * 100) : null,
     clientPrice,
     pricedLabel,
-    note: taxReady
-      ? "Margin is the sell minus the cost and tax."
-      : "Margin is the sell minus the cost. Tax is not set.",
+    note: "Markup is on cost; margin is on sell.",
     teamCostAmount,
   };
 }

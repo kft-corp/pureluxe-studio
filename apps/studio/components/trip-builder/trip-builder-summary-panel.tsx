@@ -488,10 +488,16 @@ function PriceBreakup({
     sellTotal: detail.quote.sell_total,
     sellCurrency: detail.quote.sell_currency,
   });
+  const marginValue =
+    price.margin == null
+      ? null
+      : price.marginPercent
+        ? `${price.margin} (${price.marginPercent} of sell)`
+        : price.margin;
   const rows = [
     ["Cost", price.hotelNet],
-    ["Tax", price.tax],
-    ["Margin", price.margin && price.marginPercent ? `${price.margin} (${price.marginPercent})` : price.margin],
+    ["Markup", price.markupPercent],
+    ["Margin", marginValue],
     ["Sell", price.clientPrice],
   ] as const;
 

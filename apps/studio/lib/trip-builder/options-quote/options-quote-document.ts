@@ -1,5 +1,6 @@
 import { getCurrencyName } from "@pureluxe/shared";
 
+import { boardClientLabel, toClientLine } from "./client-wording";
 import type { TripDetail, TripRateSnapshot, TripStaySnapshot } from "../trip/trip-detail";
 
 const MONTHS = [
@@ -168,20 +169,8 @@ function stayBlock(stay: TripStaySnapshot, rows: TripRateSnapshot[]): OptionsQuo
   };
 }
 
-/** Common board codes → client wording on the PDF. */
-const BOARD_LABEL: Record<string, string> = {
-  ro: "Room Only",
-  ep: "Room Only",
-  bb: "Bed and Breakfast",
-  hb: "Half Board",
-  fb: "Full Board",
-  ai: "All Inclusive",
-  uai: "Ultra All Inclusive",
-};
-
 function expandBoardLabel(part: string): string {
-  const key = part.trim().toLowerCase().replace(/\./g, "");
-  return BOARD_LABEL[key] ?? part.trim();
+  return boardClientLabel(part, true) ?? part.trim();
 }
 
 function roomLine(row: TripRateSnapshot, stay: TripStaySnapshot): OptionsQuoteRoom {
@@ -275,7 +264,13 @@ function clientNote(text: string | null): string | null {
 
 function clientInclusions(items: string[]): string[] {
   const hidden = /\b(?:markup|confidential|advisor|ota|bedbank|payout|commission)\b/i;
-  return [...new Set(items.map((item) => item.trim()).filter((item) => item && !hidden.test(item)))];
+  return [
+    ...new Set(
+      items
+        .map((item) => toClientLine(item.trim()))
+        .filter((item) => item && !hidden.test(item)),
+    ),
+  ];
 }
 
 function guestLine(detail: TripDetail): string {

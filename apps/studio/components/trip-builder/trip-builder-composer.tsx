@@ -17,6 +17,8 @@ type TripBuilderComposerProps = {
   helperText?: string;
   /** Shown in place of the helper, even while a reply streams (e.g. queued messages). */
   notice?: string;
+  /** Messages waiting to send after the current reply. */
+  queuedCount?: number;
   chips?: TripBuilderChip[];
   disabled?: boolean;
   /** When true, hide chips and the helper — typing status lives in the thread only. */
@@ -30,8 +32,9 @@ const VISIBLE_CHIPS = 4;
 /** Chat composer — prior input control (textarea + arrow send). */
 export function TripBuilderComposer({
   placeholder,
-  helperText = "Type in chat — confirm actions with chips. Rate cards stay on the reply.",
+  helperText = "Type in chat — confirm actions with chips.",
   notice,
+  queuedCount = 0,
   chips = [],
   disabled,
   streaming = false,
@@ -177,6 +180,14 @@ export function TripBuilderComposer({
               "placeholder:text-ink-faint disabled:cursor-not-allowed disabled:opacity-60",
             )}
           />
+          {queuedCount > 0 ? (
+            <span
+              className="mb-1.5 inline-flex shrink-0 items-center rounded-md bg-info-soft px-1.5 py-0.5 text-[11px] font-medium text-info-ink ring-1 ring-inset ring-info-line lg:mb-0.5"
+              title={notice ?? "Message queued"}
+            >
+              Queued{queuedCount > 1 ? ` · ${queuedCount}` : ""}
+            </span>
+          ) : null}
           <button
             type="button"
             disabled={disabled || !value.trim()}
@@ -189,7 +200,10 @@ export function TripBuilderComposer({
         </div>
         {helper ? (
           <p
-            className="mt-1.5 line-clamp-2 text-[12px] leading-snug text-ink-subtle sm:line-clamp-none"
+            className={cn(
+              "mt-1.5 line-clamp-2 text-[12px] leading-snug sm:line-clamp-none",
+              notice ? "text-ink-muted" : "text-ink-subtle",
+            )}
             aria-live={notice ? "polite" : undefined}
           >
             {helper}

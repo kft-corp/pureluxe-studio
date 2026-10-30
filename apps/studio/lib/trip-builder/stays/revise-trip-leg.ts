@@ -1,5 +1,4 @@
 import {
-  clearSelectedAccommodationForLeg,
   findTripById,
   findTripLegById,
   listTripLegs,
@@ -11,6 +10,7 @@ import { requireEditableTrip } from "../access/require-assigned-trip";
 import {
   assertNoUnconfirmedOverlap,
   cancelStayBooking,
+  clearStaleQuotePricesForLeg,
 } from "./stay-side-effects";
 import { refreshOptionsQuotePdfAfterChange } from "../options-quote/options-quote";
 import { syncTripCommercials } from "../pricing/sync-trip-commercials";
@@ -60,7 +60,7 @@ export async function reviseTripLeg(
   const cityChanged =
     existing.destination.trim().toLowerCase() !== input.city.trim().toLowerCase();
   if (datesChanged || cityChanged) {
-    await clearSelectedAccommodationForLeg(trip.id, existing.id);
+    await clearStaleQuotePricesForLeg(trip.id, existing.id);
     await cancelStayBooking(trip.id, existing.id, actor, {
       pendingOnly: true,
       reason: "Stay changed in Trip Builder",

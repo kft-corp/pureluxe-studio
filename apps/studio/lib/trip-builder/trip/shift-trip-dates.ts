@@ -1,5 +1,4 @@
 import {
-  clearSelectedAccommodationForLeg,
   findOpenHotelBookingForTrip,
   findTripById,
   listTripLegs,
@@ -10,7 +9,10 @@ import {
 import { AppError, tripMessages } from "@pureluxe/shared";
 
 import { requireEditableTrip } from "../access/require-assigned-trip";
-import { cancelStayBooking } from "../stays/stay-side-effects";
+import {
+  cancelStayBooking,
+  clearStaleQuotePricesForLeg,
+} from "../stays/stay-side-effects";
 import { refreshOptionsQuotePdfAfterChange } from "../options-quote/options-quote";
 import { syncTripCommercials } from "../pricing/sync-trip-commercials";
 import { syncTripHotelBooking } from "../pricing/sync-trip-booking";
@@ -92,7 +94,7 @@ export async function shiftTripDates(
   }
 
   for (const leg of legs) {
-    await clearSelectedAccommodationForLeg(trip.id, leg.id);
+    await clearStaleQuotePricesForLeg(trip.id, leg.id);
     await cancelStayBooking(trip.id, leg.id, actor, {
       pendingOnly: true,
       reason: "Trip dates shifted in Trip Builder",

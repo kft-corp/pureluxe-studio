@@ -1,10 +1,6 @@
 import {
-  clearSelectedAccommodationForLeg,
   deleteTripCompanion,
-  deleteTripLineItemsByIds,
-  deleteUnselectedStayOptions,
   findStayShellLineItem,
-  listPricedAccommodationLineItems,
   listTripLegs,
   listTripTravellers,
   patchStayShellParty,
@@ -23,6 +19,7 @@ import { requireEditableTrip } from "../access/require-assigned-trip";
 import { refreshOptionsQuotePdfAfterChange } from "../options-quote/options-quote";
 import { syncTripCommercials } from "../pricing/sync-trip-commercials";
 import { syncTripHotelBooking } from "../pricing/sync-trip-booking";
+import { clearStaleQuotePricesForLeg } from "../stays/stay-side-effects";
 import { closeTripRateSearches } from "@/lib/rates/rate-search-store";
 import { buildTripDetail, type TripDetail } from "../trip/trip-detail";
 import { nextTripTitle } from "../trip/trip-title";
@@ -61,12 +58,7 @@ async function applyPartyToStays(
     await patchStayShellParty(tripId, leg.id, next);
     if (differs && shell) {
       changed = true;
-      await clearSelectedAccommodationForLeg(tripId, leg.id);
-      await deleteUnselectedStayOptions(tripId, leg.id);
-      const priced = await listPricedAccommodationLineItems(tripId, leg.id);
-      if (priced.length > 0) {
-        await deleteTripLineItemsByIds(priced.map((row) => row.id));
-      }
+      await clearStaleQuotePricesForLeg(tripId, leg.id);
     }
   }
   if (changed) {

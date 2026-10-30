@@ -1,14 +1,10 @@
 import {
-  clearSelectedAccommodationForLeg,
-  deleteTripLineItemsByIds,
-  deleteUnselectedStayOptions,
   findActivePropertyById,
   findClientById,
   findStayShellLineItem,
   findSelectedAccommodationLineItem,
   findTripById,
   findTripLegById,
-  listPricedAccommodationLineItems,
   listTripLegs,
   listTripTravellers,
   updateTrip as dbUpdateTrip,
@@ -28,6 +24,7 @@ import { requireEditableTrip } from "../access/require-assigned-trip";
 import {
   assertNoUnconfirmedOverlap,
   cancelStayBooking,
+  clearStaleQuotePricesForLeg,
 } from "./stay-side-effects";
 import { refreshOptionsQuotePdfAfterChange } from "../options-quote/options-quote";
 import { syncTripCommercials } from "../pricing/sync-trip-commercials";
@@ -149,14 +146,8 @@ export async function setTripStay(
     const roomsChanged =
       input.rooms != null && shellRooms != null && input.rooms !== shellRooms;
     if (datesChanged || cityChanged || hotelChanged || roomsChanged) {
-      await clearSelectedAccommodationForLeg(trip.id, existing.id);
-      if (roomsChanged) {
-        await deleteUnselectedStayOptions(trip.id, existing.id);
-        const priced = await listPricedAccommodationLineItems(trip.id, existing.id);
-        if (priced.length > 0) {
-          await deleteTripLineItemsByIds(priced.map((row) => row.id));
-        }
-      }
+      // Founder #3: nights/dates (and rooms/city/hotel) clear old quote costs — not rooms only.
+      await clearStaleQuotePricesForLeg(trip.id, existing.id);
       if (selected) {
         await cancelStayBooking(trip.id, existing.id, actor, {
           pendingOnly: true,

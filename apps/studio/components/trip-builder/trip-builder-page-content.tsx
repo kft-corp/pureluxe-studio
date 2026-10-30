@@ -36,7 +36,9 @@ export function TripBuilderPageContent({
   const tripOpen = Boolean(builder.detail);
   const queuedNotice =
     builder.queuedCount > 0
-      ? `${builder.queuedCount === 1 ? "1 message" : `${builder.queuedCount} messages`} queued — sends when the agent finishes.`
+      ? builder.queuedCount === 1
+        ? "Your message is queued — it'll send when this reply finishes."
+        : `${builder.queuedCount} messages are queued — they'll send when this reply finishes.`
       : undefined;
 
   const helperText = !tripOpen
@@ -116,6 +118,7 @@ export function TripBuilderPageContent({
             }
             helperText={helperText}
             notice={queuedNotice}
+            queuedCount={builder.queuedCount}
             chips={builder.chips}
             disabled={builder.busy || (!canWrite && tripOpen)}
             streaming={builder.chatBusy || builder.busy}
