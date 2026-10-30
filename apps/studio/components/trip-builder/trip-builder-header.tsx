@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import {
   LuMessageSquarePlus,
   LuPanelRightClose,
@@ -26,6 +25,7 @@ type TripBuilderHeaderProps = {
   summaryOpen: boolean;
   canWrite: boolean;
   busy: boolean;
+  /** Kept for callers; stay chips are display-only and ignore selection. */
   activeLegId: string | null;
   onSelectLeg: (legId: string) => void;
   onOpenTrip: (tripId: string) => void;
@@ -93,47 +93,21 @@ function HeaderItem({
   );
 }
 
-function LegPills({
-  stays,
-  activeLegId,
-  onSelectLeg,
-}: {
-  stays: ReturnType<typeof tripStays>;
-  activeLegId: string | null;
-  onSelectLeg: (legId: string) => void;
-}) {
-  const activeRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    activeRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [activeLegId]);
-
+/** Stay chips are display-only — switching legs from the header caused wrong quote/rate attach. */
+function LegPills({ stays }: { stays: ReturnType<typeof tripStays> }) {
   if (stays.length === 0) return null;
 
   return (
     <div className="flex shrink-0 items-center gap-1.5">
       <span className="shrink-0 text-[12px] text-ink-muted">Stays</span>
-      {stays.map((stay) => {
-        const on = stay.leg_id === activeLegId;
-        return (
-          <button
-            key={stay.leg_id}
-            ref={on ? activeRef : undefined}
-            type="button"
-            onClick={() => onSelectLeg(stay.leg_id)}
-            aria-pressed={on}
-            className={cn(
-              "inline-flex min-h-8 shrink-0 items-center rounded-full border px-2.5 py-1 text-[12px] leading-none",
-              studioFocusRing,
-              on
-                ? "border-sky-line bg-sky-soft font-semibold text-sky-ink"
-                : "border-border bg-surface-raised font-medium text-ink hover:bg-surface-hover",
-            )}
-          >
-            {legPillLabel(stay)}
-          </button>
-        );
-      })}
+      {stays.map((stay) => (
+        <span
+          key={stay.leg_id}
+          className="inline-flex min-h-8 shrink-0 items-center rounded-full border border-border bg-surface-raised px-2.5 py-1 text-[12px] leading-none font-medium text-ink"
+        >
+          {legPillLabel(stay)}
+        </span>
+      ))}
     </div>
   );
 }
@@ -149,8 +123,6 @@ export function TripBuilderHeader({
   summaryOpen,
   canWrite,
   busy,
-  activeLegId,
-  onSelectLeg,
   onOpenTrip,
   onNewChat,
   onToggleSummary,
@@ -189,7 +161,7 @@ export function TripBuilderHeader({
                   <HeaderItem label="Client" value={detail.client?.display_name} />
                 </div>
                 <HeaderItem label="Dates" value={dates} />
-                <LegPills stays={stays} activeLegId={activeLegId} onSelectLeg={onSelectLeg} />
+                <LegPills stays={stays} />
                 {gaps.length > 0 ? (
                   <span
                     title={gaps.join(" · ")}

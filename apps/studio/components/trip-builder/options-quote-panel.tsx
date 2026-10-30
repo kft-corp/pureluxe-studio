@@ -5,6 +5,8 @@ import type { TripDetail, TripRateSnapshot, TripStaySnapshot } from "@/lib/trip-
 import { isQuoteAccepted, isQuoteWithClient } from "@/lib/trips/trip-status";
 import { cn } from "@/lib/utils/cn";
 
+import { legPillLabel } from "./stages";
+
 type OptionsQuotePanelProps = {
   detail: TripDetail;
   stays: TripStaySnapshot[];
@@ -19,8 +21,13 @@ type OptionsQuotePanelProps = {
 type HotelGroup = {
   key: string;
   name: string;
-  place: string | null;
   rooms: TripRateSnapshot[];
+};
+
+type StayGroup = {
+  key: string;
+  label: string;
+  hotels: HotelGroup[];
 };
 
 function moneyLabel(amount: number | null, currency: string | null): string {
@@ -56,13 +63,62 @@ function groupByHotel(
       existing.rooms.push(row);
       continue;
     }
-    const stay = stays.find((item) => item.leg_id === row.leg_id);
     const name = hotelNameFor(row, stays);
-    const place = stay?.city?.trim() && stay.city.trim() !== name ? stay.city.trim() : null;
     order.push(key);
-    byKey.set(key, { key, name, place, rooms: [row] });
+    byKey.set(key, { key, name, rooms: [row] });
   }
   return order.map((key) => byKey.get(key)!);
+}
+
+/** Stay first (Maldives / India), then hotels under each — so multi-stay quotes stay clear. */
+function groupByStay(
+  rows: TripRateSnapshot[],
+  stays: TripStaySnapshot[],
+): StayGroup[] {
+  const byLeg = new Map<string, TripRateSnapshot[]>();
+  const unmatched: TripRateSnapshot[] = [];
+  for (const row of rows) {
+    const legId = row.leg_id?.trim();
+    if (!legId) {
+      unmatched.push(row);
+      continue;
+    }
+    const list = byLeg.get(legId) ?? [];
+    list.push(row);
+    byLeg.set(legId, list);
+  }
+
+  const groups: StayGroup[] = [];
+  for (const stay of stays) {
+    const list = byLeg.get(stay.leg_id);
+    if (!list?.length) continue;
+    byLeg.delete(stay.leg_id);
+    groups.push({
+      key: stay.leg_id,
+      label: legPillLabel(stay),
+      hotels: groupByHotel(list, stays),
+    });
+  }
+
+  for (const [legId, list] of byLeg) {
+    if (!list.length) continue;
+    const city = list[0]?.property_name?.trim() || "Stay";
+    groups.push({
+      key: legId,
+      label: city,
+      hotels: groupByHotel(list, stays),
+    });
+  }
+
+  if (unmatched.length > 0) {
+    groups.push({
+      key: "unmatched",
+      label: "Other options",
+      hotels: groupByHotel(unmatched, stays),
+    });
+  }
+
+  return groups;
 }
 
 export function OptionsQuotePanel({
@@ -81,7 +137,8 @@ export function OptionsQuotePanel({
       !row.selected ||
       candidates.some((other) => !other.selected && other.leg_id === row.leg_id),
   );
-  const hotels = groupByHotel(options, stays);
+  const stayGroups = groupByStay(options, stays);
+  const showStayHeaders = stays.length > 1 || stayGroups.length > 1;
   const hasRoom = candidates.length > 0;
   const status = detail.options_quote.document?.status;
   const hasFile = Boolean(detail.options_quote.document?.has_file);
@@ -113,16 +170,25 @@ export function OptionsQuotePanel({
             ? "Send the quote and mark Client said yes on the trip page before recording the room choice."
             : "Open or regenerate the options quote to check the rooms saved on this trip."}
       </p>
-      <div className="space-y-2">
-        {hotels.map((hotel) => (
-          <HotelGroupCard
-            key={hotel.key}
-            hotel={hotel}
-            canWrite={canPickRoom}
-            pricingLocked={detail.pricing_locked}
-            busy={busy}
-            onChoose={onChoose}
-          />
+      <div className="space-y-3">
+        {stayGroups.map((group) => (
+          <div key={group.key} className="space-y-2">
+            {showStayHeaders ? (
+              <p className="text-[11px] font-semibold tracking-[0.02em] text-ink">
+                {group.label}
+              </p>
+            ) : null}
+            {group.hotels.map((hotel) => (
+              <HotelGroupCard
+                key={`${group.key}:${hotel.key}`}
+                hotel={hotel}
+                canWrite={canPickRoom}
+                pricingLocked={detail.pricing_locked}
+                busy={busy}
+                onChoose={onChoose}
+              />
+            ))}
+          </div>
         ))}
       </div>
       {detail.options_quote.notes?.trim() ? (
@@ -179,9 +245,6 @@ function HotelGroupCard({
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-[12px] font-semibold text-ink">{hotel.name}</p>
-          {hotel.place ? (
-            <p className="text-[11px] text-ink-muted">{hotel.place}</p>
-          ) : null}
         </div>
         <span className="shrink-0 text-[11px] text-ink-muted">{roomLabel}</span>
       </div>

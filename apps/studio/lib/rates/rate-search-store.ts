@@ -259,7 +259,12 @@ export async function readRateSnapshot(tripId: string): Promise<RateSnapshot> {
 /** Load a stored offer as a NormalizedRateOption for quote_add_options. */
 export async function loadStoredRateOption(
   resultId: string,
-): Promise<{ option: NormalizedRateOption; result: RateSearchResult } | null> {
+): Promise<{
+  option: NormalizedRateOption;
+  result: RateSearchResult;
+  legId: string | null;
+  destinationText: string | null;
+} | null> {
   const result = await findRateSearchResultById(resultId);
   if (!result) return null;
   const search = await findRateSearchByEventId(result.search_event_id);
@@ -280,7 +285,12 @@ export async function loadStoredRateOption(
     recommended: result.recommended,
     raw: result.raw,
   };
-  return { option, result };
+  return {
+    option,
+    result,
+    legId: search?.event.leg_id ?? null,
+    destinationText: search?.event.destination_text ?? null,
+  };
 }
 
 /** Match a hotel+room against the latest open search. */
@@ -288,7 +298,12 @@ export async function findStoredRateByHotelRoom(
   tripId: string,
   hotel: string,
   room: string,
-): Promise<{ option: NormalizedRateOption; resultId: string } | null> {
+): Promise<{
+  option: NormalizedRateOption;
+  resultId: string;
+  legId: string | null;
+  destinationText: string | null;
+} | null> {
   const search = await findLatestRateSearch(tripId);
   if (!search) return null;
   const atHotel = search.results.filter((row) =>
@@ -300,6 +315,8 @@ export async function findStoredRateByHotelRoom(
   return {
     option: toOption(hit, search),
     resultId: hit.id,
+    legId: search.event.leg_id ?? null,
+    destinationText: search.event.destination_text ?? null,
   };
 }
 

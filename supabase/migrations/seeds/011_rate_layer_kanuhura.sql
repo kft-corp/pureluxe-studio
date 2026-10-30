@@ -1,16 +1,13 @@
--- Optional Six Senses Kanuhura contract digitization for migration 011_rate_layer.sql.
+-- Six Senses Kanuhura contracted rates for Trip Builder.
 -- NOT a migration — supabase db push ignores this folder.
 --
--- Source PDFs (Downloads / founder share):
+-- Sources:
 --   Six Senses Kanuhura Wholesale Rates Agreement 2026-2027 - KFT Corporation.pdf
 --   Six Senses Kanuhura - India Package 2026 - Low & Shoulder Seasons (1).pdf
 --
--- Depends on:
---   migrations/011_rate_layer.sql
---   seeds/011_rate_layer.sql (Maldives destination_profiles — run that first)
---
--- Safe to re-run: each insert skips rows that already exist.
--- Do not run on production until ops has reviewed the nets.
+-- Depends on: migrations/011 (+021), seeds/011_rate_layer.sql
+-- Safe to re-run. Policies use schema_version >= 2 (022).
+-- Regenerated/updated by: seeds/_generate/generate_contracted_rates.py
 
 -- =============================================================================
 -- 1. property
@@ -19,7 +16,7 @@
 INSERT INTO public.properties (
   name, brand, chain, destination, city, country, region,
   property_type, destination_profile_id, default_currency,
-  min_markup_percent, contracting_entity_name,
+  min_markup_percent, contracting_entity_name, aliases,
   reservations_email, general_phone, booking_notes, active
 )
 SELECT
@@ -29,12 +26,13 @@ SELECT
   'Maldives',
   'Kanuhura Island, Lhaviyani Atoll',
   'Maldives',
-  'Maldives',
+  'Asia',
   'resort',
   p.id,
   'USD',
   25,
   'KFT Corporation',
+  ARRAY['Kanuhura','Six Senses Maldives']::text[],
   'reservations-maldives@sixsenses.com',
   '+960 662 0044',
   'Book direct to resort. India package code SSK26IN. Min markup 25% on villa. Confidential nets.',
@@ -68,6 +66,7 @@ SELECT
   25,
   'Six Senses Kanuhura Wholesale Rates Agreement 2026-2027 - KFT Corporation.pdf',
   jsonb_build_object(
+    'schema_version', 2,
     'check_in_time', '14:00',
     'check_out_time', '12:00',
     'stay_rules', jsonb_build_array(
@@ -156,6 +155,7 @@ SELECT
   25,
   'Six Senses Kanuhura - India Package 2026 - Low & Shoulder Seasons (1).pdf',
   jsonb_build_object(
+    'schema_version', 2,
     'check_in_time', '14:00',
     'check_out_time', '12:00',
     'stay_rules', jsonb_build_array(

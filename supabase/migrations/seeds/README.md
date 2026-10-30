@@ -8,38 +8,42 @@ local / staging / live. Supabase only auto-applies `*.sql` files directly under
 
 | In numbered migrations | In `migrations/seeds/` |
 |---|---|
-| Tables, indexes, RLS, grants | Placeholder / founder-list business rows |
+| Tables, indexes, RLS, grants | Business rows from founder Excel / PDFs |
 | Required system catalogs (roles, permissions, client tiers) | Destination examples, consortia slug labels |
 | Sure company setting *structure* defaults (`rate_sources`) | Branding colors, ski peak date examples |
 | Storage bucket definitions | Anything ops will replace with live truth |
 
-**Never** put hotel contracts, fake properties, or invented Sabre access codes in
-migrations. Prefer seeds (or Settings UI) for those.
+**Never** put invented Sabre access codes in migrations. Prefer seeds (or Settings UI).
 
 ## Seed files
 
 | File | After migration | What it loads |
 |---|---|---|
 | [`011_rate_layer.sql`](./011_rate_layer.sql) | `011_rate_layer.sql` | Maldives/Dubai/Bali/Doha profiles, Layer 2 overrides, Pure Escapes binding (inactive), ski peak windows, negotiated code **placeholder slugs** (`active = false`) |
-| [`011_rate_layer_kanuhura.sql`](./011_rate_layer_kanuhura.sql) | `011` + run `011_rate_layer.sql` seed first (Maldives profile) | Six Senses Kanuhura property, wholesale 2026–27 + India package `SSK26IN` contracts, villa rates, add-ons, offers |
-| [`011_rate_layer_contracted_pilot.sql`](./011_rate_layer_contracted_pilot.sql) | `011` + run `011_rate_layer.sql` seed first | Pilot contracted hotels from founder Excel/PDFs: Waldorf Ithaafushi, SUJÁN ×3, COMO Cocoa + Maalifushi, JOALI Maldives + BEING — properties, contracts, rates, add-ons, offers |
-| [`016_atlas_kb_contracted.sql`](./016_atlas_kb_contracted.sql) | `016_atlas_kb.sql` (+ rate seeds above for linking) | Atlas geography + `kb_entities` / details / room categories for **every contracted hotel** (incl. Kanuhura); links `properties.curated_hotel_id` ↔ `kb_entities.property_id` |
+| [`011_rate_layer_contracted.sql`](./011_rate_layer_contracted.sql) | `011` (+ `021` tax cols) + run `011_rate_layer.sql` first | Real contracted money: Waldorf Ithaafushi, SUJÁN×3, COMO Cocoa + Maalifushi, JOALI Maldives + BEING — from Excel + PDFs |
+| [`011_rate_layer_kanuhura.sql`](./011_rate_layer_kanuhura.sql) | same | Six Senses Kanuhura wholesale 2026–27 + India package `SSK26IN` |
+| [`016_atlas_kb.sql`](./016_atlas_kb.sql) | `016_atlas_kb.sql` (+ `021` style_tags/price_tier) | Full Atlas hotel master from Excel (~2.2k hotels) + rooms/details where present; links contracted `properties` ↔ `kb_entities` |
 | [`015_trip_builder_flow.sql`](./015_trip_builder_flow.sql) | `015_trip_builder_flow.sql` | Starter `pdf_branding` company setting |
 
-## Trip Builder contracted pilot (recommended local order)
+## Trip Builder recommended local order
 
-1. `011_rate_layer.sql` (destination profiles)
-2. `011_rate_layer_kanuhura.sql` (optional — Kanuhura)
-3. `011_rate_layer_contracted_pilot.sql` (money)
-4. `016_atlas_kb_contracted.sql` (Atlas KB + link to properties)
+1. `011_rate_layer.sql` (destination profiles + Layer 2)
+2. `011_rate_layer_contracted.sql` (money)
+3. `011_rate_layer_kanuhura.sql` (Kanuhura money)
+4. `016_atlas_kb.sql` (Atlas KB + curated hotel links)
+5. `015_trip_builder_flow.sql` (optional branding)
 
-Sources: `docs/excel sheets/Contracted Rates Master (Pilot).xlsx`, `docs/excel sheets/PureLuxe Atlas KB — Hotels (…).xlsx`, `docs/contracted rate pdf/`.
+Sources:
+
+- `docs/excel sheets/Contracted Rates Master (Pilot).xlsx`
+- `docs/excel sheets/PureLuxe Atlas KB — Hotels (…).xlsx`
+- `docs/contracted rate pdf/`
 
 ## How to run
 
 1. Apply numbered migrations (`db push` or paste each migration in order).
 2. Open Supabase **SQL Editor**.
-3. Paste the seed file you want and run.
+3. Paste each seed file in the order above and run.
 4. Seeds are written to be re-runnable (`WHERE NOT EXISTS` / `ON CONFLICT`).
 
 Do **not** run seeds on production unless ops has reviewed and confirmed the rows.

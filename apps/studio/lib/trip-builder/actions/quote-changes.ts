@@ -119,19 +119,68 @@ function hotelNameMatch(stayHotel: string | null | undefined, hotel: string): bo
   return name === needle || name.includes(needle) || needle.includes(name);
 }
 
-/** Attach quote rooms to the stay whose hotel (or sole stay) matches. */
-function legIdForHotel(detail: TripDetail, hotel: string): string | null {
+type QuoteLegHint = {
+  legId?: string | null;
+  checkIn?: string | null;
+  checkOut?: string | null;
+  destinationText?: string | null;
+};
+
+/**
+ * Attach quote rooms to the correct stay on multi-stay trips.
+ * Prefer rate-search leg / dates / destination — never fall back to stay #1 when ambiguous
+ * (that put India options on the Maldives leg).
+ */
+function legIdForHotel(
+  detail: TripDetail,
+  hotel: string,
+  hint: QuoteLegHint = {},
+): string | null {
   const stays = listedStays(detail);
   if (stays.length === 0) return null;
+
+  if (hint.legId) {
+    const byLeg = stays.find((stay) => stay.leg_id === hint.legId);
+    if (byLeg?.leg_id) return byLeg.leg_id;
+  }
+
   const byHotel = stays.find((stay) => hotelNameMatch(stay.property_name, hotel));
   if (byHotel?.leg_id) return byHotel.leg_id;
-  if (stays.length === 1) return stays[0]?.leg_id ?? null;
-  const byCity = stays.find((stay) => {
+
+  const checkIn = hint.checkIn?.trim() || null;
+  const checkOut = hint.checkOut?.trim() || null;
+  if (checkIn && checkOut) {
+    const byDates = stays.filter(
+      (stay) => stay.check_in === checkIn && stay.check_out === checkOut,
+    );
+    if (byDates.length === 1 && byDates[0]?.leg_id) return byDates[0].leg_id;
+    const byCheckIn = stays.filter((stay) => stay.check_in === checkIn);
+    if (byCheckIn.length === 1 && byCheckIn[0]?.leg_id) return byCheckIn[0].leg_id;
+  } else if (checkIn) {
+    const byCheckIn = stays.filter((stay) => stay.check_in === checkIn);
+    if (byCheckIn.length === 1 && byCheckIn[0]?.leg_id) return byCheckIn[0].leg_id;
+  }
+
+  const place = norm(hint.destinationText ?? "");
+  const hotelNorm = norm(hotel);
+  const byPlace = stays.filter((stay) => {
     const city = norm(stay.city);
-    const needle = norm(hotel);
-    return city && (needle.includes(city) || city.includes(needle));
+    if (!city) return false;
+    return (
+      (place && (place.includes(city) || city.includes(place))) ||
+      hotelNorm.includes(city) ||
+      city.includes(hotelNorm)
+    );
   });
-  return byCity?.leg_id ?? stays[0]?.leg_id ?? null;
+  if (byPlace.length === 1 && byPlace[0]?.leg_id) return byPlace[0].leg_id;
+
+  if (stays.length === 1) return stays[0]?.leg_id ?? null;
+
+  throw new AppError({
+    userMessage: `Which stay is ${hotel} for? Name the city or dates (this trip has more than one stay).`,
+    code: "trips.quote_stay_ambiguous",
+    status: 409,
+  });
 }
 
 /**
@@ -188,6 +237,8 @@ async function resolveOffer(
 ): Promise<{
   rateOption: NonNullable<Awaited<ReturnType<typeof loadStoredRateOption>>>["option"];
   resultId: string | null;
+  legId: string | null;
+  destinationText: string | null;
 } | null> {
   if (option.rateRef) {
     const stored = await loadStoredRateOption(option.rateRef);
@@ -195,6 +246,8 @@ async function resolveOffer(
       return {
         rateOption: stored.option,
         resultId: stored.result.id,
+        legId: stored.legId,
+        destinationText: stored.destinationText,
       };
     }
   }
@@ -203,6 +256,8 @@ async function resolveOffer(
   return {
     rateOption: matched.option,
     resultId: matched.resultId,
+    legId: matched.legId,
+    destinationText: matched.destinationText,
   };
 }
 
@@ -368,7 +423,12 @@ export function addQuoteOptions(
       await attachRateOption(
         {
           trip_id: context.tripId,
-          leg_id: legIdForHotel(detail, option.hotel),
+          leg_id: legIdForHotel(detail, option.hotel, {
+            legId: resolved.legId,
+            checkIn: resolved.rateOption.check_in,
+            checkOut: resolved.rateOption.check_out,
+            destinationText: resolved.destinationText,
+          }),
           option: {
             ...resolved.rateOption,
             raw: {
