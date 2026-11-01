@@ -200,7 +200,7 @@ export type TripChange = {
 /** The tool call behind a change: its id makes a retry or resume safe. */
 export type ToolCallRef = { id: string };
 
-export type PartyRole = "adult" | "child";
+export type PartyRole = "adult" | "child" | "infant";
 
 export type StayRequest = {
   city: string;

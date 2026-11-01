@@ -12,6 +12,8 @@ const SARAH_TRAVELLING = {
   display_name: "Sarah Chen",
   role: "primary" as const,
   party_role: "adult" as const,
+  stated_age: null,
+  date_of_birth: null,
   family_role: null,
 };
 

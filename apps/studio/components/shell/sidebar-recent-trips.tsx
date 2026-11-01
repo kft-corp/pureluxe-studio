@@ -38,7 +38,7 @@ export function SidebarRecentTrips({ compact, onNavigate }: SidebarRecentTripsPr
     let cancelled = false;
     void listJourneyCards({ limit: 3, scope: "mine" })
       .then((data) => {
-        if (!cancelled) setTrips(data.journeys.slice(0, 3));
+        if (!cancelled) setTrips(data.data.journeys.slice(0, 3));
       })
       .catch(() => {
         if (!cancelled) setTrips([]);

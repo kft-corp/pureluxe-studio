@@ -38,7 +38,15 @@ import type { TripShape } from "@/lib/trip-builder/actions/trip-shape";
 
 const ACTOR = { memberId: "member-1" };
 const CLIENT = { id: "c1", display_name: "Aarav Mehta" };
-const LEAD = { client_id: "c1", display_name: "Aarav Mehta", role: "primary" as const, party_role: "adult" as const, family_role: null };
+const LEAD = {
+  client_id: "c1",
+  display_name: "Aarav Mehta",
+  role: "primary" as const,
+  party_role: "adult" as const,
+  stated_age: null,
+  date_of_birth: null,
+  family_role: null,
+};
 const CONFIRMED = "2026-10-01T00:00:00.000Z";
 
 /** Lead set, no dates or stays. */
