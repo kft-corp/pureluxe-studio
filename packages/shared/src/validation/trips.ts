@@ -151,9 +151,12 @@ export const setTripStaySchema = z
     path: ["property_name"],
   });
 
+export const tripPartyRoleSchema = z.enum(["adult", "child", "infant"]);
+
 export const addTripTravellerSchema = z.object({
   client_id: z.string().uuid({ message: "Choose a client." }),
-  party_role: z.enum(["adult", "child"]).optional().default("adult"),
+  party_role: tripPartyRoleSchema.optional().default("adult"),
+  stated_age: z.number().int().min(0).max(120).nullable().optional(),
 });
 
 export type AddTripTravellerBody = z.input<typeof addTripTravellerSchema>;

@@ -284,6 +284,7 @@ export {
   listTripTravellers,
   patchStayShellParty,
   setTripPrimaryClient,
+  updateTripClientStatedAges,
   upsertTripCompanion,
   updateTrip,
   updateTripChatMessage,

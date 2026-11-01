@@ -169,7 +169,7 @@ export type PropertyContractOfferType =
   | "bundle"
   | "other";
 
-/** Hotels-sheet price tier on kb_hotel_details (021). */
+/** Hotels-sheet luxury band on kb_hotel_details (024; was price_tier). */
 export type HotelPriceTier = "ultra_luxury" | "luxury" | "premium";
 
 /** How a quote option was added (trip_line_items.added_via, 021). */
@@ -187,7 +187,6 @@ export type Property = {
   region: string | null;
   property_type: string | null;
   destination_profile_id: string | null;
-  curated_hotel_id: string | null;
   /** Alternate names for fuzzy search (021). */
   aliases: string[];
   /** Atlas country id for matching (021); country text stays for display. */
@@ -205,12 +204,14 @@ export type Property = {
   vip_contact_notes: string | null;
   reservations_email: string | null;
   general_phone: string | null;
+  /** Preferred-partner badge (026). */
+  preferred_partner: boolean;
   active: boolean;
   created_at: string;
   updated_at: string;
 };
 
-/** One row from search_properties() (021). */
+/** One row from search_properties() (024 returns luxury_band). */
 export type PropertySearchHit = {
   id: string;
   name: string;
@@ -219,6 +220,7 @@ export type PropertySearchHit = {
   country: string | null;
   score: number;
   aliases: string[];
+  /** App alias for Atlas luxury_band. */
   price_tier: HotelPriceTier | null;
   style_tags: string[];
 };

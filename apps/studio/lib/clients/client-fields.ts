@@ -12,6 +12,8 @@ export const AUDIT_CLIENT_FIELDS = [
   "preferred_language",
   "timezone",
   "nationality",
+  "date_of_birth",
+  "gender",
   "city_of_residence",
   "company",
   "address_line_1",
@@ -28,4 +30,5 @@ export const AUDIT_CLIENT_FIELDS = [
   "guest_notes",
   "internal_notes",
   "avatar_url",
+  "contact_optional",
 ] as const;

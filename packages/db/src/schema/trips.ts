@@ -19,7 +19,7 @@ export type TripSource = "studio" | "client_app" | "import";
 
 export type TripClientRole = "primary" | "companion";
 
-export type TripPartyRole = "adult" | "child";
+export type TripPartyRole = "adult" | "child" | "infant";
 
 export type TripLegItineraryStatus = "not_started" | "drafted" | "confirmed";
 
@@ -127,6 +127,8 @@ export type TripClient = {
   client_id: string;
   role: TripClientRole;
   party_role: TripPartyRole;
+  /** Advisor-stated age for this trip; wins over DOB for pricing here. */
+  stated_age: number | null;
   created_at: string;
 };
 

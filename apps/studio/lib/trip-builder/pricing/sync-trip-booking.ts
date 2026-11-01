@@ -233,16 +233,30 @@ async function syncBookingTravellers(bookingId: string, detail: TripDetail): Pro
     const fullName =
       client?.legal_name?.trim() || client?.display_name?.trim() || person.display_name.trim();
     const role =
-      person.role === "primary" ? "lead" : person.party_role === "child" ? "child" : "adult";
+      person.role === "primary"
+        ? "lead"
+        : person.party_role === "infant"
+          ? "infant"
+          : person.party_role === "child"
+            ? "child"
+            : "adult";
     const current = existing.find((row) => row.client_id === person.client_id);
+    const dateOfBirth =
+      passport?.date_of_birth ?? client?.date_of_birth ?? null;
+    const gender = client?.gender ?? null;
     const passportFields = passport
       ? {
-          date_of_birth: passport.date_of_birth,
+          date_of_birth: dateOfBirth,
           passport_number: passport.document_number,
           passport_nationality: passport.issuing_country ?? client?.nationality ?? null,
           passport_expiry: passport.expiry_date,
         }
-      : null;
+      : {
+          date_of_birth: dateOfBirth,
+          passport_number: null as string | null,
+          passport_nationality: client?.nationality ?? null,
+          passport_expiry: null as string | null,
+        };
     if (current) {
       await updateBookingTraveller({
         id: current.id,
@@ -250,8 +264,9 @@ async function syncBookingTravellers(bookingId: string, detail: TripDetail): Pro
         client_id: person.client_id,
         title: client?.title ?? current.title,
         full_name: fullName,
+        gender: gender ?? current.gender,
         role,
-        ...(passportFields ?? {}),
+        ...passportFields,
       });
     } else if (fullName) {
       await insertBookingTraveller({
@@ -259,12 +274,12 @@ async function syncBookingTravellers(bookingId: string, detail: TripDetail): Pro
         client_id: person.client_id,
         title: client?.title ?? null,
         full_name: fullName,
-        gender: null,
+        gender,
         role,
-        date_of_birth: passportFields?.date_of_birth ?? null,
-        passport_number: passportFields?.passport_number ?? null,
-        passport_nationality: passportFields?.passport_nationality ?? client?.nationality ?? null,
-        passport_expiry: passportFields?.passport_expiry ?? null,
+        date_of_birth: passportFields.date_of_birth,
+        passport_number: passportFields.passport_number,
+        passport_nationality: passportFields.passport_nationality,
+        passport_expiry: passportFields.passport_expiry,
       });
     }
     if (fullName) names.push(fullName);

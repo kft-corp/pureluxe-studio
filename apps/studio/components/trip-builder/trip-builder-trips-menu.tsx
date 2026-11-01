@@ -20,7 +20,7 @@ type TripBuilderTripsMenuProps = {
   disabled?: boolean;
 };
 
-/** Assigned trips switcher — fills dark only while the menu is open. */
+/** Assigned trips switcher — absolute panel (fixed broke under header backdrop-blur). */
 export function TripBuilderTripsMenu({
   trips,
   activeTripId,
@@ -28,28 +28,8 @@ export function TripBuilderTripsMenu({
   disabled,
 }: TripBuilderTripsMenuProps) {
   const [open, setOpen] = useState(false);
-  const [menuBox, setMenuBox] = useState<{ top: number; right: number } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
-
-  function placeMenu() {
-    const rect = buttonRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    setMenuBox({
-      top: rect.bottom + 6,
-      right: Math.max(8, window.innerWidth - rect.right),
-    });
-  }
-
-  function toggleMenu() {
-    if (open) {
-      setOpen(false);
-      return;
-    }
-    placeMenu();
-    setOpen(true);
-  }
 
   useEffect(() => {
     if (!open) return;
@@ -64,20 +44,11 @@ export function TripBuilderTripsMenu({
       if (event.key === "Escape") setOpen(false);
     }
 
-    function onScroll(event: Event) {
-      if (rootRef.current?.contains(event.target as Node)) return;
-      setOpen(false);
-    }
-
     document.addEventListener("mousedown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
-    window.addEventListener("resize", placeMenu);
-    window.addEventListener("scroll", onScroll, true);
     return () => {
       document.removeEventListener("mousedown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("resize", placeMenu);
-      window.removeEventListener("scroll", onScroll, true);
     };
   }, [open]);
 
@@ -89,7 +60,6 @@ export function TripBuilderTripsMenu({
   return (
     <div ref={rootRef} className="relative shrink-0">
       <button
-        ref={buttonRef}
         type="button"
         disabled={disabled}
         aria-haspopup="listbox"
@@ -97,24 +67,25 @@ export function TripBuilderTripsMenu({
         aria-controls={menuId}
         aria-label="Switch trip"
         title={tooltip}
-        onClick={toggleMenu}
+        onClick={() => setOpen((value) => !value)}
         className={cn(
-          "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-ink transition lg:h-8 lg:w-8",
+          "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-ink-muted transition lg:h-8 lg:w-8",
           studioFocusRing,
           "disabled:cursor-not-allowed disabled:opacity-50",
-          open ? "bg-neutral-soft" : "bg-transparent hover:bg-surface-hover",
+          open
+            ? "bg-accent-soft/60 text-ink"
+            : "bg-transparent hover:bg-accent-soft/40 hover:text-ink",
         )}
       >
-        <LuFolderOpen className="size-4 lg:size-[18px]" strokeWidth={2} aria-hidden />
+        <LuFolderOpen className="size-4 lg:size-[17px]" strokeWidth={1.5} aria-hidden />
       </button>
 
-      {open && menuBox ? (
+      {open ? (
         <div
           id={menuId}
           role="listbox"
           aria-label="Trips"
-          style={{ top: menuBox.top, right: menuBox.right }}
-          className="fixed z-50 w-[min(20rem,calc(100vw-1rem))] overflow-hidden rounded-lg border border-border bg-surface-raised shadow-lg"
+          className="absolute top-full right-0 z-50 mt-1.5 w-[min(20rem,calc(100vw-1rem))] overflow-hidden rounded-lg border border-border bg-surface-raised shadow-lg"
         >
           <div className="border-b border-border px-3 py-2.5">
             <p className="text-[13px] font-medium text-ink">Trips</p>

@@ -14,7 +14,11 @@ function asTier(value: string | null | undefined): HotelPriceTier | null {
   return value as HotelPriceTier;
 }
 
+/** Map RPC / Atlas luxury_band onto PropertySearchHit.price_tier (app alias). */
 function asHit(row: Record<string, unknown>): PropertySearchHit {
+  const band =
+    (row.luxury_band as string | null | undefined) ??
+    (row.price_tier as string | null | undefined);
   return {
     id: String(row.id),
     name: String(row.name),
@@ -23,7 +27,7 @@ function asHit(row: Record<string, unknown>): PropertySearchHit {
     country: (row.country as string | null) ?? null,
     score: Number(row.score ?? 0),
     aliases: Array.isArray(row.aliases) ? (row.aliases as string[]) : [],
-    price_tier: asTier(row.price_tier as string | null),
+    price_tier: asTier(band),
     style_tags: Array.isArray(row.style_tags) ? (row.style_tags as string[]) : [],
   };
 }
@@ -56,8 +60,8 @@ export async function searchPropertiesRanked(input: {
 type KbHotelEmbed = {
   property_id: string | null;
   kb_hotel_details:
-    | { price_tier: string | null; style_tags: string[] | null }
-    | { price_tier: string | null; style_tags: string[] | null }[]
+    | { luxury_band: string | null; style_tags: string[] | null }
+    | { luxury_band: string | null; style_tags: string[] | null }[]
     | null;
 };
 
@@ -67,12 +71,12 @@ function detailsOf(
   const raw = row.kb_hotel_details;
   const details = Array.isArray(raw) ? raw[0] : raw;
   return {
-    price_tier: asTier(details?.price_tier ?? null),
+    price_tier: asTier(details?.luxury_band ?? null),
     style_tags: Array.isArray(details?.style_tags) ? details!.style_tags! : [],
   };
 }
 
-/** Atlas tier and style tags for Rate Layer hotels (linked kb_entities). */
+/** Atlas luxury band and style tags for Rate Layer hotels (linked kb_entities). */
 export async function listHotelDetailsByPropertyIds(
   propertyIds: string[],
 ): Promise<Map<string, { price_tier: HotelPriceTier | null; style_tags: string[] }>> {
@@ -84,7 +88,7 @@ export async function listHotelDetailsByPropertyIds(
   const { data, error } = await runSupabaseQuery(() =>
     supabase
       .from("kb_entities")
-      .select("property_id, kb_hotel_details(price_tier, style_tags)")
+      .select("property_id, kb_hotel_details(luxury_band, style_tags)")
       .eq("entity_type", "hotel")
       .eq("active", true)
       .in("property_id", ids),
@@ -201,7 +205,7 @@ export function typicalNightlyForProperty(
 }
 
 /**
- * Set Atlas price_tier for a Rate Layer hotel (Hotels-sheet import).
+ * Set Atlas luxury_band for a Rate Layer hotel (Hotels-sheet import).
  * Returns false when no linked kb hotel details row exists.
  */
 export async function updateHotelPriceTierByPropertyId(input: {
@@ -227,7 +231,7 @@ export async function updateHotelPriceTierByPropertyId(input: {
   const { error } = await runSupabaseQuery(() =>
     supabase
       .from("kb_hotel_details")
-      .update({ price_tier: input.priceTier })
+      .update({ luxury_band: input.priceTier })
       .eq("entity_id", entity.id),
   );
 

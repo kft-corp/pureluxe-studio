@@ -22,7 +22,8 @@ local / staging / live. Supabase only auto-applies `*.sql` files directly under
 | [`011_rate_layer.sql`](./011_rate_layer.sql) | `011_rate_layer.sql` | Maldives/Dubai/Bali/Doha profiles, Layer 2 overrides, Pure Escapes binding (inactive), ski peak windows, negotiated code **placeholder slugs** (`active = false`) |
 | [`011_rate_layer_contracted.sql`](./011_rate_layer_contracted.sql) | `011` (+ `021` tax cols) + run `011_rate_layer.sql` first | Real contracted money: Waldorf Ithaafushi, SUJÁN×3, COMO Cocoa + Maalifushi, JOALI Maldives + BEING — from Excel + PDFs |
 | [`011_rate_layer_kanuhura.sql`](./011_rate_layer_kanuhura.sql) | same | Six Senses Kanuhura wholesale 2026–27 + India package `SSK26IN` |
-| [`016_atlas_kb.sql`](./016_atlas_kb.sql) | `016_atlas_kb.sql` (+ `021` style_tags/price_tier) | Full Atlas hotel master from Excel (~2.2k hotels) + rooms/details where present; links contracted `properties` ↔ `kb_entities` |
+| [`016_atlas_kb.sql`](./016_atlas_kb.sql) | `016` + `021` + **`024`–`029`** (Wave 0–3) | Full Atlas hotel master (~2.2k hotels) with `external_key` / `aliases` / `luxury_band`; links via `kb_entities.property_id` only |
+| [`017_trip_builder_smoke.sql`](./017_trip_builder_smoke.sql) | After `016` (+ Wave tables) | **TB smoke extras:** place facts/visa, aliases, stay_info, perks, contacts, commission %, Waldorf Nov–Dec 2026 demo rates, POIs |
 | [`015_trip_builder_flow.sql`](./015_trip_builder_flow.sql) | `015_trip_builder_flow.sql` | Starter `pdf_branding` company setting |
 
 ## Trip Builder recommended local order
@@ -30,8 +31,9 @@ local / staging / live. Supabase only auto-applies `*.sql` files directly under
 1. `011_rate_layer.sql` (destination profiles + Layer 2)
 2. `011_rate_layer_contracted.sql` (money)
 3. `011_rate_layer_kanuhura.sql` (Kanuhura money)
-4. `016_atlas_kb.sql` (Atlas KB + curated hotel links)
-5. `015_trip_builder_flow.sql` (optional branding)
+4. `016_atlas_kb.sql` (Atlas KB + `property_id` links; needs `024+` schema)
+5. `017_trip_builder_smoke.sql` (place facts / perks / demo Waldorf window — run after 016)
+6. `015_trip_builder_flow.sql` (optional branding)
 
 Sources:
 
@@ -41,10 +43,12 @@ Sources:
 
 ## How to run
 
-1. Apply numbered migrations (`db push` or paste each migration in order).
+1. Apply numbered migrations through **`029`** (`db push` or paste each migration in order).
 2. Open Supabase **SQL Editor**.
 3. Paste each seed file in the order above and run.
 4. Seeds are written to be re-runnable (`WHERE NOT EXISTS` / `ON CONFLICT`).
+5. After Wave 0, do **not** expect `properties.curated_hotel_id` or `kb_hotel_details.price_tier` — use `kb_entities.property_id` and `luxury_band`.
+6. If you **TRUNCATE**d Rate Layer tables, start again with `011_rate_layer.sql` — it re-seeds `destination_type_defaults` (FK parent for profiles).
 
 Do **not** run seeds on production unless ops has reviewed and confirmed the rows.
 

@@ -45,9 +45,6 @@ export function TripsPageContent({
       <PageToolbar className="gap-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0 sm:max-w-xl sm:flex-1">
-            <p className="mb-1.5 text-xs font-semibold tracking-wide text-ink uppercase">
-              Find a trip
-            </p>
             <TripSearch
               value={directory.search}
               onChange={directory.setSearch}
@@ -63,11 +60,8 @@ export function TripsPageContent({
           ) : null}
         </div>
 
-        <div className="flex flex-col gap-3 border-t border-border/70 pt-4 lg:flex-row lg:items-end lg:justify-between lg:gap-4">
+        <div className="flex flex-col gap-3 border-t border-border/50 pt-4 lg:flex-row lg:items-end lg:justify-between lg:gap-4">
           <div className="min-w-0 flex-1">
-            <p className="mb-1.5 text-xs font-semibold tracking-wide text-ink uppercase">
-              Quick filters
-            </p>
             <TripQuickChips
               value={directory.quickFilters}
               onChange={directory.setQuickFilters}

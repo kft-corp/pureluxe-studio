@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils/cn";
 
 import { ClientVipBadge } from "./client-vip-badge";
 
-const COLUMNS = ["Client", "Contact", "Last booking", "Profile", ""];
+const COLUMNS = ["Traveller", "Contact", "Last trip", "Profile", ""];
 const MIN_WIDTH = "min-w-[44rem]";
 
 export function ClientsTableSkeleton() {
@@ -60,7 +60,7 @@ function ContactCell({
 
   if (!emailValue && !phoneValue) {
     return (
-      <span className="text-sm text-ink-muted">No email or phone</span>
+      <span className="text-[14px] text-ink-muted">No email or phone</span>
     );
   }
 
@@ -70,7 +70,7 @@ function ContactCell({
         <a
           href={`mailto:${emailValue}`}
           onClick={(event) => event.stopPropagation()}
-          className="block truncate text-sm text-ink underline-offset-2 hover:underline"
+          className="block truncate text-[14px] text-ink underline-offset-2 hover:underline"
           title={emailValue}
         >
           {emailValue}
@@ -82,7 +82,7 @@ function ContactCell({
             href={`tel:+${phoneHref}`}
             onClick={(event) => event.stopPropagation()}
             className={cn(
-              "block truncate text-sm underline-offset-2 hover:underline",
+              "block truncate text-[14px] underline-offset-2 hover:underline",
               emailValue ? "mt-0.5 text-ink-muted" : "text-ink",
             )}
             title={phoneLabel}
@@ -93,8 +93,8 @@ function ContactCell({
           <p
             className={
               emailValue
-                ? "mt-0.5 truncate text-sm text-ink-muted"
-                : "truncate text-sm text-ink"
+                ? "mt-0.5 truncate text-[14px] text-ink-muted"
+                : "truncate text-[14px] text-ink"
             }
             title={phoneLabel}
           >
@@ -106,9 +106,27 @@ function ContactCell({
   );
 }
 
-function lastBookingLabel(value: string | null | undefined): string {
-  if (!value?.trim()) return "None yet";
+function lastTripLabel(value: string | null | undefined): string {
+  if (!value?.trim()) return "No trips yet";
   return formatBookingDate(value);
+}
+
+/** Travel cue under the name — last trip / stays / family. */
+function travellerCue(client: ClientDirectoryItem): string {
+  const lastTrip = client.stats.last_booking_date
+    ? `Last trip · ${formatBookingDate(client.stats.last_booking_date)}`
+    : null;
+  const stays =
+    client.stats.booking_count > 0
+      ? `${client.stats.booking_count} stay${client.stats.booking_count === 1 ? "" : "s"}`
+      : null;
+  const family = client.family_name ? `Travels with · ${client.family_name}` : null;
+
+  if (lastTrip || stays) {
+    return [lastTrip, stays, family].filter(Boolean).join(" · ");
+  }
+  if (family) return family;
+  return "Ready for a first trip";
 }
 
 function emptyMessage(
@@ -122,7 +140,7 @@ function emptyMessage(
   if (hasActiveFilters) {
     return "No one matches these filters. Clear them or try a different search.";
   }
-  return "No clients yet. Add your first guest with New client.";
+  return "No travellers yet. Add your first guest with New client.";
 }
 
 function ClientDirectoryRow({ client }: { client: ClientDirectoryItem }) {
@@ -143,21 +161,19 @@ function ClientDirectoryRow({ client }: { client: ClientDirectoryItem }) {
           <div className="min-w-0">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <p
-                className="truncate font-medium text-ink"
+                className="truncate text-[15px] font-semibold text-ink"
                 title={client.display_name}
               >
                 {client.display_name}
               </p>
               <ClientBadges client={client} />
             </div>
-            {client.family_name ? (
-              <p
-                className="mt-0.5 truncate text-sm text-ink-muted"
-                title={client.family_name}
-              >
-                Family: {client.family_name}
-              </p>
-            ) : null}
+            <p
+              className="mt-0.5 truncate text-[14px] text-ink-muted"
+              title={travellerCue(client)}
+            >
+              {travellerCue(client)}
+            </p>
           </div>
         </div>
       </TableCell>
@@ -167,13 +183,13 @@ function ClientDirectoryRow({ client }: { client: ClientDirectoryItem }) {
       <TableCell
         className={
           client.stats.last_booking_date
-            ? "whitespace-nowrap text-sm text-ink"
-            : "whitespace-nowrap text-sm text-ink-muted"
+            ? "whitespace-nowrap text-[15px] text-ink"
+            : "whitespace-nowrap text-[15px] text-ink-muted"
         }
       >
-        {lastBookingLabel(client.stats.last_booking_date)}
+        {lastTripLabel(client.stats.last_booking_date)}
       </TableCell>
-      <TableCell className="whitespace-nowrap text-sm text-ink">
+      <TableCell className="whitespace-nowrap text-[15px] text-ink">
         {client.profile_completeness}%
       </TableCell>
       <TableCell className="whitespace-nowrap text-right">
@@ -228,15 +244,18 @@ export function ClientsTable({
           />
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 flex-col gap-1.5">
-              <p className="truncate font-medium text-ink">{client.display_name}</p>
+              <p className="truncate text-[15px] font-semibold text-ink">
+                {client.display_name}
+              </p>
               <ClientBadges client={client} />
             </div>
+            <p className="mt-1 truncate text-[14px] text-ink-muted">
+              {travellerCue(client)}
+            </p>
             <div className="pointer-events-auto mt-1.5">
               <ContactCell email={client.email} phone={client.phone} />
             </div>
-            <p className="mt-1.5 text-xs text-ink-muted">
-              Last booking: {lastBookingLabel(client.stats.last_booking_date)}
-              {" · "}
+            <p className="mt-1.5 text-[13px] text-ink-muted">
               Profile {client.profile_completeness}%
             </p>
           </div>

@@ -35,7 +35,7 @@ export function ChatMarkdown({ content, className }: ChatMarkdownProps) {
   return (
     <div
       className={cn(
-        "chat-md text-[15px] leading-[1.6] break-words text-ink",
+        "chat-md text-base leading-[1.65] break-words text-ink",
         "[&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
         "[&_pre]:max-w-full [&_pre]:overflow-x-auto",
         className,
@@ -101,17 +101,17 @@ export function ChatMarkdown({ content, className }: ChatMarkdownProps) {
             </blockquote>
           ),
           h1: ({ children }) => (
-            <p className="mt-4 mb-1.5 font-serif text-[18px] leading-snug font-medium text-ink">
+            <p className="studio-type-section mt-4 mb-1.5 text-ink">
               {children}
             </p>
           ),
           h2: ({ children }) => (
-            <p className="mt-4 mb-1.5 font-serif text-[18px] leading-snug font-medium text-ink">
+            <p className="studio-type-section mt-4 mb-1.5 text-ink">
               {children}
             </p>
           ),
           h3: ({ children }) => (
-            <p className="mt-3.5 mb-1 font-serif text-[16px] leading-snug font-medium text-ink">
+            <p className="studio-type-label mt-3.5 mb-1 text-ink">
               {children}
             </p>
           ),

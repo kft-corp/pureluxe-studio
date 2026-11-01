@@ -45,6 +45,7 @@ export {
   findPrimaryTripClient,
   listTripTravellers,
   setTripPrimaryClient,
+  updateTripClientStatedAges,
   upsertTripCompanion,
   type TripTravellerRow,
 } from "./trip-clients";

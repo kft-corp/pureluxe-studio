@@ -11,6 +11,8 @@ type ShellModulePageProps = {
   module: StudioModule;
   title: string;
   description?: string;
+  /** Optional primary action(s) for the page header strip. */
+  actions?: ReactNode;
   children?: ReactNode;
   layout?: "page" | "workspace";
 };
@@ -25,6 +27,7 @@ export async function ShellModulePage({
   module,
   title,
   description,
+  actions,
   children,
   layout = "page",
 }: ShellModulePageProps) {
@@ -35,14 +38,24 @@ export async function ShellModulePage({
 
   if (!canRead) {
     return (
-      <ShellPage title={title} description={description} layout={layout}>
+      <ShellPage
+        title={title}
+        description={description}
+        actions={actions}
+        layout={layout}
+      >
         <AccessDenied feature={title} />
       </ShellPage>
     );
   }
 
   return (
-    <ShellPage title={title} description={description} layout={layout}>
+    <ShellPage
+      title={title}
+      description={description}
+      actions={actions}
+      layout={layout}
+    >
       {children ?? <ComingSoon feature={title} canWrite={canWrite} />}
     </ShellPage>
   );

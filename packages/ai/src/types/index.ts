@@ -59,9 +59,9 @@ export type TripFacts = {
     display_name: string;
     role: string;
     party_role: string;
-    /** Age on trip start / first check-in from passport DOB. Children only. */
+    /** Age on trip start / first check-in (stated age → client DOB → passport). Minors only. */
     age_on_arrival?: number;
-    /** True when travelling as a child with no passport DOB on file. */
+    /** True when travelling as a child/infant with no age or DOB on file. */
     dob_missing?: boolean;
   }>;
   family_suggestions?: Array<{

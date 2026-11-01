@@ -15,22 +15,20 @@ export function SnapshotCard({
   return (
     <div
       className={cn(
-        "min-w-0 rounded-xl border border-border bg-surface-subtle px-4 py-3",
+        "min-w-0 rounded-xl border border-border/80 bg-surface-subtle px-4 py-3 shadow-[0_4px_16px_rgba(22,26,31,0.03)]",
         className,
       )}
     >
-      <p className="text-[11px] font-semibold tracking-[0.08em] text-ink-subtle uppercase">
-        {label}
-      </p>
+      <p className="studio-type-eyebrow text-ink-subtle">{label}</p>
       <p
-        className="mt-1 line-clamp-2 wrap-break-word text-sm font-semibold leading-snug text-ink"
+        className="mt-1 line-clamp-2 wrap-break-word font-sans text-[15px] font-semibold leading-snug text-ink sm:text-base"
         title={value}
       >
         {value}
       </p>
       {hint ? (
         <p
-          className="mt-0.5 line-clamp-2 wrap-break-word text-xs text-ink-muted"
+          className="studio-type-meta mt-0.5 line-clamp-2 wrap-break-word text-ink-muted"
           title={hint}
         >
           {hint}

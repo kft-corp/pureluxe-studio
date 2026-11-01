@@ -6,12 +6,12 @@ export const pageCopy = {
   },
   clients: {
     title: "Clients",
-    description: "Find people fast, filter the book, and open a profile.",
+    description: "Your guests — open a profile to plan their next stay.",
   },
   client: {
     title: "Client profile",
     description:
-      "Everything your team needs to know about this guest before the next trip.",
+      "Preferences, household, and trips — ready for the next destination.",
   },
   bookings: {
     title: "Bookings",
@@ -42,11 +42,17 @@ export const pageCopy = {
   },
 } as const;
 
+/** Sidebar chrome — travel desk actions and cues. */
+export const sidebarCopy = {
+  newTrip: "New trip",
+  recent: "Recent",
+} as const;
+
 /** Directory list section headings (unfiltered state). */
 export const listSectionCopy = {
   clients: {
-    title: "Client list",
-    description: "Pick someone to open their profile and prep the next trip.",
+    title: "Traveller book",
+    description: "Who you advise — open a guest to shape their next journey.",
   },
   bookings: {
     title: "Booking list",

@@ -10,7 +10,7 @@ import { journeyToday } from "@pureluxe/shared";
 
 import { requireActiveClient } from "@/lib/clients/require-active-client";
 
-import { saveStatedAgesOnPassports } from "../party/save-stated-ages";
+import { saveStatedAges } from "../party/save-stated-ages";
 import { getTripDetail } from "../trip/get-trip-detail";
 import { shiftTripDates } from "../trip/shift-trip-dates";
 import type { TripDetail } from "../trip/trip-detail";
@@ -93,7 +93,12 @@ export async function setTripTravellers(
     const parts = input.add.map((person, index) => {
       const name = added[index]!.display_name;
       const ageBit = person.age != null ? ` (age ${person.age})` : "";
-      const roleBit = person.partyRole === "child" ? " (child)" : "";
+      const roleBit =
+        person.partyRole === "infant"
+          ? " (infant)"
+          : person.partyRole === "child"
+            ? " (child)"
+            : "";
       return `${name}${ageBit}${roleBit}`;
     });
     const gone = removed.flatMap((row) => (row ? [row.display_name] : []));
@@ -113,10 +118,12 @@ export async function setTripTravellers(
   });
 
   if (withAges.length > 0) {
-    await saveStatedAgesOnPassports(
-      withAges.map((person) => ({ clientId: person.clientId, age: person.age })),
-      onDateHint ?? new Date().toISOString().slice(0, 10),
-    );
+    await saveStatedAges({
+      tripId: context.tripId,
+      people: withAges.map((person) => ({ clientId: person.clientId, age: person.age })),
+      onDate: onDateHint ?? new Date().toISOString().slice(0, 10),
+      actorId: context.actor.memberId,
+    });
   }
 
   return result;

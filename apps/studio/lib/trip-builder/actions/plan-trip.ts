@@ -81,7 +81,9 @@ export async function planParty(input: {
 
 /** "Ravi Mehta with Anika, Aarav and Kiara (2 adults, 2 children)". */
 export function partyLabel(party: PlannedParty): string {
-  const children = party.companions.filter((person) => person.party_role === "child").length;
+  const children = party.companions.filter(
+    (person) => person.party_role === "child" || person.party_role === "infant",
+  ).length;
   const adults = 1 + party.companions.length - children;
   const counts = [
     adults === 1 ? "1 adult" : `${adults} adults`,

@@ -25,17 +25,17 @@ export function ContentSection({
   return (
     <section
       className={cn(
-        "overflow-hidden rounded-2xl border border-border bg-surface-raised shadow-sm",
+        "overflow-hidden rounded-2xl border border-border/70 bg-surface-raised shadow-[0_6px_24px_rgba(22,26,31,0.04)]",
         className,
       )}
     >
-      <header className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2 border-b border-border px-5 py-4 sm:px-6">
+      <header className="flex flex-wrap items-end justify-between gap-x-3 gap-y-2 border-b border-border/60 px-5 py-3.5 sm:px-6 sm:py-4">
         <div className="min-w-0 flex-1 basis-[min(100%,14rem)]">
-          <h2 className="wrap-break-word text-base font-semibold tracking-tight text-ink">
+          <h2 className="studio-type-section wrap-break-word text-ink">
             {title}
           </h2>
           {description ? (
-            <p className="mt-1 text-pretty text-sm leading-relaxed text-ink-muted">
+            <p className="studio-type-meta mt-1 max-w-xl text-pretty text-ink-muted">
               {description}
             </p>
           ) : null}
@@ -44,7 +44,7 @@ export function ContentSection({
           <div className="flex max-w-full flex-wrap items-center gap-2">
             {action}
             {count !== undefined ? (
-              <span className="rounded-full bg-neutral-soft px-2.5 py-1 text-xs font-semibold text-neutral-ink tabular-nums ring-1 ring-inset ring-neutral-line">
+              <span className="text-[13px] font-medium text-ink-muted tabular-nums">
                 {countLabel ? `${count} ${countLabel}` : count}
               </span>
             ) : null}
@@ -57,7 +57,7 @@ export function ContentSection({
 }
 
 
-/** Toolbar strip — tabs, filters, and primary actions above page content. */
+/** Quiet filter strip — not a second card above the table. */
 export function PageToolbar({
   children,
   className,
@@ -68,7 +68,7 @@ export function PageToolbar({
   return (
     <div
       className={cn(
-        "flex flex-col gap-4 rounded-2xl border border-border bg-surface-raised p-4 shadow-sm sm:p-5",
+        "flex flex-col gap-4 border-b border-border/60 pb-5",
         className,
       )}
     >
@@ -85,5 +85,5 @@ export function PageStack({
   children: React.ReactNode;
   className?: string;
 }) {
-  return <div className={cn("space-y-5", className)}>{children}</div>;
+  return <div className={cn("space-y-8", className)}>{children}</div>;
 }

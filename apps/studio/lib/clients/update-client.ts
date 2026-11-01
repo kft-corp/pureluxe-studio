@@ -48,8 +48,12 @@ export async function updateClient(
 
   const email = patch.email !== undefined ? patch.email : existing.email;
   const phone = patch.phone !== undefined ? patch.phone : existing.phone;
+  const contactOptional =
+    patch.contact_optional !== undefined
+      ? patch.contact_optional
+      : existing.contact_optional;
 
-  if (!email && !phone) {
+  if (!contactOptional && !email && !phone) {
     throw new AppError({
       userMessage: clientMessages.error.contactRequired,
       code: "clients.contact_required",

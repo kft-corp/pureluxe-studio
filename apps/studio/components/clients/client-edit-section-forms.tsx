@@ -11,6 +11,7 @@ import {
 } from "@/components/ui";
 import { updateClient, upsertClientHealth } from "@/lib/api/clients";
 import {
+  CLIENT_GENDER_OPTIONS,
   clientTitleSelectOptions,
   importantDateLabelSelectOptions,
   normalizeClientTitle,
@@ -144,6 +145,8 @@ export function IdentityForm({ profile, onClose, onSuccess }: SectionFormProps) 
   const [firstName, setFirstName] = useState(client.first_name ?? "");
   const [lastName, setLastName] = useState(client.last_name ?? "");
   const [legalName, setLegalName] = useState(client.legal_name ?? "");
+  const [dateOfBirth, setDateOfBirth] = useState(client.date_of_birth ?? "");
+  const [gender, setGender] = useState(client.gender ?? "");
   const [company, setCompany] = useState(client.company ?? "");
   const [vipTier, setVipTier] = useState(client.tier.slug);
   const [loading, setLoading] = useState(false);
@@ -168,6 +171,11 @@ export function IdentityForm({ profile, onClose, onSuccess }: SectionFormProps) 
           first_name: firstName.trim() || null,
           last_name: lastName.trim() || null,
           legal_name: legalName.trim() || null,
+          date_of_birth: dateOfBirth.trim() || null,
+          gender:
+            gender === "male" || gender === "female" || gender === "unspecified"
+              ? gender
+              : null,
           company: company.trim() || null,
           tier_slug: vipTier as "standard" | "vip" | "vvip",
         },
@@ -258,6 +266,39 @@ export function IdentityForm({ profile, onClose, onSuccess }: SectionFormProps) 
           className={cn(modalFieldClassName)}
         />
       </Field>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field
+          label="Date of birth"
+          htmlFor="edit-date-of-birth"
+          hint="Canonical DOB — does not require a passport on file."
+        >
+          <input
+            id="edit-date-of-birth"
+            type="date"
+            value={dateOfBirth}
+            onChange={(event) => setDateOfBirth(event.target.value)}
+            className={cn(modalFieldClassName)}
+          />
+        </Field>
+        <Field
+          label="Gender"
+          htmlFor="edit-gender"
+          hint="For airline and hotel forms when required."
+        >
+          <select
+            id="edit-gender"
+            value={gender}
+            onChange={(event) => setGender(event.target.value)}
+            className={cn(modalFieldClassName)}
+          >
+            {CLIENT_GENDER_OPTIONS.map((option) => (
+              <option key={option.value || "none"} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+      </div>
       <Field label="Company" htmlFor="edit-company">
         <input
           id="edit-company"
@@ -302,6 +343,9 @@ export function ContactForm({
   const [relationshipOwnerId, setRelationshipOwnerId] = useState(
     client.relationship_owner_id ?? "",
   );
+  const [contactOptional, setContactOptional] = useState(
+    client.contact_optional ?? false,
+  );
   const [loading, setLoading] = useState(false);
   const owners = ownerSelectOptions(ownerOptions, client.relationship_owner);
 
@@ -310,7 +354,7 @@ export function ContactForm({
     setLoading(true);
 
     try {
-      if (!email.trim() && !phone.trim()) {
+      if (!contactOptional && !email.trim() && !phone.trim()) {
         showWarningToast(clientMessages.error.contactRequired);
         setLoading(false);
         return;
@@ -331,6 +375,7 @@ export function ContactForm({
           preferred_language: language.trim() || null,
           timezone: timezone.trim() || null,
           relationship_owner_id: relationshipOwnerId || null,
+          contact_optional: contactOptional,
         },
         {
           ifUnmodifiedSince: client.updated_at,
@@ -354,6 +399,21 @@ export function ContactForm({
       onClose={onClose}
       onSubmit={handleSubmit}
     >
+      <label className="flex items-start gap-2.5 rounded-xl border border-border/80 bg-surface px-3.5 py-3 text-sm text-ink">
+        <input
+          type="checkbox"
+          checked={contactOptional}
+          onChange={(event) => setContactOptional(event.target.checked)}
+          className="mt-0.5 rounded border-border"
+        />
+        <span>
+          <span className="font-medium">Contact optional</span>
+          <span className="mt-0.5 block text-xs text-ink-muted">
+            For children or companions without their own email or phone.
+          </span>
+        </span>
+      </label>
+
       <Field label="Email" htmlFor="edit-email">
         <input
           id="edit-email"

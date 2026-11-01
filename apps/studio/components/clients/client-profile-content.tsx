@@ -173,7 +173,7 @@ export function ClientProfileContent({
               />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="max-w-full wrap-break-word font-serif text-xl font-medium tracking-tight text-ink sm:text-3xl">
+                  <h2 className="studio-type-section max-w-full wrap-break-word text-ink sm:text-lg">
                     {client.display_name}
                   </h2>
                   <ClientVipBadge tier={client.tier.slug} />

@@ -26,7 +26,7 @@ export async function createClient(
   input: CreateClientInput,
   actor: { memberId: string },
 ): Promise<CreateClientResult> {
-  if (!input.email && !input.phone) {
+  if (!input.contact_optional && !input.email && !input.phone) {
     throw new AppError({
       userMessage: clientMessages.error.contactRequired,
       code: "clients.contact_required",

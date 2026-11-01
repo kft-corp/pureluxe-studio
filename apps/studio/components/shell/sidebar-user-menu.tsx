@@ -94,12 +94,12 @@ export function SidebarUserMenu({
         type="button"
         onClick={() => setOpen((value) => !value)}
         className={cn(
-          "flex w-full min-h-11 items-center rounded-lg text-left transition-colors duration-150",
+          "flex w-full min-h-10 items-center rounded-md text-left transition-colors duration-150",
           studioFocusRing,
           unfoldable
             ? "justify-center p-1 hover:bg-nav-hover"
-            : "gap-2.5 bg-nav-active/70 px-2 py-1.5 ring-1 ring-nav-line ring-inset hover:bg-nav-active",
-          open && (unfoldable ? "bg-nav-hover" : "bg-nav-active"),
+            : "gap-2.5 px-1.5 py-1.5 hover:bg-nav-hover/70",
+          open && "bg-nav-hover/80",
         )}
         aria-expanded={open}
         aria-haspopup="menu"
@@ -107,7 +107,7 @@ export function SidebarUserMenu({
         title={unfoldable ? name : undefined}
       >
         <span
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-avatar-hero font-serif text-[13px] font-medium text-avatar-hero-ink"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-avatar-hero font-sans text-[13px] font-semibold text-avatar-hero-ink"
           aria-hidden
         >
           {initials}
@@ -115,10 +115,10 @@ export function SidebarUserMenu({
         {!unfoldable ? (
           <>
             <span className="studio-nav-reveal min-w-0 flex-1 text-start">
-              <span className="block truncate text-[13px] leading-tight font-medium text-nav-ink-strong">
+              <span className="block truncate text-[14px] leading-tight font-semibold text-nav-ink-strong">
                 {name}
               </span>
-              <span className="mt-0.5 block truncate text-xs leading-tight text-nav-label">
+              <span className="mt-0.5 block truncate text-[12px] font-medium text-nav-label">
                 {roleLabel}
               </span>
             </span>

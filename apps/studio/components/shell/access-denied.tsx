@@ -6,7 +6,7 @@ type AccessDeniedProps = {
 
 export function AccessDenied({ feature }: AccessDeniedProps) {
   return (
-    <div className="rounded-2xl border border-border bg-surface-raised px-4 py-10 text-center shadow-sm sm:px-12 sm:py-16">
+    <div className="rounded-2xl border border-border/80 bg-surface-raised px-4 py-10 text-center shadow-[0_8px_28px_rgba(22,26,31,0.05)] sm:px-12 sm:py-16">
       <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-border bg-surface shadow-sm ring-4 ring-surface">
         <LuShieldOff
           className="h-6 w-6 text-ink-muted"
@@ -19,7 +19,7 @@ export function AccessDenied({ feature }: AccessDeniedProps) {
         Access restricted
       </p>
 
-      <h2 className="mt-3 font-serif text-2xl font-normal tracking-tight text-ink sm:text-4xl">
+      <h2 className="studio-type-page mt-3 text-ink">
         You don&apos;t have access
       </h2>
 

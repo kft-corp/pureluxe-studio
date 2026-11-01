@@ -26,8 +26,10 @@ function hotelFindPayload(result: unknown): {
 
 function partyFromTrip(trip: TripFacts): { adults: number; children: number; rooms: number } {
   const travellers = trip.travellers ?? [];
-  const children = travellers.filter((person) => person.party_role === "child").length;
-  const namedAdults = travellers.filter((person) => person.party_role !== "child").length;
+  const children = travellers.filter(
+    (person) => person.party_role === "child" || person.party_role === "infant",
+  ).length;
+  const namedAdults = travellers.filter((person) => person.party_role === "adult").length;
   const adults = Math.max(1, namedAdults || 2);
   return { adults, children, rooms: Math.max(1, Math.ceil(adults / 2)) };
 }

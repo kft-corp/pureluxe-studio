@@ -2,6 +2,7 @@ import type { IconType } from "react-icons";
 import {
   LuBadgePercent,
   LuCalendarCheck,
+  LuCompass,
   LuContactRound,
   LuCreditCard,
   LuLayoutDashboard,
@@ -9,7 +10,6 @@ import {
   LuListTodo,
   LuLuggage,
   LuSettings,
-  LuSparkles,
   LuUserCog,
 } from "react-icons/lu";
 
@@ -36,7 +36,7 @@ export type ShellNavGroup = {
  */
 export const navGroups: readonly ShellNavGroup[] = [
   { id: "core", placement: "main" },
-  { id: "travel", title: "Travel", placement: "main" },
+  { id: "travel", title: "Book travel", placement: "main" },
   { id: "partners", title: "Partners", placement: "main" },
   { id: "business", title: "Business", placement: "main" },
   { id: "bottom", placement: "footer" },
@@ -83,7 +83,7 @@ export const shellNavItems: readonly ShellNavItem[] = [
     id: "trip-builder",
     label: "Trip Builder",
     href: pageRoutes.tripBuilder,
-    icon: LuSparkles,
+    icon: LuCompass,
     permission: moduleReadPermission("trip_builder"),
     group: "travel",
     status: "live",

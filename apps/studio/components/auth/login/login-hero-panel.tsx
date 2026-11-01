@@ -34,7 +34,7 @@ export function LoginHeroPanel() {
             Internal operations
           </p>
 
-          <h2 className="font-serif text-[1.75rem] leading-[1.2] font-normal tracking-[-0.01em] xl:text-[2.125rem]">
+          <h2 className="studio-type-page">
             Operate every trip in one place.
           </h2>
 

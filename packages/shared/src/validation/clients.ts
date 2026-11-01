@@ -92,6 +92,18 @@ const optionalEmail = z
   ])
   .optional();
 
+/** Empty / omit → null; otherwise YYYY-MM-DD. */
+const optionalIsoDate = z
+  .union([
+    z.literal("").transform(() => null),
+    z.null(),
+    z
+      .string()
+      .trim()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, { message: "Use YYYY-MM-DD for dates" }),
+  ])
+  .optional();
+
 export const clientVipTierSchema = z.enum(["standard", "vip", "vvip"], {
   errorMap: () => ({ message: "Choose a valid guest tier" }),
 });
@@ -105,6 +117,12 @@ export const preferredContactMethodSchema = z.enum(
     errorMap: () => ({ message: "Choose a preferred contact method" }),
   },
 );
+
+export const CLIENT_GENDERS = ["male", "female", "unspecified"] as const;
+
+export const clientGenderSchema = z.enum(CLIENT_GENDERS, {
+  errorMap: () => ({ message: "Choose a valid gender" }),
+});
 
 export const importantDateSchema = z.object({
   label: z
@@ -315,6 +333,8 @@ const clientWritableObjectSchema = z.object({
   preferred_language: optionalLanguage,
   timezone: optionalTimezone,
   nationality: optionalCountryCode,
+  date_of_birth: optionalIsoDate,
+  gender: clientGenderSchema.nullable().optional(),
   city_of_residence: optionalText(120, "City is too long").nullable().optional(),
   company: optionalText(160, "Company is too long").nullable().optional(),
   address_line_1: optionalText(200, "Address is too long").nullable().optional(),
@@ -356,12 +376,19 @@ const clientWritableObjectSchema = z.object({
     .nullable()
     .optional(),
   avatar_url: optionalText(2048, "Avatar URL is too long").nullable().optional(),
+  /** When true, email/phone are not required (child companions). */
+  contact_optional: z.boolean().optional().default(false),
 });
 
 function assertEmailOrPhone(
-  value: { email?: string | null; phone?: string | null },
+  value: {
+    email?: string | null;
+    phone?: string | null;
+    contact_optional?: boolean;
+  },
   ctx: z.RefinementCtx,
 ) {
+  if (value.contact_optional) return;
   if (!value.email && !value.phone) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -619,17 +646,6 @@ export const CLIENT_DOCUMENT_MIME_TYPES = [
 ] as const;
 
 export const CLIENT_DOCUMENT_MAX_BYTES = 10 * 1024 * 1024;
-
-const optionalIsoDate = z
-  .union([
-    z.literal("").transform(() => null),
-    z.null(),
-    z
-      .string()
-      .trim()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, { message: "Use YYYY-MM-DD for dates" }),
-  ])
-  .optional();
 
 /** Register a travel document upload (file goes to signed URL after). */
 export const createClientDocumentSchema = z.object({

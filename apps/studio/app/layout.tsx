@@ -1,5 +1,10 @@
 import type { Metadata } from "next";
-import { Figtree, Fraunces, Geist_Mono } from "next/font/google";
+import {
+  Cormorant_Garamond,
+  Dancing_Script,
+  Geist_Mono,
+  Nunito_Sans,
+} from "next/font/google";
 
 import { AppToaster } from "@/components/feedback";
 import "./globals.css";
@@ -9,20 +14,31 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-/** Interface and reading font across the app. */
-const figtree = Figtree({
-  variable: "--font-figtree",
+/**
+ * Virtuoso-like stack — Cormorant Garamond (display) + Nunito Sans (Avenir-like UI).
+ * Puriva wordmark stays Dancing Script.
+ */
+const cormorant = Cormorant_Garamond({
+  variable: "--font-cormorant",
   subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  display: "swap",
 });
 
-/** Titles and headings. */
-const fraunces = Fraunces({
-  variable: "--font-fraunces",
+const nunitoSans = Nunito_Sans({
+  variable: "--font-nunito-sans",
   subsets: ["latin"],
-  axes: ["opsz", "SOFT", "WONK"],
+  display: "swap",
 });
 
-const studioLogoPath = "/images/pureluxe-studio-logo.svg";
+/** Puriva agent wordmark — flowing script closer to Myra. */
+const purivaMark = Dancing_Script({
+  variable: "--font-puriva",
+  subsets: ["latin"],
+  weight: ["600", "700"],
+});
+
+const studioFaviconPath = "/images/pl_favicon.png";
 
 export const metadata: Metadata = {
   title: {
@@ -31,9 +47,9 @@ export const metadata: Metadata = {
   },
   description: "Internal team platform for PureLuxe travel planning and operations.",
   icons: {
-    icon: [{ url: studioLogoPath, type: "image/png" }],
-    apple: studioLogoPath,
-    shortcut: studioLogoPath,
+    icon: [{ url: studioFaviconPath, type: "image/png" }],
+    apple: studioFaviconPath,
+    shortcut: studioFaviconPath,
   },
   robots: {
     index: false,
@@ -53,7 +69,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${figtree.variable} ${geistMono.variable} ${fraunces.variable} h-dvh overflow-hidden antialiased`}
+      className={`${nunitoSans.variable} ${cormorant.variable} ${geistMono.variable} ${purivaMark.variable} h-dvh overflow-hidden antialiased`}
     >
       <body className="h-dvh overflow-hidden font-sans">
         {children}

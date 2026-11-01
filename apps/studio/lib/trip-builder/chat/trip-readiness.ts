@@ -13,6 +13,7 @@ import {
 } from "@pureluxe/db";
 import { countryCodeFrom } from "@pureluxe/shared";
 
+import { bestPassportDob, resolveChildAge } from "../party/resolve-child-age";
 import { getTripDetail } from "../trip/get-trip-detail";
 import type { TripDetail, TripStaySnapshot } from "../trip/trip-detail";
 
@@ -21,6 +22,8 @@ export type ReadinessPerson = {
   name: string;
   child: boolean;
   nationality: string | null;
+  date_of_birth: string | null;
+  stated_age: number | null;
   documents: ClientDocument[];
   preferences: ClientPreference[];
   health: ClientHealthProfile | null;
@@ -38,13 +41,6 @@ const VISA_LABEL: Record<string, string> = {
 function addMonths(isoDate: string, months: number): string {
   const [year, month, day] = isoDate.split("-").map(Number);
   return new Date(Date.UTC(year!, month! - 1 + months, day!)).toISOString().slice(0, 10);
-}
-
-function ageOn(birthDate: string, onDate: string): number {
-  const [by, bm, bd] = birthDate.split("-").map(Number);
-  const [y, m, d] = onDate.split("-").map(Number);
-  const hadBirthday = m! > bm! || (m === bm && d! >= bd!);
-  return y! - by! - (hadBirthday ? 0 : 1);
 }
 
 function stayDates(detail: TripDetail, stays: TripStaySnapshot[]) {
@@ -101,12 +97,17 @@ function visaDocumentLines(person: ReadinessPerson, end: string | null): string[
 
 function childLines(person: ReadinessPerson, start: string | null): string[] {
   if (!person.child) return [];
-  const birthDate = bestPassport(person.documents)?.date_of_birth ?? null;
-  if (!birthDate) {
+  const age = resolveChildAge({
+    statedAge: person.stated_age,
+    clientDob: person.date_of_birth,
+    passportDob: bestPassportDob(person.documents),
+    onDate: start,
+  });
+  if (age === "missing") {
     return [`${person.name} is travelling as a child with no date of birth on file. Hotel child rates depend on age.`];
   }
-  if (!start) return [];
-  return [`${person.name} will be ${ageOn(birthDate, start)} on arrival. Check the hotel's child age bands.`];
+  if (age == null) return [];
+  return [`${person.name} will be ${age} on arrival. Check the hotel's child age bands.`];
 }
 
 function profileLines(person: ReadinessPerson): string[] {
@@ -186,18 +187,29 @@ export async function buildTripReadiness(
 }
 
 /** The lead and travellers, each with the role used in readiness lines. */
-function peopleOf(detail: TripDetail): Array<{ clientId: string; child: boolean }> {
+function peopleOf(
+  detail: TripDetail,
+): Array<{ clientId: string; child: boolean; statedAge: number | null }> {
   if (detail.travellers.length > 0) {
     return detail.travellers.map((person) => ({
       clientId: person.client_id,
-      child: person.role !== "primary" && person.party_role === "child",
+      child:
+        person.role !== "primary" &&
+        (person.party_role === "child" || person.party_role === "infant"),
+      statedAge: person.stated_age,
     }));
   }
-  return detail.client ? [{ clientId: detail.client.id, child: false }] : [];
+  return detail.client
+    ? [{ clientId: detail.client.id, child: false, statedAge: null }]
+    : [];
 }
 
 /** One traveller's profile rows. Null when the client is gone. */
-async function loadPerson(clientId: string, child: boolean): Promise<ReadinessPerson | null> {
+async function loadPerson(
+  clientId: string,
+  child: boolean,
+  statedAge: number | null,
+): Promise<ReadinessPerson | null> {
   const [client, preferences, health, documents] = await Promise.all([
     findClientById(clientId),
     listClientPreferences(clientId, { limit: 50 }),
@@ -209,6 +221,8 @@ async function loadPerson(clientId: string, child: boolean): Promise<ReadinessPe
     name: client.display_name,
     child,
     nationality: client.nationality,
+    date_of_birth: client.date_of_birth,
+    stated_age: statedAge,
     documents,
     preferences,
     health,
@@ -226,7 +240,9 @@ export async function getTripReadiness(
 ): Promise<string[]> {
   const detail = loaded ?? (await getTripDetail(tripId, actor));
   const people = await Promise.all(
-    peopleOf(detail).map((person) => loadPerson(person.clientId, person.child)),
+    peopleOf(detail).map((person) =>
+      loadPerson(person.clientId, person.child, person.statedAge),
+    ),
   );
   const stays = detail.stays.length > 0 ? detail.stays : detail.stay ? [detail.stay] : [];
   return buildTripReadiness(

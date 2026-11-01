@@ -35,14 +35,14 @@ function TableShell({
 }) {
   return (
     <div className="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
-      <table className={cn("w-full text-left text-sm", minWidthClassName)}>
+      <table className={cn("w-full text-left text-[15px]", minWidthClassName)}>
         <thead>
           <tr className="border-b border-border bg-surface-subtle">
             {columns.map((column, index) => (
               <th
                 key={column || `col-${index}`}
                 className={cn(
-                  "whitespace-nowrap px-4 py-3 text-[11px] font-semibold tracking-[0.08em] text-ink-subtle uppercase first:px-6",
+                  "whitespace-nowrap px-4 py-3.5 text-[12px] font-semibold tracking-[0.04em] text-ink-muted first:px-6",
                   (column === "Actions" || column === "") && "px-6 text-right",
                 )}
               >
@@ -54,7 +54,7 @@ function TableShell({
               </th>
             ))}
             {showActions && !columns.includes("Actions") ? (
-              <th className="whitespace-nowrap px-6 py-3 text-right text-[11px] font-semibold tracking-[0.08em] text-ink-subtle uppercase">
+              <th className="whitespace-nowrap px-6 py-3.5 text-right text-[12px] font-semibold tracking-[0.04em] text-ink-muted">
                 Actions
               </th>
             ) : null}

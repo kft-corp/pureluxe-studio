@@ -68,6 +68,7 @@ function stayHeading(stay: TripStaySnapshot, stays: TripStaySnapshot[]): string 
 
 function travellerLabel(person: TripDetail["travellers"][number]): string {
   if (person.role === "primary") return "Lead";
+  if (person.party_role === "infant") return "Infant";
   if (person.party_role === "child") return "Child";
   if (person.family_role && person.family_role !== "member" && person.family_role !== "primary") {
     return person.family_role.charAt(0).toUpperCase() + person.family_role.slice(1);

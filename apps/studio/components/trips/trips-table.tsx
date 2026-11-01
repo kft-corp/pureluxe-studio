@@ -26,7 +26,7 @@ import { cn } from "@/lib/utils/cn";
 
 import { JourneyPhasePill } from "./journey-phase-pill";
 
-const COLUMNS = ["Client", "Trip", "Dates", "Stage", "Sell", "Payment", "Owner", ""];
+const COLUMNS = ["Trip", "Dates", "Client", "Stage", "Sell", "Payment", "Owner", ""];
 const MIN_WIDTH = "min-w-[58rem]";
 
 function paymentLabel(status: string | null | undefined): string {
@@ -83,29 +83,35 @@ function whenLabel(journey: JourneyCardItem): string {
   return "—";
 }
 
-function tripTitle(journey: JourneyCardItem): string {
-  return journey.title?.trim() || formatJourneyRoute(journey.destinations) || "Untitled trip";
-}
-
-function tripSubtitle(journey: JourneyCardItem): string {
-  const route = journey.title?.trim() ? formatJourneyRoute(journey.destinations) : null;
-  const party = formatJourneyParty(journey.traveller_count);
-  return [route, party].filter(Boolean).join(" · ");
-}
-
 function NextStep({ journey, className }: { journey: JourneyCardItem; className?: string }) {
   return (
-    <p className={cn("truncate text-xs", className)}>
-      <span className="font-semibold tracking-wide text-ink-muted uppercase">Next</span>{" "}
+    <p className={cn("truncate text-[13px]", className)}>
+      <span className="font-medium text-ink-muted">Next</span>{" "}
       <span className="text-ink">{journeyNextStep(journey)}</span>
     </p>
   );
 }
 
+/** Destination first; dates + guests on the second line. */
+function tripLead(journey: JourneyCardItem): { primary: string; secondary: string | null } {
+  const route = formatJourneyRoute(journey.destinations);
+  const named = journey.title?.trim() || null;
+  const primary = route || named || "Untitled trip";
+  const dates = whenLabel(journey);
+  const party = formatJourneyParty(journey.traveller_count);
+  const secondary = [
+    dates !== "—" ? dates : null,
+    party,
+    named && route && named !== route ? named : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return { primary, secondary: secondary || null };
+}
+
 function TripDirectoryRow({ journey }: { journey: JourneyCardItem }) {
   const router = useRouter();
-  const title = tripTitle(journey);
-  const subtitle = tripSubtitle(journey);
+  const lead = tripLead(journey);
   const sell = formatJourneySell(journey.sell_total, journey.sell_currency);
 
   return (
@@ -114,6 +120,18 @@ function TripDirectoryRow({ journey }: { journey: JourneyCardItem }) {
         router.push(pageRoutes.trip(journey.id));
       }}
     >
+      <TableCell className="min-w-0 max-w-72">
+        <p className="truncate text-[15px] font-semibold text-ink" title={lead.primary}>
+          {lead.primary}
+        </p>
+        {lead.secondary ? (
+          <p className="mt-0.5 truncate text-[14px] text-ink-muted">{lead.secondary}</p>
+        ) : null}
+        <NextStep journey={journey} className="mt-1" />
+      </TableCell>
+      <TableCell className="whitespace-nowrap text-[15px] text-ink">
+        {whenLabel(journey)}
+      </TableCell>
       <TableCell className="min-w-0">
         {journey.client ? (
           <Link
@@ -137,34 +155,22 @@ function TripDirectoryRow({ journey }: { journey: JourneyCardItem }) {
           <p className="truncate font-medium text-ink-muted">No client</p>
         )}
       </TableCell>
-      <TableCell className="min-w-0 max-w-64">
-        <p className="truncate font-medium text-ink" title={title}>
-          {title}
-        </p>
-        {subtitle ? (
-          <p className="mt-0.5 truncate text-sm text-ink-muted">{subtitle}</p>
-        ) : null}
-        <NextStep journey={journey} className="mt-1" />
-      </TableCell>
-      <TableCell className="whitespace-nowrap text-sm text-ink">
-        {whenLabel(journey)}
-      </TableCell>
       <TableCell className="whitespace-nowrap">
         <JourneyPhasePill journey={journey} />
         {journey.proposal_stale && journey.status === "building" ? (
-          <p className="mt-1 text-[11px] text-warning-ink">Quote out of date</p>
+          <p className="mt-1 text-[13px] text-warning-ink">Quote out of date</p>
         ) : null}
       </TableCell>
-      <TableCell className="whitespace-nowrap text-sm text-ink">
+      <TableCell className="whitespace-nowrap text-[15px] text-ink">
         {sell ?? "—"}
         {journey.pricing_locked ? (
-          <p className="text-[11px] text-ink-muted">Locked</p>
+          <p className="text-[13px] text-ink-muted">Locked</p>
         ) : null}
       </TableCell>
-      <TableCell className="whitespace-nowrap text-sm text-ink">
+      <TableCell className="whitespace-nowrap text-[15px] text-ink">
         {paymentLabel(journey.payment_status)}
         {journey.amount_received != null ? (
-          <p className="text-[11px] text-ink-muted">
+          <p className="text-[13px] text-ink-muted">
             {formatJourneySell(journey.amount_received, journey.sell_currency) ??
               "Received"}
           </p>
@@ -173,8 +179,8 @@ function TripDirectoryRow({ journey }: { journey: JourneyCardItem }) {
       <TableCell
         className={
           journey.owner
-            ? "max-w-32 truncate text-sm text-ink"
-            : "text-sm text-ink-muted"
+            ? "max-w-32 truncate text-[15px] text-ink"
+            : "text-[15px] text-ink-muted"
         }
       >
         <span title={journey.owner?.name}>{journey.owner?.name ?? "—"}</span>
@@ -184,7 +190,7 @@ function TripDirectoryRow({ journey }: { journey: JourneyCardItem }) {
           href={pageRoutes.trip(journey.id)}
           onClick={(event) => event.stopPropagation()}
           className="inline-flex text-ink-muted"
-          aria-label={`Open ${title}`}
+          aria-label={`Open ${lead.primary}`}
         >
           <LuChevronRight className="h-4 w-4" aria-hidden />
         </Link>
@@ -216,7 +222,7 @@ export function TripsTable({
         <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-surface text-ink-muted">
           <LuLuggage className="h-5 w-5" strokeWidth={1.75} aria-hidden />
         </span>
-        <p className="max-w-sm text-pretty text-sm leading-relaxed text-ink-muted">
+        <p className="max-w-sm text-pretty text-[15px] leading-relaxed text-ink-muted">
           {emptyMessage(hasActiveFilters, searchQuery)}
         </p>
         {showDefaultEmptyActions ? (
@@ -251,10 +257,7 @@ export function TripsTable({
   }
 
   const mobileCards = journeys.map((journey) => {
-    const title = tripTitle(journey);
-    const route = journey.title?.trim()
-      ? formatJourneyRoute(journey.destinations)
-      : null;
+    const lead = tripLead(journey);
     const sell = formatJourneySell(journey.sell_total, journey.sell_currency);
 
     return (
@@ -262,17 +265,22 @@ export function TripsTable({
         <Link
           href={pageRoutes.trip(journey.id)}
           className="absolute inset-0 z-0 rounded-none"
-          aria-label={`Open ${title}`}
+          aria-label={`Open ${lead.primary}`}
         />
         <div className="pointer-events-none relative z-10 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="min-w-0 truncate font-medium text-ink">{title}</p>
+              <p className="min-w-0 truncate text-[15px] font-semibold text-ink">
+                {lead.primary}
+              </p>
               {journey.client?.vip ? (
                 <ClientVipBadge tier={journey.client.tier_slug} />
               ) : null}
             </div>
-            <p className="mt-1 truncate text-sm text-ink-muted">
+            {lead.secondary ? (
+              <p className="mt-1 truncate text-[14px] text-ink-muted">{lead.secondary}</p>
+            ) : null}
+            <p className="mt-1 truncate text-[14px] text-ink-muted">
               {journey.client ? (
                 <Link
                   href={pageRoutes.client(journey.client.id)}
@@ -283,20 +291,18 @@ export function TripsTable({
               ) : (
                 <span>No client</span>
               )}
-              {route ? ` · ${route}` : ""}
             </p>
-            <p className="mt-1 text-xs text-ink-muted">{whenLabel(journey)}</p>
             <NextStep journey={journey} className="mt-1" />
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <JourneyPhasePill journey={journey} />
               {sell ? (
-                <span className="text-xs text-ink-muted">{sell}</span>
+                <span className="text-[13px] text-ink-muted">{sell}</span>
               ) : null}
-              <span className="text-xs text-ink-muted">
+              <span className="text-[13px] text-ink-muted">
                 {paymentLabel(journey.payment_status)}
               </span>
               {journey.owner ? (
-                <span className="truncate text-xs text-ink-muted">
+                <span className="truncate text-[13px] text-ink-muted">
                   {journey.owner.name}
                 </span>
               ) : null}

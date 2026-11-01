@@ -2,6 +2,8 @@ export type ClientReviewStatus = "pending" | "approved";
 export type ClientSource = "studio" | "trip_builder" | "client_app" | "import";
 export type PreferredContactMethod = "email" | "phone" | "whatsapp";
 
+export type ClientGender = "male" | "female" | "unspecified";
+
 /** Row from public.client_tiers. */
 export type ClientTier = {
   id: string;
@@ -45,6 +47,8 @@ export type Client = {
   preferred_language: string | null;
   timezone: string | null;
   nationality: string | null;
+  date_of_birth: string | null;
+  gender: ClientGender | null;
   city_of_residence: string | null;
   company: string | null;
   address_line_1: string | null;
@@ -66,6 +70,7 @@ export type Client = {
   reviewed_at: string | null;
   profile_completeness: number;
   avatar_url: string | null;
+  contact_optional: boolean;
   active: boolean;
   is_demo: boolean;
   merged_into_client_id: string | null;

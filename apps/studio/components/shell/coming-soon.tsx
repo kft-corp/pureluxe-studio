@@ -11,7 +11,7 @@ export function ComingSoon({ feature, canWrite = false }: ComingSoonProps) {
   return (
     <div
       className={[
-        "relative overflow-hidden rounded-2xl border border-border bg-surface-raised shadow-sm",
+        "relative overflow-hidden rounded-2xl border border-border/80 bg-surface-raised shadow-[0_8px_28px_rgba(22,26,31,0.05)]",
         "bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,var(--surface-hover),var(--surface-raised)_55%)]",
       ].join(" ")}
     >
@@ -45,7 +45,7 @@ export function ComingSoon({ feature, canWrite = false }: ComingSoonProps) {
           In development
         </p>
 
-        <h2 className="mt-3 font-serif text-2xl font-normal tracking-tight text-ink sm:text-4xl">
+        <h2 className="studio-type-page mt-3 text-ink">
           Coming soon
         </h2>
 

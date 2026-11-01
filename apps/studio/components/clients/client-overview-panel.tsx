@@ -22,6 +22,8 @@ import {
 import {
   displayOrDash,
   formatAddressLines,
+  formatBookingDate,
+  formatClientGender,
   formatDietaryLine,
   formatImportantDate,
   formatLanguage,
@@ -157,6 +159,18 @@ export function ClientOverviewPanel({
                 className="sm:border-b sm:border-border/70"
               />
               <DetailField
+                icon={LuCalendar}
+                label="Date of birth"
+                value={formatBookingDate(client.date_of_birth)}
+                className="sm:border-b sm:border-border/70"
+              />
+              <DetailField
+                icon={LuUser}
+                label="Gender"
+                value={formatClientGender(client.gender)}
+                className="sm:border-b sm:border-border/70"
+              />
+              <DetailField
                 icon={LuBriefcase}
                 label="Company"
                 value={displayOrDash(client.company)}
@@ -224,6 +238,12 @@ export function ClientOverviewPanel({
                 icon={LuStar}
                 label="Best way to reach them"
                 value={formatPreferredContact(client.preferred_contact_method)}
+                className="sm:border-b sm:border-border/70"
+              />
+              <DetailField
+                icon={LuPhone}
+                label="Contact required"
+                value={client.contact_optional ? "Optional" : "Email or phone"}
                 className="sm:border-b sm:border-border/70"
               />
               <DetailField

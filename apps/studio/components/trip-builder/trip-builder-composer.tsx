@@ -112,7 +112,7 @@ export function TripBuilderComposer({
     choices.length === 1 ? "1 option" : `${choices.length} options`;
 
   return (
-    <div className="shrink-0 border-t border-border bg-surface-raised px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:px-4 sm:pb-2">
+    <div className="shrink-0 border-t border-border/50 bg-transparent px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4 sm:pb-3">
       <div className={CHAT_COLUMN_CLASS}>
         {showChips ? (
           <div className="mb-2 flex flex-col gap-1.5">
@@ -160,7 +160,7 @@ export function TripBuilderComposer({
           </div>
         ) : null}
 
-        <div className="flex items-end gap-1.5 rounded-lg border border-border bg-surface-raised px-2 py-1 shadow-sm transition hover:border-border-strong focus-within:border-accent-strong focus-within:ring-2 focus-within:ring-accent/25">
+        <div className="flex items-end gap-1.5 rounded-2xl border border-border/70 bg-surface-raised px-3 py-2 shadow-[0_12px_36px_rgba(22,26,31,0.08)] ring-1 ring-white/60 transition hover:border-border-strong focus-within:border-accent-strong focus-within:ring-2 focus-within:ring-accent/25">
           <textarea
             ref={textareaRef}
             rows={1}

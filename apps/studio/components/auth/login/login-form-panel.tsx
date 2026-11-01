@@ -16,7 +16,7 @@ export function LoginFormPanel() {
         >
           <h1
             id="login-heading"
-            className="font-serif text-[1.625rem] leading-tight font-normal tracking-[-0.01em] text-ink sm:text-[1.75rem]"
+            className="studio-type-page text-ink"
           >
             PureLuxe Studio
           </h1>

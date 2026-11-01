@@ -10,6 +10,7 @@ import type { TripDetail, TripListItem } from "@/lib/trip-builder";
 import { studioFocusRing } from "@/components/ui";
 import { cn } from "@/lib/utils/cn";
 
+import { AgentPurivaMark } from "./agent-puriva-mark";
 import { TripBuilderTripsMenu } from "./trip-builder-trips-menu";
 import {
   formatStayDates,
@@ -22,23 +23,18 @@ import {
 type TripBuilderHeaderProps = {
   trips: TripListItem[];
   detail: TripDetail | null;
+  /** False on empty desk — Puriva lives in the chat hero until chat starts. */
+  conversationStarted: boolean;
   summaryOpen: boolean;
   canWrite: boolean;
   busy: boolean;
-  /** Kept for callers; stay chips are display-only and ignore selection. */
-  activeLegId: string | null;
-  onSelectLeg: (legId: string) => void;
   onOpenTrip: (tripId: string) => void;
   /** Clear to home draft chat — does not create a trip. */
   onNewChat: () => void;
   onToggleSummary: () => void;
 };
 
-/**
- * Cursor-style header icon:
- * - idle: transparent, dark outline
- * - active: soft fill behind the icon
- */
+/** Quiet travel-desk icon — thin stroke, soft ink, light accent hover. */
 function HeaderIconButton({
   active = false,
   disabled,
@@ -65,10 +61,12 @@ function HeaderIconButton({
       aria-pressed={ariaPressed}
       onClick={onClick}
       className={cn(
-        "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-ink transition lg:h-8 lg:w-8",
+        "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-ink-muted transition lg:h-8 lg:w-8",
         studioFocusRing,
         "disabled:cursor-not-allowed disabled:opacity-50",
-        active ? "bg-neutral-soft" : "bg-transparent hover:bg-surface-hover",
+        active
+          ? "bg-accent-soft/60 text-ink"
+          : "bg-transparent hover:bg-accent-soft/40 hover:text-ink",
       )}
     >
       {children}
@@ -84,9 +82,11 @@ function HeaderItem({
   value: string | null | undefined;
 }) {
   return (
-    <div className="inline-flex min-w-0 shrink-0 items-center gap-1.5 text-[12px] text-ink">
-      <span className="shrink-0 text-[12px] text-ink-muted">{label}</span>
-      <strong className="max-w-[14rem] truncate text-[12px] font-semibold text-ink sm:max-w-[18rem]">
+    <div className="inline-flex min-w-0 shrink-0 items-baseline gap-2">
+      <span className="studio-type-eyebrow shrink-0 uppercase text-ink-subtle">
+        {label}
+      </span>
+      <strong className="max-w-[14rem] truncate font-serif text-[0.95rem] leading-none font-semibold tracking-[-0.01em] text-ink sm:max-w-[18rem] sm:text-[1.05rem]">
         {value?.trim() || "—"}
       </strong>
     </div>
@@ -98,12 +98,14 @@ function LegPills({ stays }: { stays: ReturnType<typeof tripStays> }) {
   if (stays.length === 0) return null;
 
   return (
-    <div className="flex shrink-0 items-center gap-1.5">
-      <span className="shrink-0 text-[12px] text-ink-muted">Stays</span>
+    <div className="flex shrink-0 items-center gap-2">
+      <span className="studio-type-eyebrow shrink-0 uppercase text-ink-subtle">
+        Stays
+      </span>
       {stays.map((stay) => (
         <span
           key={stay.leg_id}
-          className="inline-flex min-h-8 shrink-0 items-center rounded-full border border-border bg-surface-raised px-2.5 py-1 text-[12px] leading-none font-medium text-ink"
+          className="inline-flex min-h-7 shrink-0 items-center rounded-full border border-border/80 bg-surface-raised/80 px-2.5 py-1 text-[12px] leading-none font-medium text-ink"
         >
           {legPillLabel(stay)}
         </span>
@@ -113,13 +115,12 @@ function LegPills({ stays }: { stays: ReturnType<typeof tripStays> }) {
 }
 
 /**
- * One line: client, dates, and stays scroll sideways on the left; the next
- * step and the actions stay fixed on the right. Below the desktop
- * breakpoint the actions take the first row and the trip details sit under.
+ * Puriva left after chat starts; Dates + stay chips as before (no client — summary has it).
  */
 export function TripBuilderHeader({
   trips,
   detail,
+  conversationStarted,
   summaryOpen,
   canWrite,
   busy,
@@ -136,49 +137,48 @@ export function TripBuilderHeader({
       formatTripDates(stays))
     : null;
 
-  const mobileTitle = detail?.client?.display_name?.trim() || (tripOpen ? "Trip" : "Trip Builder");
-
   return (
-    <header className="w-full shrink-0 border-b border-border bg-surface-raised">
-      <div className="flex w-full flex-col gap-1 px-2 py-1.5 lg:flex-row lg:items-center lg:gap-3 lg:px-4 lg:py-2.5">
+    <header className="relative z-40 w-full shrink-0 border-b border-border/50 bg-linear-to-r from-surface-raised via-surface-raised to-accent-soft/25">
+      <div className="flex w-full flex-col gap-1 px-2 py-1.5 sm:px-3 lg:flex-row lg:items-center lg:gap-3 lg:px-4 lg:py-2.5">
         <div
           className={cn(
             "order-2 flex min-w-0 items-center gap-3 lg:order-1 lg:flex-1",
-            !detail && "hidden lg:flex",
+            !detail && !conversationStarted && "hidden lg:flex",
           )}
         >
+          {conversationStarted ? (
+            <div className="shrink-0">
+              <AgentPurivaMark size="xs" />
+              <span
+                className="mt-1 block h-px w-8 bg-accent opacity-70"
+                aria-hidden
+              />
+            </div>
+          ) : null}
+
           {detail ? (
-            <>
-              <div
-                className={cn(
-                  "flex min-w-0 flex-1 items-center gap-3 overflow-x-auto overscroll-x-contain pr-6",
-                  "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-                  "[mask-image:linear-gradient(to_right,black_calc(100%-1.5rem),transparent)]",
-                )}
-              >
-                {/* Client is already the mobile title; keep it in the strip from lg up. */}
-                <div className="hidden lg:contents">
-                  <HeaderItem label="Client" value={detail.client?.display_name} />
-                </div>
-                <HeaderItem label="Dates" value={dates} />
-                <LegPills stays={stays} />
-                {gaps.length > 0 ? (
-                  <span
-                    title={gaps.join(" · ")}
-                    className="inline-flex shrink-0 items-center rounded-full bg-warning-soft px-2.5 py-1 text-[12px] leading-none font-medium text-warning-ink ring-1 ring-inset ring-warning-line"
-                  >
-                    {gaps.length === 1 ? "1 gap" : `${gaps.length} gaps`}
-                  </span>
-                ) : null}
-              </div>
-            </>
+            <div
+              className={cn(
+                "flex min-w-0 flex-1 items-center gap-3 overflow-x-auto overscroll-x-contain pr-6",
+                "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+                "[mask-image:linear-gradient(to_right,black_calc(100%-1.5rem),transparent)]",
+              )}
+            >
+              <HeaderItem label="Dates" value={dates} />
+              <LegPills stays={stays} />
+              {gaps.length > 0 ? (
+                <span
+                  title={gaps.join(" · ")}
+                  className="inline-flex shrink-0 items-center rounded-full bg-warning-soft px-2.5 py-1 text-[12px] leading-none font-medium text-warning-ink ring-1 ring-inset ring-warning-line"
+                >
+                  {gaps.length === 1 ? "1 gap" : `${gaps.length} gaps`}
+                </span>
+              ) : null}
+            </div>
           ) : null}
         </div>
 
-        <div className="order-1 flex min-w-0 items-center gap-2 lg:order-2 lg:shrink-0 lg:justify-end">
-          <p className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink lg:hidden">
-            {mobileTitle}
-          </p>
+        <div className="order-1 flex min-w-0 items-center justify-end gap-2 lg:order-2 lg:shrink-0">
           <div className="flex shrink-0 items-center gap-0.5">
             <HeaderIconButton
               active={summaryOpen}
@@ -188,7 +188,7 @@ export function TripBuilderHeader({
               title={tripOpen ? "Summary" : "Summary (open a trip first)"}
               onClick={onToggleSummary}
             >
-              <SummaryIcon className="size-4 lg:size-[18px]" strokeWidth={2} aria-hidden />
+              <SummaryIcon className="size-4 lg:size-[17px]" strokeWidth={1.5} aria-hidden />
             </HeaderIconButton>
 
             <TripBuilderTripsMenu
@@ -206,8 +206,8 @@ export function TripBuilderHeader({
                 onClick={onNewChat}
               >
                 <LuMessageSquarePlus
-                  className="size-4 lg:size-[18px]"
-                  strokeWidth={2}
+                  className="size-4 lg:size-[17px]"
+                  strokeWidth={1.5}
                   aria-hidden
                 />
               </HeaderIconButton>

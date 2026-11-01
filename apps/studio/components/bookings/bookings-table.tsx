@@ -61,13 +61,13 @@ function BookingDeadlineCell({
   );
 
   if (!deadline.kind) {
-    return <span className="text-sm text-ink-muted">—</span>;
+    return <span className="text-[15px] text-ink-muted">—</span>;
   }
 
   return (
     <div className="whitespace-nowrap">
-      <p className="text-sm text-ink">{deadline.label}</p>
-      <p className="text-[11px] text-ink-muted">
+      <p className="text-[15px] text-ink">{deadline.label}</p>
+      <p className="text-[13px] text-ink-muted">
         {deadline.kind === "ticket" ? "Ticket" : "Cancel"}
       </p>
     </div>
@@ -83,6 +83,26 @@ function durationLabel(booking: BookingDirectoryItem): string | null {
   });
 }
 
+/** Place / stay first; type · dates · length second. */
+function bookingLead(booking: BookingDirectoryItem): {
+  primary: string;
+  secondary: string | null;
+} {
+  const place = booking.city?.trim() || null;
+  const primary = place || booking.title;
+  const dates = formatBookingDate(booking.start_date);
+  const duration = durationLabel(booking);
+  const secondary = [
+    place ? booking.title : null,
+    formatBookingServiceType(booking.service_type),
+    dates,
+    duration,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return { primary, secondary: secondary || null };
+}
+
 function emptyMessage(hasActiveFilters: boolean, searchQuery: string): string {
   const q = searchQuery.trim();
   if (q) {
@@ -96,7 +116,7 @@ function emptyMessage(hasActiveFilters: boolean, searchQuery: string): string {
 
 function BookingDirectoryRow({ booking }: { booking: BookingDirectoryItem }) {
   const router = useRouter();
-  const duration = durationLabel(booking);
+  const lead = bookingLead(booking);
 
   return (
     <TableRow
@@ -128,17 +148,15 @@ function BookingDirectoryRow({ booking }: { booking: BookingDirectoryItem }) {
           </div>
         )}
       </TableCell>
-      <TableCell className="min-w-0 max-w-64">
-        <p className="truncate font-medium text-ink" title={booking.title}>
-          {booking.title}
+      <TableCell className="min-w-0 max-w-72">
+        <p className="truncate text-[15px] font-semibold text-ink" title={lead.primary}>
+          {lead.primary}
         </p>
-        <p className="mt-0.5 truncate text-sm text-ink-muted">
-          {formatBookingServiceType(booking.service_type)}
-          {booking.city ? ` · ${booking.city}` : ""}
-          {duration ? ` · ${duration}` : ""}
-        </p>
+        {lead.secondary ? (
+          <p className="mt-0.5 truncate text-[14px] text-ink-muted">{lead.secondary}</p>
+        ) : null}
       </TableCell>
-      <TableCell className="whitespace-nowrap text-sm text-ink">
+      <TableCell className="whitespace-nowrap text-[15px] text-ink">
         {formatBookingDate(booking.start_date)}
       </TableCell>
       <TableCell className="whitespace-nowrap">
@@ -147,8 +165,8 @@ function BookingDirectoryRow({ booking }: { booking: BookingDirectoryItem }) {
       <TableCell
         className={
           booking.supplier_ref
-            ? "max-w-32 truncate text-sm text-ink"
-            : "text-sm text-ink-muted"
+            ? "max-w-32 truncate text-[15px] text-ink"
+            : "text-[15px] text-ink-muted"
         }
       >
         <span title={booking.supplier_ref ?? undefined}>
@@ -164,8 +182,8 @@ function BookingDirectoryRow({ booking }: { booking: BookingDirectoryItem }) {
       <TableCell
         className={
           booking.owner_name
-            ? "max-w-32 truncate text-sm text-ink"
-            : "text-sm text-ink-muted"
+            ? "max-w-32 truncate text-[15px] text-ink"
+            : "text-[15px] text-ink-muted"
         }
       >
         <span title={booking.owner_name ?? undefined}>
@@ -177,7 +195,7 @@ function BookingDirectoryRow({ booking }: { booking: BookingDirectoryItem }) {
           href={pageRoutes.booking(booking.id)}
           onClick={(event) => event.stopPropagation()}
           className="inline-flex text-ink-muted"
-          aria-label={`Open ${booking.title}`}
+          aria-label={`Open ${lead.primary}`}
         >
           <LuChevronRight className="h-4 w-4" aria-hidden />
         </Link>
@@ -209,7 +227,7 @@ export function BookingsTable({
         <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-surface text-ink-muted">
           <LuCalendarDays className="h-5 w-5" strokeWidth={1.75} aria-hidden />
         </span>
-        <p className="max-w-sm text-pretty text-sm leading-relaxed text-ink-muted">
+        <p className="max-w-sm text-pretty text-[15px] leading-relaxed text-ink-muted">
           {emptyMessage(hasActiveFilters, searchQuery)}
         </p>
         {showDefaultEmptyActions ? (
@@ -248,24 +266,27 @@ export function BookingsTable({
       booking.cancellation_deadline,
       booking.ticket_time_limit,
     );
-    const duration = durationLabel(booking);
+    const lead = bookingLead(booking);
 
     return (
       <MobileCard key={booking.id} className="relative">
         <Link
           href={pageRoutes.booking(booking.id)}
           className="absolute inset-0 z-0 rounded-none"
-          aria-label={`Open ${booking.title}`}
+          aria-label={`Open ${lead.primary}`}
         />
         <div className="pointer-events-none relative z-10 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="min-w-0 truncate font-medium text-ink">
-                {booking.title}
+              <p className="min-w-0 truncate text-[15px] font-semibold text-ink">
+                {lead.primary}
               </p>
               {booking.vip_flag ? <BookingVipBadge /> : null}
             </div>
-            <p className="mt-1 truncate text-sm text-ink-muted">
+            {lead.secondary ? (
+              <p className="mt-1 truncate text-[14px] text-ink-muted">{lead.secondary}</p>
+            ) : null}
+            <p className="mt-1 truncate text-[14px] text-ink-muted">
               {booking.client_id && booking.client_name ? (
                 <Link
                   href={pageRoutes.client(booking.client_id)}
@@ -277,18 +298,8 @@ export function BookingsTable({
               ) : (
                 <span>{booking.client_name ?? "No client"}</span>
               )}
-              {" · "}
-              {formatBookingServiceType(booking.service_type)}
-              {booking.city ? ` · ${booking.city}` : ""}
             </p>
-            <p className="mt-1 text-xs text-ink-muted">
-              {formatBookingDate(booking.start_date)}
-              {booking.end_date
-                ? ` – ${formatBookingDate(booking.end_date)}`
-                : ""}
-              {duration ? ` · ${duration}` : ""}
-            </p>
-            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-muted">
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-ink-muted">
               <span>
                 {booking.supplier_ref
                   ? `Ref ${booking.supplier_ref}`
@@ -309,7 +320,7 @@ export function BookingsTable({
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <BookingStatusPill status={booking.status} />
               {booking.owner_name ? (
-                <span className="truncate text-xs text-ink-muted">
+                <span className="truncate text-[13px] text-ink-muted">
                   {booking.owner_name}
                 </span>
               ) : null}

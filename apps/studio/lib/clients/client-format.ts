@@ -42,6 +42,21 @@ export const PREFERRED_CONTACT_OPTIONS = [
   { value: "whatsapp", label: "WhatsApp" },
 ] as const;
 
+/** Gender options for register / identity forms (airline / hotel forms). */
+export const CLIENT_GENDER_OPTIONS = [
+  { value: "", label: "Not set" },
+  { value: "male", label: "Male" },
+  { value: "female", label: "Female" },
+  { value: "unspecified", label: "Unspecified" },
+] as const;
+
+export function formatClientGender(value: string | null | undefined): string {
+  if (value === "male") return "Male";
+  if (value === "female") return "Female";
+  if (value === "unspecified") return "Unspecified";
+  return "—";
+}
+
 /**
  * Standard guest honorifics for name & identity.
  * Values are stored without a trailing period (Mr, Ms).

@@ -240,7 +240,14 @@ export async function getJourney(tripId: string): Promise<JourneyPageModel> {
     travellers: travellers.map((person) => ({
       id: person.client_id,
       name: person.display_name || "Unnamed traveller",
-      roleLabel: person.role === "primary" ? "Lead" : person.party_role === "child" ? "Child" : "Adult",
+      roleLabel:
+        person.role === "primary"
+          ? "Lead"
+          : person.party_role === "infant"
+            ? "Infant"
+            : person.party_role === "child"
+              ? "Child"
+              : "Adult",
     })),
     documents: documents
       .filter((document) => document.type === "options")

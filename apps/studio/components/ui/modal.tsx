@@ -64,13 +64,13 @@ export function Modal({
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
         className={cn(
-          "relative z-10 flex w-full max-h-[min(92dvh,100%)] flex-col overflow-hidden rounded-2xl border border-border bg-surface-raised shadow-xl",
+          "relative z-10 flex w-full max-h-[min(92dvh,100%)] flex-col overflow-hidden rounded-2xl border border-border/80 bg-surface-raised shadow-[0_20px_50px_rgba(22,26,31,0.14)]",
           size === "lg" ? "max-w-lg" : "max-w-md",
         )}
       >
-        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-border px-5 py-4">
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-border/80 px-5 py-4">
           <div className="min-w-0">
-            <h2 id={titleId} className="wrap-break-word text-base font-semibold text-ink">
+            <h2 id={titleId} className="studio-type-section wrap-break-word text-ink">
               {title}
             </h2>
             {description ? (

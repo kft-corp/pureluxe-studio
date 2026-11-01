@@ -12,10 +12,12 @@ import {
 
 import { studioFocusRing } from "@/components/ui";
 import type { ShellNavigation, ShellNavSection } from "@/config/navigation";
+import { sidebarCopy } from "@/config/page-copy";
 import { pageRoutes } from "@/lib/routes";
 import { cn } from "@/lib/utils/cn";
 
 import { ShellBrandLink } from "./shell-brand-link";
+import { SidebarRecentTrips } from "./sidebar-recent-trips";
 import { SidebarUserMenu } from "./sidebar-user-menu";
 import { SidebarNavLink, isNavItemActive } from "./sidebar-nav-link";
 import { useShortcutLabel } from "./use-shortcut-label";
@@ -33,6 +35,7 @@ type SidebarPanelProps = {
   peeking: boolean;
   showMobileClose: boolean;
   canCreateTrip: boolean;
+  canReadTrips: boolean;
   onCloseMobile: () => void;
   onToggleUnfoldable: () => void;
   onOpenSearch: () => void;
@@ -45,19 +48,21 @@ function NavGroup({
   section,
   pathname,
   compact,
+  quiet,
   onNavigate,
 }: {
   section: ShellNavSection;
   pathname: string;
   compact: boolean;
+  quiet?: boolean;
   onNavigate: () => void;
 }) {
   const { title } = section.group;
 
   return (
-    <div className="mt-5 first:mt-0">
+    <div className={cn("mt-6 first:mt-1", quiet && "mt-4 first:mt-1 opacity-90")}>
       {title && !compact ? (
-        <p className="studio-nav-reveal mb-1 truncate px-2.5 text-[12px] text-nav-label">
+        <p className="studio-nav-reveal mb-2 truncate px-2.5 text-[12px] font-semibold tracking-[0.04em] text-nav-label">
           {title}
         </p>
       ) : null}
@@ -68,6 +73,7 @@ function NavGroup({
               item={item}
               active={isNavItemActive(pathname, item.href)}
               compact={compact}
+              quiet={quiet || item.group === "core" || item.group === "bottom"}
               onNavigate={onNavigate}
             />
           </li>
@@ -85,6 +91,7 @@ export function SidebarPanel({
   peeking,
   showMobileClose,
   canCreateTrip,
+  canReadTrips,
   onCloseMobile,
   onToggleUnfoldable,
   onOpenSearch,
@@ -100,47 +107,73 @@ export function SidebarPanel({
     <div className="flex h-full min-h-0 flex-1 flex-col">
       <div
         className={cn(
-          "flex items-center overflow-x-clip px-3 pt-[max(0.875rem,env(safe-area-inset-top))] pb-4 md:pt-3.5",
-          compact ? "flex-col gap-2" : "justify-between gap-2",
+          "overflow-x-clip px-3.5 pt-[max(1rem,env(safe-area-inset-top))] md:pt-4",
+          compact ? "flex flex-col items-center gap-2 pb-3" : "pb-3",
         )}
       >
-        <ShellBrandLink compact={compact} onNavigate={onCloseMobile} />
+        <div
+          className={cn(
+            "flex items-center",
+            compact ? "flex-col gap-2" : "justify-between gap-2",
+          )}
+        >
+          <ShellBrandLink compact={compact} onNavigate={onCloseMobile} />
 
-        {showMobileClose ? (
-          <button
-            type="button"
-            onClick={onCloseMobile}
-            className={cn(ICON_BUTTON, "min-h-11 min-w-11 md:hidden", studioFocusRing)}
-            aria-label="Close navigation menu"
-          >
-            <LuX className="h-5 w-5" aria-hidden />
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={onToggleUnfoldable}
-            className={cn(ICON_BUTTON, "hidden h-7 w-7 md:inline-flex", studioFocusRing)}
-            aria-label={railLabel}
-            aria-keyshortcuts="Control+B Meta+B"
-            title={railLabel}
-          >
-            {compact ? (
-              <LuPanelLeftOpen className="h-4 w-4" strokeWidth={1.5} aria-hidden />
-            ) : peeking ? (
-              <LuPin className="h-4 w-4" strokeWidth={1.5} aria-hidden />
-            ) : (
-              <LuPanelLeftClose className="h-4 w-4" strokeWidth={1.5} aria-hidden />
-            )}
-          </button>
-        )}
+          {showMobileClose ? (
+            <button
+              type="button"
+              onClick={onCloseMobile}
+              className={cn(ICON_BUTTON, "min-h-11 min-w-11 md:hidden", studioFocusRing)}
+              aria-label="Close navigation menu"
+            >
+              <LuX className="h-5 w-5" aria-hidden />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onToggleUnfoldable}
+              className={cn(ICON_BUTTON, "hidden h-7 w-7 md:inline-flex", studioFocusRing)}
+              aria-label={railLabel}
+              aria-keyshortcuts="Control+B Meta+B"
+              title={railLabel}
+            >
+              {compact ? (
+                <LuPanelLeftOpen className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+              ) : peeking ? (
+                <LuPin className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+              ) : (
+                <LuPanelLeftClose className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+              )}
+            </button>
+          )}
+        </div>
       </div>
 
       <div
         className={cn(
-          "space-y-1 overflow-x-clip px-3 pb-5",
+          "space-y-2.5 overflow-x-clip px-3.5 pb-3",
           compact && "flex flex-col items-center",
         )}
       >
+        {canCreateTrip ? (
+          <Link
+            href={pageRoutes.tripBuilder}
+            onClick={onCloseMobile}
+            aria-label={sidebarCopy.newTrip}
+            title={sidebarCopy.newTrip}
+            className={cn(
+              "inline-flex items-center justify-center gap-2 rounded-md bg-accent text-[13px] font-semibold text-ink shadow-sm transition hover:bg-accent-hover",
+              studioFocusRing,
+              compact ? "h-8 w-8" : "h-9 w-full px-3",
+            )}
+          >
+            <LuPlus className="h-4 w-4 shrink-0" strokeWidth={2.25} aria-hidden />
+            {!compact ? (
+              <span className="studio-nav-reveal truncate">{sidebarCopy.newTrip}</span>
+            ) : null}
+          </Link>
+        ) : null}
+
         <button
           type="button"
           onClick={onOpenSearch}
@@ -148,48 +181,34 @@ export function SidebarPanel({
           title={compact ? `Search (${searchShortcut})` : undefined}
           aria-keyshortcuts="Control+K Meta+K"
           className={cn(
-            "flex items-center rounded-full bg-nav-active text-[14px] text-nav-label ring-1 ring-nav-line transition-colors duration-150 ring-inset hover:text-nav-ink hover:ring-nav-icon/30",
+            "flex items-center rounded-md text-[13px] tracking-[0.01em] text-nav-ink transition-colors duration-150",
+            "bg-white/75 ring-1 ring-nav-line ring-inset hover:bg-white hover:text-nav-ink-strong",
             studioFocusRing,
-            compact ? "h-9 w-9 justify-center" : "h-9 w-full gap-2.5 px-3",
+            compact ? "h-8 w-8 justify-center" : "h-9 w-full gap-2 px-3",
           )}
         >
-          <LuSearch className="h-4 w-4 shrink-0 text-nav-icon" strokeWidth={1.5} aria-hidden />
+          <LuSearch className="h-4 w-4 shrink-0 text-nav-icon" strokeWidth={1.75} aria-hidden />
           {!compact ? (
             <>
-              <span className="studio-nav-reveal flex-1 truncate text-left">Search…</span>
-              <kbd className="studio-nav-reveal font-sans text-xs text-nav-muted">
+              <span className="studio-nav-reveal flex-1 truncate text-left font-medium">
+                Search…
+              </span>
+              <kbd className="studio-nav-reveal font-sans text-[11px] text-nav-muted">
                 {searchShortcut}
               </kbd>
             </>
           ) : null}
         </button>
 
-        {canCreateTrip ? (
-          <Link
-            href={pageRoutes.tripBuilder}
-            onClick={onCloseMobile}
-            aria-label={compact ? "New trip" : undefined}
-            title={compact ? "New trip" : undefined}
-            className={cn(
-              "group flex min-h-11 items-center rounded-lg text-[14px] text-nav-ink transition-colors duration-150 hover:bg-nav-hover hover:text-nav-ink-strong md:min-h-[34px]",
-              studioFocusRing,
-              compact ? "w-8 justify-center" : "w-full gap-2.5 px-2.5",
-            )}
-          >
-            <LuPlus
-              className="h-4 w-4 shrink-0 text-nav-icon transition-colors duration-150 group-hover:text-nav-ink-strong"
-              strokeWidth={1.5}
-              aria-hidden
-            />
-            {!compact ? <span className="studio-nav-reveal truncate">New trip</span> : null}
-          </Link>
+        {canReadTrips ? (
+          <SidebarRecentTrips compact={compact} onNavigate={onCloseMobile} />
         ) : null}
       </div>
 
       <nav
         className={cn(
-          "studio-scroll-thin min-h-0 flex-1 overflow-y-auto pb-4",
-          compact ? "px-2" : "px-3",
+          "studio-scroll-thin min-h-0 flex-1 overflow-y-auto pb-3",
+          compact ? "px-2" : "px-3.5",
         )}
         aria-label="Studio"
       >
@@ -206,7 +225,7 @@ export function SidebarPanel({
 
       {navigation.footer.length > 0 ? (
         <nav
-          className={cn("overflow-x-clip pb-2", compact ? "px-2" : "px-3")}
+          className={cn("overflow-x-clip pb-1", compact ? "px-2" : "px-3.5")}
           aria-label="Workspace"
         >
           {navigation.footer.map((section) => (
@@ -215,6 +234,7 @@ export function SidebarPanel({
               section={section}
               pathname={pathname}
               compact={compact}
+              quiet
               onNavigate={onCloseMobile}
             />
           ))}
@@ -223,8 +243,8 @@ export function SidebarPanel({
 
       <footer
         className={cn(
-          "border-t border-nav-line pt-2 pb-[max(0.625rem,env(safe-area-inset-bottom))]",
-          compact ? "px-2" : "px-3",
+          "border-t border-nav-line/70 pt-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))]",
+          compact ? "px-2" : "px-3.5",
         )}
       >
         <SidebarUserMenu user={user} unfoldable={compact} onNavigate={onCloseMobile} />

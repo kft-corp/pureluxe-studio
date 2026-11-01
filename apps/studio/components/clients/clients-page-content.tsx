@@ -36,7 +36,7 @@ export function ClientsPageContent({
   const directory = useClientsDirectory({ initialDirectory });
 
   const sectionDescription = directory.hasActiveFilters
-    ? "Showing people who match your search or filters."
+    ? "Showing travellers who match your search or filters."
     : listSectionCopy.clients.description;
 
   return (
@@ -45,9 +45,6 @@ export function ClientsPageContent({
         <PageToolbar className="gap-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0 sm:max-w-xl sm:flex-1">
-              <p className="mb-1.5 text-xs font-semibold tracking-wide text-ink uppercase">
-                Find someone
-              </p>
               <ClientSearch
                 value={directory.search}
                 onChange={directory.setSearch}
@@ -69,11 +66,8 @@ export function ClientsPageContent({
             ) : null}
           </div>
 
-      <div className="flex flex-col gap-3 border-t border-border/70 pt-4 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+      <div className="flex flex-col gap-3 border-t border-border/50 pt-4 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
             <div className="min-w-0 flex-1">
-              <p className="mb-1.5 text-xs font-semibold tracking-wide text-ink uppercase">
-                Quick filters
-              </p>
               <ClientQuickChips
                 value={directory.quickFilters}
                 onChange={directory.setQuickFilters}
@@ -115,11 +109,22 @@ export function ClientsPageContent({
           </div>
         </PageToolbar>
 
+        <p className="text-[13px] leading-relaxed text-ink-muted">
+          Planning a stay?{" "}
+          <Link
+            href={pageRoutes.tripBuilder}
+            className="font-semibold text-ink underline-offset-2 hover:underline"
+          >
+            Open Trip Builder
+          </Link>{" "}
+          with a guest in mind.
+        </p>
+
         <ContentSection
           title={listSectionCopy.clients.title}
           description={sectionDescription}
           count={directory.total}
-          countLabel={directory.total === 1 ? "client" : "clients"}
+          countLabel={directory.total === 1 ? "guest" : "guests"}
         >
           <ClientsTable
             clients={directory.clients}

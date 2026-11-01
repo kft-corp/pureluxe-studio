@@ -9,7 +9,7 @@ export function NotFoundContent() {
       className="flex min-h-screen flex-col items-center justify-center bg-surface px-4 py-12"
     >
       <div className="flex w-full max-w-md flex-col items-center justify-center text-center text-sm">
-        <h1 className="font-serif text-7xl font-normal text-brand-dark sm:text-8xl md:text-9xl">
+        <h1 className="font-sans text-7xl font-bold tracking-tight text-brand-dark sm:text-8xl md:text-9xl">
           404
         </h1>
         <div className="my-5 h-1 w-16 rounded bg-accent md:my-7" />

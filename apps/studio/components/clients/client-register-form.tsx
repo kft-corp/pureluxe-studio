@@ -21,6 +21,7 @@ import {
   type ClientSearchHit,
 } from "@/lib/api/clients";
 import {
+  CLIENT_GENDER_OPTIONS,
   PREFERRED_CONTACT_OPTIONS,
   type ClientTierOption,
   type RelationshipOwnerOption,
@@ -40,10 +41,13 @@ type RegisterField =
   | "preferred_contact_method"
   | "tier_id"
   | "nationality"
+  | "date_of_birth"
+  | "gender"
   | "city_of_residence"
   | "internal_notes"
   | "guest_notes"
-  | "relationship_owner_id";
+  | "relationship_owner_id"
+  | "contact_optional";
 
 type FieldErrors = Partial<Record<RegisterField, string>>;
 
@@ -254,9 +258,12 @@ export function ClientRegisterForm({
     defaultOwnerId ?? "",
   );
   const [nationality, setNationality] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState("");
+  const [gender, setGender] = useState("");
   const [city, setCity] = useState("");
   const [internalNotes, setInternalNotes] = useState("");
   const [guestNotes, setGuestNotes] = useState("");
+  const [contactOptional, setContactOptional] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [similarClients, setSimilarClients] = useState<ClientSearchHit[]>([]);
@@ -273,12 +280,16 @@ export function ClientRegisterForm({
   const searchQuery = trimmedName || trimmedEmail || trimmedPhone;
   const queryReady = searchQuery.length >= 2;
   const hasContact = Boolean(trimmedEmail || trimmedPhone);
+  const contactSatisfied = contactOptional || hasContact;
   const matches = queryReady ? similarClients : [];
   const hasPossibleDuplicates = matches.length > 0;
   const acknowledgedDuplicates = acknowledgedSearchKey === searchKey;
   const needsDuplicateAck = hasPossibleDuplicates && !acknowledgedDuplicates;
   const canSubmit =
-    trimmedName.length > 0 && hasContact && !loading && !needsDuplicateAck;
+    trimmedName.length > 0 &&
+    contactSatisfied &&
+    !loading &&
+    !needsDuplicateAck;
   const showSimilarPanel =
     queryReady && (checkingSimilar || hasPossibleDuplicates);
   const showWhatsapp =
@@ -287,7 +298,7 @@ export function ClientRegisterForm({
     Boolean(trimmedPhone);
 
   let contactHint: "missing" | "hint" | null = "hint";
-  if (fieldErrors.email || fieldErrors.phone) {
+  if (fieldErrors.email || fieldErrors.phone || contactOptional) {
     contactHint = null;
   } else if (!hasContact && trimmedName.length > 0) {
     contactHint = "missing";
@@ -352,9 +363,15 @@ export function ClientRegisterForm({
       ...(tierId ? { tier_id: tierId } : {}),
       relationship_owner_id: relationshipOwnerId || null,
       nationality: nationality.trim() || null,
+      date_of_birth: dateOfBirth.trim() || null,
+      gender:
+        gender === "male" || gender === "female" || gender === "unspecified"
+          ? gender
+          : null,
       city_of_residence: city.trim() || null,
       internal_notes: internalNotes.trim() || null,
       guest_notes: guestNotes.trim() || null,
+      contact_optional: contactOptional,
     };
 
     const parsed = createClientSchema.safeParse(payload);
@@ -465,12 +482,34 @@ export function ClientRegisterForm({
           <FormSection
             step={2}
             title="Contact"
-            description="At least one of email or phone is required."
+            description={
+              contactOptional
+                ? "Email and phone are optional for this client."
+                : "At least one of email or phone is required."
+            }
           >
+            <label className="flex items-start gap-2.5 rounded-xl border border-border/80 bg-surface px-3.5 py-3 text-sm text-ink">
+              <input
+                type="checkbox"
+                checked={contactOptional}
+                onChange={(event) => {
+                  setContactOptional(event.target.checked);
+                  clearFieldError("email", "phone", "contact_optional");
+                }}
+                className="mt-0.5 rounded border-border"
+              />
+              <span>
+                <span className="font-medium">Contact optional</span>
+                <span className="mt-0.5 block text-xs text-ink-muted">
+                  For children or companions without their own email or phone.
+                </span>
+              </span>
+            </label>
+
             <Field
               label="Email"
               htmlFor="register-email"
-              required
+              required={!contactOptional}
               error={fieldErrors.email}
             >
               <input
@@ -484,7 +523,7 @@ export function ClientRegisterForm({
                 className={fieldControlClass(Boolean(fieldErrors.email))}
                 autoComplete="email"
                 placeholder="ada@example.com"
-                aria-required="true"
+                aria-required={!contactOptional}
                 aria-invalid={Boolean(fieldErrors.email)}
                 aria-describedby={
                   fieldErrors.email ? "register-email-error" : undefined
@@ -495,7 +534,7 @@ export function ClientRegisterForm({
             <Field
               label="Phone"
               htmlFor="register-phone"
-              required
+              required={!contactOptional}
               error={fieldErrors.phone}
             >
               <PhoneInput
@@ -506,7 +545,7 @@ export function ClientRegisterForm({
                   clearFieldError("phone", "email");
                 }}
                 defaultCountryHint={nationality || null}
-                aria-required
+                aria-required={!contactOptional}
                 className={cn(
                   fieldErrors.phone && "[&_input]:border-danger-ink/60 [&_input]:ring-2 [&_input]:ring-danger-line",
                 )}
@@ -691,6 +730,57 @@ export function ClientRegisterForm({
                       : undefined
                   }
                 />
+              </Field>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field
+                label="Date of birth"
+                htmlFor="register-date-of-birth"
+                hint="Optional — useful for child ages without a passport."
+                error={fieldErrors.date_of_birth}
+              >
+                <input
+                  id="register-date-of-birth"
+                  type="date"
+                  value={dateOfBirth}
+                  onChange={(event) => {
+                    setDateOfBirth(event.target.value);
+                    clearFieldError("date_of_birth");
+                  }}
+                  className={fieldControlClass(Boolean(fieldErrors.date_of_birth))}
+                  aria-invalid={Boolean(fieldErrors.date_of_birth)}
+                  aria-describedby={
+                    fieldErrors.date_of_birth
+                      ? "register-date-of-birth-error"
+                      : undefined
+                  }
+                />
+              </Field>
+              <Field
+                label="Gender"
+                htmlFor="register-gender"
+                error={fieldErrors.gender}
+              >
+                <select
+                  id="register-gender"
+                  value={gender}
+                  onChange={(event) => {
+                    setGender(event.target.value);
+                    clearFieldError("gender");
+                  }}
+                  className={fieldControlClass(Boolean(fieldErrors.gender))}
+                  aria-invalid={Boolean(fieldErrors.gender)}
+                  aria-describedby={
+                    fieldErrors.gender ? "register-gender-error" : undefined
+                  }
+                >
+                  {CLIENT_GENDER_OPTIONS.map((option) => (
+                    <option key={option.value || "none"} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </Field>
             </div>
 

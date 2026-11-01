@@ -10,7 +10,12 @@ export function AgentSparkle({ className }: { className?: string }) {
   const gradientId = useId();
   const fill = `url(#${gradientId})`;
   return (
-    <svg viewBox="0 0 24 24" aria-hidden className={cn("h-5 w-5 shrink-0", className)}>
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden
+      /* Size comes from the caller — do not set h/w here or it fights overrides (cn has no twMerge). */
+      className={cn("shrink-0", className ?? "h-5 w-5")}
+    >
       <defs>
         <linearGradient id={gradientId} x1="3" y1="3" x2="21" y2="21" gradientUnits="userSpaceOnUse">
           <stop offset="0" style={{ stopColor: "var(--accent-ink)" }} />

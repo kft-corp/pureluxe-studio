@@ -34,6 +34,10 @@ export function TripBuilderPageContent({
 
   const stage = resolveTripStage(builder.detail);
   const tripOpen = Boolean(builder.detail);
+  const conversationStarted =
+    tripOpen ||
+    builder.messages.length > 0 ||
+    builder.streamingContent != null;
   const queuedNotice =
     builder.queuedCount > 0
       ? builder.queuedCount === 1
@@ -66,15 +70,14 @@ export function TripBuilderPageContent({
                 : "Check today's price, book offline, Confirm hotel booking in Bookings with the PNR, then record payment on the trip.";
 
   return (
-    <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col bg-surface">
+    <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col bg-transparent">
       <TripBuilderHeader
         trips={builder.trips}
         detail={builder.detail}
+        conversationStarted={conversationStarted}
         summaryOpen={builder.summaryOpen}
         canWrite={builder.canWrite}
         busy={builder.busy}
-        activeLegId={builder.activeLegId}
-        onSelectLeg={builder.selectLeg}
         onOpenTrip={builder.openTrip}
         onNewChat={builder.newChat}
         onToggleSummary={() =>
@@ -113,7 +116,7 @@ export function TripBuilderPageContent({
           <TripBuilderComposer
             placeholder={
               tripOpen
-                ? "Message your agent…"
+                ? "Message Puriva…"
                 : "Plan a trip, or ask about a client…"
             }
             helperText={helperText}

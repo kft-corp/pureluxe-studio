@@ -59,9 +59,9 @@ export const tripSetClientTool = defineAgentTool({
 export const tripSetTravellersTool = defineAgentTool({
   name: "trip_set_travellers",
   description: [
-    "Add or remove travellers, or change someone between adult and child. The lead always stays.",
+    "Add or remove travellers, or change someone between adult, child, and infant. The lead always stays.",
     "Use when the advisor adds or drops a person, or says someone is a child. Find a new person's id with client_search first.",
-    "When ages are stated (e.g. kids are 16): pass age on add — age 12+ becomes adult for pricing; pass child_ages on rates_search the same turn.",
+    "When ages are stated (e.g. kids are 16): pass age on add — under 2 infant, under 12 child, 12+ adult; ages are saved without needing a passport; pass child_ages on rates_search the same turn.",
     "Do not use to change the lead (use trip_set_client).",
     "Returns a summary of the change; the advisor gets Undo.",
   ].join(" "),
@@ -79,13 +79,13 @@ export const tripSetTravellersTool = defineAgentTool({
                 .min(0)
                 .max(120)
                 .optional()
-                .describe("Stated age; 12+ is treated as adult for party role."),
+                .describe("Stated age; under 2 infant, under 12 child, 12+ adult."),
             })
             .strict(),
         )
         .max(20)
         .default([])
-        .describe("People to add, or to change between adult and child."),
+        .describe("People to add, or to change adult / child / infant."),
       remove: z.array(clientId).max(20).default([]).describe("Travellers to take off the trip."),
     })
     .strict(),
@@ -97,10 +97,19 @@ export const tripSetTravellersTool = defineAgentTool({
       {
         add: input.add.map((person) => {
           const age = person.age;
-          const asAdult = age != null ? age >= 12 : !person.child;
+          const partyRole =
+            age != null
+              ? age < 2
+                ? ("infant" as const)
+                : age < 12
+                  ? ("child" as const)
+                  : ("adult" as const)
+              : person.child
+                ? ("child" as const)
+                : ("adult" as const);
           return {
             clientId: person.client_id,
-            partyRole: asAdult ? ("adult" as const) : ("child" as const),
+            partyRole,
             age,
           };
         }),

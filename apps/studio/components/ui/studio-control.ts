@@ -11,22 +11,22 @@ export const studioFocusRing =
 export const studioControl = {
   /** Toolbar / page CTAs (New client, More filters, Approve, Invite). */
   button: cn(
-    "inline-flex min-h-8 items-center justify-center gap-1 rounded-md px-2.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50",
+    "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-[14px] font-semibold tracking-[0.01em] transition disabled:cursor-not-allowed disabled:opacity-50",
     studioFocusRing,
   ),
   /** Compact row / pagination actions. */
   buttonSm: cn(
-    "inline-flex min-h-7 items-center justify-center gap-1 rounded-md px-2 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50",
+    "inline-flex min-h-8 items-center justify-center gap-1 rounded-md px-2.5 text-[13px] font-semibold tracking-[0.01em] transition disabled:cursor-not-allowed disabled:opacity-50",
     studioFocusRing,
   ),
   /** Filter chips / pill toggles. */
   chip: cn(
-    "inline-flex min-h-7 items-center rounded-full px-2.5 text-xs font-medium ring-1 ring-inset transition-colors",
+    "inline-flex min-h-8 items-center rounded-full px-3 text-[13px] font-medium ring-1 ring-inset transition-colors",
     studioFocusRing,
   ),
   /** Search / text inputs in toolbars — matches toolbar button height. */
   field:
-    "h-8 w-full rounded-md border border-field-border bg-surface-subtle text-xs text-ink outline-none transition placeholder:text-ink-faint hover:border-ink-subtle focus:border-accent-strong focus:bg-surface-raised focus:ring-2 focus:ring-accent/25",
+    "h-9 w-full rounded-md border border-field-border bg-surface-subtle text-[14px] text-ink outline-none transition placeholder:text-ink-faint hover:border-ink-subtle focus:border-accent-strong focus:bg-surface-raised focus:ring-2 focus:ring-accent/25",
 } as const;
 
 export const studioTone = {

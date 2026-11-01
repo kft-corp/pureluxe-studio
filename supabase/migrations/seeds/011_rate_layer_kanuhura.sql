@@ -5,9 +5,11 @@
 --   Six Senses Kanuhura Wholesale Rates Agreement 2026-2027 - KFT Corporation.pdf
 --   Six Senses Kanuhura - India Package 2026 - Low & Shoulder Seasons (1).pdf
 --
--- Depends on: migrations/011 (+021), seeds/011_rate_layer.sql
+-- Depends on: migrations/011 (+021, +024 external_key / preferred_partner),
+--             seeds/011_rate_layer.sql
 -- Safe to re-run. Policies use schema_version >= 2 (022).
 -- Regenerated/updated by: seeds/_generate/generate_contracted_rates.py
+-- Wave 0: properties.external_key = six-senses-kanuhura (matches Atlas).
 
 -- =============================================================================
 -- 1. property
@@ -17,6 +19,7 @@ INSERT INTO public.properties (
   name, brand, chain, destination, city, country, region,
   property_type, destination_profile_id, default_currency,
   min_markup_percent, contracting_entity_name, aliases,
+  external_key, preferred_partner,
   reservations_email, general_phone, booking_notes, active
 )
 SELECT
@@ -33,6 +36,8 @@ SELECT
   25,
   'KFT Corporation',
   ARRAY['Kanuhura','Six Senses Maldives']::text[],
+  'six-senses-kanuhura',
+  true,
   'reservations-maldives@sixsenses.com',
   '+960 662 0044',
   'Book direct to resort. India package code SSK26IN. Min markup 25% on villa. Confidential nets.',

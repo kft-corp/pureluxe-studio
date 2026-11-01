@@ -227,8 +227,8 @@ export type KbHotelDetails = {
   wellness_notes: string | null;
   /** Style labels for similar-hotel matching (021). */
   style_tags: string[];
-  /** Hotels-sheet tier; null until imported (021). */
-  price_tier: KbHotelPriceTier | null;
+  /** Hotels-sheet band (024 renamed from price_tier). */
+  luxury_band: KbHotelPriceTier | null;
   created_at: string;
   updated_at: string;
 };

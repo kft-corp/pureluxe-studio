@@ -79,7 +79,7 @@ export function RolePermissionsTab({ active }: RolePermissionsTabProps) {
     >
       <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 py-4 sm:gap-5 sm:px-6 sm:py-5">
         <div>
-          <p className="mb-1.5 text-xs font-semibold tracking-wide text-ink uppercase">
+          <p className="studio-type-eyebrow mb-1.5 text-ink-subtle">
             Role
           </p>
           <RolePermissionsRolePicker

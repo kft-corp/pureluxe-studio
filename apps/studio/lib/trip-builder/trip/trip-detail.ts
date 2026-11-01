@@ -39,14 +39,16 @@ export type TripTravellerSnapshot = {
   client_id: string;
   display_name: string;
   role: "primary" | "companion";
-  party_role: "adult" | "child";
+  party_role: "adult" | "child" | "infant";
+  stated_age: number | null;
+  date_of_birth: string | null;
   family_role: string | null;
 };
 
 export type TripFamilySuggestion = {
   client_id: string;
   display_name: string;
-  party_role: "adult" | "child";
+  party_role: "adult" | "child" | "infant";
   family_role: string;
 };
 
@@ -392,6 +394,8 @@ export async function buildTripDetail(trip: Trip): Promise<TripDetail> {
     display_name: row.display_name,
     role: row.role,
     party_role: row.party_role,
+    stated_age: row.stated_age,
+    date_of_birth: row.date_of_birth,
     family_role: familyRoles.get(row.client_id) ?? null,
   }));
   const onTrip = new Set(travellers.map((row) => row.client_id));
@@ -409,8 +413,10 @@ export async function buildTripDetail(trip: Trip): Promise<TripDetail> {
   const fromTravellers =
     travellers.length > 0
       ? {
-          children: travellers.filter((row) => row.party_role === "child").length,
-          adults: travellers.filter((row) => row.party_role !== "child").length,
+          children: travellers.filter(
+            (row) => row.party_role === "child" || row.party_role === "infant",
+          ).length,
+          adults: travellers.filter((row) => row.party_role === "adult").length,
         }
       : null;
   const staysWithParty =

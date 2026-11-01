@@ -27,6 +27,7 @@ export type {
   ClientMergeCandidate,
   ClientPreference,
   ClientRelationship,
+  ClientGender,
   ClientReviewStatus,
   ClientSource,
   ClientTier,

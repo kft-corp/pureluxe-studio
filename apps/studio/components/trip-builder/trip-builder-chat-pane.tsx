@@ -16,7 +16,7 @@ import { showWarningToast } from "@/lib/feedback";
 import type { ChatMessage, TripDetail } from "@/lib/trip-builder";
 import { cn } from "@/lib/utils/cn";
 
-import { AgentSparkle } from "./agent-sparkle";
+import { AgentPurivaMark } from "./agent-puriva-mark";
 import { ChatMarkdown } from "./chat-markdown";
 import { resolveTripStage, staysAwaitingRoom } from "./stages";
 import { BOOKING_PREP_GUIDE, TRIP_START_PROMPT } from "./trip-builder-copy";
@@ -95,12 +95,14 @@ export function TripBuilderChatPane({
   if (!detail && !hasDraftThread) {
     return (
       <div className="h-full min-h-0 w-full overflow-y-auto">
-        <div className="mx-auto flex min-h-full w-full max-w-md flex-col items-center justify-center px-4 py-10 text-center">
-          <AgentAvatar />
-          <h2 className="mt-4 font-serif text-[1.6rem] leading-tight font-medium tracking-tight text-ink sm:text-[1.9rem]">
-            Where to next?
-          </h2>
-          <p className="mt-2 text-[14px] leading-relaxed text-ink-muted">
+        <div className="mx-auto flex min-h-full w-full max-w-lg flex-col items-center justify-center px-6 py-16 text-center sm:py-20">
+          <AgentPurivaMark />
+          <h2 className="studio-type-hero mt-6 text-ink">Where to next?</h2>
+          <span
+            className="mt-3.5 block h-px w-10 bg-accent opacity-80"
+            aria-hidden
+          />
+          <p className="mt-4 max-w-sm font-sans text-base leading-[1.6] font-normal text-ink-muted">
             {canWrite
               ? "Tell me who the trip is for, where and when, or ask about a client, hotel or place."
               : "Ask about a client, hotel or place, or open one of your trips above."}
@@ -149,11 +151,6 @@ function tripWelcomeMessage(
 ): string {
   if (stage === "client" && !detail.client) return TRIP_START_PROMPT;
   return stageCueFor(detail, stage, activeLegId);
-}
-
-/** The agent's mark on the empty start screen. */
-function AgentAvatar() {
-  return <AgentSparkle className="h-7 w-7" />;
 }
 
 function ChatScrollArea({
@@ -684,7 +681,7 @@ function CopyReplyButton({ content }: { content: string }) {
 function YouMessage({ children }: { children: React.ReactNode }) {
   return (
     <div className="ml-auto flex min-w-0 max-w-[min(85%,28rem)] justify-end self-end">
-      <div className="w-fit min-w-0 max-w-full rounded-[14px] rounded-tr-sm border border-neutral-line bg-neutral-soft px-3 py-2.5 text-[14.5px] leading-relaxed break-words text-ink sm:px-3.5">
+      <div className="w-fit min-w-0 max-w-full rounded-[14px] rounded-tr-sm border border-border bg-surface-raised px-3 py-2.5 text-[14.5px] leading-relaxed break-words text-ink shadow-sm sm:px-3.5">
         <span className="sr-only">You: </span>
         <p className="whitespace-pre-wrap break-words">{children}</p>
       </div>

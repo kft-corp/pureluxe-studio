@@ -27,9 +27,12 @@ import { nextTripTitle } from "../trip/trip-title";
 export function partyCounts(rows: Array<{ party_role: TripPartyRole }>): {
   adults: number;
   children: number;
+  infants: number;
 } {
+  const adults = rows.filter((row) => row.party_role === "adult").length;
   const children = rows.filter((row) => row.party_role === "child").length;
-  return { adults: rows.length - children, children };
+  const infants = rows.filter((row) => row.party_role === "infant").length;
+  return { adults, children, infants };
 }
 
 function sameName(left: string, right: string): boolean {
@@ -47,6 +50,11 @@ async function applyPartyToStays(
   actor: { memberId: string },
 ): Promise<void> {
   const next = partyCounts(after);
+  // Stay shells only store adults/children — count infants with children for occupancy.
+  const shellParty = {
+    adults: next.adults,
+    children: next.children + next.infants,
+  };
   const legs = await listTripLegs(tripId);
   let changed = false;
   for (const leg of legs) {
@@ -54,8 +62,8 @@ async function applyPartyToStays(
     const extracted = shell?.extracted_json;
     const adults = storedCount(extracted?.adults);
     const children = storedCount(extracted?.children);
-    const differs = adults !== next.adults || children !== next.children;
-    await patchStayShellParty(tripId, leg.id, next);
+    const differs = adults !== shellParty.adults || children !== shellParty.children;
+    await patchStayShellParty(tripId, leg.id, shellParty);
     if (differs && shell) {
       changed = true;
       await clearStaleQuotePricesForLeg(tripId, leg.id);
@@ -117,7 +125,11 @@ export async function changeTripLead(
   return finish(trip.id, actor);
 }
 
-type NewTraveller = { client_id: string; party_role: TripPartyRole };
+type NewTraveller = {
+  client_id: string;
+  party_role: TripPartyRole;
+  stated_age?: number | null;
+};
 
 /** Add a client who is already in Studio. The lead is not replaced. */
 export function addTripTraveller(
@@ -173,7 +185,7 @@ export async function addTripTravellers(
 
   await Promise.all(
     people.map((person, index) =>
-      upsertTripCompanion(trip.id, clients[index]!.id, person.party_role === "child" ? "child" : "adult"),
+      upsertTripCompanion(trip.id, clients[index]!.id, person.party_role, person.stated_age),
     ),
   );
   if (trip.travellers_confirmed_at) {

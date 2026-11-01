@@ -10,6 +10,7 @@
 -- Depends on migrations/011_rate_layer.sql (tables must already exist).
 --
 -- What is here (may differ from live):
+--   destination_type_defaults     Layer 3 catalog (re-seeded — wipe often clears these)
 --   destination_profiles          Maldives / Dubai / Bali / Doha
 --   destination_routing_overrides Layer 2 patterns for those places
 --   destination_wholesalers       Pure Escapes ↔ Maldives (inactive)
@@ -19,6 +20,23 @@
 -- Live Sabre access codes, real wholesaler bindings, and confirmed peak
 -- dates should be entered by ops after they are confirmed. Do not treat
 -- the slugs below as live GDS codes.
+
+-- =============================================================================
+-- destination_type_defaults (required FK parent for profiles / peak windows)
+-- Same catalog as migration 011 — safe after TRUNCATE of Rate Layer tables.
+-- =============================================================================
+
+INSERT INTO public.destination_type_defaults (destination_type, pattern, notes)
+VALUES
+  ('city_countryside', 'gds_first', 'GDS public + negotiated first; surface both.'),
+  ('resort_beach', 'wholesale_first', 'Wholesale first; GDS/Hotelbeds if wholesale empty.'),
+  ('ski', 'gds_then_offline_at_peak', 'GDS/Hotelbeds first; in peak windows if zero rooms → offline paste.'),
+  ('safari_yacht_special', 'offline_only', 'Never auto-shop GDS / Hotelbeds / wholesale.'),
+  ('untyped', 'custom', 'No type match → fall through to Layer 4 company defaults.')
+ON CONFLICT (destination_type) DO UPDATE
+SET pattern = EXCLUDED.pattern,
+    notes = EXCLUDED.notes,
+    updated_at = now();
 
 -- =============================================================================
 -- destination_profiles

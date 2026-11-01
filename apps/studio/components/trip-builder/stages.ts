@@ -125,8 +125,10 @@ export function partyFromTravellers(detail: TripDetail | null): {
   children: number;
 } {
   const rows = detail?.travellers ?? [];
-  const children = rows.filter((row) => row.party_role === "child").length;
-  const adults = rows.filter((row) => row.party_role !== "child").length;
+  const children = rows.filter(
+    (row) => row.party_role === "child" || row.party_role === "infant",
+  ).length;
+  const adults = rows.filter((row) => row.party_role === "adult").length;
   return { adults, children };
 }
 

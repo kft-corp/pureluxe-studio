@@ -49,7 +49,7 @@ export function UserAvatar({
         SIZE_CLASSES[size],
         variant === "member" && "bg-avatar font-semibold text-avatar-ink",
         variant === "hero" &&
-          "bg-avatar-hero font-serif font-medium text-avatar-hero-ink shadow-sm",
+          "bg-avatar-hero font-sans font-semibold text-avatar-hero-ink shadow-sm",
         variant === "invite" &&
           "border border-dashed border-border-strong bg-surface-subtle font-semibold text-ink-muted",
         className,

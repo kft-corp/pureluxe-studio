@@ -18,6 +18,8 @@ type SidebarNavLinkProps = {
   item: ShellNavItem;
   active: boolean;
   compact: boolean;
+  /** Softer treatment for Home / Tasks / footer ops items. */
+  quiet?: boolean;
   onNavigate?: () => void;
 };
 
@@ -25,6 +27,7 @@ export function SidebarNavLink({
   item,
   active,
   compact,
+  quiet = false,
   onNavigate,
 }: SidebarNavLinkProps) {
   const Icon = item.icon;
@@ -39,27 +42,34 @@ export function SidebarNavLink({
       aria-label={compact ? tooltip : undefined}
       title={compact ? tooltip : undefined}
       className={cn(
-        "group flex min-h-11 items-center gap-2.5 rounded-lg px-2.5 text-[14px] transition-colors duration-150 md:min-h-[34px]",
+        "group relative flex h-9 items-center gap-3 rounded-lg px-2.5 tracking-[0.01em] transition-colors duration-150",
+        quiet ? "text-[14px]" : "text-[15px]",
         studioFocusRing,
         active
-          ? "bg-nav-active text-nav-ink-strong shadow-[0_1px_2px_rgba(15,30,40,0.06)] ring-1 ring-nav-line"
-          : "text-nav-ink hover:bg-nav-hover hover:text-nav-ink-strong",
-        compact && "justify-center px-0",
+          ? "bg-nav-active font-semibold text-nav-ink-strong shadow-sm before:absolute before:top-1 before:bottom-1 before:left-0 before:w-0.5 before:rounded-full before:bg-accent"
+          : "font-medium text-nav-ink hover:bg-nav-hover hover:text-nav-ink-strong",
+        compact && "h-8 w-8 justify-center px-0",
+        quiet && !active && "opacity-80",
       )}
     >
       <Icon
         className={cn(
-          "h-4 w-4 shrink-0 transition-colors duration-150",
-          active ? "text-nav-ink-strong" : "text-nav-icon group-hover:text-nav-ink-strong",
+          "shrink-0 transition-colors duration-150",
+          quiet ? "h-[17px] w-[17px]" : "h-[18px] w-[18px]",
+          active
+            ? "text-accent-strong"
+            : "text-nav-icon group-hover:text-nav-ink-strong",
         )}
-        strokeWidth={1.5}
+        strokeWidth={1.75}
         aria-hidden
       />
       {!compact ? (
         <>
-          <span className="studio-nav-reveal min-w-0 flex-1 truncate">{item.label}</span>
+          <span className="studio-nav-reveal min-w-0 flex-1 truncate">
+            {item.label}
+          </span>
           {soon ? (
-            <span className="studio-nav-reveal shrink-0 rounded-full bg-accent-soft px-1.5 py-px text-[10px] leading-4 font-semibold tracking-wide text-accent-ink uppercase ring-1 ring-accent-line ring-inset">
+            <span className="studio-nav-reveal shrink-0 text-[11px] font-semibold tracking-[0.08em] text-accent-strong uppercase">
               Soon
             </span>
           ) : null}

@@ -57,9 +57,9 @@ export function TeamPageContent({
         </div>
 
         {isMembersTab ? (
-          <div className="flex flex-col gap-3 border-t border-border/70 pt-4">
+          <div className="flex flex-col gap-3 border-t border-border/50 pt-4">
             <div className="min-w-0 sm:max-w-xl">
-              <p className="mb-1.5 text-xs font-semibold tracking-wide text-ink uppercase">
+              <p className="studio-type-eyebrow mb-1.5 text-ink-subtle">
                 Find someone
               </p>
               <MemberSearch
@@ -71,7 +71,7 @@ export function TeamPageContent({
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div className="min-w-0">
-                <p className="mb-1.5 text-xs font-semibold tracking-wide text-ink uppercase">
+                <p className="studio-type-eyebrow mb-1.5 text-ink-subtle">
                   Status
                 </p>
                 <MemberFilters
