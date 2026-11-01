@@ -116,7 +116,6 @@ export function AppShell({ user, children }: AppShellProps) {
             peeking={peek.peeking}
             showMobileClose={mobileOpen}
             canCreateTrip={canCreateTrip}
-            canReadTrips={hasPermission(user.permissions, moduleReadPermission("trips"))}
             onCloseMobile={closeMobile}
             onToggleUnfoldable={toggleSidebar}
             onOpenSearch={openQuickFind}

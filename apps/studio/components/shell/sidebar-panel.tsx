@@ -17,7 +17,6 @@ import { pageRoutes } from "@/lib/routes";
 import { cn } from "@/lib/utils/cn";
 
 import { ShellBrandLink } from "./shell-brand-link";
-import { SidebarRecentTrips } from "./sidebar-recent-trips";
 import { SidebarUserMenu } from "./sidebar-user-menu";
 import { SidebarNavLink, isNavItemActive } from "./sidebar-nav-link";
 import { useShortcutLabel } from "./use-shortcut-label";
@@ -35,7 +34,6 @@ type SidebarPanelProps = {
   peeking: boolean;
   showMobileClose: boolean;
   canCreateTrip: boolean;
-  canReadTrips: boolean;
   onCloseMobile: () => void;
   onToggleUnfoldable: () => void;
   onOpenSearch: () => void;
@@ -62,7 +60,7 @@ function NavGroup({
   return (
     <div className={cn("mt-6 first:mt-1", quiet && "mt-4 first:mt-1 opacity-90")}>
       {title && !compact ? (
-        <p className="studio-nav-reveal mb-2 truncate px-2.5 text-[12px] font-semibold tracking-[0.04em] text-nav-label">
+        <p className="studio-nav-reveal mb-1.5 truncate px-2.5 text-[11px] font-semibold tracking-[0.04em] text-nav-label">
           {title}
         </p>
       ) : null}
@@ -91,7 +89,6 @@ export function SidebarPanel({
   peeking,
   showMobileClose,
   canCreateTrip,
-  canReadTrips,
   onCloseMobile,
   onToggleUnfoldable,
   onOpenSearch,
@@ -199,10 +196,6 @@ export function SidebarPanel({
             </>
           ) : null}
         </button>
-
-        {canReadTrips ? (
-          <SidebarRecentTrips compact={compact} onNavigate={onCloseMobile} />
-        ) : null}
       </div>
 
       <nav

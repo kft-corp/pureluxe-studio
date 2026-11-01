@@ -42,8 +42,8 @@ export function SidebarNavLink({
       aria-label={compact ? tooltip : undefined}
       title={compact ? tooltip : undefined}
       className={cn(
-        "group relative flex h-9 items-center gap-3 rounded-lg px-2.5 tracking-[0.01em] transition-colors duration-150",
-        quiet ? "text-[14px]" : "text-[15px]",
+        "group relative flex h-8 items-center gap-2.5 rounded-lg px-2.5 tracking-[0.01em] transition-colors duration-150",
+        quiet ? "text-[12px]" : "text-[13px]",
         studioFocusRing,
         active
           ? "bg-nav-active font-semibold text-nav-ink-strong shadow-sm before:absolute before:top-1 before:bottom-1 before:left-0 before:w-0.5 before:rounded-full before:bg-accent"
@@ -55,7 +55,7 @@ export function SidebarNavLink({
       <Icon
         className={cn(
           "shrink-0 transition-colors duration-150",
-          quiet ? "h-[17px] w-[17px]" : "h-[18px] w-[18px]",
+          quiet ? "h-4 w-4" : "h-[15px] w-[15px]",
           active
             ? "text-accent-strong"
             : "text-nav-icon group-hover:text-nav-ink-strong",
@@ -69,7 +69,7 @@ export function SidebarNavLink({
             {item.label}
           </span>
           {soon ? (
-            <span className="studio-nav-reveal shrink-0 text-[11px] font-semibold tracking-[0.08em] text-accent-strong uppercase">
+            <span className="studio-nav-reveal shrink-0 text-[10px] font-semibold tracking-[0.08em] text-accent-strong uppercase">
               Soon
             </span>
           ) : null}

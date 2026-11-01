@@ -45,7 +45,6 @@ export const pageCopy = {
 /** Sidebar chrome — travel desk actions and cues. */
 export const sidebarCopy = {
   newTrip: "New trip",
-  recent: "Recent",
 } as const;
 
 /** Directory list section headings (unfiltered state). */
