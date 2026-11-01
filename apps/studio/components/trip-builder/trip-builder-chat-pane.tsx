@@ -102,7 +102,7 @@ export function TripBuilderChatPane({
             className="mt-3.5 block h-px w-10 bg-accent opacity-80"
             aria-hidden
           />
-          <p className="mt-4 max-w-sm font-sans text-base leading-[1.6] font-normal text-ink-muted">
+          <p className="mt-4 max-w-sm font-sans text-sm leading-[1.55] font-normal text-ink-muted">
             {canWrite
               ? "Tell me who the trip is for, where and when, or ask about a client, hotel or place."
               : "Ask about a client, hotel or place, or open one of your trips above."}
@@ -498,7 +498,7 @@ function ChatMessageList({
     ) : null;
 
   return (
-    <div className={cn("flex flex-col gap-4 sm:gap-5", CHAT_COLUMN_CLASS)} aria-live="polite">
+    <div className={cn("flex flex-col gap-3 sm:gap-3.5", CHAT_COLUMN_CLASS)} aria-live="polite">
       {loadingOlder ? (
         <p className="py-1 text-center text-[12px] text-ink-muted">
           Loading earlier messages…
@@ -561,7 +561,7 @@ function DaySeparator({ label }: { label: string }) {
 /** What the agent is doing, on one line that changes in place ("Thinking…" → "Finding the client…"). */
 function AgentStatusLine({ label }: { label: string }) {
   return (
-    <p className="agent-phase-label py-0.5 text-[13px] font-medium text-accent-ink" aria-live="polite">
+    <p className="agent-phase-label py-0.5 text-[12px] font-medium text-accent-ink" aria-live="polite">
       <span className="agent-phase-shimmer">{label}</span>
     </p>
   );
@@ -614,7 +614,7 @@ function AgentMessage({
   onContinue?: () => void;
 }) {
   return (
-    <div className="w-full self-start text-[15px] leading-[1.6] break-words text-ink">
+    <div className="w-full self-start text-[14px] leading-[1.5] break-words text-ink">
       <span className="sr-only">Agent: </span>
       {content.trim() ? <ChatMarkdown content={content} /> : null}
       {status ? <AgentStatusLine key={status} label={status} /> : null}
@@ -681,7 +681,7 @@ function CopyReplyButton({ content }: { content: string }) {
 function YouMessage({ children }: { children: React.ReactNode }) {
   return (
     <div className="ml-auto flex min-w-0 max-w-[min(85%,28rem)] justify-end self-end">
-      <div className="w-fit min-w-0 max-w-full rounded-[14px] rounded-tr-sm border border-border bg-surface-raised px-3 py-2.5 text-[14.5px] leading-relaxed break-words text-ink shadow-sm sm:px-3.5">
+      <div className="w-fit min-w-0 max-w-full rounded-[14px] rounded-tr-sm border border-border bg-surface-raised px-3 py-2 text-[13.5px] leading-[1.5] break-words text-ink shadow-sm sm:px-3.5">
         <span className="sr-only">You: </span>
         <p className="whitespace-pre-wrap break-words">{children}</p>
       </div>

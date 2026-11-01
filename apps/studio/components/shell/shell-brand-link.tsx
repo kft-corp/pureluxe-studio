@@ -27,22 +27,22 @@ export function ShellBrandLink({ compact = false, onNavigate }: ShellBrandLinkPr
       title={compact ? "PureLuxe Studio" : undefined}
       aria-label={compact ? "PureLuxe Studio home" : undefined}
     >
-      <span className="relative h-8 w-8 shrink-0 overflow-hidden rounded-lg" aria-hidden>
+      <span className="relative h-7 w-7 shrink-0 overflow-hidden rounded-md" aria-hidden>
         <Image
           src={studioMarkPath}
           alt=""
-          width={32}
-          height={32}
-          className="h-8 w-8 object-cover"
+          width={28}
+          height={28}
+          className="h-7 w-7 object-cover"
           priority
         />
       </span>
       {!compact ? (
         <span className="studio-nav-reveal min-w-0 truncate text-nav-ink-strong">
-          <span className="studio-type-brand relative inline-block pb-0.5 after:absolute after:right-0 after:bottom-0 after:left-0 after:h-px after:bg-accent after:opacity-80 after:content-['']">
+          <span className="relative inline-block pb-0.5 font-serif text-[15px] leading-none font-semibold tracking-[0.01em] after:absolute after:right-0 after:bottom-0 after:left-0 after:h-px after:bg-accent after:opacity-80 after:content-['']">
             PureLuxe
           </span>{" "}
-          <span className="studio-type-eyebrow align-middle uppercase tracking-[0.08em] text-nav-label">
+          <span className="align-middle font-sans text-[10px] font-semibold tracking-[0.08em] text-nav-label uppercase">
             Studio
           </span>
         </span>

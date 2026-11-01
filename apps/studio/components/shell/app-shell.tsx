@@ -96,13 +96,14 @@ export function AppShell({ user, children }: AppShellProps) {
         className={cn(
           "studio-sidebar-rail z-50 flex h-full flex-col text-nav-ink",
           // Mobile drawer — fixed so it does not reserve flex width
-          "fixed inset-y-0 left-0 w-[min(18rem,calc(100vw-3rem))] max-w-[85vw] shadow-xl md:shadow-none",
+          "fixed inset-y-0 left-0 w-[min(15rem,calc(100vw-3rem))] max-w-[85vw] shadow-xl md:shadow-none",
           "transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
           mobileOpen ? "translate-x-0" : "pointer-events-none -translate-x-full",
           // Desktop — in-flow column; width is the space the page gives up (peek pushes main right).
+          // Expanded ~240px (w-60) matches common SaaS nav rails; collapsed icon rail stays w-16.
           "md:pointer-events-auto md:relative md:inset-auto md:max-w-none md:shrink-0 md:translate-x-0",
           "md:transition-[width] md:duration-300 md:ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
-          unfoldable ? (peek.peeking ? "md:w-72" : "md:w-16") : "md:w-72",
+          unfoldable ? (peek.peeking ? "md:w-60" : "md:w-16") : "md:w-60",
         )}
         onPointerEnter={peek.onPointerEnter}
         onPointerLeave={peek.onPointerLeave}
