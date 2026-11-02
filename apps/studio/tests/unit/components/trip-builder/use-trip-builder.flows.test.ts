@@ -49,7 +49,7 @@ vi.mock("@/lib/api", () => ({
 
 import { useTripBuilder } from "@/components/trip-builder/use-trip-builder";
 import * as apiModule from "@/lib/api";
-import { makeRate, makeStay, makeTripDetail } from "@/tests/factories/trips";
+import { makeClient, makeRate, makeStay, makeTripDetail } from "@/tests/factories/trips";
 
 const api = vi.mocked(apiModule);
 
@@ -57,7 +57,7 @@ function ok<T>(data: T) {
   return { success: true, data, message: "" } as never;
 }
 
-const SARAH = { id: "c1", display_name: "Sarah Chen" };
+const SARAH = makeClient({ id: "c1", display_name: "Sarah Chen" });
 const SARAH_LEAD = {
   client_id: "c1",
   display_name: "Sarah Chen",

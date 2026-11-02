@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { TripDetail } from "@/lib/trip-builder";
-import { makeStay, makeTripDetail } from "@/tests/factories/trips";
+import { makeClient, makeStay, makeTripDetail } from "@/tests/factories/trips";
 
 const services = vi.hoisted(() => ({
   updateTrip: vi.fn(),
@@ -37,7 +37,7 @@ import { applyTripShape } from "@/lib/trip-builder/actions/apply-trip-shape";
 import type { TripShape } from "@/lib/trip-builder/actions/trip-shape";
 
 const ACTOR = { memberId: "member-1" };
-const CLIENT = { id: "c1", display_name: "Aarav Mehta" };
+const CLIENT = makeClient({ id: "c1", display_name: "Aarav Mehta" });
 const LEAD = {
   client_id: "c1",
   display_name: "Aarav Mehta",

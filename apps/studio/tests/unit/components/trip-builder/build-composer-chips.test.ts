@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest";
 import { buildComposerChips } from "@/components/trip-builder/build-composer-chips";
 import type { TripBuilderChip } from "@/components/trip-builder/trip-builder-action-chip";
 import { makeChipInput } from "@/tests/factories/composer-chips";
-import { makeRate, makeStay, makeTripDetail } from "@/tests/factories/trips";
+import { makeClient, makeRate, makeStay, makeTripDetail } from "@/tests/factories/trips";
 
-const SARAH = { id: "c1", display_name: "Sarah Chen" };
+const SARAH = makeClient({ id: "c1", display_name: "Sarah Chen" });
 
 const SARAH_TRAVELLING = {
   client_id: "c1",
@@ -52,45 +52,30 @@ function ids(chips: TripBuilderChip[]): string[] {
   return chips.map((chip) => chip.id);
 }
 
-function chip(chips: TripBuilderChip[], id: string): TripBuilderChip {
-  const found = chips.find((item) => item.id === id);
-  if (!found) throw new Error(`No chip "${id}" in ${ids(chips).join(", ")}`);
-  return found;
-}
-
-function leads(chips: TripBuilderChip[]): TripBuilderChip[] {
-  return chips.filter((item) => item.variant === "primary" || item.variant === "danger");
-}
-
 describe("buildComposerChips", () => {
   describe("no trip open", () => {
     it("shows no chips on a fresh home screen", () => {
       expect(buildComposerChips(makeChipInput()).chips).toEqual([]);
     });
 
-    it("turns the agent's choices into buttons", () => {
-      const input = makeChipInput({
-        replyCards: {
-          choices: [{ label: "Create trip · Sarah Chen", action: "client_get", args: { client_id: "c1" } }],
-        },
-      });
-      const { chips } = buildComposerChips(input);
-
-      expect(ids(chips)).toEqual(["choice-0"]);
-      expect(leads(chips)).toHaveLength(1);
-      chips[0]!.onClick();
-      expect(input.actions.sendAction).toHaveBeenCalledWith({
-        action: "client_get",
-        args: { client_id: "c1" },
-        label: "Create trip · Sarah Chen",
-      });
+    it("does not show choice chips (choices are typed in chat)", () => {
+      const { chips } = buildComposerChips(
+        makeChipInput({
+          replyCards: {
+            choices: [
+              { label: "Create trip · Sarah Chen", action: "client_get", args: { client_id: "c1" } },
+            ],
+          },
+        }),
+      );
+      expect(chips).toEqual([]);
     });
 
     it("shows nothing without write access", () => {
       const { chips } = buildComposerChips(
         makeChipInput({
           canWrite: false,
-          replyCards: { choices: [{ label: "Sarah Chen", action: "client_get", args: { client_id: "c1" } }] },
+          replyCards: { undo: true },
         }),
       );
       expect(chips).toEqual([]);
@@ -98,61 +83,41 @@ describe("buildComposerChips", () => {
   });
 
   describe("client stage", () => {
-    it("offers the client's past trips", () => {
-      const input = makeChipInput({ detail: CLIENT_STAGE });
-      const { chips } = buildComposerChips(input);
-
-      expect(ids(chips)).toEqual(["past-trips"]);
-      chip(chips, "past-trips").onClick();
-      expect(input.actions.sendAction).toHaveBeenCalledWith({
-        action: "history_search_trips",
-        args: { client_id: "c1" },
-        label: "Past trips for Sarah Chen",
-      });
+    it("does not offer past-trips ready chips", () => {
+      const { chips } = buildComposerChips(makeChipInput({ detail: CLIENT_STAGE }));
+      expect(chips).toEqual([]);
     });
   });
 
   describe("agent cards", () => {
-    it("shows only Confirm and Cancel while the agent waits for approval", () => {
-      const input = makeChipInput({
-        detail: RATES_STAGE,
-        replyCards: { approval: "Move the trip 2 days later." },
-      });
-      const { chips, rateCards } = buildComposerChips(input);
+    it("does not show Confirm/Cancel chips (approval is typed in chat)", () => {
+      const { chips, rateCards } = buildComposerChips(
+        makeChipInput({
+          detail: RATES_STAGE,
+          replyCards: { approval: "Move the trip 2 days later." },
+        }),
+      );
 
-      expect(chips.map((item) => item.label)).toEqual(["Confirm", "Cancel"]);
-      expect(chips[0]!.variant).toBe("danger");
+      expect(chips).toEqual([]);
       expect(rateCards).toEqual([]);
-
-      chips[0]!.onClick();
-      expect(input.actions.sendApproval).toHaveBeenCalledWith("approve");
-      chips[1]!.onClick();
-      expect(input.actions.sendApproval).toHaveBeenCalledWith("cancel");
     });
 
-    it("turns the agent's choices into buttons that run its tool", () => {
-      const input = makeChipInput({
-        detail: makeTripDetail(),
-        replyCards: {
-          choices: [
-            { label: "Sarah Chen", action: "trip_set_client", args: { client_id: "c1" } },
-            { label: "Sam Chen", action: "trip_set_client", args: { client_id: "c9" } },
-          ],
-        },
-      });
-      const { chips } = buildComposerChips(input);
-
-      expect(chips.map((item) => item.label)).toEqual(["Sarah Chen", "Sam Chen"]);
-      expect(leads(chips)).toHaveLength(1);
-      chips[1]!.onClick();
-      expect(input.actions.sendAction).toHaveBeenCalledWith({
-        action: "trip_set_client",
-        args: { client_id: "c9" },
-        label: "Sam Chen",
-      });
+    it("does not turn agent choices into chips", () => {
+      const { chips } = buildComposerChips(
+        makeChipInput({
+          detail: makeTripDetail(),
+          replyCards: {
+            choices: [
+              { label: "Sarah Chen", action: "trip_set_client", args: { client_id: "c1" } },
+              { label: "Sam Chen", action: "trip_set_client", args: { client_id: "c9" } },
+            ],
+          },
+        }),
+      );
+      expect(chips).toEqual([]);
     });
 
-    it("offers Undo after a change and hides the ready chips", () => {
+    it("offers Undo after a change", () => {
       const input = makeChipInput({ detail: CLIENT_STAGE, replyCards: { undo: true } });
       const { chips } = buildComposerChips(input);
 
@@ -178,16 +143,6 @@ describe("buildComposerChips", () => {
       const { chips, rateCards } = buildComposerChips(makeChipInput({ detail: RATES_STAGE }));
       expect(chips).toEqual([]);
       expect(rateCards).toEqual([]);
-    });
-
-    it("hides ready chips while the agent answers a question", () => {
-      const { chips } = buildComposerChips(
-        makeChipInput({
-          detail: RATES_STAGE,
-          quietChips: true,
-        }),
-      );
-      expect(chips).toEqual([]);
     });
 
     it("does not build composer rate cards from saved rooms", () => {

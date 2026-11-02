@@ -1,6 +1,22 @@
 import type { Trip } from "@pureluxe/db";
 
-import type { TripDetail, TripRateSnapshot, TripStaySnapshot } from "@/lib/trip-builder";
+import type {
+  TripClientSnapshot,
+  TripDetail,
+  TripRateSnapshot,
+  TripStaySnapshot,
+} from "@/lib/trip-builder";
+
+export function makeClient(
+  partial: Partial<TripClientSnapshot> & { id: string; display_name: string },
+): TripClientSnapshot {
+  return {
+    email: null,
+    phone: null,
+    whatsapp: null,
+    ...partial,
+  };
+}
 
 export function makeStay(
   partial: Partial<TripStaySnapshot> & { leg_id: string; city: string },
