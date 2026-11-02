@@ -115,6 +115,13 @@ export function buildTripContext(trip: TripFacts): string {
     trip.client
       ? `- Lead: ${trip.client.display_name} (client_id ${trip.client.id})`
       : "- Lead: missing",
+    ...(trip.client
+      ? [
+          `- Email: ${textOrMissing(trip.client.email ?? null)}`,
+          `- Phone: ${textOrMissing(trip.client.phone ?? null)}`,
+          `- WhatsApp: ${textOrMissing(trip.client.whatsapp ?? trip.client.phone ?? null)}`,
+        ]
+      : []),
     `Travellers confirmed: ${trip.travellers_confirmed ? "yes" : "no"}`,
     ...(trip.travellers ?? []).map(
       (person) =>

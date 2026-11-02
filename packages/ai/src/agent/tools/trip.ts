@@ -125,6 +125,7 @@ export const tripSetDatesTool = defineAgentTool({
   description: [
     "Set the whole trip's start and end dates from what the advisor said. Pass MM-DD when they gave no year: Studio picks the next occurrence and shows the year as assumed. The result has the exact dates.",
     "A single stay that covered the trip moves with the new dates. If other stays would fall outside, set the stays together with the dates using trip_set_stays.",
+    "When a destination is already on the trip and you would next ask about hotels: hotel_find with coverage_check true for that destination in the same turn (founder #16) — do not list hotels unless they ask to suggest.",
     "Do not use to move every date by the same number of days (use trip_shift_dates).",
     "Returns a summary of the change; the advisor gets Undo.",
   ].join(" "),
@@ -144,8 +145,9 @@ export const tripSetStaysTool = defineAgentTool({
   description: [
     "Set every stay on the trip at once, in order, with an optional hotel and rooms for each. One stay without dates covers the whole trip.",
     "Use when the advisor names where they go, changes a stay's dates, city or hotel, or adds a stay. Pass the full list, existing stays included; stays left out are removed.",
-    "Do not use for the first multi-city split proposal (Malé then Baa, etc.) — use trip_propose_split so Studio shows Accept. Use this after they tap Accept, or when they clearly say to apply the split, or when stays are already split and only need a hotel/date tweak.",
+    "Do not use for the first multi-city split proposal (Malé then Baa, etc.) — use trip_propose_split so Studio shows Accept. Use this after they say accept / apply the split, or when stays are already split and only need a hotel/date tweak.",
     "Pass hotel null to clear a hotel on a stay — quote rooms on that stay (and any rooms labelled with that hotel) are removed with it. Pass start and end too when the trip dates change at the same time; like all dates here, MM-DD when the advisor gave no year. Rooms default to one per two adults when a hotel is set.",
+    "Before asking hotel-in-mind / suggest as the next step: hotel_find with coverage_check true (limit 1) per stay city; if none loaded, say so and ask for names or a paste quote — if covered, ask hotel-in-mind vs suggest without listing hotels (founder #16).",
     "Do not use to remove a stay that has the client's room (use trip_remove_stay).",
     "Returns a summary of the change; the advisor gets Undo.",
   ].join(" "),
@@ -232,9 +234,10 @@ function splitResultCard(result: unknown): import("../../tools").LegSplitCard | 
 export const tripProposeSplitTool = defineAgentTool({
   name: "trip_propose_split",
   description: [
-    "Propose a multi-city date split once as a card the advisor can accept. Does not change the trip until they tap Accept (which runs trip_set_stays).",
+    "Propose a multi-city date split once as a card the advisor can accept. Does not change the trip until they accept (which runs trip_set_stays).",
     "Use when the advisor names two or more places for one trip (e.g. Malé then Baa Atoll, with or without per-city dates) and the stays are not already split that way — even if they spelled out the dates in the same message.",
     "Do not call trip_set_stays for that first split; the Accept card applies it. Ask only once — do not re-propose the same split once stays match.",
+    "After this tool: reply in one short line only in plain text (e.g. \"Four stays proposed — say accept to apply\"). Never say tap/click/chip/button. Never list cities, dates, or stays again in chat — the Accept card already shows them (founder #15 / #19). Do not ask hotel-in-mind / suggest on this turn; after Accept, silent hotel_find coverage_check first (founder #16).",
     "Do not use for a single destination (trip_set_stays covers the whole trip).",
     "Returns the proposed stays; Studio shows the split card with Accept.",
   ].join(" "),

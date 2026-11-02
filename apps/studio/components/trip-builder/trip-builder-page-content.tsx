@@ -49,25 +49,27 @@ export function TripBuilderPageContent({
     ? undefined
     : builder.chatBusy
       ? undefined
-      : stage === "client"
-        ? builder.detail?.client && !builder.detail.trip.travellers_confirmed_at
-          ? "Add travellers from the household, or say just them."
-          : "Type a client name, then tap a confirm chip."
-        : stage === "stay"
-          ? !tripDatesReady(builder.detail)
-            ? "Send the trip start and end first. Example: Start: 2026-10-10, End: 2026-10-20."
-            : !legsConfirmed(builder.detail)
-              ? "List each stay inside the trip. A city alone uses the full trip for the first stay."
-              : "Plan the open stay. You can add a stay, change one, or change the trip dates in chat."
-          : stage === "rates"
-            ? "Ask in chat to add a room to the quote, or for help choosing."
-            : stage === "quote"
-              ? builder.detail?.trip.status === "building"
-                ? "Check the options quote, then send it and update the status on the trip page."
-                : "When they agree, mark Client said yes on the trip page, then tap This is their room."
-              : staysAwaitingRoom(builder.detail) > 0
-                ? "Tap This is their room, then check today's price and travel prep before booking."
-                : "Check today's price, book offline, Confirm hotel booking in Bookings with the PNR, then record payment on the trip.";
+      : builder.pendingApproval
+        ? "Type Confirm to proceed, or Cancel to dismiss."
+        : stage === "client"
+          ? builder.detail?.client && !builder.detail.trip.travellers_confirmed_at
+            ? "Add travellers from the household, or say just them."
+            : "Type a client name to continue."
+          : stage === "stay"
+            ? !tripDatesReady(builder.detail)
+              ? "Send the trip start and end first. Example: Start: 2026-10-10, End: 2026-10-20."
+              : !legsConfirmed(builder.detail)
+                ? "List each stay inside the trip. A city alone uses the full trip for the first stay."
+                : "Plan the open stay. You can add a stay, change one, or change the trip dates in chat."
+            : stage === "rates"
+              ? "Ask in chat to add a room to the quote, or for help choosing."
+              : stage === "quote"
+                ? builder.detail?.trip.status === "building"
+                  ? "Check the options quote, then send it and update the status on the trip page."
+                  : "When they agree, mark Client said yes on the trip page, then say which room is theirs."
+                : staysAwaitingRoom(builder.detail) > 0
+                  ? "Say which room is theirs, then check today's price and travel prep before booking."
+                  : "Check today's price, book offline, Confirm hotel booking in Bookings with the PNR, then record payment on the trip.";
 
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col bg-transparent">

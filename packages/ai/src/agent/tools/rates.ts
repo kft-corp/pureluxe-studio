@@ -22,6 +22,12 @@ function clientChoseRoom(trip: TripFacts | null): boolean {
   return trip.rates.candidates.some((rate) => rate.selected);
 }
 
+/** First pull or a real change — Studio streams the rate card. Same search again: skip. */
+function shouldShowCompareCard(result: unknown): boolean {
+  if (!result || typeof result !== "object") return true;
+  return (result as { show_compare_card?: unknown }).show_compare_card !== false;
+}
+
 export const ratesGetSnapshotTool = defineAgentTool({
   name: "rates_get_snapshot",
   description: [
@@ -42,14 +48,15 @@ export const ratesSearchTool = defineAgentTool({
   description: [
     "Search rates for one or more hotels in a destination for given dates and party. A saved stay is NOT required — never ask the advisor to save a stay or confirm before searching.",
     "Use when the advisor names hotels for prices, asks for rates / cheapest / compare costs, or says \"need rates\" / \"suggest and get rates\". Pass hotels in one call (max 5); they run in parallel. Run immediately; never ask \"Search rates?\".",
-    "Do not use after hotel_find when the advisor only asked to suggest or find hotels — wait until they ask for rates or tap Rates.",
+    "Do not use after hotel_find when the advisor only asked to suggest or find hotels — wait until they ask for rates in plain text.",
     "When suggest-and-rates in one message: search the top 1–2 hotel_find picks unless they named more hotels or said all / every.",
     "When the client already chose a room (selected in trip facts / booking stage) and the advisor only wants today's price for that choice: search only the chosen hotel(s), then reply in short prose comparing the chosen room's quoted sell to today's cost. Do not suggest other rooms or treat it as a new quote. Never mention hotel minimum markup or commission rate.",
     "When the advisor also wants the hotel on the trip itinerary, call trip_set_stays in the same turn, then this. Pricing alone does not need trip_set_stays.",
     "Do not use for place questions (place_get_notes) or to list hotels without prices (hotel_find).",
     "Returns one entry per hotel: ok | no_rates | not_in_pureluxe | several_matches | offline | timeout, with alternatives when not ok. Cost is advisor-only. Never echo status codes or brand names in the reply — say \"I can't offer that hotel\" / \"no rates for those dates\" in plain language.",
     "When status is no_rates: say so, suggest other stay dates or another hotel from hotel_find, or rates_use_pasted_quote — never invent prices or seasons.",
-    "After this tool (shopping only): Studio shows the room-rate table under the reply (Set markup / cost). Reply in 1–2 short lines (which room to prefer + next step). Do not restate hotel, dates, party, preference, prices, meal plans, or the full inclusions list — header/sidebar and the table already have them. Heads-up only for cancel/market risk. Package rates → package sheet + extra-night; sell after markup is package + extras for the stay. Nightly → per night / stay total. Never paste a markdown table of rooms or prices. Advisors add rooms via chat with quote_add_options, not row buttons.",
+    "Do not use when the advisor only changes markup or sell — that is quote_add_options / quote_set_client_price (no new search, no rate table). Never say you refreshed rates for a markup change.",
+    "After this tool (shopping only): Studio shows the room-rate table only on the first pull or when dates, party/travellers, rooms, or new hotels were searched. If show_compare_card is false (same dates/party and hotels already covered): do not say \"see the table below\" or that you refreshed rates; reply in 1–2 short lines. The table shows cost only — no sell or Set markup in the UI. When the table is shown: reply in 1–2 short lines (which room to prefer + next step: add with a markup or sell). Do not restate hotel, dates, party, preference, prices, meal plans, or the full inclusions list. Heads-up only for cancel/market risk. Package rates → package sheet + extra-night; sell after markup is package + extras for the stay. Nightly → cost per night / stay cost. Never paste a markdown table of rooms or prices. Advisors add rooms via chat with quote_add_options — never tell them to tap Add or any rate-row control (founder #19). Prefer rates_get_snapshot for follow-ups that do not need a fresh search.",
     "When comparing hotels on fit (which hotel is better), use the fixed hotel-compare markdown table (Entry room, Pool upgrade, Water / overwater, Meal plans, Transfers & taxes, Free cancel until, Applied markup; optional Location / Family). That compare table is separate from the room-rate UI table. Pass child_ages when the advisor stated ages.",
   ].join(" "),
   schema: z
@@ -75,7 +82,8 @@ export const ratesSearchTool = defineAgentTool({
   risk: "read",
   progress: (input) =>
     input.hotels.length > 1 ? "Searching rates for several hotels…" : "Searching rates…",
-  rateCompare: (result, trip) => (clientChoseRoom(trip) ? null : asCompare(result)),
+  rateCompare: (result, trip) =>
+    clientChoseRoom(trip) || !shouldShowCompareCard(result) ? null : asCompare(result),
   choices: (result) => {
     const compare = asCompare(result);
     if (!compare) return [];

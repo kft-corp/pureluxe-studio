@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils/cn";
 
 /**
  * Multi-city date split proposal under an agent reply (Stage 4).
- * Accept is a choice chip from the tool; this card only shows the proposed stays.
+ * Advisors type accept in chat to apply; this card only shows the proposed stays.
  */
 export function TripBuilderLegSplit({
   split,

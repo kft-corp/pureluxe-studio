@@ -47,25 +47,30 @@ function NavGroup({
   pathname,
   compact,
   quiet,
+  showTitle,
   onNavigate,
 }: {
   section: ShellNavSection;
   pathname: string;
   compact: boolean;
   quiet?: boolean;
+  /** Only Book travel keeps a section label — curated desk, not CRM inventory. */
+  showTitle?: boolean;
   onNavigate: () => void;
 }) {
   const { title } = section.group;
+  const items = section.items.filter((item) => item.status === "live");
+  if (items.length === 0) return null;
 
   return (
-    <div className={cn("mt-6 first:mt-1", quiet && "mt-4 first:mt-1 opacity-90")}>
-      {title && !compact ? (
-        <p className="studio-nav-reveal mb-1.5 truncate px-2.5 text-[11px] font-semibold tracking-[0.04em] text-nav-label">
+    <div className={cn("mt-6 first:mt-0", quiet && "mt-4 first:mt-0")}>
+      {showTitle && title && !compact ? (
+        <p className="studio-nav-reveal mb-2.5 truncate px-2.5 text-[11px] font-semibold tracking-[0.1em] text-nav-label uppercase">
           {title}
         </p>
       ) : null}
-      <ul className="space-y-0.5">
-        {section.items.map((item) => (
+      <ul className="space-y-1">
+        {items.map((item) => (
           <li key={item.id}>
             <SidebarNavLink
               item={item}
@@ -100,21 +105,32 @@ export function SidebarPanel({
     compact ? "Expand sidebar" : peeking ? "Keep sidebar open" : "Collapse sidebar"
   } (${railShortcut})`;
 
+  const footerSections = navigation.footer
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => item.status === "live"),
+    }))
+    .filter((section) => section.items.length > 0);
+
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
       <div
         className={cn(
-          "overflow-x-clip px-3.5 pt-[max(1rem,env(safe-area-inset-top))] md:pt-4",
-          compact ? "flex flex-col items-center gap-2 pb-3" : "pb-3",
+          "overflow-x-clip px-3.5 pt-[max(1.1rem,env(safe-area-inset-top))] md:pt-5",
+          compact ? "flex flex-col items-center gap-2 pb-5" : "pb-5",
         )}
       >
         <div
           className={cn(
-            "flex items-center",
-            compact ? "flex-col gap-2" : "justify-between gap-2",
+            "flex items-start",
+            compact ? "flex-col items-center gap-2" : "justify-between gap-2",
           )}
         >
-          <ShellBrandLink compact={compact} onNavigate={onCloseMobile} />
+          <ShellBrandLink
+            compact={compact}
+            showDeskTag={!compact}
+            onNavigate={onCloseMobile}
+          />
 
           {showMobileClose ? (
             <button
@@ -129,7 +145,7 @@ export function SidebarPanel({
             <button
               type="button"
               onClick={onToggleUnfoldable}
-              className={cn(ICON_BUTTON, "hidden h-7 w-7 md:inline-flex", studioFocusRing)}
+              className={cn(ICON_BUTTON, "mt-0.5 hidden h-7 w-7 md:inline-flex", studioFocusRing)}
               aria-label={railLabel}
               aria-keyshortcuts="Control+B Meta+B"
               title={railLabel}
@@ -148,7 +164,7 @@ export function SidebarPanel({
 
       <div
         className={cn(
-          "space-y-2.5 overflow-x-clip px-3.5 pb-3",
+          "space-y-1.5 overflow-x-clip px-3.5 pb-5",
           compact && "flex flex-col items-center",
         )}
       >
@@ -159,12 +175,12 @@ export function SidebarPanel({
             aria-label={sidebarCopy.newTrip}
             title={sidebarCopy.newTrip}
             className={cn(
-              "inline-flex items-center justify-center gap-2 rounded-md bg-accent text-[13px] font-semibold text-ink shadow-sm transition hover:bg-accent-hover",
+              "inline-flex items-center justify-center gap-2 rounded-md border border-accent-line bg-accent-soft text-sm font-semibold text-accent-ink transition hover:border-accent hover:bg-accent/25",
               studioFocusRing,
-              compact ? "h-8 w-8" : "h-9 w-full px-3",
+              compact ? "h-9 w-9" : "h-9 w-full px-3",
             )}
           >
-            <LuPlus className="h-4 w-4 shrink-0" strokeWidth={2.25} aria-hidden />
+            <LuPlus className="h-4 w-4 shrink-0" strokeWidth={1.6} aria-hidden />
             {!compact ? (
               <span className="studio-nav-reveal truncate">{sidebarCopy.newTrip}</span>
             ) : null}
@@ -178,19 +194,20 @@ export function SidebarPanel({
           title={compact ? `Search (${searchShortcut})` : undefined}
           aria-keyshortcuts="Control+K Meta+K"
           className={cn(
-            "flex items-center rounded-md text-[13px] tracking-[0.01em] text-nav-ink transition-colors duration-150",
-            "bg-white/75 ring-1 ring-nav-line ring-inset hover:bg-white hover:text-nav-ink-strong",
+            "flex items-center text-[13px] text-nav-muted transition-colors duration-150 hover:text-nav-ink-strong",
             studioFocusRing,
-            compact ? "h-8 w-8 justify-center" : "h-9 w-full gap-2 px-3",
+            compact
+              ? "h-8 w-8 justify-center rounded-md hover:bg-nav-hover"
+              : "w-full gap-2 rounded-md px-2.5 py-1.5",
           )}
         >
-          <LuSearch className="h-4 w-4 shrink-0 text-nav-icon" strokeWidth={1.75} aria-hidden />
+          <LuSearch className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} aria-hidden />
           {!compact ? (
             <>
               <span className="studio-nav-reveal flex-1 truncate text-left font-medium">
-                Search…
+                Search
               </span>
-              <kbd className="studio-nav-reveal font-sans text-[11px] text-nav-muted">
+              <kbd className="studio-nav-reveal font-sans text-[11px] tracking-wide text-nav-muted/90">
                 {searchShortcut}
               </kbd>
             </>
@@ -200,7 +217,7 @@ export function SidebarPanel({
 
       <nav
         className={cn(
-          "studio-scroll-thin min-h-0 flex-1 overflow-y-auto pb-3",
+          "studio-scroll-thin min-h-0 flex-1 overflow-y-auto pb-4",
           compact ? "px-2" : "px-3.5",
         )}
         aria-label="Studio"
@@ -211,17 +228,21 @@ export function SidebarPanel({
             section={section}
             pathname={pathname}
             compact={compact}
+            showTitle={section.group.id === "travel"}
             onNavigate={onCloseMobile}
           />
         ))}
       </nav>
 
-      {navigation.footer.length > 0 ? (
+      {footerSections.length > 0 ? (
         <nav
-          className={cn("overflow-x-clip pb-1", compact ? "px-2" : "px-3.5")}
+          className={cn(
+            "overflow-x-clip border-t border-nav-line/40 pt-3.5 pb-1",
+            compact ? "px-2" : "px-3.5",
+          )}
           aria-label="Workspace"
         >
-          {navigation.footer.map((section) => (
+          {footerSections.map((section) => (
             <NavGroup
               key={section.group.id}
               section={section}
@@ -236,7 +257,7 @@ export function SidebarPanel({
 
       <footer
         className={cn(
-          "border-t border-nav-line/70 pt-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))]",
+          "border-t border-nav-line/50 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]",
           compact ? "px-2" : "px-3.5",
         )}
       >

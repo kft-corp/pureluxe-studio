@@ -41,7 +41,6 @@ export function useTripCore({
   const [busy, setBusy] = useState(false);
   const [rateOptions, setRateOptions] = useState<NormalizedRateOption[]>([]);
   const [rateStayNotes, setRateStayNotes] = useState<TripBuilderStayNotes | null>(null);
-  const [quietChips, setQuietChips] = useState(false);
   const firstLegId =
     initialDetail?.stays?.[0]?.leg_id ?? initialDetail?.stay?.leg_id ?? null;
   const activeLegIdRef = useRef<string | null>(firstLegId);
@@ -123,8 +122,6 @@ export function useTripCore({
     setRateOptions,
     rateStayNotes,
     setRateStayNotes,
-    quietChips,
-    setQuietChips,
     activeLegIdRef,
     activeLegId,
     setActiveLegId,

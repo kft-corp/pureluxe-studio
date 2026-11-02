@@ -35,7 +35,8 @@ const nunitoSans = Nunito_Sans({
 const purivaMark = Dancing_Script({
   variable: "--font-puriva",
   subsets: ["latin"],
-  weight: ["600", "700"],
+  weight: "600",
+  display: "swap",
 });
 
 const studioFaviconPath = "/images/pl_favicon.png";

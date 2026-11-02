@@ -26,9 +26,9 @@ export type TripBuilderRateCard = {
   occupancy: string | null;
   inclusions: string[];
   cancellation: string | null;
-  /** Ask for the client price, then a confirm chip saves the room. */
+  /** Ask for the client price, then save the room in chat. */
   onAddToOptions?: () => void;
-  /** The client already picked this saved room. A confirm chip finishes it. */
+  /** The client already picked this saved room. */
   onSelect?: () => void;
 };
 

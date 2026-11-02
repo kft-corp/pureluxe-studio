@@ -85,4 +85,8 @@ export const tripMessages = {
     agentMemoryNotConfigured:
       "The new agent needs DATABASE_URL. Add it to the environment.",
   },
+  /** Approval-card lines shown before a trip/quote action runs. */
+  confirm: {
+    quoteSendMissingTitleOrNote: "No title or closing note yet. Mark as sent anyway?",
+  },
 } as const;

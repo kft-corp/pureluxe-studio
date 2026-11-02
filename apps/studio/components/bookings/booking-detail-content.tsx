@@ -192,18 +192,18 @@ export function BookingDetailContent({
 
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="studio-type-section max-w-full wrap-break-word text-ink sm:text-lg">
+                <h2 className="studio-type-entity max-w-full wrap-break-word text-ink">
                   {booking.title}
                 </h2>
                 <BookingStatusPill status={booking.status} />
                 {booking.vip_flag ? <BookingVipBadge /> : null}
               </div>
 
-              <p className="mt-1 wrap-break-word text-sm text-ink-muted">
+              <p className="studio-type-meta mt-1 wrap-break-word text-ink-muted">
                 {serviceSubtitle(booking)}
               </p>
 
-              <p className="mt-2 wrap-break-word text-sm text-ink-muted">
+              <p className="studio-type-meta mt-2 wrap-break-word text-ink-muted">
                 {clientTripLine(booking)}
               </p>
 

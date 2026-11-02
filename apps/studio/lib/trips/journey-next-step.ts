@@ -29,7 +29,7 @@ export function statusNextStep(input: {
     case "waiting_on_client":
       return "Follow up, then Client said yes";
     default:
-      // Stage 3d: quote_send builds the PDF and marks sent in one step.
+      // Building: advisor delivers the PDF outside Studio, then quote_send marks sent.
       if (input.quoteStale) return "Regenerate the options quote";
       return "Send the options quote";
   }

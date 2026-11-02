@@ -7,15 +7,18 @@ import { findAgentTool } from "./tools";
 
 const DEFAULT_PROGRESS = "Gathering details…";
 
-/** One step label per distinct call, in call order ("Finding the client…", "Checking trip history…"). */
+/** One step label per distinct call, in call order ("Finding the client…", "Checking trip history…"). Empty = silent (e.g. hotel coverage check). */
 export function progressLabels(calls: readonly Pick<ToolCall, "name" | "args">[]): string[] {
   return [
     ...new Set(
-      calls.map((call) => {
-        const spec = findAgentTool(call.name);
-        const parsed = spec?.schema.safeParse(call.args ?? {});
-        return spec && parsed?.success ? spec.progress(parsed.data) : DEFAULT_PROGRESS;
-      }),
+      calls
+        .map((call) => {
+          const spec = findAgentTool(call.name);
+          const parsed = spec?.schema.safeParse(call.args ?? {});
+          return spec && parsed?.success ? spec.progress(parsed.data) : DEFAULT_PROGRESS;
+        })
+        .map((label) => label.trim())
+        .filter((label) => label.length > 0),
     ),
   ];
 }
@@ -114,9 +117,12 @@ export async function* toAgentChunks(
       }
       const calls = toolCallsFromUpdate(payload);
       if (calls.length === 0) continue;
+      const labels = progressLabels(calls);
+      // Silent tools only (e.g. hotel_find coverage_check) — no "Finding hotels…" / Gathering details flash.
+      if (labels.length === 0) continue;
       phase = "looking_up";
       yield { kind: "status", phase };
-      for (const label of progressLabels(calls)) yield { kind: "progress", label };
+      for (const label of labels) yield { kind: "progress", label };
     }
   }
 

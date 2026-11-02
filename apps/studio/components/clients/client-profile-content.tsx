@@ -173,7 +173,7 @@ export function ClientProfileContent({
               />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="studio-type-section max-w-full wrap-break-word text-ink sm:text-lg">
+                  <h2 className="studio-type-entity max-w-full wrap-break-word text-ink">
                     {client.display_name}
                   </h2>
                   <ClientVipBadge tier={client.tier.slug} />
@@ -184,13 +184,13 @@ export function ClientProfileContent({
                   )}
                 </div>
                 {legalName ? (
-                  <p className="mt-1 wrap-break-word text-sm text-ink-muted">
+                  <p className="studio-type-meta mt-1 wrap-break-word text-ink-muted">
                     Legal name: {legalName}
                   </p>
                 ) : null}
                 <p
                   className={cn(
-                    "mt-1 wrap-break-word text-sm",
+                    "studio-type-meta mt-1 wrap-break-word",
                     familyLine ? "text-ink-muted" : "text-ink-subtle",
                   )}
                 >
@@ -200,7 +200,7 @@ export function ClientProfileContent({
                     : ""}
                 </p>
                 {heroMetaItems.length > 0 ? (
-                  <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-muted">
+                  <p className="studio-type-meta mt-2 flex flex-wrap gap-x-3 gap-y-1 text-ink-muted">
                     {heroMetaItems.map((item) => (
                       <span key={item} className="max-w-full wrap-break-word">
                         {item}

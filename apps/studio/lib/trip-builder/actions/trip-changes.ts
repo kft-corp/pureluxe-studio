@@ -216,15 +216,17 @@ export async function proposeTripSplit(
     end,
   });
 
-  const summary = `${stays
+  const cardSummary = `${stays
     .map((stay) => `${stay.city} ${shortStayRange(stay.check_in, stay.check_out)}`)
     .join(", ")}?`;
+  const count = stays.length;
 
   return {
     ok: true,
-    summary: `Proposed split: ${summary.replace(/\?$/, "")}. Tap Accept to apply, or say different dates.`,
+    // Short on purpose (founder #15): stay list lives on the Accept card — do not echo cities/dates in chat.
+    summary: `Proposed ${count} stay${count === 1 ? "" : "s"}. Say accept to apply (list is on the card). Reply in one short plain-text line only — do not restate cities or dates, and never say tap/click/chip.`,
     split: {
-      summary,
+      summary: cardSummary,
       stays: stays.map((stay) => ({
         city: stay.city,
         check_in: stay.check_in,

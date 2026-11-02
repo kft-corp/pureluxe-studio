@@ -62,7 +62,6 @@ export function useTripRates(core: TripCore, chat: TripChat) {
     setRateOptions,
     rateStayNotes,
     setRateStayNotes,
-    setQuietChips,
     activeLegIdRef,
     stayDraft,
     setOffer,
@@ -278,7 +277,6 @@ export function useTripRates(core: TripCore, chat: TripChat) {
   function armOptionCommit(commit: OptionCommit, userLine: string, preface?: string) {
     setPendingOptionDraft(null);
     setOffer({ type: "add-option", commit });
-    setQuietChips(false);
     const money = formatMoney(commit.amount, commit.currency);
     const priceLine =
       commit.amount == null
@@ -391,7 +389,6 @@ export function useTripRates(core: TripCore, chat: TripChat) {
     const draft = draftFromChoice(choice);
     setPendingOptionDraft(null);
     setOffer({ type: "select-room", room: draft });
-    setQuietChips(false);
     const room = draft.title.length > 32 ? `${draft.title.slice(0, 32).trim()}…` : draft.title;
     void appendTurn(
       userLine,
@@ -418,7 +415,6 @@ export function useTripRates(core: TripCore, chat: TripChat) {
     };
     const draft = draftFromChoice(choice);
     setPendingOptionDraft(null);
-    setQuietChips(false);
     void commitSelect(draft, "Client chose this");
   }
 
@@ -431,7 +427,6 @@ export function useTripRates(core: TripCore, chat: TripChat) {
     });
     setPendingOptionDraft(draft);
     setOffer(null);
-    setQuietChips(false);
     void appendTurn(
       userLine,
       `**${draft.title}**: sell ${draft.sellLabel ? `**${draft.sellLabel}**` : "not set"}. Cost **${draft.costLabel}**.\n\nSend the new sell, for example **2400 ${draft.currency ?? "USD"}**. The trip price and the pending booking update with it.`,

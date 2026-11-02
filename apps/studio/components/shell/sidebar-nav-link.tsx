@@ -18,7 +18,7 @@ type SidebarNavLinkProps = {
   item: ShellNavItem;
   active: boolean;
   compact: boolean;
-  /** Softer treatment for Home / Tasks / footer ops items. */
+  /** Softer treatment for Home / footer ops items. */
   quiet?: boolean;
   onNavigate?: () => void;
 };
@@ -31,49 +31,42 @@ export function SidebarNavLink({
   onNavigate,
 }: SidebarNavLinkProps) {
   const Icon = item.icon;
-  const soon = item.status === "soon";
-  const tooltip = soon ? `${item.label} · Coming soon` : item.label;
 
   return (
     <Link
       href={item.href}
       onClick={onNavigate}
       aria-current={active ? "page" : undefined}
-      aria-label={compact ? tooltip : undefined}
-      title={compact ? tooltip : undefined}
+      aria-label={compact ? item.label : undefined}
+      title={compact ? item.label : undefined}
       className={cn(
-        "group relative flex h-8 items-center gap-2.5 rounded-lg px-2.5 tracking-[0.01em] transition-colors duration-150",
-        quiet ? "text-[12px]" : "text-[13px]",
+        "group relative flex min-h-9 items-center gap-2.5 rounded-md px-2.5 tracking-[0.01em] transition-colors duration-150",
+        quiet ? "text-[13px]" : "text-sm",
         studioFocusRing,
         active
-          ? "bg-nav-active font-semibold text-nav-ink-strong shadow-sm before:absolute before:top-1 before:bottom-1 before:left-0 before:w-0.5 before:rounded-full before:bg-accent"
-          : "font-medium text-nav-ink hover:bg-nav-hover hover:text-nav-ink-strong",
-        compact && "h-8 w-8 justify-center px-0",
-        quiet && !active && "opacity-80",
+          ? "font-semibold text-nav-ink-strong before:absolute before:top-2 before:bottom-2 before:left-0 before:w-0.5 before:rounded-full before:bg-accent"
+          : "font-medium text-nav-ink hover:text-nav-ink-strong",
+        !active && !compact && "hover:bg-transparent",
+        !active && compact && "hover:bg-nav-hover/70",
+        compact && "h-9 w-9 justify-center gap-0 px-0 before:hidden",
+        compact && active && "bg-nav-hover",
+        quiet && !active && "text-nav-ink/85",
       )}
     >
       <Icon
         className={cn(
-          "shrink-0 transition-colors duration-150",
-          quiet ? "h-4 w-4" : "h-[15px] w-[15px]",
+          "h-3 w-3 shrink-0 transition-colors duration-150",
           active
             ? "text-accent-strong"
-            : "text-nav-icon group-hover:text-nav-ink-strong",
+            : "text-nav-icon/70 group-hover:text-nav-ink-strong",
         )}
-        strokeWidth={1.75}
+        strokeWidth={1.5}
         aria-hidden
       />
       {!compact ? (
-        <>
-          <span className="studio-nav-reveal min-w-0 flex-1 truncate">
-            {item.label}
-          </span>
-          {soon ? (
-            <span className="studio-nav-reveal shrink-0 text-[10px] font-semibold tracking-[0.08em] text-accent-strong uppercase">
-              Soon
-            </span>
-          ) : null}
-        </>
+        <span className="studio-nav-reveal min-w-0 flex-1 truncate">
+          {item.label}
+        </span>
       ) : null}
     </Link>
   );

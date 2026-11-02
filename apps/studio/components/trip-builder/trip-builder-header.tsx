@@ -86,7 +86,7 @@ function HeaderItem({
       <span className="studio-type-eyebrow shrink-0 uppercase text-ink-subtle">
         {label}
       </span>
-      <strong className="max-w-[14rem] truncate font-serif text-[0.95rem] leading-none font-semibold tracking-[-0.01em] text-ink sm:max-w-[18rem] sm:text-[1.05rem]">
+      <strong className="studio-type-brand max-w-[14rem] truncate text-ink sm:max-w-[18rem]">
         {value?.trim() || "—"}
       </strong>
     </div>

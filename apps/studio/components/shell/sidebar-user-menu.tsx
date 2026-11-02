@@ -115,10 +115,10 @@ export function SidebarUserMenu({
         {!unfoldable ? (
           <>
             <span className="studio-nav-reveal min-w-0 flex-1 text-start">
-              <span className="block truncate text-[14px] leading-tight font-semibold text-nav-ink-strong">
+              <span className="block truncate text-sm leading-tight font-semibold tracking-[0.01em] text-nav-ink-strong">
                 {name}
               </span>
-              <span className="mt-0.5 block truncate text-[12px] font-medium text-nav-label">
+              <span className="mt-1 block truncate text-[11px] font-semibold tracking-[0.08em] text-nav-muted uppercase">
                 {roleLabel}
               </span>
             </span>

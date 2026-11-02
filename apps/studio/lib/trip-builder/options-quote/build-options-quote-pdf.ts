@@ -112,6 +112,10 @@ export function buildOptionsQuotePdf(quote: OptionsQuoteDocument): Promise<Uint8
     doc.on("end", () => resolve(new Uint8Array(Buffer.concat(chunks))));
     doc.on("error", reject);
     useSourceSans(doc);
+    // We paginate with ensure() only. PDFKit's default bottom margin auto-adds
+    // blank pages when wrapped text crosses it — that is the blank-page bug.
+    doc.page.margins.top = 0;
+    doc.page.margins.bottom = 0;
     paint(doc, quote);
     const pages = doc.bufferedPageRange();
     for (let index = 0; index < pages.count; index += 1) {
@@ -355,26 +359,38 @@ function paintRoom(
   if (shaded) doc.rect(LEFT, y, WIDTH, height).fill(ROW);
   const amount = formatMoneyLabel(room.price, room.currency);
   const top = y + 7;
+  doc.font(FONT.bold).fontSize(TYPE.room);
+  const nameH = doc.heightOfString(room.name, { width: cols.roomW });
   doc.font(FONT.bold).fontSize(TYPE.room).fillColor(INK).text(room.name, cols.roomX, top, {
     width: cols.roomW,
+    height: nameH,
   });
   const party = room.party?.trim();
   let mealY = top;
   if (party) {
-    doc.font(FONT.regular).fontSize(TYPE.roomMeta).fillColor(MUTED).text(party, cols.roomX, top + TYPE.room + 2, {
+    doc.font(FONT.regular).fontSize(TYPE.roomMeta);
+    const partyH = doc.heightOfString(party, { width: cols.roomW });
+    doc.font(FONT.regular).fontSize(TYPE.roomMeta).fillColor(MUTED).text(party, cols.roomX, top + nameH + 2, {
       width: cols.roomW,
+      height: partyH,
     });
     mealY = top;
   }
+  doc.font(FONT.regular).fontSize(TYPE.roomMeta);
+  const mealH = doc.heightOfString(room.detail?.trim() || "—", { width: cols.mealW });
   doc.font(FONT.regular).fontSize(TYPE.roomMeta).fillColor(MUTED).text(room.detail?.trim() || "—", cols.mealX, mealY, {
     width: cols.mealW,
+    height: mealH,
   });
   if (cols.showSleeps) {
+    const sleepsText = room.sleeps?.trim() || "—";
+    doc.font(FONT.regular).fontSize(TYPE.roomMeta);
+    const sleepsH = doc.heightOfString(sleepsText, { width: cols.sleepsW });
     doc
       .font(FONT.regular)
       .fontSize(TYPE.roomMeta)
       .fillColor(MUTED)
-      .text(room.sleeps?.trim() || "—", cols.sleepsX, mealY, { width: cols.sleepsW });
+      .text(sleepsText, cols.sleepsX, mealY, { width: cols.sleepsW, height: sleepsH });
   }
   doc.font(FONT.bold).fontSize(TYPE.room).fillColor(INK).text(amount, cols.priceX, top, {
     width: cols.priceW,
@@ -385,45 +401,98 @@ function paintRoom(
 }
 
 function paintBullets(doc: PDFKit.PDFDocument, title: string, items: string[], y: number): number {
-  const unique = [...new Set(items.map((item) => item.trim()).filter(Boolean))];
-  if (unique.length === 0) return y;
-  const height = bulletHeight(doc, unique);
-  y = ensure(doc, y, height);
-  doc.rect(LEFT, y, WIDTH, height).fill(INCLUDED);
-  doc.font(FONT.bold).fontSize(TYPE.includedTitle).fillColor(INK).text(title, LEFT + px(14), y + 7, {
-    width: WIDTH - px(28),
+  return paintBandList(doc, title, items, y, {
+    size: TYPE.included,
+    gap: 1,
+    fill: INCLUDED,
+    accent: null,
   });
-  let lineY = y + 7 + TYPE.includedTitle + 3;
-  for (const item of unique) {
-    doc.font(FONT.regular).fontSize(TYPE.included).fillColor(INK).text(`•  ${item}`, LEFT + px(14), lineY, {
-      width: WIDTH - px(28),
-      lineGap: 1,
-    });
-    lineY = doc.y + 1;
-  }
-  return y + height;
 }
 
 /** Highlighted block for cancellation, payment, and other must-read terms. */
 function paintImportant(doc: PDFKit.PDFDocument, title: string, items: string[], y: number): number {
+  return paintBandList(doc, title, items, y, {
+    size: TYPE.terms,
+    gap: 2,
+    fill: SAND,
+    accent: GOLD,
+  });
+}
+
+/**
+ * Soft band when the whole list fits on one page; otherwise flow line-by-line.
+ * Always pass `height` into text() so PDFKit cannot open a blank page mid-wrap.
+ */
+function paintBandList(
+  doc: PDFKit.PDFDocument,
+  title: string,
+  items: string[],
+  y: number,
+  style: { size: number; gap: number; fill: string; accent: string | null },
+): number {
   const unique = [...new Set(items.map((item) => item.trim()).filter(Boolean))];
   if (unique.length === 0) return y;
-  const height = importantHeight(doc, unique);
-  y = ensure(doc, y, height);
-  doc.rect(LEFT, y, WIDTH, height).fill(SAND);
-  doc.rect(LEFT, y, px(4), height).fill(GOLD);
-  doc.font(FONT.bold).fontSize(TYPE.includedTitle).fillColor(INK).text(title, LEFT + px(14), y + 7, {
-    width: WIDTH - px(28),
-  });
-  let lineY = y + 7 + TYPE.includedTitle + 3;
-  for (const item of unique) {
-    doc.font(FONT.regular).fontSize(TYPE.terms).fillColor(INK).text(`•  ${item}`, LEFT + px(14), lineY, {
-      width: WIDTH - px(28),
-      lineGap: 1,
+
+  const widths = WIDTH - px(28);
+  const titleBand = 7 + TYPE.includedTitle + 3;
+  doc.font(FONT.regular).fontSize(style.size);
+  const lineHeights = unique.map(
+    (item) => doc.heightOfString(`•  ${item}`, { width: widths, lineGap: 1 }) + style.gap,
+  );
+  const height = titleBand + lineHeights.reduce((sum, h) => sum + h, 0) + 8;
+  const pageBody = PAGE_H - BOTTOM - px(40);
+
+  // Normal case: whole band on one page (previous working layout).
+  if (height <= pageBody) {
+    y = ensure(doc, y, height);
+    doc.rect(LEFT, y, WIDTH, height).fill(style.fill);
+    if (style.accent) doc.rect(LEFT, y, px(4), height).fill(style.accent);
+    doc.font(FONT.bold).fontSize(TYPE.includedTitle).fillColor(INK).text(title, LEFT + px(14), y + 7, {
+      width: widths,
+      height: TYPE.includedTitle + 2,
+      lineBreak: false,
     });
-    lineY = doc.y + 2;
+    let lineY = y + titleBand;
+    unique.forEach((item, index) => {
+      const lineH = lineHeights[index]!;
+      doc
+        .font(FONT.regular)
+        .fontSize(style.size)
+        .fillColor(INK)
+        .text(`•  ${item}`, LEFT + px(14), lineY, {
+          width: widths,
+          lineGap: 1,
+          height: Math.max(lineH - style.gap, style.size),
+        });
+      lineY += lineH;
+    });
+    return y + height;
   }
-  return y + height;
+
+  // Longer than one page: no giant rect; one ensure() per line.
+  y = ensure(doc, y, titleBand + (lineHeights[0] ?? px(20)));
+  if (style.accent) doc.rect(LEFT, y, px(4), titleBand + px(4)).fill(style.accent);
+  doc.font(FONT.bold).fontSize(TYPE.includedTitle).fillColor(INK).text(title, LEFT + px(14), y + 7, {
+    width: widths,
+    height: TYPE.includedTitle + 2,
+    lineBreak: false,
+  });
+  y += titleBand;
+  unique.forEach((item, index) => {
+    const lineH = lineHeights[index]!;
+    y = ensure(doc, y, lineH);
+    doc
+      .font(FONT.regular)
+      .fontSize(style.size)
+      .fillColor(INK)
+      .text(`•  ${item}`, LEFT + px(14), y, {
+        width: widths,
+        lineGap: 1,
+        height: Math.max(lineH - style.gap, style.size),
+      });
+    y += lineH;
+  });
+  return y + 8;
 }
 
 /**
@@ -510,11 +579,16 @@ function paragraph(
   y: number,
   style: { size: number; font: string; color: string; lineGap?: number },
 ): number {
+  const lineGap = style.lineGap ?? 0;
+  doc.font(style.font).fontSize(style.size);
+  const height = doc.heightOfString(value, { width: WIDTH, lineGap });
+  y = ensure(doc, y, Math.min(height, PAGE_H - BOTTOM - px(40)));
   doc.font(style.font).fontSize(style.size).fillColor(style.color).text(value, LEFT, y, {
     width: WIDTH,
-    lineGap: style.lineGap ?? 0,
+    lineGap,
+    height,
   });
-  return doc.y + px(2);
+  return y + height + px(2);
 }
 
 function label(doc: PDFKit.PDFDocument, value: string, x: number, y: number, width = 120) {
@@ -541,7 +615,7 @@ type TableColumns = {
 function tableColumns(rooms: OptionsQuoteRoom[]): TableColumns {
   const pad = px(14);
   const gap = px(8);
-  const priceW = px(108);
+  const priceW = px(120);
   const mealW = px(100);
   const showSleeps = showSleepsColumn(rooms);
   const sleepsW = showSleeps ? px(92) : 0;
@@ -562,6 +636,9 @@ function showSleepsColumn(rooms: OptionsQuoteRoom[]): boolean {
 function ensure(doc: PDFKit.PDFDocument, y: number, height: number): number {
   if (y + height <= PAGE_H - BOTTOM) return y;
   doc.addPage();
+  // Keep PDFKit from auto-paginating on the new page too.
+  doc.page.margins.top = 0;
+  doc.page.margins.bottom = 0;
   return px(40);
 }
 
@@ -593,7 +670,7 @@ function distinctLines(items: string[]): string[] {
   return [...new Set(items.map((item) => item.trim()).filter(Boolean))];
 }
 
-/** Client price with a currency symbol when the ISO code is known. */
+/** Client price as ISO code + amount (e.g. INR 250,514) — no currency glyphs. */
 function formatMoneyLabel(amountText: string, currency: string | null): string {
   const trimmed = amountText.trim();
   if (!trimmed || /^to be confirmed$/i.test(trimmed)) return trimmed || "To be confirmed";
@@ -603,13 +680,11 @@ function formatMoneyLabel(amountText: string, currency: string | null): string {
     return code ? `${code} ${trimmed}` : trimmed;
   }
   try {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: code,
-      currencyDisplay: "symbol",
+    const number = new Intl.NumberFormat("en-US", {
       minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
       maximumFractionDigits: 2,
     }).format(amount);
+    return `${code} ${number}`;
   } catch {
     return `${code} ${trimmed}`;
   }

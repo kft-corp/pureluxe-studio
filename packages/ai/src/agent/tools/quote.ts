@@ -1,3 +1,4 @@
+import { tripMessages } from "@pureluxe/shared";
 import { z } from "zod";
 
 import type { TripFacts } from "../../types";
@@ -38,6 +39,7 @@ export const quoteAddOptionsTool = defineAgentTool({
     "Use when the advisor names rooms and prices or markups together, e.g. \"Beach Villa at 30% and Water Villa at 25%, for all 3 hotels\", \"add the first two suggested rooms\", or \"make the Kihavah water villa 10% instead\".",
     "Pass absolute client prices exactly as stated — never multiply by the trip's room count or by nights, and never treat a figure as per-room unless the advisor said so. Pass percentage markups as markup_percent. Every option needs markup_percent or client_price — ask if neither is given.",
     "Call once with every room in this message; do not call again for the same ask.",
+    "Markup or sell-only changes: use this tool (or quote_set_client_price) alone — never rates_search; the rate table must not reappear.",
     "Does NOT set the stay hotel — the hotel stays blank / options pending until the client accepts a room (quote_accept_and_select).",
     "PDF is rebuilt silently; call quote_preview only when the advisor asks to open it.",
     "Do not use to send the quote (quote_send) or to change only wording (quote_set_wording / quote_edit_lines).",
@@ -69,6 +71,7 @@ export const quoteSetClientPriceTool = defineAgentTool({
   description: [
     "Set the absolute client price on one or more rooms already on the options quote, in one call.",
     "Use when the advisor gives a money amount for a room already on the quote. Do not use for a markup percent only (quote_add_options with markup_percent) or to add a new room (quote_add_options).",
+    "Do not call rates_search with this — sell changes do not need a new rate search or rate table.",
     "PDF is rebuilt silently; call quote_preview only when the advisor asks to open it.",
     "Returns a summary; the advisor gets Undo.",
   ].join(" "),
@@ -190,6 +193,7 @@ export const quoteEditLinesTool = defineAgentTool({
   name: "quote_edit_lines",
   description: [
     "Rewrite or delete specific client wording on the options quote PDF: board, inclusions, arrival, transfers, cancel/payment, notice, or other printable lines.",
+    "Do not use on a bare \"update it\" when trip status / mark-as-sent is also plausible — ask which they mean first (founder #9).",
     "Call quote_list_lines first when you need ids. Pass lines with id and the full new text to rewrite; pass delete_ids (or lines with empty text) to remove a deletable line.",
     "Cannot delete titles, hotel/room names, prices, or letterhead — use quote_clear_section to wipe a whole section, quote_add_lines to append bullets.",
     "Use find+replace for the same words everywhere (e.g. \"10% SC\" → the long client sentence).",
@@ -335,6 +339,7 @@ export const quoteRewriteSectionTool = defineAgentTool({
   description: [
     "Expand known supplier codes on the options quote into clear client English (SC, GST, HB, green tax, seaplane). Hotel-specific lines keep their facts — do not invent prices or inclusions.",
     "Use when the advisor asks to make What's included, board, transfers, or the quote wording client-friendly — without naming each line.",
+    "Do not use on a bare \"update it\" / \"fix it\" / \"do that\" when trip status or mark-as-sent is also plausible — ask which they mean first (founder #9).",
     "section inclusions = What's included; client_wording = inclusions + board + transfers + arrival + shared + terms + notice.",
     "Optional hotel or room narrows the scope. Letterhead stays fixed.",
     "PDF is rebuilt silently; call quote_preview only when the advisor asks to open it.",
@@ -426,21 +431,26 @@ export const ratesUsePastedQuoteTool = defineAgentTool({
 
 function sendConfirm(trip: TripFacts | null): string {
   const name = trip?.client?.display_name?.trim() || "the client";
-  const count = trip?.rates?.candidates?.filter((row) => !row.selected).length ?? 0;
-  const options = count > 0 ? `${count} option${count === 1 ? "" : "s"}` : "the options";
-  return `Send ${options} to ${name}?`;
+  const base = `Mark quote as sent to ${name}?`;
+  const title = trip?.quote?.title?.trim() ?? "";
+  const notes = trip?.quote?.notes?.trim() ?? "";
+  if (!title || !notes) {
+    return `${base} ${tripMessages.confirm.quoteSendMissingTitleOrNote}`;
+  }
+  return base;
 }
 
 export const quoteSendTool = defineAgentTool({
   name: "quote_send",
   description: [
-    "Send the options quote to the client. This is the only step that asks for confirmation from typed text.",
-    "Use when the advisor asks to send the quote. A labelled \"Send … options to …\" tap is already the approval and sends at once.",
-    "Do not use to add rooms (quote_add_options). Returns a summary when sent.",
+    "Mark the options quote as sent after the advisor already delivered it outside Studio (WhatsApp, email, etc.). Studio does not send WhatsApp or email.",
+    "Use when they say \"I've sent it\", \"sent on WhatsApp\", \"emailed the quote\", or confirm the mark-sent card. Do not tell them to tap Confirm in chat (founder #19).",
+    "Do not use when they only ask how to send or say \"send it\" / \"send the quote\" before delivering — then open the PDF with quote_preview if needed, show phone/email/WhatsApp from trip facts, and tell them to say \"I've sent it\" when done (trip page Update status → Quote sent is the backup).",
+    "Do not use to add rooms (quote_add_options). Ensures the PDF is ready and sets status to quote_sent. Returns a summary.",
   ].join(" "),
   schema: z.object({}).strict(),
   risk: "approval",
-  progress: () => "Sending the quote…",
+  progress: () => "Marking the quote as sent…",
   quickReply: true,
   confirm: (_input, trip) => sendConfirm(trip),
   run: (_input, handlers, call) => handlers.sendQuote(call),

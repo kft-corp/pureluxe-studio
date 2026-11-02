@@ -190,17 +190,10 @@ export function useTripSession(core: TripCore, chat: TripChat) {
     });
   }
 
-  /** Status changes (sent, accepted, reopen) live on the trip page. */
-  function openTripPage() {
-    if (!detail) return;
-    router.push(pageRoutes.trip(detail.trip.id));
-  }
-
   return {
     pending,
     attachTripFromChat,
     openTrip,
     newChat,
-    openTripPage,
   };
 }

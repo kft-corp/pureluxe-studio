@@ -1069,7 +1069,7 @@ export function sendQuote(context: TripChangeContext): Promise<TripChange> {
     await setJourneyStatus(context.tripId, "send", context.actor);
     const name = before.client?.display_name?.trim() || "the client";
     return {
-      summary: `Sent ${options.length} option${options.length === 1 ? "" : "s"} to ${name}.`,
+      summary: `Marked the quote as sent to ${name} (${options.length} option${options.length === 1 ? "" : "s"}). Studio does not send WhatsApp or email — the advisor delivers the PDF.`,
       undoable: false,
       after: await getTripDetail(context.tripId, context.actor),
     };

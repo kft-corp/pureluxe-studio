@@ -21,7 +21,7 @@ export function SnapshotCard({
     >
       <p className="studio-type-eyebrow text-ink-subtle">{label}</p>
       <p
-        className="mt-1 line-clamp-2 wrap-break-word font-sans text-[15px] font-semibold leading-snug text-ink sm:text-base"
+        className="studio-type-label mt-1 line-clamp-2 wrap-break-word text-ink"
         title={value}
       >
         {value}

@@ -167,7 +167,7 @@ export function OptionsQuotePanel({
           : withClient
             ? "Quote is with the client. When they agree, mark Client said yes on the trip page, then tap This is their room. Changing the quote moves the trip back to Building."
             : options.length > 0
-            ? "Send the quote and mark Client said yes on the trip page before recording the room choice."
+            ? "Send the PDF yourself, say I've sent it (or mark Quote sent on the trip page), then Client said yes before recording the room."
             : "Open or regenerate the options quote to check the rooms saved on this trip."}
       </p>
       <div className="space-y-3">

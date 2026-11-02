@@ -53,7 +53,6 @@ export function useTripChat(
     detail,
     canWrite,
     setRateOptions,
-    setQuietChips,
     setOffer,
     refreshAfterMutation,
   } = core;
@@ -93,7 +92,6 @@ export function useTripChat(
     setAgentSteps([]);
     setRateOptions([]);
     setOffer(null);
-    setQuietChips(false);
     tapRef.current = null;
     queueRef.current = [];
     setQueuedCount(0);

@@ -188,13 +188,13 @@ export function TripBuilderSummaryPanel({
             <span className="inline-flex rounded-full bg-neutral-soft px-1.5 py-0.5 text-[10px] font-semibold text-neutral-ink ring-1 ring-inset ring-neutral-line">
               {detail ? formatTripStatus(detail.trip.status) : "Optional"}
             </span>
-            <h2 className="mt-1.5 text-sm leading-5 font-semibold break-words text-ink">
+            <h2 className="studio-type-brand mt-1.5 break-words text-ink">
               {detail?.client?.display_name?.trim() || "No client yet"}
             </h2>
             {detail ? (
               <Link
                 href={pageRoutes.trip(detail.trip.id)}
-                className="mt-1 inline-block text-[12px] font-medium text-accent-ink underline underline-offset-2 hover:text-accent-ink-strong"
+                className="studio-type-meta mt-1 inline-block font-medium text-accent-ink underline underline-offset-2 hover:text-accent-ink-strong"
               >
                 Open trip page
               </Link>

@@ -52,7 +52,13 @@ export type TripFacts = {
   stage?: TripBuilderStage;
   /** Next step shown in the Studio header. When set, the model uses it as is. */
   next_step?: string;
-  client: { id: string; display_name: string } | null;
+  client: {
+    id: string;
+    display_name: string;
+    email?: string | null;
+    phone?: string | null;
+    whatsapp?: string | null;
+  } | null;
   travellers_confirmed?: boolean;
   travellers?: Array<{
     client_id?: string;

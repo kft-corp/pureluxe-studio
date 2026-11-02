@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { isConfirmReply, isDeclineReply, isTripQuestion } from "@/lib/trip-builder/intents";
+import { isConfirmReply, isDeclineReply } from "@/lib/trip-builder/intents";
 
 import { buildComposerChips } from "./build-composer-chips";
 import { useOptionsQuote } from "./hooks/use-options-quote";
@@ -26,8 +26,6 @@ export function useTripBuilder(options: UseTripBuilderOptions) {
     detail,
     canWrite,
     busy,
-    quietChips,
-    setQuietChips,
     clearOfferedChips,
     selectLeg,
   } = core;
@@ -54,7 +52,7 @@ export function useTripBuilder(options: UseTripBuilderOptions) {
     enqueueMessage,
     dequeueMessage,
   } = chat;
-  const { pending, openTrip, newChat, openTripPage } = session;
+  const { pending, openTrip, newChat } = session;
   const { openOptionsQuote, regenerateOptionsQuote } = useOptionsQuote(core, chat);
   const { offerChooseSaved } = useTripRates(core, chat);
 
@@ -89,9 +87,6 @@ export function useTripBuilder(options: UseTripBuilderOptions) {
 
     if (!isConfirmReply(message) && !isDeclineReply(message)) {
       clearOfferedChips();
-      setQuietChips(isTripQuestion(message));
-    } else {
-      setQuietChips(false);
     }
     await sendTripChat(message);
   }
@@ -117,11 +112,8 @@ export function useTripBuilder(options: UseTripBuilderOptions) {
     detail,
     canWrite,
     replyCards,
-    quietChips,
     actions: {
       sendAction: detail ? sendTripAction : sendHomeAction,
-      sendApproval,
-      openTripPage,
     },
   });
   const chips: TripBuilderChip[] = built.chips.map((chip) => ({
@@ -131,6 +123,7 @@ export function useTripBuilder(options: UseTripBuilderOptions) {
       chip.onClick();
     },
   }));
+  const pendingApproval = replyCards?.approval ?? null;
 
   function addRateOption(option: {
     hotel: string;
@@ -174,6 +167,7 @@ export function useTripBuilder(options: UseTripBuilderOptions) {
     agentSteps,
     queuedCount,
     chips,
+    pendingApproval,
     rateCards: built.rateCards,
     rateCompare: replyCards?.rateCompare ?? null,
     stayNotes: core.rateOptions.length > 0 ? core.rateStayNotes : null,

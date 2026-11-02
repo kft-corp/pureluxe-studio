@@ -14,14 +14,25 @@ type FoundHotelHit = { name?: string; destination?: string | null };
 function hotelFindPayload(result: unknown): {
   hotels: FoundHotelHit[];
   did_you_mean: string[];
+  coverage_check: boolean;
 } {
-  if (!result || typeof result !== "object") return { hotels: [], did_you_mean: [] };
-  const row = result as { hotels?: unknown; did_you_mean?: unknown };
+  if (!result || typeof result !== "object") {
+    return { hotels: [], did_you_mean: [], coverage_check: false };
+  }
+  const row = result as {
+    hotels?: unknown;
+    did_you_mean?: unknown;
+    coverage_check?: unknown;
+  };
   const hotels = Array.isArray(row.hotels) ? (row.hotels as FoundHotelHit[]) : [];
   const didYouMean = Array.isArray(row.did_you_mean)
     ? row.did_you_mean.filter((name): name is string => typeof name === "string" && name.trim().length > 0)
     : [];
-  return { hotels, did_you_mean: didYouMean };
+  return {
+    hotels,
+    did_you_mean: didYouMean,
+    coverage_check: row.coverage_check === true,
+  };
 }
 
 function partyFromTrip(trip: TripFacts): { adults: number; children: number; rooms: number } {
@@ -43,10 +54,11 @@ function tripDestination(trip: TripFacts, hotelDestination?: string | null): str
   return fromList || null;
 }
 
-/** Rates · hotel (or Did you mean) when the trip already has dates. */
+/** Rates · hotel (or Did you mean) when the trip already has dates. Skip for silent coverage checks. */
 function hotelFindChoices(result: unknown, trip: TripFacts | null): AgentChoice[] {
   if (!trip?.starts_on || !trip.ends_on) return [];
-  const { hotels, did_you_mean: didYouMean } = hotelFindPayload(result);
+  const { hotels, did_you_mean: didYouMean, coverage_check } = hotelFindPayload(result);
+  if (coverage_check) return [];
   const party = partyFromTrip(trip);
   const names =
     didYouMean.length > 0
@@ -123,11 +135,11 @@ export const hotelFindTool = defineDeskTool({
   description: [
     "Find contracted hotels by name (fuzzy), destination, price tier (ultra_luxury / luxury / premium), similar to another hotel, or a similar price band.",
     "Use when the advisor names a hotel, asks for suggestions, wants others in the same tier, or says \"similar to X\". A saved stay is not required.",
+    "Coverage check (founder #16): after dates/stays are set, before asking hotel-in-mind / suggest — pass destination + coverage_check true (limit 1). Silent in the UI. If hotels empty: say none loaded and ask for names or a paste quote — never offer to suggest. If any hotel returned: do NOT list hotel names; only ask in plain text whether they have a hotel in mind or want suggestions. List hotels only when they explicitly ask to suggest/find hotels (coverage_check false).",
     "For \"similar\" / \"same tier\" / \"same price range\", pass similar_to or tier so results stay in that band — do not list cheaper out-of-tier hotels from general knowledge.",
     "Do not use for hotel rules or charges (hotel_get), place notes (place_get_notes), or room prices (rates tools).",
     "Returns contracted hotels only, with tier and style tags. When the name is unclear, did_you_mean lists close matches instead of guessing.",
-    "When the trip has dates, a Rates button appears for each hotel (and Did you mean when unsure).",
-    "Suggest / find hotels alone: call this tool only — do not call rates_search. Reply with a short numbered shortlist; the advisor asks for rates next (or taps Rates).",
+    "Suggest / find hotels alone: call this tool only (no coverage_check) — do not call rates_search. Reply with a short numbered shortlist; end by asking for rates in plain text (e.g. \"rates for [hotel]?\") — never say tap Rates (founder #19). Empty result: no shortlist — ask for names or paste quote.",
     "Only when the same message also asks for prices, rates, cheapest, or \"suggest and get rates\": call rates_search next in the same turn for the top 1–2 picks (or the hotels they named).",
   ].join(" "),
   schema: z
@@ -156,13 +168,21 @@ export const hotelFindTool = defineDeskTool({
         .optional()
         .describe("Find hotels in a similar nightly price band to this one."),
       limit: z.number().int().min(1).max(10).optional().describe("How many hotels to return (default 5)."),
+      coverage_check: z
+        .boolean()
+        .optional()
+        .describe(
+          "True = silent coverage probe only (founder #16). Do not list hotels in the reply; no Rates choices; no Finding hotels progress.",
+        ),
     })
     .strict(),
   risk: "read",
-  progress: (input) =>
-    input.similar_to || input.destination || input.tier
+  progress: (input) => {
+    if (input.coverage_check) return "";
+    return input.similar_to || input.destination || input.tier
       ? "Finding hotels…"
-      : "Looking up the hotel…",
+      : "Looking up the hotel…";
+  },
   choices: hotelFindChoices,
   run: async (input, handlers) => {
     if (
@@ -174,13 +194,18 @@ export const hotelFindTool = defineDeskTool({
     ) {
       return { error: "Pass a hotel name, destination, tier, similar_to or price_band_like." };
     }
-    return handlers.findHotels({
+    const coverage = input.coverage_check === true;
+    const result = await handlers.findHotels({
       name: input.name,
       destination: input.destination,
       tier: input.tier,
       similarTo: input.similar_to,
       priceBandLike: input.price_band_like,
-      limit: input.limit,
+      limit: coverage ? 1 : input.limit,
     });
+    if (coverage && result && typeof result === "object") {
+      return { ...result, coverage_check: true };
+    }
+    return result;
   },
 });

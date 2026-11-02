@@ -23,15 +23,33 @@ export function staySavedText(input: {
   }
   if (input.status === "several") {
     const names = input.names.map((name) => `**${name}**`).join(", ");
-    return `${lead}\n\nI found more than one hotel: ${names}. Ask for rates with the exact name, or tap a **Rates** button — no need to update the stay first.`;
+    return `${lead}\n\nI found more than one hotel: ${names}. Ask for rates with the exact name — no need to update the stay first.`;
   }
   return `${lead}\n\nI don't have that hotel on file. Ask for alternatives in the same destination, or paste a supplier quote.`;
 }
 
-/** Points the advisor to the trip page once the client quote is ready to send. */
+/** How to deliver the PDF outside Studio, then mark it sent. */
 export function sendHandoff(detail: TripDetail): string {
   if (detail.trip.status !== "building") return "";
-  return `\n\nWhen you send it to the client, open the [trip page](${pageRoutes.trip(detail.trip.id)}) and mark **Sent to client** under Update status.`;
+  const client = detail.client;
+  const name = client?.display_name?.trim() || "the client";
+  const email = client?.email?.trim() || null;
+  const phone = client?.phone?.trim() || null;
+  const whatsapp = client?.whatsapp?.trim() || phone;
+  const contactLines = [
+    whatsapp
+      ? `- **WhatsApp:** ${whatsapp}`
+      : "- **WhatsApp:** no number on file — add it on the client profile",
+    email
+      ? `- **Email:** ${email}`
+      : "- **Email:** no email on file — add it on the client profile",
+  ];
+  return [
+    "",
+    `Send the PDF to **${name}** yourself (Studio does not WhatsApp or email):`,
+    ...contactLines,
+    `When you've sent it, say **I've sent it** here (then type **Confirm** to mark the trip **Sent to client**), or open the [trip page](${pageRoutes.trip(detail.trip.id)}) → **Update status** → **Quote sent**.`,
+  ].join("\n");
 }
 
 export const AFTER_ACCEPT_STEPS = [

@@ -33,6 +33,9 @@ export type TripStaySnapshot = {
 export type TripClientSnapshot = {
   id: string;
   display_name: string;
+  email: string | null;
+  phone: string | null;
+  whatsapp: string | null;
 };
 
 export type TripTravellerSnapshot = {
@@ -431,7 +434,13 @@ export async function buildTripDetail(trip: Trip): Promise<TripDetail> {
   return {
     trip: current,
     client: clientRow
-      ? { id: clientRow.id, display_name: clientRow.display_name }
+      ? {
+          id: clientRow.id,
+          display_name: clientRow.display_name,
+          email: clientRow.email ?? null,
+          phone: clientRow.phone ?? null,
+          whatsapp: clientRow.whatsapp ?? null,
+        }
       : null,
     travellers,
     family_suggestions: familySuggestions,

@@ -76,16 +76,16 @@ export function JourneyPage({
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="studio-type-section max-w-full wrap-break-word text-ink sm:text-lg">
+                <h2 className="studio-type-entity max-w-full wrap-break-word text-ink">
                   {journey.title}
                 </h2>
                 <JourneyPhasePill journey={journey} />
                 <ClientVipBadge tier={journey.tierSlug} />
               </div>
-              <p className="mt-1 wrap-break-word text-sm text-ink-muted">
+              <p className="studio-type-meta mt-1 wrap-break-word text-ink-muted">
                 {journey.routeLabel ?? "Places not set yet"}
               </p>
-              <p className="mt-2 wrap-break-word text-sm text-ink-muted">
+              <p className="studio-type-meta mt-2 wrap-break-word text-ink-muted">
                 {journey.clientId && journey.clientName ? (
                   <Link
                     href={pageRoutes.client(journey.clientId)}

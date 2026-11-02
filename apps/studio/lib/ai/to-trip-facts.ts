@@ -71,7 +71,13 @@ export function toTripFacts(
     stage: resolveTripStage(detail),
     next_step: resolveNextStep(detail),
     client: detail.client
-      ? { id: detail.client.id, display_name: detail.client.display_name }
+      ? {
+          id: detail.client.id,
+          display_name: detail.client.display_name,
+          email: detail.client.email,
+          phone: detail.client.phone,
+          whatsapp: detail.client.whatsapp,
+        }
       : null,
     travellers_confirmed: Boolean(detail.trip.travellers_confirmed_at),
     travellers: detail.travellers.map((person) => {

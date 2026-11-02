@@ -395,7 +395,7 @@ function stageCueFor(
   if (status === "quote_sent" || status === "waiting_on_client") {
     return "The quote is with the client. When they agree, mark **Client said yes** on the trip page, then tap **This is their room** here.";
   }
-  return "Every stay has a room with a sell price. Say **show the options quote** to check the PDF. When you send it, mark **Sent to client** on the trip page.";
+  return "Every stay has a room with a sell price. Say **show the options quote** to check the PDF, send it via WhatsApp or email yourself, then say **I've sent it** (or mark **Quote sent** on the trip page).";
 }
 
 function ChatMessageList({
@@ -448,10 +448,17 @@ function ChatMessageList({
   const lastAssistantId = [...messages]
     .reverse()
     .find((message) => message.role === "assistant")?.id;
+  /** Only the newest rate table stays visible — older ones clutter the thread (founder #5). */
+  const latestRateCompareMessageId = [...messages]
+    .reverse()
+    .find((message) => message.cards?.rateCompare)?.id;
 
   /** Rate / split cards are stored on the message so they stay after later replies. */
   function offersForMessage(message: ChatMessage, isLastAssistant: boolean): React.ReactNode {
-    const savedCompare = message.cards?.rateCompare ?? null;
+    const savedCompare =
+      message.cards?.rateCompare && message.id === latestRateCompareMessageId
+        ? message.cards.rateCompare
+        : null;
     const savedSplit = message.cards?.legSplit ?? null;
     if (savedCompare || savedSplit) {
       return (
@@ -469,6 +476,8 @@ function ChatMessageList({
     }
     // Live fallback: last reply only, when cards were not on the row yet / legacy rate cards.
     if (!isLastAssistant) return null;
+    // Prefer a saved card already rendered above when this reply has none.
+    if (latestRateCompareMessageId != null) return null;
     if (rateCompare != null) {
       return (
         <TripBuilderRateCompare

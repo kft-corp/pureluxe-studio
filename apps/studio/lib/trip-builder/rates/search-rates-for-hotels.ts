@@ -1,11 +1,14 @@
 import type { RateCompareCard } from "@pureluxe/ai";
 import {
   findActivePropertyById,
+  findLatestRateSearch,
   listActiveHotelsInDestination,
   listClientPreferences,
   listTripTravellers,
   type ClientPreference,
   type Property,
+  type RateSearchResult,
+  type StoredRateSearch,
 } from "@pureluxe/db";
 import { searchRatesForLeg, type NormalizedRateOption, type SearchRatesResult } from "@pureluxe/rates";
 
@@ -17,6 +20,7 @@ import { loadHotelStayFacts } from "../stays/hotel-contract-facts";
 
 import { buildRateCompare } from "./build-rate-compare";
 import { loadPartyPricingContext } from "./party-pricing-context";
+import { previousSearchCoversRequest } from "./rate-search-fingerprint";
 
 const ROOM_PREF =
   /\b(room|hotel|bed|connect|quiet|view|villa|suite|family|floor|ocean|beach|pool|transfer)\b/i;
@@ -92,9 +96,121 @@ export type SearchRatesForHotelsResult = {
   rooms: number;
   hotels: Array<Omit<HotelRateSearchOutcome, "options"> & { option_count: number }>;
   compare: RateCompareCard;
+  /**
+   * False when dates/party/rooms match the last open search and every requested
+   * hotel was already in that search (incl. a 1-hotel re-pull after markup).
+   * Studio then skips re-showing the rate card.
+   */
+  show_compare_card: boolean;
   notes: string;
   preference: string | null;
 };
+
+function optionFromStoredRow(
+  row: RateSearchResult,
+  search: StoredRateSearch,
+): NormalizedRateOption {
+  return {
+    property_id: row.property_id,
+    property_name: row.property_name,
+    room_name: row.room_title,
+    board: row.board,
+    check_in: search.event.check_in ?? "",
+    check_out: search.event.check_out ?? "",
+    currency: row.currency,
+    cost_internal: Number(row.team_cost),
+    rate_source_code: row.rate_source_code as NormalizedRateOption["rate_source_code"],
+    inclusions: row.inclusions,
+    cancellation_summary: row.cancellation,
+    payment_summary: row.payment,
+    availability_status: row.availability_status,
+    recommended: row.recommended,
+    raw: row.raw,
+  };
+}
+
+/** Rebuild hotel outcomes from the last open search (no live re-pull). */
+function outcomesFromStoredSearch(search: StoredRateSearch): HotelRateSearchOutcome[] {
+  const metaHotels = Array.isArray(search.event.meta?.hotels)
+    ? search.event.meta.hotels.filter((name): name is string => typeof name === "string")
+    : [];
+  const byHotel = new Map<string, RateSearchResult[]>();
+  for (const row of search.results) {
+    const key = row.property_name?.trim() || "hotel";
+    const list = byHotel.get(key) ?? [];
+    list.push(row);
+    byHotel.set(key, list);
+  }
+
+  const hotelNames =
+    metaHotels.length > 0 ? metaHotels : [...byHotel.keys()];
+
+  return hotelNames.map((hotel) => {
+    const rows =
+      [...byHotel.entries()].find(([name]) => {
+        const left = name.trim().toLowerCase();
+        const right = hotel.trim().toLowerCase();
+        return left === right || left.includes(right) || right.includes(left);
+      })?.[1] ?? [];
+    const options = rows.map((row) => optionFromStoredRow(row, search));
+    const propertyId = options[0]?.property_id ?? null;
+    return {
+      hotel,
+      status: options.length > 0 ? ("ok" as const) : ("no_rates" as const),
+      property_id: propertyId,
+      options,
+      result_ids: rows.map((row) => row.id),
+      min_markup_percent: null,
+      note:
+        options.length > 0
+          ? null
+          : "No rates in the last search for this hotel.",
+      alternatives: [],
+    };
+  });
+}
+
+function resultFromOutcomes(input: {
+  destination: string;
+  checkIn: string;
+  checkOut: string;
+  adults: number;
+  children: number;
+  rooms: number;
+  hotels: HotelRateSearchOutcome[];
+  preference: string | null;
+  showCompareCard: boolean;
+  notes: string;
+  searchedAt: string | null;
+}): SearchRatesForHotelsResult {
+  const compare = buildRateCompare({
+    destination: input.destination,
+    checkIn: input.checkIn,
+    checkOut: input.checkOut,
+    adults: input.adults,
+    children: input.children,
+    rooms: input.rooms,
+    hotels: input.hotels,
+    preference: input.preference,
+    searchedAt: input.searchedAt,
+  });
+  return {
+    destination: input.destination,
+    check_in: input.checkIn,
+    check_out: input.checkOut,
+    adults: input.adults,
+    children: input.children,
+    rooms: input.rooms,
+    hotels: input.hotels.map(({ options, ...rest }) => ({
+      ...rest,
+      option_count: options.length,
+    })),
+    compare,
+    show_compare_card: input.showCompareCard,
+    notes: input.notes,
+    preference: input.preference,
+  };
+}
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -272,6 +388,8 @@ async function searchOneHotel(input: {
 /**
  * Search rates for up to 5 hotels in parallel. No saved stay required.
  * Persists one multi-hotel search event for follow-up questions.
+ * Same dates/party with hotels already covered by the last search: reuse that
+ * snapshot (no live pull, no new card) so markup re-searches cannot re-open the table.
  */
 export async function searchRatesForHotels(
   input: SearchRatesForHotelsInput,
@@ -280,14 +398,46 @@ export async function searchRatesForHotels(
   await requireEditableTrip(input.tripId, actor.memberId);
   const hotels = [...new Set(input.hotels.map((name) => name.trim()).filter(Boolean))].slice(0, 5);
 
-  const [party, preference] = await Promise.all([
+  const [party, preference, previousSearch] = await Promise.all([
     loadPartyPricingContext({
       tripId: input.tripId,
       checkIn: input.checkIn,
       childAges: input.childAges,
     }),
     loadRatePreference(input.tripId),
+    findLatestRateSearch(input.tripId),
   ]);
+
+  if (
+    previousSearch &&
+    hotels.length > 0 &&
+    previousSearchCoversRequest(previousSearch, {
+      destination: input.destination,
+      checkIn: input.checkIn,
+      checkOut: input.checkOut,
+      adults: input.adults,
+      children: input.children,
+      rooms: input.rooms,
+      hotels,
+    })
+  ) {
+    const reused = outcomesFromStoredSearch(previousSearch);
+    return resultFromOutcomes({
+      destination: previousSearch.event.destination_text ?? input.destination,
+      checkIn: previousSearch.event.check_in ?? input.checkIn,
+      checkOut: previousSearch.event.check_out ?? input.checkOut,
+      adults: previousSearch.event.adults ?? input.adults,
+      children: previousSearch.event.children ?? input.children,
+      rooms: previousSearch.event.rooms ?? input.rooms,
+      hotels: reused,
+      preference,
+      showCompareCard: false,
+      notes:
+        "Same dates, party and hotels as the last rate search — reused those rates. Rate table not shown again. For markup or sell only, use quote_add_options / quote_set_client_price; do not say you refreshed rates.",
+      searchedAt: previousSearch.event.created_at,
+    });
+  }
+
   const outcomes =
     hotels.length === 0
       ? []
@@ -326,7 +476,7 @@ export async function searchRatesForHotels(
     result_ids: saved.hotelResultIds[index] ?? [],
   }));
 
-  const compare = buildRateCompare({
+  return resultFromOutcomes({
     destination: input.destination,
     checkIn: input.checkIn,
     checkOut: input.checkOut,
@@ -335,24 +485,10 @@ export async function searchRatesForHotels(
     rooms: input.rooms,
     hotels: withIds,
     preference,
+    showCompareCard: true,
+    notes: saved.notes,
     searchedAt: saved.searchedAt ?? new Date().toISOString(),
   });
-
-  return {
-    destination: input.destination,
-    check_in: input.checkIn,
-    check_out: input.checkOut,
-    adults: input.adults,
-    children: input.children,
-    rooms: input.rooms,
-    hotels: withIds.map(({ options, ...rest }) => ({
-      ...rest,
-      option_count: options.length,
-    })),
-    compare,
-    notes: saved.notes,
-    preference,
-  };
 }
 
 /** Resolve a property's minimum markup (for quote tools). */

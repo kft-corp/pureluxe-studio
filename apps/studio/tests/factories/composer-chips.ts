@@ -10,8 +10,6 @@ export type FakeChipActions = Record<keyof ComposerChipActions, Mock>;
 export function makeChipActions(): FakeChipActions {
   return {
     sendAction: vi.fn(),
-    sendApproval: vi.fn(),
-    openTripPage: vi.fn(),
   };
 }
 
@@ -23,7 +21,6 @@ export function makeChipInput(
     detail: null,
     canWrite: true,
     replyCards: null,
-    quietChips: false,
     ...overrides,
     actions: makeChipActions(),
   };

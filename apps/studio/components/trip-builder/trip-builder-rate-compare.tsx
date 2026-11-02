@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import type { RateCompareCard, RateCompareHotel, RateCompareRoom } from "@pureluxe/ai/chat-stream";
 
-import { clientPriceAtMarkup, formatRoomMoney, roundMoney } from "@/lib/rates/price-math";
+import { formatRoomMoney, roundMoney } from "@/lib/rates/price-math";
 import { cn } from "@/lib/utils/cn";
 
 /** Kept for callers that still type the old Add callback; the rates table no longer shows Add. */
@@ -58,24 +58,10 @@ function isPackageRoom(room: RateCompareRoom): boolean {
   return room.rate_basis === "package";
 }
 
-function roomPrices(room: RateCompareRoom, nights: number | null) {
+/** Cost-only figures for the rates table (markup / sell stay in chat). */
+function roomCosts(room: RateCompareRoom, nights: number | null) {
   const teamTotal = Number.isFinite(room.team_cost) ? room.team_cost : 0;
   const nightCount = nights != null && nights > 0 ? nights : 1;
-  const hasMarkup =
-    typeof room.markup_percent === "number" && Number.isFinite(room.markup_percent);
-  const markupPct = hasMarkup ? room.markup_percent! : null;
-  const clientTotal =
-    hasMarkup && typeof room.client_total === "number" && Number.isFinite(room.client_total)
-      ? room.client_total
-      : markupPct != null
-        ? clientPriceAtMarkup(teamTotal, markupPct)
-        : null;
-  const clientPerNight =
-    clientTotal == null
-      ? null
-      : typeof room.client_per_night === "number" && Number.isFinite(room.client_per_night)
-        ? room.client_per_night
-        : roundMoney(clientTotal / nightCount);
   const teamPerNight =
     typeof room.team_per_night === "number" && Number.isFinite(room.team_per_night)
       ? room.team_per_night
@@ -85,44 +71,29 @@ function roomPrices(room: RateCompareRoom, nights: number | null) {
     typeof room.package_team === "number" && Number.isFinite(room.package_team)
       ? room.package_team
       : teamTotal;
-  const packageClient =
-    markupPct == null ? null : clientPriceAtMarkup(packageTeam, markupPct);
   const extraTeam =
     typeof room.extra_night_team === "number" && Number.isFinite(room.extra_night_team)
       ? room.extra_night_team
       : null;
-  const extraClient =
-    markupPct == null || extraTeam == null
-      ? null
-      : typeof room.extra_night_client === "number" &&
-          Number.isFinite(room.extra_night_client)
-        ? room.extra_night_client
-        : clientPriceAtMarkup(extraTeam, markupPct);
   return {
     teamTotal,
-    clientTotal,
-    clientPerNight,
     teamPerNight,
-    hasMarkup,
     packageTeam,
-    packageClient,
     extraTeam,
-    extraClient,
   };
 }
 
-/** Cheapest client stay total for the hotel header / summary strip (null until markup). */
-function hotelFromClient(hotel: RateCompareHotel): {
+/** Cheapest stay cost for the hotel header / summary strip. */
+function hotelFromCost(hotel: RateCompareHotel): {
   amount: number;
   currency: string;
 } | null {
   if (hotel.status !== "ok" || hotel.rooms.length === 0) return null;
   let best: { amount: number; currency: string } | null = null;
   for (const room of hotel.rooms) {
-    const { clientTotal } = roomPrices(room, null);
-    if (clientTotal == null) continue;
-    if (!best || clientTotal < best.amount) {
-      best = { amount: clientTotal, currency: room.currency };
+    const { teamTotal } = roomCosts(room, null);
+    if (!best || teamTotal < best.amount) {
+      best = { amount: teamTotal, currency: room.currency };
     }
   }
   return best;
@@ -135,28 +106,9 @@ function roomsShareOneSource(rooms: RateCompareRoom[]): boolean {
   return rooms.every((room) => (room.source?.trim() ?? "") === first);
 }
 
-/** Sell (top) + cost (bottom). Empty sell prompts for markup. */
-function MoneyCell({
-  client,
-  team,
-  currency,
-}: {
-  client: number | null;
-  team: number;
-  currency: string;
-}) {
-  return (
-    <>
-      {client == null ? (
-        <span className="text-ink-subtle">Set markup</span>
-      ) : (
-        formatRoomMoney(client, currency)
-      )}
-      <span className="mt-0.5 block text-[12px] text-ink-subtle">
-        cost {formatRoomMoney(team, currency)}
-      </span>
-    </>
-  );
+/** Cost amount only — markup / sell are set later in chat. */
+function CostCell({ amount, currency }: { amount: number; currency: string }) {
+  return <span className="tabular-nums text-ink">{formatRoomMoney(amount, currency)}</span>;
 }
 
 function RoomNameCell({ room }: { room: RateCompareRoom }) {
@@ -214,7 +166,7 @@ export function TripBuilderRateCompare({
   const contextLine = searchContextLine(compare);
   const fromLines = hotels
     .map((hotel) => {
-      const from = hotelFromClient(hotel);
+      const from = hotelFromCost(hotel);
       if (!from) return null;
       return `${hotel.hotel} from ${formatRoomMoney(from.amount, from.currency)}`;
     })
@@ -348,10 +300,10 @@ function HotelRates({
                   ) : (
                     <>
                       <th className="w-[20%] px-3 py-2 text-[12px] font-semibold tabular-nums">
-                        Per night
+                        Cost / night
                       </th>
                       <th className="w-[20%] px-3 py-2 text-[12px] font-semibold tabular-nums">
-                        Stay total
+                        Stay cost
                       </th>
                     </>
                   )}
@@ -409,16 +361,7 @@ function RoomTableRow({
   packageMode: boolean;
   showSource: boolean;
 }) {
-  const {
-    teamTotal,
-    clientTotal,
-    clientPerNight,
-    teamPerNight,
-    packageTeam,
-    packageClient,
-    extraTeam,
-    extraClient,
-  } = roomPrices(room, nights);
+  const { teamTotal, teamPerNight, packageTeam, extraTeam } = roomCosts(room, nights);
   const showAsPackage = packageMode || isPackageRoom(room);
 
   return (
@@ -434,47 +377,27 @@ function RoomTableRow({
       <td className="break-words px-3 py-2 text-ink-muted">{mealPlanLabel(room.board)}</td>
       {showAsPackage ? (
         <>
-          <td className="px-3 py-2 tabular-nums text-ink">
-            <MoneyCell
-              client={packageClient}
-              team={packageTeam}
-              currency={room.currency}
-            />
+          <td className="px-3 py-2">
+            <CostCell amount={packageTeam} currency={room.currency} />
           </td>
-          <td className="px-3 py-2 tabular-nums text-ink">
+          <td className="px-3 py-2">
             {extraTeam != null ? (
-              <MoneyCell
-                client={extraClient}
-                team={extraTeam}
-                currency={room.currency}
-              />
+              <CostCell amount={extraTeam} currency={room.currency} />
             ) : (
               <span className="text-ink-subtle">—</span>
             )}
           </td>
-          <td className="px-3 py-2 tabular-nums text-ink">
-            <MoneyCell
-              client={clientTotal}
-              team={teamTotal}
-              currency={room.currency}
-            />
+          <td className="px-3 py-2">
+            <CostCell amount={teamTotal} currency={room.currency} />
           </td>
         </>
       ) : (
         <>
-          <td className="px-3 py-2 tabular-nums text-ink">
-            <MoneyCell
-              client={clientPerNight}
-              team={teamPerNight}
-              currency={room.currency}
-            />
+          <td className="px-3 py-2">
+            <CostCell amount={teamPerNight} currency={room.currency} />
           </td>
-          <td className="px-3 py-2 tabular-nums text-ink">
-            <MoneyCell
-              client={clientTotal}
-              team={teamTotal}
-              currency={room.currency}
-            />
+          <td className="px-3 py-2">
+            <CostCell amount={teamTotal} currency={room.currency} />
           </td>
         </>
       )}
@@ -499,16 +422,7 @@ function RoomMobileCard({
   showSource: boolean;
   searchRooms: number;
 }) {
-  const {
-    teamTotal,
-    clientTotal,
-    clientPerNight,
-    teamPerNight,
-    packageTeam,
-    packageClient,
-    extraTeam,
-    extraClient,
-  } = roomPrices(room, nights);
+  const { teamTotal, teamPerNight, packageTeam, extraTeam } = roomCosts(room, nights);
   const showAsPackage = packageMode || isPackageRoom(room);
 
   return (
@@ -538,23 +452,15 @@ function RoomMobileCard({
           <>
             <div>
               <dt className="text-[11px] font-medium text-ink-muted">Package total (per room)</dt>
-              <dd className="tabular-nums text-ink">
-                <MoneyCell
-                  client={packageClient}
-                  team={packageTeam}
-                  currency={room.currency}
-                />
+              <dd>
+                <CostCell amount={packageTeam} currency={room.currency} />
               </dd>
             </div>
             <div>
               <dt className="text-[11px] font-medium text-ink-muted">Extra night (per room)</dt>
-              <dd className="tabular-nums text-ink">
+              <dd>
                 {extraTeam != null ? (
-                  <MoneyCell
-                    client={extraClient}
-                    team={extraTeam}
-                    currency={room.currency}
-                  />
+                  <CostCell amount={extraTeam} currency={room.currency} />
                 ) : (
                   <span className="text-ink-subtle">—</span>
                 )}
@@ -564,35 +470,23 @@ function RoomMobileCard({
               <dt className="text-[11px] font-medium text-ink-muted">
                 {stayCostColumnLabel(searchRooms)}
               </dt>
-              <dd className="tabular-nums text-ink">
-                <MoneyCell
-                  client={clientTotal}
-                  team={teamTotal}
-                  currency={room.currency}
-                />
+              <dd>
+                <CostCell amount={teamTotal} currency={room.currency} />
               </dd>
             </div>
           </>
         ) : (
           <>
             <div>
-              <dt className="text-[11px] font-medium text-ink-muted">Per night</dt>
-              <dd className="tabular-nums text-ink">
-                <MoneyCell
-                  client={clientPerNight}
-                  team={teamPerNight}
-                  currency={room.currency}
-                />
+              <dt className="text-[11px] font-medium text-ink-muted">Cost / night</dt>
+              <dd>
+                <CostCell amount={teamPerNight} currency={room.currency} />
               </dd>
             </div>
             <div>
-              <dt className="text-[11px] font-medium text-ink-muted">Stay total</dt>
-              <dd className="tabular-nums text-ink">
-                <MoneyCell
-                  client={clientTotal}
-                  team={teamTotal}
-                  currency={room.currency}
-                />
+              <dt className="text-[11px] font-medium text-ink-muted">Stay cost</dt>
+              <dd>
+                <CostCell amount={teamTotal} currency={room.currency} />
               </dd>
             </div>
           </>
@@ -613,9 +507,8 @@ function HotelNotes({
 }) {
   const notes = hotel.notes ?? { cancellation: null, markup: null, inclusions: [] };
   const cancellation = notes.cancellation ?? null;
-  const markup = notes.markup ?? null;
   const inclusions = notes.inclusions ?? [];
-  if (!cancellation && !markup && inclusions.length === 0 && !packageMode) {
+  if (!cancellation && inclusions.length === 0 && !packageMode) {
     return null;
   }
   const stayLabel = stayCostColumnLabel(searchRooms);
@@ -627,8 +520,8 @@ function HotelNotes({
           <dt className="inline font-medium text-ink">Pricing: </dt>
           <dd className="inline">
             Package total and extra night are per room (sheet amounts). {stayLabel} is the
-            all-in cost for this search — that figure is what the quote uses. Sell = stay cost
-            at your markup.
+            all-in cost for this search. Say a markup % or sell in chat to add a room to the
+            quote.
           </dd>
         </div>
       ) : null}
@@ -636,12 +529,6 @@ function HotelNotes({
         <div>
           <dt className="inline font-medium text-ink">Cancellation: </dt>
           <dd className="inline">{cancellation}</dd>
-        </div>
-      ) : null}
-      {markup ? (
-        <div>
-          <dt className="inline font-medium text-ink">Applied markup: </dt>
-          <dd className="inline">{markup}</dd>
         </div>
       ) : null}
       {inclusions.length > 0 ? (
