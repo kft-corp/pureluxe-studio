@@ -32,11 +32,35 @@ import {
 } from "@/lib/trip-builder/actions";
 import { searchRatesForHotels } from "@/lib/trip-builder/rates/search-rates-for-hotels";
 
+import { loadChatHistory } from "@/lib/trip-builder/chat/chat-history";
+
 import { createDeskTools, type DeskActor } from "./create-desk-tools";
 import { toClientBrief } from "./to-client-brief";
 import { toTripFacts } from "./to-trip-facts";
 
 type Options = DeskActor & { tripId: string };
+
+/** Recent advisor lines so place follow-ups keep the destination they just named. */
+async function recentPlaceEarlier(tripId: string): Promise<string | null> {
+  try {
+    const history = await loadChatHistory(tripId, { limit: 10, excludeId: null });
+    const lines = history
+      .filter((row) => row.role === "user")
+      .slice(-4)
+      .map((row) => row.content.trim())
+      .filter(Boolean);
+    return lines.length > 0 ? lines.join("\n") : null;
+  } catch {
+    return null;
+  }
+}
+
+function tripCityHint(detail: TripDetail | null): string | null {
+  if (!detail) return null;
+  const stays = detail.stays.length > 0 ? detail.stays : detail.stay ? [detail.stay] : [];
+  const cities = [...new Set(stays.map((stay) => stay.city?.trim()).filter(Boolean))];
+  return cities[0] ?? null;
+}
 
 /**
  * After a quote change, rebuild the PDF silently (no URL attach / no open).
@@ -83,8 +107,24 @@ export function createTripAgentTools(options: Options): TripAgentHandlers {
     },
   });
 
+  const desk = createDeskTools(options);
+
   return {
-    ...createDeskTools(options),
+    ...desk,
+
+    async getPlaceNotes(input) {
+      const earlier = input.earlier?.trim() || (await recentPlaceEarlier(options.tripId));
+      const cityHint =
+        input.cityHint?.trim() ||
+        tripCityHint(latest) ||
+        tripCityHint(changed) ||
+        null;
+      return desk.getPlaceNotes({
+        ...input,
+        earlier: earlier ?? undefined,
+        cityHint: cityHint ?? undefined,
+      });
+    },
 
     async getTrip() {
       const detail = changed ?? (await getTripDetail(options.tripId, actor));

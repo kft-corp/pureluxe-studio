@@ -79,8 +79,14 @@ export function createDeskTools(actor: DeskActor): Omit<DeskAgentHandlers, "getC
       return { clients: result.clients.map(toClientListRow), total: result.total };
     },
 
-    async getPlaceNotes({ query, cityHint }) {
-      const atlas = await answerAtlasStay({ question: query, cityHint: cityHint ?? null });
+    async getPlaceNotes({ query, cityHint, destination, applyIn, earlier }) {
+      const atlas = await answerAtlasStay({
+        question: query,
+        cityHint: cityHint ?? null,
+        destination: destination ?? null,
+        applyIn: applyIn ?? null,
+        earlier: earlier ?? null,
+      });
       return {
         matched: atlas.matched,
         notes: atlas.matched ? atlas.answer : null,

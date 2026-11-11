@@ -234,7 +234,16 @@ export type LeadChoice = "named" | "household_primary";
  * handler checks the advisor's access and the trip's rules.
  */
 export type DeskAgentHandlers = DeskToolHandlers & {
-  getPlaceNotes: (input: { query: string; cityHint?: string }) => Promise<PlaceNotes>;
+  getPlaceNotes: (input: {
+    query: string;
+    cityHint?: string;
+    /** LLM-extracted travel destination (country or city). */
+    destination?: string;
+    /** LLM-extracted place they apply from (e.g. India for VFS). */
+    applyIn?: string;
+    /** Recent place context when the question omits the destination. */
+    earlier?: string;
+  }) => Promise<PlaceNotes>;
 };
 
 /** The trip chat: lookups plus changes to the open trip. */

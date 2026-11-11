@@ -11,6 +11,8 @@ import {
   searchApprovedKbFacts,
   type KbCity,
   type KbCountry,
+  type KbCountryVisaRule,
+  type KbDestinationFacts,
   type KbEntity,
 } from "@pureluxe/db";
 
@@ -40,7 +42,26 @@ const CONTRACT_LABEL: Record<AtlasHotelChoice["contractStatus"], string> = {
 };
 
 const PLACE_QUESTION =
-  /\b(hotels?|resorts?|villas?|visa|season|weather|currency|safety|safe|amenit\w*|rooms?|dining|spa|wellness|beach|island|atoll|recommend\w*|famil\w*|honeymoon|transfer|seaplane|green\s*tax|city|countr\w*|destination|place|rules?|polic\w*|check-?in|check-?out|best time|how long|kind of|where to stay|which hotel)\b/i;
+  /\b(hotels?|resorts?|villas?|visa|season|weather|currency|safety|safe|amenit\w*|rooms?|dining|spa|wellness|beach|island|atoll|recommend\w*|famil\w*|honeymoon|transfer|seaplane|green\s*tax|city|countr\w*|destination|place|rules?|polic\w*|check-?in|check-?out|best time|how long|kind of|where to stay|which hotel|fee|fees|entry)\b/i;
+
+const WANTS_FULL =
+  /\b(full|detailed|details|everything|all info|more info|extra|complete|documents? list|document requirements|entire)\b/i;
+
+const WANTS_VISA =
+  /\b(visa|entry|passport|immigration|embassy|e-?visa|vfs)\b/i;
+
+const WANTS_FEE =
+  /\b(fee|fees|cost|charge|price|how much|rs\.?|rupees?|usd|\$)\b/i;
+
+/** Where / how to lodge the application (not the travel destination). */
+const WANTS_APPLY =
+  /\b(where\s+(?:to|can|do|should)\s+(?:\w+\s+){0,4}apply|where\s+to\s+apply|apply\s+(?:for|in|from)|application\s+cent(?:re|er)|vfs|consulate|embassy\s+(?:in|at)|lodge|submit\s+(?:the\s+)?(?:visa\s+)?application)\b/i;
+
+const WANTS_SEASON =
+  /\b(season|weather|best time|when to (go|visit)|climate|sakura|cherry blossom|autumn|foliage)\b/i;
+
+const WANTS_LENGTH =
+  /\b(how long|nights?|length of stay|ideal stay|how many nights)\b/i;
 
 const FACT_STOP_WORDS = new Set([
   "about",
@@ -62,12 +83,115 @@ const FACT_STOP_WORDS = new Set([
   "where",
   "which",
   "would",
+  "passport",
+  "holder",
+  "holders",
+  "indian",
+  "trip",
 ]);
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Whole-word / whole-phrase match — "India" must not match inside "Indian". */
 function includesName(message: string, name: string): boolean {
-  const haystack = message.toLowerCase();
-  const needle = name.trim().toLowerCase();
-  return needle.length >= 3 && haystack.includes(needle);
+  const needle = name.trim();
+  if (needle.length < 3) return false;
+  const pattern = new RegExp(
+    `(^|[^\\p{L}\\p{N}])${escapeRegExp(needle)}(?=[^\\p{L}\\p{N}]|$)`,
+    "iu",
+  );
+  return pattern.test(message);
+}
+
+/**
+ * Strip nationality / passport spans and apply-location tails so those
+ * countries are not treated as the travel destination. Keep words between
+ * "apply" and "in …" (e.g. "Japan" in "apply for the Japan visa in India").
+ */
+function textForDestinationMatch(text: string): string {
+  return text
+    .replace(
+      /\b[\p{L}][\p{L}'-]*(?:\s+[\p{L}][\p{L}']*){0,2}\s+(?:passport|citizen|national|nationality)s?\b/giu,
+      " ",
+    )
+    .replace(
+      /\b(?:apply|application|vfs|centre|center|embassy|consulate|process(?:ing)?|lodge|submit)\b([\s\w,]{0,48}?)\bin\s+[\p{L}][\p{L}'-]*(?:\s+[\p{L}][\p{L}']*){0,2}\b/giu,
+      (_full, middle: string) => ` ${middle} `,
+    )
+    .replace(
+      /\bin\s+[\p{L}][\p{L}'-]*(?:\s+[\p{L}][\p{L}']*){0,2}\b(?=[\s\w,]{0,36}\b(?:apply|application|vfs|centre|center|embassy|consulate)\b)/giu,
+      " ",
+    )
+    .replace(
+      /\b(?:from|via|through)\s+[\p{L}][\p{L}'-]*(?:\s+[\p{L}][\p{L}']*){0,2}\b(?=[\s\w,]{0,24}\b(?:apply|application|vfs)\b)/giu,
+      " ",
+    )
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Score how likely a country name is the travel destination in this text. */
+function destinationScore(text: string, countryName: string): number {
+  if (!includesName(text, countryName)) return Number.NEGATIVE_INFINITY;
+  let score = countryName.length * 10;
+  const name = escapeRegExp(countryName);
+
+  if (
+    new RegExp(
+      `\\b(?:visit|travel(?:ling|ing)?\\s+to|trip\\s+to|going\\s+to|holiday\\s+(?:in|to)|honeymoon\\s+(?:in|to)|for)\\s+${name}\\b`,
+      "i",
+    ).test(text)
+  ) {
+    score += 120;
+  }
+  if (new RegExp(`\\b${name}\\s+(?:visa|trip|travel|holiday|honeymoon|itinerary|entry)\\b`, "i").test(text)) {
+    score += 140;
+  }
+  if (new RegExp(`\\b(?:visa|entry)\\s+(?:for|to)\\s+${name}\\b`, "i").test(text)) {
+    score += 140;
+  }
+
+  if (
+    new RegExp(
+      `\\b(?:apply|application|vfs|centre|center|embassy|consulate|process(?:ing)?|lodge|submit)\\b[\\s\\w,]{0,48}\\bin\\s+${name}\\b`,
+      "i",
+    ).test(text) ||
+    new RegExp(
+      `\\bin\\s+${name}\\b(?=[\\s\\w,]{0,36}\\b(?:apply|application|vfs|centre|center|embassy|consulate)\\b)`,
+      "i",
+    ).test(text) ||
+    new RegExp(`\\b(?:apply|application)\\s+(?:for\\s+.{0,48}?)?(?:in|from|via)\\s+${name}\\b`, "i").test(text)
+  ) {
+    score -= 160;
+  }
+
+  return score;
+}
+
+function resolveCountryByName(name: string, countries: KbCountry[]): KbCountry | null {
+  const needle = name.trim();
+  if (!needle) return null;
+  return (
+    countries.find((row) => row.name.toLowerCase() === needle.toLowerCase()) ??
+    countries
+      .filter((row) => includesName(needle, row.name) || includesName(row.name, needle))
+      .sort((a, b) => b.name.length - a.name.length)[0] ??
+    null
+  );
+}
+
+function resolveCityByName(name: string, cities: KbCity[]): KbCity | null {
+  const needle = name.trim();
+  if (!needle) return null;
+  return (
+    cities.find((row) => row.name.toLowerCase() === needle.toLowerCase()) ??
+    cities
+      .filter((row) => includesName(needle, row.name) || includesName(row.name, needle))
+      .sort((a, b) => b.name.length - a.name.length)[0] ??
+    null
+  );
 }
 
 function bestHotel(hotels: KbEntity[], text: string): KbEntity | null {
@@ -127,20 +251,42 @@ function asksAboutPlace(question: string): boolean {
 }
 
 function matchCountry(text: string, countries: KbCountry[]): KbCountry | null {
-  return (
-    countries.find((row) => includesName(text, row.name)) ??
-    countries.find((row) => {
-      const code = row.country_code.trim().toUpperCase();
-      return code.length >= 2 && new RegExp(`\\b${code}\\b`).test(text.toUpperCase());
-    }) ??
-    null
-  );
+  const destinationText = textForDestinationMatch(text);
+  const scored = countries
+    .map((row) => ({
+      row,
+      score: Math.max(destinationScore(text, row.name), destinationScore(destinationText, row.name)),
+    }))
+    .filter((hit) => Number.isFinite(hit.score))
+    .sort((a, b) => b.score - a.score || b.row.name.length - a.row.name.length);
+  if (scored.length > 0 && scored[0]!.score > 0) return scored[0]!.row;
+
+  // Soft fallback only when stripping left a clear single country.
+  const byName = countries
+    .filter((row) => includesName(destinationText, row.name))
+    .sort((a, b) => b.name.length - a.name.length);
+  if (byName.length === 1) return byName[0]!;
+  if (byName.length > 1) {
+    const ranked = byName
+      .map((row) => ({ row, score: destinationScore(text, row.name) }))
+      .sort((a, b) => b.score - a.score || b.row.name.length - a.row.name.length);
+    if (ranked[0] && ranked[0].score > (ranked[1]?.score ?? Number.NEGATIVE_INFINITY)) {
+      return ranked[0].row;
+    }
+  }
+
+  const byCode = countries.find((row) => {
+    const code = row.country_code.trim().toUpperCase();
+    return code.length >= 2 && new RegExp(`\\b${code}\\b`).test(text.toUpperCase());
+  });
+  return byCode ?? null;
 }
 
 function matchCity(text: string, cities: KbCity[]): KbCity | null {
+  const destinationText = textForDestinationMatch(text);
   return (
     cities
-      .filter((row) => includesName(text, row.name))
+      .filter((row) => includesName(destinationText, row.name))
       .sort((a, b) => b.name.length - a.name.length)[0] ?? null
   );
 }
@@ -171,8 +317,170 @@ function visaLabel(entry: string | null): string | null {
   if (entry === "visa_free") return "visa free";
   if (entry === "e_visa") return "e-visa";
   if (entry === "visa_on_arrival") return "visa on arrival";
-  if (entry === "embassy") return "embassy visa";
+  if (entry === "embassy") return "embassy / sticker visa";
   return null;
+}
+
+function firstSentence(text: string | null | undefined, max = 220): string | null {
+  const raw = text?.trim();
+  if (!raw) return null;
+  const sentence = raw.split(/(?<=[.!?])\s+/)[0]?.trim() || raw;
+  if (sentence.length <= max) return sentence;
+  return `${sentence.slice(0, max - 1).trim()}…`;
+}
+
+function extractVisaFee(details: string | null | undefined): string | null {
+  if (!details) return null;
+  const patterns = [
+    /Fee:\s*([^\n.]+)/i,
+    /\b(?:Rs\.?|INR|USD|EUR|GBP)\s*[\d,]+(?:\s*per\s*person)?/i,
+    /\b[\d,]+\s*(?:Rs\.?|INR|USD|EUR|GBP)(?:\s*per\s*person)?/i,
+  ];
+  for (const pattern of patterns) {
+    const hit = details.match(pattern);
+    if (hit?.[0]) {
+      const value = (hit[1] ?? hit[0]).trim().replace(/^Fee:\s*/i, "");
+      if (value) return value;
+    }
+  }
+  return null;
+}
+
+function extractProcessing(details: string | null | undefined): string | null {
+  if (!details) return null;
+  const hit = details.match(/Processing:\s*([^\n.]+)/i);
+  return hit?.[1]?.trim() || null;
+}
+
+function extractWhereToApply(details: string | null | undefined): string | null {
+  if (!details) return null;
+  const patterns = [
+    /Where to apply:\s*([^\n]+)/i,
+    /Application(?:\s+cent(?:re|er))?:\s*([^\n]+)/i,
+    /VFS[^\n]*/i,
+  ];
+  for (const pattern of patterns) {
+    const hit = details.match(pattern);
+    if (hit?.[1]?.trim()) return hit[1].trim();
+    if (hit?.[0] && /^VFS/i.test(hit[0])) return hit[0].trim();
+  }
+  return null;
+}
+
+type PlaceFocus = "visa" | "season" | "length" | "city" | "hotels" | "general";
+
+function placeFocus(question: string, listHotels: boolean): PlaceFocus {
+  if (listHotels) return "hotels";
+  if (WANTS_VISA.test(question) || WANTS_FEE.test(question) || WANTS_APPLY.test(question)) {
+    return "visa";
+  }
+  if (WANTS_SEASON.test(question)) return "season";
+  if (WANTS_LENGTH.test(question)) return "length";
+  if (/\b(vibe|like|neighbourhood|neighborhood|area)\b/i.test(question)) return "city";
+  return "general";
+}
+
+function briefVisaAnswer(
+  countryName: string,
+  passport: string,
+  visa: KbCountryVisaRule | null,
+  wantFee: boolean,
+  wantApply: boolean,
+  wantFull: boolean,
+): string {
+  if (!visa) {
+    return `I don't have ${countryName} visa information for a ${passport} passport on file yet.`;
+  }
+  const kind = visaLabel(visa.entry_type);
+  const fee = extractVisaFee(visa.details);
+  const processing = extractProcessing(visa.details);
+  const whereToApply = extractWhereToApply(visa.details);
+
+  if (wantApply && !wantFull) {
+    if (whereToApply) {
+      return `For a ${countryName} visa (${passport} passport), apply at: **${whereToApply}**.${
+        processing ? ` Processing is typically ${processing}.` : ""
+      }`;
+    }
+    return `${firstSentence(visa.summary) ?? visa.summary}${
+      kind ? ` (${kind})` : ""
+    }. I don't have a separate "where to apply" line on file — ask if you want the full visa notes.`;
+  }
+
+  if (wantFee && !wantFull) {
+    if (fee) {
+      return `${countryName} visa fee for a ${passport} passport: **${fee}**.${
+        processing ? ` Processing is typically ${processing}.` : ""
+      }${kind ? ` (${kind})` : ""}`;
+    }
+    return `${countryName}: ${firstSentence(visa.summary) ?? visa.summary}${
+      kind ? ` (${kind})` : ""
+    }. I don't have a separate fee line on file — ask if you want the full visa notes.`;
+  }
+
+  if (!wantFull) {
+    const bits = [
+      firstSentence(visa.summary) ?? visa.summary,
+      kind ? `(${kind})` : null,
+      fee ? `Fee: ${fee}` : null,
+      processing ? `Processing: ${processing}` : null,
+      whereToApply ? `Apply: ${whereToApply}` : null,
+    ].filter(Boolean);
+    return bits.join(" ");
+  }
+
+  return [
+    `**${countryName} visa (${passport} passport)**`,
+    `- ${visa.summary}${kind ? ` (${kind})` : ""}`,
+    fee ? `- Fee: ${fee}` : null,
+    processing ? `- Processing: ${processing}` : null,
+    whereToApply ? `- Where to apply: ${whereToApply}` : null,
+    visa.details ? `- Details: ${visa.details}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function briefSeasonAnswer(countryName: string, season: string | null): string {
+  if (!season) {
+    return `I don't have a best-time-to-visit note for ${countryName} on file yet.`;
+  }
+  return `**Best time for ${countryName}:** ${firstSentence(season, 280) ?? season}`;
+}
+
+function briefCityAnswer(
+  cityName: string,
+  facts: KbDestinationFacts | null,
+  focus: PlaceFocus,
+  wantFull: boolean,
+): string | null {
+  if (!facts) return null;
+  if (wantFull) {
+    return (
+      section(cityName, [
+        facts.best_time_to_visit,
+        facts.ideal_length_of_stay,
+        facts.vibe,
+        facts.staff_notes,
+      ]) ?? null
+    );
+  }
+  if (focus === "length") {
+    return facts.ideal_length_of_stay
+      ? `**${cityName}:** ${firstSentence(facts.ideal_length_of_stay, 160)}`
+      : `I don't have an ideal length of stay for ${cityName} on file yet.`;
+  }
+  if (focus === "season") {
+    return facts.best_time_to_visit
+      ? `**${cityName}:** ${firstSentence(facts.best_time_to_visit, 160)}`
+      : null;
+  }
+  const vibe = firstSentence(facts.vibe, 180);
+  const nights = firstSentence(facts.ideal_length_of_stay, 100);
+  if (!vibe && !nights) return null;
+  return [`**${cityName}**`, vibe, nights ? `Typical stay: ${nights}` : null]
+    .filter(Boolean)
+    .join(" — ");
 }
 
 async function hotelsForCity(city: KbCity): Promise<KbEntity[]> {
@@ -185,12 +493,19 @@ async function hotelsForCity(city: KbCity): Promise<KbEntity[]> {
   });
 }
 
-async function describeHotel(hotel: KbEntity): Promise<string[]> {
+async function describeHotel(hotel: KbEntity, wantFull: boolean): Promise<string[]> {
   const [details, rooms, facts] = await Promise.all([
     findKbHotelDetails(hotel.id),
     listActiveKbHotelRoomCategories(hotel.id),
     listApprovedKbFactsForEntity(hotel.id),
   ]);
+  if (!wantFull) {
+    return [
+      hotel.brand ? `Brand: ${hotel.brand}` : null,
+      firstSentence(hotel.advisor_take, 180),
+      firstSentence(hotel.description, 180),
+    ].filter((line): line is string => Boolean(line?.trim()));
+  }
   const lines = [
     hotel.brand ? `Brand: ${hotel.brand}` : null,
     hotel.advisor_take ? `Advisor note: ${hotel.advisor_take}` : null,
@@ -238,9 +553,14 @@ export async function answerAtlasStay(input: {
   cityHint?: string | null;
   /** Recent user lines. A follow-up such as "what is the visa?" keeps the name they just gave. */
   earlier?: string | null;
+  /** LLM-extracted travel destination (country or city) — never where they apply for a visa. */
+  destination?: string | null;
+  /** LLM-extracted place they apply from (e.g. India for VFS). Ignored for place match. */
+  applyIn?: string | null;
 }): Promise<AtlasStayAnswer> {
   const question = input.question.trim();
   const hint = input.cityHint?.trim() || "";
+  const wantFull = WANTS_FULL.test(question);
   const countries = await listActiveKbCountries();
   const citiesByCountry = await Promise.all(
     countries.map(async (country) => ({
@@ -262,8 +582,22 @@ export async function answerAtlasStay(input: {
     null;
 
   const earlier = input.earlier?.trim() ?? "";
-  let namedCountry = matchCountry(question, countries);
-  let namedCity = matchCity(question, allCities);
+  const destinationHint = input.destination?.trim() ?? "";
+  // applyIn is accepted so callers can pass LLM parse results; matching never uses it.
+  void input.applyIn;
+
+  let namedCountry: KbCountry | null = null;
+  let namedCity: KbCity | null = null;
+  if (destinationHint) {
+    namedCountry = resolveCountryByName(destinationHint, countries);
+    namedCity = namedCountry ? null : resolveCityByName(destinationHint, allCities);
+    if (namedCity) {
+      namedCountry = countries.find((row) => row.id === namedCity!.country_id) ?? null;
+    }
+  }
+  if (!namedCountry) namedCountry = matchCountry(question, countries);
+  if (!namedCity) namedCity = matchCity(question, allCities);
+
   let namedHotel = await findNamedHotel(
     question,
     namedCity || hintCity ? await hotelsForCity(namedCity ?? hintCity!) : [],
@@ -300,13 +634,15 @@ export async function answerAtlasStay(input: {
 
   const setting = await getKnowledgeBaseSetting();
   const passport = setting.default_passport_country_code || "IN";
+  const listHotels = wantsHotelSearch(question);
+  const focus = placeFocus(question, listHotels);
 
   const factQuery =
     useSavedPlace && !aboutPlace
       ? [hint, placeCity?.name, placeCountry?.name].filter(Boolean).join(" ")
       : question;
   const factHits =
-    aboutPlace || namedHotel || namedCountry || namedCity || useSavedPlace
+    wantFull && (aboutPlace || namedHotel || namedCountry || namedCity || useSavedPlace)
       ? await relatedFacts(factQuery, [
           placeCountry?.name ?? "",
           placeCity?.name ?? "",
@@ -328,40 +664,74 @@ export async function answerAtlasStay(input: {
     };
   }
 
-  const listHotels = wantsHotelSearch(question);
-
   const blocks: string[] = [];
+
   if (placeCountry) {
     const bundle = await loadKbCountryPlaceBundle({
       country_code: placeCountry.country_code,
       passport_country_code: passport,
     });
     const facts = bundle?.facts;
-    const visaLine = bundle?.visa
-      ? `Visa for a ${passport} passport: ${bundle.visa.summary}${visaLabel(bundle.visa.entry_type) ? ` (${visaLabel(bundle.visa.entry_type)})` : ""}${bundle.visa.details ? `. ${bundle.visa.details}` : ""}`
-      : `No visa rule available for a ${passport} passport.`;
-    blocks.push(
-      section(placeCountry.name, [
+    const visa = bundle?.visa ?? null;
+
+    if (focus === "visa") {
+      blocks.push(
+        briefVisaAnswer(
+          placeCountry.name,
+          passport,
+          visa,
+          WANTS_FEE.test(question),
+          WANTS_APPLY.test(question),
+          wantFull,
+        ),
+      );
+    } else if (focus === "season") {
+      blocks.push(briefSeasonAnswer(placeCountry.name, facts?.best_season ?? null));
+    } else if (wantFull) {
+      const visaLine = visa
+        ? `Visa (${passport}): ${visa.summary}${
+            visaLabel(visa.entry_type) ? ` (${visaLabel(visa.entry_type)})` : ""
+          }`
+        : `No visa rule on file for a ${passport} passport.`;
+      blocks.push(
+        section(placeCountry.name, [
+          facts?.currency_code ? `Currency: ${facts.currency_code}` : null,
+          facts?.currency_notes,
+          facts?.best_season ? `Season: ${facts.best_season}` : null,
+          facts?.safety_notes,
+          facts?.general_notes,
+          visaLine,
+        ]) ?? "",
+      );
+    } else if (focus === "general" && !placeCity) {
+      const bits = [
+        facts?.best_season
+          ? `Best time: ${firstSentence(facts.best_season, 160)}`
+          : null,
+        visa
+          ? `Visa (${passport}): ${firstSentence(visa.summary, 160)}${
+              visaLabel(visa.entry_type) ? ` (${visaLabel(visa.entry_type)})` : ""
+            }`
+          : null,
         facts?.currency_code ? `Currency: ${facts.currency_code}` : null,
-        facts?.currency_notes,
-        facts?.best_season ? `Season: ${facts.best_season}` : null,
-        facts?.safety_notes,
-        facts?.general_notes,
-        visaLine,
-      ]) ?? "",
-    );
+      ].filter(Boolean);
+      blocks.push(
+        bits.length > 0
+          ? `**${placeCountry.name}**\n${bits.map((line) => `- ${line}`).join("\n")}`
+          : `I matched ${placeCountry.name}, but I don't have place notes on file yet.`,
+      );
+    }
   }
 
-  if (placeCity) {
+  if (placeCity && focus !== "visa") {
     const cityBundle = await loadKbCityPlaceBundle({ city_id: placeCity.id });
-    blocks.push(
-      section(placeCity.name, [
-        cityBundle?.facts?.best_time_to_visit,
-        cityBundle?.facts?.ideal_length_of_stay,
-        cityBundle?.facts?.vibe,
-        cityBundle?.facts?.staff_notes,
-      ]) ?? "",
+    const cityLine = briefCityAnswer(
+      placeCity.name,
+      cityBundle?.facts ?? null,
+      focus,
+      wantFull,
     );
+    if (cityLine) blocks.push(cityLine);
   }
 
   const cityHotels = placeCity ? await hotelsForCity(placeCity) : [];
@@ -391,18 +761,22 @@ export async function answerAtlasStay(input: {
   }
 
   if (namedHotel) {
-    const lines = await describeHotel(namedHotel);
+    const lines = await describeHotel(namedHotel, wantFull);
     blocks.push(section(namedHotel.name, lines) ?? "");
   }
 
   const extraFacts = factHits.filter((fact) => fact.entity_id !== namedHotel?.id);
-  if (extraFacts.length > 0) {
+  if (wantFull && extraFacts.length > 0) {
     blocks.push(
       section(
         "Other notes",
         extraFacts.map((fact) => (fact.title ? `${fact.title}: ${fact.body}` : fact.body)),
       ) ?? "",
     );
+  }
+
+  if (!wantFull && blocks.length > 0 && focus !== "hotels") {
+    blocks.push("Ask if you want the full notes.");
   }
 
   return {
