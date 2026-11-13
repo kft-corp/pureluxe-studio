@@ -338,6 +338,7 @@ function createSeedDeskHandlers(seed: ScenarioSeed, today: string): Omit<DeskAge
           contracted: true,
           source: "rate_layer" as const,
           badge: "Contracted" as const,
+          guide_score_factors: {},
           area: null,
           partner: null,
           why: null,

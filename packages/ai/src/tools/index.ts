@@ -26,6 +26,7 @@ export type {
   HotelFindExperience,
   HotelFindHit,
   HotelFindResult,
+  HotelGuideScoreFactors,
   HotelPriceTier,
   HotelToolHandlers,
 } from "./hotels";
