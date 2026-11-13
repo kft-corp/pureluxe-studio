@@ -7,7 +7,7 @@
  *   node --require ./scripts/load-root-env.cjs ./scripts/import-hotel-tiers.cjs path/to/tiers.csv
  *   node --require ./scripts/load-root-env.cjs ./scripts/import-hotel-tiers.cjs path/to/tiers.csv --apply
  *
- * CSV columns: hotel_name, price_tier (ultra_luxury|luxury|premium), aliases (optional, | or , separated)
+ * CSV columns: hotel_name, price_tier (Tier 1|Tier 2|Tier 3; legacy ultra_luxury|luxury|premium ok), aliases (optional)
  */
 require("./load-root-env.cjs");
 
@@ -15,7 +15,21 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { createClient } = require("@supabase/supabase-js");
 
-const TIERS = new Set(["ultra_luxury", "luxury", "premium"]);
+const TIERS = new Set(["Tier 1", "Tier 2", "Tier 3"]);
+const LEGACY_TIERS = {
+  ultra_luxury: "Tier 1",
+  luxury: "Tier 2",
+  premium: "Tier 3",
+  "tier 1": "Tier 1",
+  "tier 2": "Tier 2",
+  "tier 3": "Tier 3",
+};
+
+function normalizeTier(raw) {
+  const trimmed = (raw ?? "").trim();
+  if (TIERS.has(trimmed)) return trimmed;
+  return LEGACY_TIERS[trimmed.toLowerCase()] ?? null;
+}
 
 function parseCsv(text) {
   const lines = text
@@ -35,14 +49,16 @@ function parseCsv(text) {
   return lines.slice(1).map((line, i) => {
     const cols = splitCsvLine(line);
     const hotelName = (cols[nameIdx] ?? "").trim();
-    const priceTier = (cols[tierIdx] ?? "").trim().toLowerCase();
+    const priceTier = normalizeTier(cols[tierIdx] ?? "");
     const aliasesRaw = aliasIdx >= 0 ? (cols[aliasIdx] ?? "").trim() : "";
     const aliases = aliasesRaw
       ? aliasesRaw.split(/[|,]/).map((a) => a.trim()).filter(Boolean)
       : [];
     if (!hotelName) throw new Error(`Row ${i + 2}: hotel_name is empty.`);
-    if (!TIERS.has(priceTier)) {
-      throw new Error(`Row ${i + 2}: price_tier must be ultra_luxury, luxury or premium (got "${priceTier}").`);
+    if (!priceTier) {
+      throw new Error(
+        `Row ${i + 2}: price_tier must be Tier 1, Tier 2 or Tier 3 (got "${(cols[tierIdx] ?? "").trim()}").`,
+      );
     }
     return { hotelName, priceTier, aliases };
   });

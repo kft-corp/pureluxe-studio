@@ -35,6 +35,7 @@ export {
   findKbDestinationFacts,
   listActiveKbCitiesForCountry,
   listActiveKbCountries,
+  listActiveKbCountrySeasonWindows,
   listActiveKbRegions,
   loadKbCityPlaceBundle,
   loadKbCountryPlaceBundle,
@@ -71,6 +72,18 @@ export {
   loadKbHotelDetailBundle,
   type KbHotelDetailBundle,
 } from "./entity-details";
+export {
+  compareKbHotelSuggestHits,
+  listKbHotelSuggestByPropertyIds,
+  listKbHotelsForPlaceSuggest,
+  searchKbHotelsByName,
+  type KbHotelSuggestHit,
+} from "./hotel-suggest";
+export {
+  listKbExperiencesForPlaceSuggest,
+  type KbExperienceKind,
+  type KbExperienceSuggestHit,
+} from "./experience-suggest";
 export {
   loadKbEntityDetailBundle,
   type KbEntityDetailBundle,

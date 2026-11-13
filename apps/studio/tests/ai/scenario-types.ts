@@ -211,7 +211,7 @@ export type SeedHotel = {
   destination: string;
   styleTags: string[];
   /** Hotel tier from the Hotels sheet (Feedback v2, note 5). */
-  tier?: "ultra_luxury" | "luxury" | "premium";
+  tier?: "Tier 1" | "Tier 2" | "Tier 3";
   minMarkupPercent: number;
   cancellation: string;
   /** Required charges the all-in price must add (R2). */

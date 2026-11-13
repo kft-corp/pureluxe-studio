@@ -147,7 +147,7 @@ export const tripSetStaysTool = defineAgentTool({
     "Use when the advisor names where they go, changes a stay's dates, city or hotel, or adds a stay. Pass the full list, existing stays included; stays left out are removed.",
     "Do not use for the first multi-city split proposal (Malé then Baa, etc.) — use trip_propose_split so Studio shows Accept. Use this after they say accept / apply the split, or when stays are already split and only need a hotel/date tweak.",
     "Pass hotel null to clear a hotel on a stay — quote rooms on that stay (and any rooms labelled with that hotel) are removed with it. Pass start and end too when the trip dates change at the same time; like all dates here, MM-DD when the advisor gave no year. Rooms default to one per two adults when a hotel is set.",
-    "Before asking hotel-in-mind / suggest as the next step: hotel_find with coverage_check true (limit 1) per stay city; if none loaded, say so and ask for names or a paste quote — if covered, ask hotel-in-mind vs suggest without listing hotels (founder #16).",
+    "Before asking hotel-in-mind / suggest as the next step: hotel_find with coverage_check true (limit 1) per stay city; if none loaded (Rate Layer and Atlas empty), say so and ask for names or a paste quote — if any hotel returned, ask hotel-in-mind vs suggest without listing hotels (founder #16).",
     "Do not use to remove a stay that has the client's room (use trip_remove_stay).",
     "Returns a summary of the change; the advisor gets Undo.",
   ].join(" "),

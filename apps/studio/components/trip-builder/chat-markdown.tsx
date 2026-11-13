@@ -101,21 +101,21 @@ export function ChatMarkdown({ content, className }: ChatMarkdownProps) {
             </blockquote>
           ),
           h1: ({ children }) => (
-            <p className="mt-3 mb-1 text-[15px] leading-snug font-semibold text-ink">
+            <p className="mt-3.5 mb-1.5 text-[15px] leading-snug font-semibold tracking-tight text-ink">
               {children}
             </p>
           ),
           h2: ({ children }) => (
-            <p className="mt-3 mb-1 text-[14px] leading-snug font-semibold text-ink">
+            <p className="mt-3.5 mb-1.5 text-[14px] leading-snug font-semibold tracking-tight text-ink">
               {children}
             </p>
           ),
           h3: ({ children }) => (
-            <p className="mt-2.5 mb-1 text-[13px] leading-snug font-semibold text-ink">
+            <p className="mt-3 mb-1.5 text-[13px] leading-snug font-semibold tracking-wide text-ink-muted uppercase">
               {children}
             </p>
           ),
-          hr: () => <hr className="my-2.5 border-border" />,
+          hr: () => <hr className="my-3 border-border" />,
           table: ({ children }) => (
             <div className="my-2 w-full max-w-full overflow-x-auto rounded-lg ring-1 ring-border">
               <table className="w-full min-w-[18rem] table-fixed border-collapse text-left text-[13px]">

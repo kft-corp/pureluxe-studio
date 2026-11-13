@@ -75,13 +75,16 @@ export type {
   RateSourceCode,
   RateSourcesSetting,
 } from "./rate-layer";
+export { KB_HOTEL_GUIDE_SCORE_FACTOR_KEYS } from "./atlas-kb";
 export type {
   KbActivityDetails,
   KbCity,
   KbContractStatus,
   KbCountry,
   KbCountryFacts,
+  KbCountrySeasonWindow,
   KbCountryVisaRule,
+  KbSeasonDemandLevel,
   KbCustomerFeedback,
   KbDestinationAudienceNote,
   KbDestinationFacts,
@@ -92,6 +95,8 @@ export type {
   KbFactStatus,
   KbHotelConsortia,
   KbHotelDetails,
+  KbHotelGuideScoreFactorKey,
+  KbHotelGuideScoreFactors,
   KbHotelPriceTier,
   KbHotelRoomCategory,
   KbInternalNote,

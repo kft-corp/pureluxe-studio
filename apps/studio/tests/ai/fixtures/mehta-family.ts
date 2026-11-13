@@ -89,7 +89,7 @@ export const MEHTA_FAMILY_SEED: ScenarioSeed = {
       aliases: ["Kanuhura"],
       destination: "Maldives",
       styleTags: ["beach", "overwater", "family", "wellness"],
-      tier: "luxury",
+      tier: "Tier 2",
       minMarkupPercent: 25,
       cancellation: KANUHURA_TERMS,
       requiredCharges: [],
@@ -110,7 +110,7 @@ export const MEHTA_FAMILY_SEED: ScenarioSeed = {
       aliases: ["Kihavah"],
       destination: "Maldives",
       styleTags: ["beach", "overwater", "family", "dining"],
-      tier: "luxury",
+      tier: "Tier 2",
       minMarkupPercent: 25,
       cancellation: LUXURY_TERMS,
       requiredCharges: [
@@ -130,7 +130,7 @@ export const MEHTA_FAMILY_SEED: ScenarioSeed = {
       aliases: ["Vakkaru"],
       destination: "Maldives",
       styleTags: ["beach", "overwater", "family"],
-      tier: "luxury",
+      tier: "Tier 2",
       minMarkupPercent: 20,
       cancellation: LUXURY_TERMS,
       requiredCharges: [
@@ -149,7 +149,7 @@ export const MEHTA_FAMILY_SEED: ScenarioSeed = {
       name: "Soneva Fushi",
       destination: "Maldives",
       styleTags: ["beach", "family", "barefoot-luxury"],
-      tier: "ultra_luxury",
+      tier: "Tier 1",
       minMarkupPercent: 25,
       cancellation: LUXURY_TERMS,
       requiredCharges: [
@@ -168,7 +168,7 @@ export const MEHTA_FAMILY_SEED: ScenarioSeed = {
       name: "Coral Bay Resort",
       destination: "Maldives",
       styleTags: ["beach", "budget"],
-      tier: "premium",
+      tier: "Tier 3",
       minMarkupPercent: 20,
       cancellation: "Free cancellation until 7 days before arrival.",
       requiredCharges: [

@@ -1,4 +1,4 @@
--- Trip Builder smoke extras (dev/test).
+﻿-- Trip Builder smoke extras (dev/test).
 -- NOT a migration — supabase db push ignores this folder.
 --
 -- Fills gaps left by Excel seeds so hotel_find / place_get_notes / rates_search
@@ -242,15 +242,15 @@ SELECT
   v.style_tags::text[],
   v.luxury_band
 FROM (VALUES
-  ('waldorf-astoria-maldives', '{"overwater","family","ultra_luxury"}', 'ultra_luxury'),
-  ('six-senses-kanuhura', '{"overwater","family","wellness"}', 'ultra_luxury'),
-  ('como-cocoa-island', '{"overwater","adults_oriented","wellness"}', 'ultra_luxury'),
-  ('como-maalifushi', '{"overwater","family","wellness"}', 'ultra_luxury'),
-  ('joali-maldives', '{"overwater","design","family"}', 'ultra_luxury'),
-  ('joali-being', '{"wellness","adults_oriented","overwater"}', 'ultra_luxury'),
-  ('suj-n-jawai', '{"safari","wildlife","tented"}', 'luxury'),
-  ('suj-n-the-serai', '{"safari","desert","tented"}', 'luxury'),
-  ('suj-n-sher-bagh', '{"safari","wildlife","tented"}', 'luxury')
+  ('waldorf-astoria-maldives', '{"overwater","family","ultra_luxury"}', 'Tier 1'),
+  ('six-senses-kanuhura', '{"overwater","family","wellness"}', 'Tier 1'),
+  ('como-cocoa-island', '{"overwater","adults_oriented","wellness"}', 'Tier 1'),
+  ('como-maalifushi', '{"overwater","family","wellness"}', 'Tier 1'),
+  ('joali-maldives', '{"overwater","design","family"}', 'Tier 1'),
+  ('joali-being', '{"wellness","adults_oriented","overwater"}', 'Tier 1'),
+  ('suj-n-jawai', '{"safari","wildlife","tented"}', 'Tier 2'),
+  ('suj-n-the-serai', '{"safari","desert","tented"}', 'Tier 2'),
+  ('suj-n-sher-bagh', '{"safari","wildlife","tented"}', 'Tier 2')
 ) AS v(external_key, style_tags, luxury_band)
 JOIN public.kb_entities e ON e.external_key = v.external_key AND e.entity_type = 'hotel'
 WHERE NOT EXISTS (
@@ -270,15 +270,15 @@ SET
   END,
   updated_at = now()
 FROM (VALUES
-  ('waldorf-astoria-maldives', 'ultra_luxury', '{"overwater","family","ultra_luxury"}', '{"honeymoon","family"}'),
-  ('six-senses-kanuhura', 'ultra_luxury', '{"overwater","family","wellness"}', '{"family","honeymoon","wellness"}'),
-  ('como-cocoa-island', 'ultra_luxury', '{"overwater","adults_oriented","wellness"}', '{"honeymoon","wellness"}'),
-  ('como-maalifushi', 'ultra_luxury', '{"overwater","family","wellness"}', '{"family","honeymoon"}'),
-  ('joali-maldives', 'ultra_luxury', '{"overwater","design","family"}', '{"honeymoon","family"}'),
-  ('joali-being', 'ultra_luxury', '{"wellness","adults_oriented","overwater"}', '{"honeymoon","wellness"}'),
-  ('suj-n-jawai', 'luxury', '{"safari","wildlife","tented"}', '{"honeymoon","safari"}'),
-  ('suj-n-the-serai', 'luxury', '{"safari","desert","tented"}', '{"honeymoon","safari"}'),
-  ('suj-n-sher-bagh', 'luxury', '{"safari","wildlife","tented"}', '{"family","safari"}')
+  ('waldorf-astoria-maldives', 'Tier 1', '{"overwater","family","ultra_luxury"}', '{"honeymoon","family"}'),
+  ('six-senses-kanuhura', 'Tier 1', '{"overwater","family","wellness"}', '{"family","honeymoon","wellness"}'),
+  ('como-cocoa-island', 'Tier 1', '{"overwater","adults_oriented","wellness"}', '{"honeymoon","wellness"}'),
+  ('como-maalifushi', 'Tier 1', '{"overwater","family","wellness"}', '{"family","honeymoon"}'),
+  ('joali-maldives', 'Tier 1', '{"overwater","design","family"}', '{"honeymoon","family"}'),
+  ('joali-being', 'Tier 1', '{"wellness","adults_oriented","overwater"}', '{"honeymoon","wellness"}'),
+  ('suj-n-jawai', 'Tier 2', '{"safari","wildlife","tented"}', '{"honeymoon","safari"}'),
+  ('suj-n-the-serai', 'Tier 2', '{"safari","desert","tented"}', '{"honeymoon","safari"}'),
+  ('suj-n-sher-bagh', 'Tier 2', '{"safari","wildlife","tented"}', '{"family","safari"}')
 ) AS v(external_key, luxury_band, style_tags, best_for)
 JOIN public.kb_entities e ON e.external_key = v.external_key AND e.entity_type = 'hotel'
 WHERE d.entity_id = e.id;

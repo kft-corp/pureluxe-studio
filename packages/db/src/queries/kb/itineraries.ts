@@ -70,7 +70,9 @@ export async function listKbItineraries(
     query = query.eq("client_ready", input.client_ready);
   }
 
-  query = query.order("title", { ascending: true });
+  query = query
+    .order("sort_order", { ascending: true })
+    .order("title", { ascending: true });
 
   const { data, error } = await runSupabaseQuery(() => query);
 
@@ -81,9 +83,18 @@ export async function listKbItineraries(
   return (data ?? []) as KbItinerary[];
 }
 
+function itineraryPickScore(row: KbItinerary): number {
+  let score = 0;
+  if (row.is_default_first_trip) score += 1000;
+  if (row.kb_tier === "kb_verified") score += 100;
+  else if (row.kb_tier === "kb_scraped") score += 10;
+  score -= row.sort_order;
+  return score;
+}
+
 /**
- * Best active template for a country (verified first).
- * Used when advisor says a country name (§3.1).
+ * Best active template for a country.
+ * Prefers is_default_first_trip, then kb_verified, then sort_order.
  */
 export async function findPreferredKbItineraryForCountry(
   countryId: string,
@@ -96,11 +107,13 @@ export async function findPreferredKbItineraryForCountry(
 
   if (rows.length === 0) return null;
 
-  const verified = rows.find((row) => row.kb_tier === "kb_verified");
-  if (verified) return verified;
-
-  const scraped = rows.find((row) => row.kb_tier === "kb_scraped");
-  return scraped ?? rows[0] ?? null;
+  return (
+    [...rows].sort(
+      (a, b) =>
+        itineraryPickScore(b) - itineraryPickScore(a) ||
+        a.title.localeCompare(b.title),
+    )[0] ?? null
+  );
 }
 
 export async function findKbItineraryById(

@@ -10,6 +10,7 @@ import type {
   KbCity,
   KbCountry,
   KbCountryFacts,
+  KbCountrySeasonWindow,
   KbCountryVisaRule,
   KbDestinationAudienceNote,
   KbDestinationFacts,
@@ -226,6 +227,29 @@ export async function findKbCountryFacts(
   return data as KbCountryFacts | null;
 }
 
+/** Active season / weather windows for a country (sorted). */
+export async function listActiveKbCountrySeasonWindows(
+  countryId: string,
+): Promise<KbCountrySeasonWindow[]> {
+  const supabase = getServiceClient();
+
+  const { data, error } = await runSupabaseQuery(() =>
+    supabase
+      .from("kb_country_season_windows")
+      .select("*")
+      .eq("country_id", countryId)
+      .eq("active", true)
+      .order("sort_order", { ascending: true })
+      .order("label", { ascending: true }),
+  );
+
+  if (error) {
+    throw dbQueryError(error);
+  }
+
+  return (data ?? []) as KbCountrySeasonWindow[];
+}
+
 /** Visa rule for destination country + passport. Null = honest empty. */
 export async function findActiveKbVisaRule(
   countryId: string,
@@ -301,6 +325,7 @@ export async function findActiveKbDestinationAudienceNote(
 export type KbCountryPlaceBundle = {
   country: KbCountry;
   facts: KbCountryFacts | null;
+  seasonWindows: KbCountrySeasonWindow[];
   visa: KbCountryVisaRule | null;
   cities: KbCity[];
 };
@@ -316,13 +341,14 @@ export async function loadKbCountryPlaceBundle(input: {
   const country = await findActiveKbCountryByCode(input.country_code);
   if (!country) return null;
 
-  const [facts, visa, cities] = await Promise.all([
+  const [facts, seasonWindows, visa, cities] = await Promise.all([
     findKbCountryFacts(country.id),
+    listActiveKbCountrySeasonWindows(country.id),
     findActiveKbVisaRule(country.id, input.passport_country_code),
     listActiveKbCitiesForCountry(country.id),
   ]);
 
-  return { country, facts, visa, cities };
+  return { country, facts, seasonWindows, visa, cities };
 }
 
 /** Lightweight entity counts for a city place page. */
@@ -386,6 +412,13 @@ export type UpsertKbVisaRuleInput = {
   details?: string | null;
   entry_type?: KbCountryVisaRule["entry_type"];
   official_url?: string | null;
+  fee_text?: string | null;
+  processing_text?: string | null;
+  where_to_apply?: string | null;
+  documents_text?: string | null;
+  advisor_tips?: string | null;
+  alternate_routes?: string | null;
+  is_pureluxe_default?: boolean;
   kb_tier?: KbCountryVisaRule["kb_tier"];
   provenance?: KbCountryVisaRule["provenance"];
   verified_by_id?: string | null;
@@ -412,6 +445,13 @@ export async function upsertKbVisaRule(
           details: input.details ?? null,
           entry_type: input.entry_type ?? null,
           official_url: input.official_url ?? null,
+          fee_text: input.fee_text ?? null,
+          processing_text: input.processing_text ?? null,
+          where_to_apply: input.where_to_apply ?? null,
+          documents_text: input.documents_text ?? null,
+          advisor_tips: input.advisor_tips ?? null,
+          alternate_routes: input.alternate_routes ?? null,
+          is_pureluxe_default: input.is_pureluxe_default ?? true,
           kb_tier: input.kb_tier ?? "kb_scraped",
           provenance: input.provenance ?? "kb",
           verified_by_id: input.verified_by_id ?? null,

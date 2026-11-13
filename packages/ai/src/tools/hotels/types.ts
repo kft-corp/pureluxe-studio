@@ -13,7 +13,28 @@ export type HotelBrief = {
   facts: string | null;
 };
 
-export type HotelPriceTier = "ultra_luxury" | "luxury" | "premium";
+export type HotelPriceTier = "Tier 1" | "Tier 2" | "Tier 3";
+
+/** Internal guide matrix keys (full names) from hotel_find. */
+export type HotelGuideScoreFactors = Partial<
+  Record<
+    | "luxury"
+    | "support"
+    | "rooms"
+    | "food_and_beverage"
+    | "neighbourhood"
+    | "access"
+    | "service"
+    | "character"
+    | "wellness"
+    | "family"
+    | "indian_client_fit"
+    | "value"
+    | "views_and_privacy"
+    | "consistency",
+    number
+  >
+>;
 
 /** One hotel from hotel_find (suggestions and fuzzy search). */
 export type HotelFindHit = {
@@ -24,12 +45,51 @@ export type HotelFindHit = {
   tier: HotelPriceTier | null;
   style_tags: string[];
   score: number;
-  /** Always true: results are PureLuxe Rate Layer hotels only. */
-  contracted: true;
+  /**
+   * True when Rate Layer can shop rates (properties / linked).
+   * False = Atlas preferred/guide only — name OK to suggest; rates need paste/GDS/link.
+   */
+  contracted: boolean;
+  /** rate_layer = shoppable inventory; atlas = destination-guide preferred list. */
+  source: "rate_layer" | "atlas";
+  /** Advisor badge: Contracted = can price; Preferred = guide list only. */
+  badge: "Contracted" | "Preferred";
+  /** Neighbourhood / guide area when known. */
+  area: string | null;
+  /** Partner / consortia label when known. */
+  partner: string | null;
+  /** One-line why from Atlas. */
+  why: string | null;
+  /** Short "choose if" fit line. */
+  choose_if: string | null;
+  /**
+   * Destination-guide internal score (typically ~1–5) when known.
+   * Advisor-facing only — never invent; omit in chat when null.
+   */
+  guide_rating: number | null;
+  /**
+   * Internal guide matrix (full-name keys, 1–5). Use when advisor asks why / compare.
+   * Never invent; never show to clients; omit empty.
+   */
+  guide_score_factors: HotelGuideScoreFactors;
+};
+
+/** Activity or restaurant paired with a hotel shortlist. */
+export type HotelFindExperience = {
+  kind: "activity" | "restaurant";
+  name: string;
+  city: string | null;
+  guide_type: string | null;
+  who_it_suits: string | null;
+  lead_time: string | null;
+  veg_jain: string | null;
+  why: string | null;
 };
 
 export type HotelFindResult = {
   hotels: HotelFindHit[];
+  /** Curated activities + restaurants for the place (empty when none / coverage check). */
+  experiences: HotelFindExperience[];
   /** Suggested names when the typed name was unclear. */
   did_you_mean: string[];
   note: string | null;
@@ -52,5 +112,7 @@ export type HotelToolHandlers = {
     similarTo?: string;
     priceBandLike?: string;
     limit?: number;
+    /** False skips the experience bank (silent coverage probes). Default true. */
+    includeExperiences?: boolean;
   }) => Promise<HotelFindResult>;
 };

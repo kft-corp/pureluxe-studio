@@ -21,7 +21,7 @@ function hit(
     city: null,
     country: "Maldives",
     aliases: [],
-    price_tier: "ultra_luxury",
+    price_tier: "Tier 1",
     style_tags: ["overwater"],
     ...partial,
   };
@@ -49,7 +49,7 @@ const PREMIUM = hit({
   id: "p-premium",
   name: "Coral Bay Resort",
   score: 0.3,
-  price_tier: "premium",
+  price_tier: "Tier 3",
   style_tags: [],
 });
 
@@ -101,7 +101,7 @@ describe("findHotels (Stage 3a)", () => {
     expect(db.listActiveHotelsInDestination).toHaveBeenCalledWith(
       expect.objectContaining({
         destination: "Maldives",
-        tier: "ultra_luxury",
+        tier: "Tier 1",
         excludePropertyIds: ["p-kanuhura"],
       }),
     );
@@ -110,7 +110,7 @@ describe("findHotels (Stage 3a)", () => {
       "Anantara Kihavah",
       "Vakkaru Maldives",
     ]);
-    expect(result.hotels.every((h) => h.tier === "ultra_luxury")).toBe(true);
+    expect(result.hotels.every((h) => h.tier === "Tier 1")).toBe(true);
     expect(result.hotels.every((h) => h.contracted)).toBe(true);
   });
 
@@ -119,12 +119,12 @@ describe("findHotels (Stage 3a)", () => {
 
     const result = await findHotels({
       destination: "Maldives",
-      tier: "premium",
+      tier: "Tier 3",
       limit: 5,
     });
 
     expect(db.listActiveHotelsInDestination).toHaveBeenCalledWith(
-      expect.objectContaining({ destination: "Maldives", tier: "premium" }),
+      expect.objectContaining({ destination: "Maldives", tier: "Tier 3" }),
     );
     expect(result.hotels.map((h) => h.name)).toEqual(["Coral Bay Resort"]);
   });

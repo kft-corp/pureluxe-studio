@@ -102,9 +102,27 @@ export type KbCountryFacts = {
   country_id: string;
   currency_code: string | null;
   currency_notes: string | null;
+  /**
+   * Short PureLuxe “when to go” summary (peak + value + book-ahead).
+   * Full season table lives in kb_country_season_windows.
+   */
   best_season: string | null;
+  /** Safety / punctuality / closures — etiquette lives in etiquette_notes. */
   safety_notes: string | null;
+  /** Short intro / overflow — prefer typed logistics columns. */
   general_notes: string | null;
+  /** Flights / open-jaw / preferred airports. */
+  getting_there: string | null;
+  /** Rail, transfers, luggage, drivers. */
+  getting_around: string | null;
+  /** Local etiquette (tipping, shoes, onsen…). */
+  etiquette_notes: string | null;
+  /** Country-level restaurant booking / diet notes (not hotel dining). */
+  dining_notes: string | null;
+  /** Common advisor pitfalls. */
+  pitfalls: string | null;
+  /** First-time length + night split. */
+  ideal_trip_length: string | null;
   kb_tier: KbTier;
   provenance: KbProvenance;
   advisor_take: string | null;
@@ -112,6 +130,33 @@ export type KbCountryFacts = {
   advisor_take_updated_at: string | null;
   verified_by_id: string | null;
   verified_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** peak | shoulder | value | avoid — optional demand signal for Heads-up. */
+export type KbSeasonDemandLevel = "peak" | "shoulder" | "value" | "avoid";
+
+/** Row from public.kb_country_season_windows (1:N country). Multi-country season table. */
+export type KbCountrySeasonWindow = {
+  id: string;
+  country_id: string;
+  season_key: string | null;
+  label: string;
+  months_label: string | null;
+  month_from: number | null;
+  month_to: number | null;
+  day_from: number | null;
+  day_to: number | null;
+  climate_notes: string | null;
+  best_for: string | null;
+  watch_outs: string | null;
+  demand_level: KbSeasonDemandLevel | null;
+  book_ahead_notes: string | null;
+  sort_order: number;
+  kb_tier: KbTier;
+  provenance: KbProvenance;
+  active: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -125,6 +170,20 @@ export type KbCountryVisaRule = {
   details: string | null;
   entry_type: KbVisaEntryType | null;
   official_url: string | null;
+  /** Advisor-facing fee line (e.g. Rs 3,100 per person). */
+  fee_text: string | null;
+  /** Typical processing window (e.g. About 2 weeks). */
+  processing_text: string | null;
+  /** Where to lodge (VFS / embassy). */
+  where_to_apply: string | null;
+  /** Typical documents (prose or newline / | separated). */
+  documents_text: string | null;
+  /** PureLuxe advisor tips. */
+  advisor_tips: string | null;
+  /** Non-default routes (e.g. e-Visa exists but not default). */
+  alternate_routes: string | null;
+  /** True when this is the PureLuxe default process for this pair. */
+  is_pureluxe_default: boolean;
   kb_tier: KbTier;
   provenance: KbProvenance;
   verified_by_id: string | null;
@@ -141,6 +200,9 @@ export type KbDestinationFacts = {
   best_time_to_visit: string | null;
   ideal_length_of_stay: string | null;
   vibe: string | null;
+  /** Who / what trips suit this city (guide Best for). Style-specific → audience_notes. */
+  best_for: string | null;
+  /** Staff / neighbourhood hotel-choice notes — not client-facing by default. */
   staff_notes: string | null;
   kb_tier: KbTier;
   provenance: KbProvenance;
@@ -216,8 +278,8 @@ export type KbEntity = {
   updated_at: string;
 };
 
-/** Hotels-sheet price tier (021). Same values as Property HotelPriceTier. */
-export type KbHotelPriceTier = "ultra_luxury" | "luxury" | "premium";
+/** Guide proposed tier on kb_hotel_details.luxury_band (037). Same as HotelPriceTier. */
+export type KbHotelPriceTier = "Tier 1" | "Tier 2" | "Tier 3";
 
 /** Row from public.kb_hotel_details (1:1 hotel entity). */
 export type KbHotelDetails = {
@@ -227,11 +289,67 @@ export type KbHotelDetails = {
   wellness_notes: string | null;
   /** Style labels for similar-hotel matching (021). */
   style_tags: string[];
-  /** Hotels-sheet band (024 renamed from price_tier). */
+  /** Proposed guide tier: Tier 1 / Tier 2 / Tier 3 (037; was ultra_luxury/luxury/premium). */
   luxury_band: KbHotelPriceTier | null;
+  /** Neighbourhood / guide area (037). */
+  guide_area: string | null;
+  /** Partner program / status prose (037). */
+  guide_partner: string | null;
+  /** Internal guide average score (~1–5); never show as guest stars (037). */
+  guide_score: number | null;
+  /**
+   * Internal guide matrix factors (038). Full-name keys, values 1–5;
+   * omit unscored (?). Not guest feedback.
+   */
+  guide_score_factors: KbHotelGuideScoreFactors;
+  /** Who the hotel suits (Atlas Wave 1). */
+  best_for: string[];
+  /** Who it is a weaker fit for (Atlas Wave 1). */
+  not_ideal_for: string[];
   created_at: string;
   updated_at: string;
 };
+
+/** Frozen keys for kb_hotel_details.guide_score_factors (038). */
+export type KbHotelGuideScoreFactorKey =
+  | "luxury"
+  | "support"
+  | "rooms"
+  | "food_and_beverage"
+  | "neighbourhood"
+  | "access"
+  | "service"
+  | "character"
+  | "wellness"
+  | "family"
+  | "indian_client_fit"
+  | "value"
+  | "views_and_privacy"
+  | "consistency";
+
+/** Canonical factor key list (seed / TB / Excel). */
+export const KB_HOTEL_GUIDE_SCORE_FACTOR_KEYS: readonly KbHotelGuideScoreFactorKey[] =
+  [
+    "luxury",
+    "support",
+    "rooms",
+    "food_and_beverage",
+    "neighbourhood",
+    "access",
+    "service",
+    "character",
+    "wellness",
+    "family",
+    "indian_client_fit",
+    "value",
+    "views_and_privacy",
+    "consistency",
+  ] as const;
+
+/** Sparse map — missing key means not scored (?). */
+export type KbHotelGuideScoreFactors = Partial<
+  Record<KbHotelGuideScoreFactorKey, number>
+>;
 
 /** Row from public.kb_hotel_room_categories (1:N). No rates. */
 export type KbHotelRoomCategory = {
@@ -264,6 +382,16 @@ export type KbRestaurantDetails = {
   cuisine: string | null;
   price_tier: string | null;
   awards: unknown[];
+  /** Guide Who it suits (036). */
+  who_it_suits: string | null;
+  /** Booking lead time (036). */
+  lead_time: string | null;
+  /** Vegetarian / Jain notes (036). */
+  veg_jain_notes: string | null;
+  /** Guide Type: Restaurant / Bar (036). */
+  guide_type: string | null;
+  /** Optional provenance (036). */
+  seen_in: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -274,8 +402,19 @@ export type KbActivityDetails = {
   category: string | null;
   operator_name: string | null;
   vendor_entity_id: string | null;
+  /** Real duration only — not booking lead time. */
   duration_text: string | null;
   price_tier: string | null;
+  /** Guide Who it suits (036). */
+  who_it_suits: string | null;
+  /** Booking lead time (036). */
+  lead_time: string | null;
+  /** Vegetarian / Jain notes (036). */
+  veg_jain_notes: string | null;
+  /** Guide Type: Experience / Activity (036). */
+  guide_type: string | null;
+  /** Optional provenance (036). */
+  seen_in: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -347,8 +486,18 @@ export type KbCustomerFeedback = {
 export type KbItinerary = {
   id: string;
   title: string;
+  /** Route line (nights per place) + optional PureLuxe pace note. */
   destination_summary: string | null;
   country_id: string | null;
+  /** Guide Length (nights). */
+  duration_nights: number | null;
+  /** Who this shape suits. */
+  suits: string | null;
+  sort_order: number;
+  /** Prefer on Where / first-trip when set. */
+  is_default_first_trip: boolean;
+  /** Sakura / autumn / summer / family / honeymoon modifiers. */
+  seasonal_notes: string | null;
   kb_tier: KbTier;
   provenance: KbProvenance;
   client_ready: boolean;

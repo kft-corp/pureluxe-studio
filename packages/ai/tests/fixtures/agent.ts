@@ -55,7 +55,12 @@ export function makeHandlers(trip: TripFacts = makeTripFacts()) {
     searchBookings: vi.fn(async () => ({ bookings: [], total: 0 })),
     getBooking: vi.fn(),
     getHotel: vi.fn(async () => ({ hotels: [] })),
-    findHotels: vi.fn(async () => ({ hotels: [], did_you_mean: [], note: null })),
+    findHotels: vi.fn(async () => ({
+      hotels: [],
+      experiences: [],
+      did_you_mean: [],
+      note: null,
+    })),
     getPlaceNotes: vi.fn(async () => ({ matched: false, notes: null, hotels: [] })),
     getRateSnapshot: vi.fn(async () => ({ status: "none" as const })),
     searchRates: vi.fn(async () => ({ hotels: [], compare: null, notes: "" })),

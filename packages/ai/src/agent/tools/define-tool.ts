@@ -31,7 +31,13 @@ export type AgentToolSpec<Schema extends ToolSchema = ToolSchema, Handlers = Tri
   risk: AgentToolRisk;
   /** Shown to the advisor while it runs, e.g. "Finding the client…". Plain, professional, and never names internals. */
   progress(input: z.infer<Schema>): string;
-  run(input: z.infer<Schema>, handlers: Handlers, call: ToolCallRef): Promise<unknown>;
+  run(
+    input: z.infer<Schema>,
+    handlers: Handlers,
+    call: ToolCallRef,
+    /** Open trip facts when bound in trip chat; null on home/desk-only tools. */
+    trip?: TripFacts | null,
+  ): Promise<unknown>;
   /**
    * When the agent chose this from typed text: the approval card's text, or null to run
    * straight away. A labelled button tap is already the approval and skips this.
@@ -123,7 +129,7 @@ export function bindAgentTools<Handlers>(
       return toToolContent({ ...earlier, unchanged: true, note: "Already done in this message. Don't repeat it." });
     }
     try {
-      const result = await spec.run(input, context.handlers, ref);
+      const result = await spec.run(input, context.handlers, ref, context.trip?.() ?? null);
       const failed = isToolError(result);
       context.meter?.addToolCall({
         name: spec.name,

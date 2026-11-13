@@ -284,7 +284,7 @@ function createSeedDeskHandlers(seed: ScenarioSeed, today: string): Omit<DeskAge
     },
 
     async findHotels({ name, destination, tier, similarTo, priceBandLike, limit }) {
-      const max = Math.min(Math.max(limit ?? 5, 1), 10);
+      const max = Math.min(Math.max(limit ?? 3, 1), 10);
       const place = destination?.trim().toLowerCase() || null;
       const refName = similarTo || priceBandLike || name;
       const reference = refName
@@ -320,6 +320,7 @@ function createSeedDeskHandlers(seed: ScenarioSeed, today: string): Omit<DeskAge
           .map((hotel) => hotel.name);
         return {
           hotels: [],
+          experiences: [],
           did_you_mean: close,
           note: close.length > 0 ? "Did you mean one of these?" : `No PureLuxe hotel matched "${name}".`,
         };
@@ -334,8 +335,16 @@ function createSeedDeskHandlers(seed: ScenarioSeed, today: string): Omit<DeskAge
           tier: hotel.tier ?? null,
           style_tags: hotel.styleTags,
           score: 1,
-          contracted: true as const,
+          contracted: true,
+          source: "rate_layer" as const,
+          badge: "Contracted" as const,
+          area: null,
+          partner: null,
+          why: null,
+          choose_if: null,
+          guide_rating: null,
         })),
+        experiences: [],
         did_you_mean: [],
         note: hotels.length === 0 ? `No PureLuxe hotels found${dest ? ` in ${dest}` : ""}.` : null,
       };
@@ -350,6 +359,7 @@ function createSeedDeskHandlers(seed: ScenarioSeed, today: string): Omit<DeskAge
       if (!place) return { matched: false, notes: null, hotels: [] };
       return {
         matched: true,
+        title: place.name,
         notes: place.notes,
         hotels: seed.hotels
           .filter((row) => row.destination === place.name)

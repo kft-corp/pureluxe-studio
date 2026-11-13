@@ -4,12 +4,18 @@ import type { AgentChoice } from "../../tools";
 import type { TripFacts } from "../../types";
 
 import { defineDeskTool } from "./define-tool";
+import { datesFromTrip, partyFromTrip } from "./rate-search-gate";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD.");
-const priceTier = z.enum(["ultra_luxury", "luxury", "premium"]);
+const priceTier = z.enum(["Tier 1", "Tier 2", "Tier 3"]);
 const MAX_HOTEL_CHOICES = 6;
 
-type FoundHotelHit = { name?: string; destination?: string | null };
+type FoundHotelHit = {
+  name?: string;
+  destination?: string | null;
+  contracted?: boolean;
+  source?: string;
+};
 
 function hotelFindPayload(result: unknown): {
   hotels: FoundHotelHit[];
@@ -35,17 +41,8 @@ function hotelFindPayload(result: unknown): {
   };
 }
 
-function partyFromTrip(trip: TripFacts): { adults: number; children: number; rooms: number } {
-  const travellers = trip.travellers ?? [];
-  const children = travellers.filter(
-    (person) => person.party_role === "child" || person.party_role === "infant",
-  ).length;
-  const namedAdults = travellers.filter((person) => person.party_role === "adult").length;
-  const adults = Math.max(1, namedAdults || 2);
-  return { adults, children, rooms: Math.max(1, Math.ceil(adults / 2)) };
-}
-
-function tripDestination(trip: TripFacts, hotelDestination?: string | null): string | null {
+function tripDestination(trip: TripFacts | null, hotelDestination?: string | null): string | null {
+  if (!trip) return hotelDestination?.trim() || null;
   const fromHotel = hotelDestination?.trim();
   if (fromHotel) return fromHotel;
   const fromStay = trip.stay?.city?.trim();
@@ -54,16 +51,20 @@ function tripDestination(trip: TripFacts, hotelDestination?: string | null): str
   return fromList || null;
 }
 
-/** Rates · hotel (or Did you mean) when the trip already has dates. Skip for silent coverage checks. */
+/** Rates · hotel (or Did you mean) when trip has dates + party. Skip coverage / Preferred-only. */
 function hotelFindChoices(result: unknown, trip: TripFacts | null): AgentChoice[] {
-  if (!trip?.starts_on || !trip.ends_on) return [];
+  const tripDates = datesFromTrip(trip);
+  const tripParty = partyFromTrip(trip);
+  if (!tripDates || !tripParty) return [];
   const { hotels, did_you_mean: didYouMean, coverage_check } = hotelFindPayload(result);
   if (coverage_check) return [];
-  const party = partyFromTrip(trip);
+  const rooms = Math.max(1, Math.ceil(tripParty.adults / 2));
+  // Rates chips only for shoppable hotels (Rate Layer or Atlas with property_id).
   const names =
     didYouMean.length > 0
       ? didYouMean
       : hotels
+          .filter((hotel) => hotel.contracted === true)
           .map((hotel) => hotel.name?.trim())
           .filter((name): name is string => Boolean(name));
   if (names.length === 0) return [];
@@ -75,11 +76,11 @@ function hotelFindChoices(result: unknown, trip: TripFacts | null): AgentChoice[
   const ratesArgs = (hotelNames: string[]) => ({
     destination,
     hotels: hotelNames.slice(0, 5),
-    check_in: trip.starts_on,
-    check_out: trip.ends_on,
-    rooms: party.rooms,
-    adults: party.adults,
-    children: party.children,
+    check_in: tripDates.checkIn,
+    check_out: tripDates.checkOut,
+    rooms,
+    adults: tripParty.adults,
+    children: tripParty.children,
   });
 
   const buttons: AgentChoice[] = [];
@@ -133,14 +134,15 @@ export const hotelGetTool = defineDeskTool({
 export const hotelFindTool = defineDeskTool({
   name: "hotel_find",
   description: [
-    "Find contracted hotels by name (fuzzy), destination, price tier (ultra_luxury / luxury / premium), similar to another hotel, or a similar price band.",
+    "Find hotels by name (fuzzy), destination, proposed tier (Tier 1 / Tier 2 / Tier 3), similar to another hotel, or a similar price band.",
+    "Results: Rate Layer (shoppable, contracted true) first; Atlas preferred/guide hotels fill when Rate Layer is thin or empty (source atlas, contracted false unless linked).",
     "Use when the advisor names a hotel, asks for suggestions, wants others in the same tier, or says \"similar to X\". A saved stay is not required.",
-    "Coverage check (founder #16): after dates/stays are set, before asking hotel-in-mind / suggest — pass destination + coverage_check true (limit 1). Silent in the UI. If hotels empty: say none loaded and ask for names or a paste quote — never offer to suggest. If any hotel returned: do NOT list hotel names; only ask in plain text whether they have a hotel in mind or want suggestions. List hotels only when they explicitly ask to suggest/find hotels (coverage_check false).",
+    "Coverage check (founder #16): after dates/stays are set, before asking hotel-in-mind / suggest — pass destination + coverage_check true (limit 1). Silent in the UI. If hotels empty: say none loaded and ask for names or a paste quote — never offer to suggest. If any hotel returned (Rate Layer or Atlas): do NOT list hotel names; only ask in plain text whether they have a hotel in mind or want suggestions. List hotels only when they explicitly ask to suggest/find hotels (coverage_check false).",
     "For \"similar\" / \"same tier\" / \"same price range\", pass similar_to or tier so results stay in that band — do not list cheaper out-of-tier hotels from general knowledge.",
     "Do not use for hotel rules or charges (hotel_get), place notes (place_get_notes), or room prices (rates tools).",
-    "Returns contracted hotels only, with tier and style tags. When the name is unclear, did_you_mean lists close matches instead of guessing.",
-    "Suggest / find hotels alone: call this tool only (no coverage_check) — do not call rates_search. Reply with a short numbered shortlist; end by asking for rates in plain text (e.g. \"rates for [hotel]?\") — never say tap Rates (founder #19). Empty result: no shortlist — ask for names or paste quote.",
-    "Only when the same message also asks for prices, rates, cheapest, or \"suggest and get rates\": call rates_search next in the same turn for the top 1–2 picks (or the hotels they named).",
+    "Returns hotels with tier, style tags, contracted, source, badge (Contracted | Preferred for rates logic only), plus area, partner, why, choose_if, guide_rating, and guide_score_factors (full-name keys: luxury, support, rooms, food_and_beverage, …) when known; plus experiences (curated activities + restaurants for the place). When the name is unclear, did_you_mean lists close matches instead of guessing.",
+    "Suggest / find hotels alone: call this tool only (no coverage_check) — do not call rates_search. Default limit 3. Reply shape (see trip/home prompt): numbered **Hotel name** with Area / Partner / Guide / Why / Choose if bullets; then ### Also for [City] from experiences when present; then **Pick:** one hotel + reason (may use area vs experiences), then rates/paste guidance and one who/dates question. Never invent names or ratings. Never show Contracted/Preferred tags on each hotel. Never dump the full factor matrix on every shortlist — use guide_score_factors only when the advisor asks why a Guide score is high/low or to compare factors. Never say tap Rates (founder #19). Empty result: ask for names or paste quote. Never say \"no hotels\" when this tool returned names.",
+    "Only when the same message also asks for prices, rates, cheapest, or \"suggest and get rates\" AND check-in, check-out, rooms, and adults are known: call rates_search next for the top 1–2 Contracted picks (or the hotels they named). Do not rates_search Preferred (contracted false) — offer paste quote instead. If dates/party missing, ask once; do not invent.",
   ].join(" "),
   schema: z
     .object({
@@ -167,7 +169,13 @@ export const hotelFindTool = defineDeskTool({
         .max(120)
         .optional()
         .describe("Find hotels in a similar nightly price band to this one."),
-      limit: z.number().int().min(1).max(10).optional().describe("How many hotels to return (default 5)."),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(10)
+        .optional()
+        .describe("How many hotels to return (default 3 for shortlists)."),
       coverage_check: z
         .boolean()
         .optional()
@@ -202,6 +210,7 @@ export const hotelFindTool = defineDeskTool({
       similarTo: input.similar_to,
       priceBandLike: input.price_band_like,
       limit: coverage ? 1 : input.limit,
+      includeExperiences: !coverage,
     });
     if (coverage && result && typeof result === "object") {
       return { ...result, coverage_check: true };

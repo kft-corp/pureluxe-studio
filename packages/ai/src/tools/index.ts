@@ -23,6 +23,7 @@ export type {
 } from "./history";
 export type {
   HotelBrief,
+  HotelFindExperience,
   HotelFindHit,
   HotelFindResult,
   HotelPriceTier,

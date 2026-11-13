@@ -20,7 +20,7 @@ function hit(partial: Partial<PropertySearchHit> & Pick<PropertySearchHit, "id" 
     city: null,
     country: "Maldives",
     aliases: [],
-    price_tier: "ultra_luxury",
+    price_tier: "Tier 1",
     style_tags: [],
     ...partial,
   };

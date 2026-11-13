@@ -1,8 +1,27 @@
 """Generate SQL appendices for 018_japan_destination_guide.sql from the guide text."""
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
+
+# Guide matrix abbr → full-name keys for kb_hotel_details.guide_score_factors.
+SCORE_FACTOR_KEYS = (
+    "luxury",
+    "support",
+    "rooms",
+    "food_and_beverage",
+    "neighbourhood",
+    "access",
+    "service",
+    "character",
+    "wellness",
+    "family",
+    "indian_client_fit",
+    "value",
+    "views_and_privacy",
+    "consistency",
+)
 
 ROOT = Path(__file__).resolve().parents[4]
 DOCX = ROOT / "docs" / "founder docs" / "Japan-Destination-Guide.docx"
@@ -26,12 +45,19 @@ def slug(s: str) -> str:
     return s[:90]
 
 
-def luxury_band(tier: str) -> str:
+def proposed_tier(tier: str) -> str:
+    """Normalize guide proposed tier labels for kb_hotel_details.luxury_band."""
     if "1" in tier:
-        return "ultra_luxury"
+        return "Tier 1"
     if "2" in tier:
-        return "luxury"
-    return "premium"
+        return "Tier 2"
+    return "Tier 3"
+
+
+def guide_score_sql(score: str) -> str:
+    """Numeric guide score for SQL, or NULL when not scored."""
+    m = re.match(r"^([0-9]+(?:\.[0-9]+)?)", (score or "").strip())
+    return m.group(1) if m else "NULL"
 
 
 def contract_status(partner: str) -> tuple[str, bool, bool]:
@@ -69,6 +95,67 @@ def club_from_partner(partner: str) -> list[tuple[str, str]]:
     for needle, key, label in mapping:
         if needle in low:
             out.append((key, label))
+    return out
+
+
+def parse_score_matrix(lines: list[str]) -> dict[str, dict]:
+    """Hotel name → {factors: dict, average: float|None} from scoring matrix tables."""
+    start = lines.index("Hotel scoring matrix (internal)")
+    matrix = lines[start:]
+    headers = {
+        "Hotel",
+        "City",
+        "Lux",
+        "Sup",
+        "Rooms",
+        "FnB",
+        "Nbhd",
+        "Access",
+        "Service",
+        "Char",
+        "Well",
+        "Fam",
+        "IndFit",
+        "Value",
+        "View",
+        "Cons",
+        "Average",
+    }
+    out: dict[str, dict] = {}
+    i = 0
+    while i < len(matrix):
+        if matrix[i] in headers or matrix[i].startswith("Japan Destination Guide"):
+            i += 1
+            continue
+        if matrix[i].startswith("Scores are") or matrix[i].startswith("Key:"):
+            i += 1
+            continue
+        # Row: name, city, 14 factors, average
+        if i + 15 >= len(matrix):
+            break
+        name = matrix[i]
+        city = matrix[i + 1]
+        raw_scores = matrix[i + 2 : i + 16]
+        average_raw = matrix[i + 16] if i + 16 < len(matrix) else ""
+        # Validate city-ish + numeric/? scores
+        if not re.match(r"^[A-Za-z]", city or ""):
+            i += 1
+            continue
+        if len(raw_scores) != 14:
+            i += 1
+            continue
+        if not all(s == "?" or re.match(r"^[1-5]$", s) for s in raw_scores):
+            i += 1
+            continue
+        factors: dict[str, int] = {}
+        for key, raw in zip(SCORE_FACTOR_KEYS, raw_scores):
+            if raw != "?":
+                factors[key] = int(raw)
+        avg = None
+        if re.match(r"^[0-9]+(?:\.[0-9]+)?$", (average_raw or "").strip()):
+            avg = float(average_raw.strip())
+        out[name] = {"city": city, "factors": factors, "average": avg}
+        i += 17
     return out
 
 
@@ -235,14 +322,19 @@ HOTEL_ALIASES: dict[str, list[str]] = {
 }
 
 
-def generate_sql(hotels: list[dict], experiences: list[dict]) -> str:
+def generate_sql(
+    hotels: list[dict],
+    experiences: list[dict],
+    score_matrix: dict[str, dict] | None = None,
+) -> str:
+    score_matrix = score_matrix or {}
     parts: list[str] = []
     parts.append(
         """-- =============================================================================
 -- 7. Guide hotels (Japan Destination Guide) + city repairs
 -- =============================================================================
 -- Inserts missing hotels; re-points Japan Unspecified rows to the guide city;
--- upgrades description / luxury_band / consortia from the guide.
+-- upgrades description / Tier 1–3 band / guide_area|partner|score / consortia.
 -- Safe to re-run.
 
 -- 7a. Re-point known Unspecified Japan hotels to the correct city
@@ -456,16 +548,22 @@ WHERE e.entity_type = 'hotel'
 """
     )
 
-    # 7d hotel details luxury_band
+    # 7d hotel details — Tier 1/2/3 + typed guide fields
     parts.append(
         """
--- 7d. Hotel details — luxury_band from proposed tier
-INSERT INTO public.kb_hotel_details (entity_id, amenities, style_tags, luxury_band, best_for)
+-- 7d. Hotel details — Tier 1/2/3 + guide_area / guide_partner / guide_score
+INSERT INTO public.kb_hotel_details (
+  entity_id, amenities, style_tags, luxury_band,
+  guide_area, guide_partner, guide_score, best_for
+)
 SELECT
   e.id,
   '{}'::text[],
   ARRAY[lower(replace(v.tier, ' ', '_'))],
-  v.luxury_band,
+  v.tier,
+  NULLIF(v.area, ''),
+  NULLIF(v.partner, ''),
+  v.guide_score,
   '{}'::text[]
 FROM (VALUES
 """
@@ -473,11 +571,14 @@ FROM (VALUES
     detail_rows = []
     for h in hotels:
         detail_rows.append(
-            "  ('{name}', '{city}', '{tier}', '{band}', '{external_key}', '{aliases}')".format(
+            "  ('{name}', '{city}', '{tier}', '{area}', '{partner}', {score}, "
+            "'{external_key}', '{aliases}')".format(
                 name=esc(h["name"]),
                 city=esc(h["city"]),
-                tier=esc(h["tier"]),
-                band=luxury_band(h["tier"]),
+                tier=esc(proposed_tier(h["tier"])),
+                area=esc(h["area"]),
+                partner=esc(h["partner"]),
+                score=guide_score_sql(h["score"]),
                 external_key=esc("jp-guide-" + slug(h["name"])),
                 aliases=esc("|".join(HOTEL_ALIASES.get(h["name"], []))),
             )
@@ -485,7 +586,7 @@ FROM (VALUES
     parts.append(",\n".join(detail_rows))
     parts.append(
         """
-) AS v(name, city, tier, luxury_band, external_key, aliases)
+) AS v(name, city, tier, area, partner, guide_score, external_key, aliases)
 JOIN public.kb_countries co ON co.country_code = 'JP'
 JOIN public.kb_cities ci ON ci.country_id = co.id AND lower(ci.name) = lower(v.city)
 JOIN public.kb_entities e ON e.entity_type = 'hotel' AND e.active = true AND e.country_id = co.id
@@ -504,7 +605,10 @@ WHERE NOT EXISTS (
 
 UPDATE public.kb_hotel_details d
 SET
-  luxury_band = COALESCE(d.luxury_band, v.luxury_band),
+  luxury_band = COALESCE(v.tier, d.luxury_band),
+  guide_area = COALESCE(NULLIF(v.area, ''), d.guide_area),
+  guide_partner = COALESCE(NULLIF(v.partner, ''), d.guide_partner),
+  guide_score = COALESCE(v.guide_score, d.guide_score),
   style_tags = CASE
     WHEN d.style_tags = '{}'::text[] THEN ARRAY[lower(replace(v.tier, ' ', '_'))]
     ELSE d.style_tags
@@ -516,7 +620,7 @@ FROM (VALUES
     parts.append(",\n".join(detail_rows))
     parts.append(
         """
-) AS v(name, city, tier, luxury_band, external_key, aliases)
+) AS v(name, city, tier, area, partner, guide_score, external_key, aliases)
 JOIN public.kb_countries co ON co.country_code = 'JP'
 JOIN public.kb_entities e ON e.entity_type = 'hotel' AND e.active = true AND e.country_id = co.id
   AND (
@@ -531,6 +635,57 @@ JOIN public.kb_entities e ON e.entity_type = 'hotel' AND e.active = true AND e.c
 WHERE d.entity_id = e.id;
 """
     )
+
+    # 7f guide_score_factors from scoring matrix
+    if score_matrix:
+        parts.append(
+            """
+-- 7f. Hotel guide_score_factors (internal matrix; full-name keys)
+UPDATE public.kb_hotel_details d
+SET
+  guide_score_factors = v.factors::jsonb,
+  guide_score = COALESCE(v.avg_score, d.guide_score),
+  updated_at = now()
+FROM (VALUES
+"""
+        )
+        factor_rows = []
+        for name, row in sorted(score_matrix.items(), key=lambda x: x[0].lower()):
+            city = row["city"]
+            # Align Miyako label with kb_cities
+            if city == "Miyako":
+                city = "Miyako Island"
+            factors_json = json.dumps(row["factors"], separators=(",", ":"))
+            avg = row["average"]
+            avg_sql = str(avg) if avg is not None else "NULL"
+            factor_rows.append(
+                "  ('{name}', '{city}', '{external_key}', '{aliases}', '{factors}', {avg})".format(
+                    name=esc(name),
+                    city=esc(city),
+                    external_key=esc("jp-guide-" + slug(name)),
+                    aliases=esc("|".join(HOTEL_ALIASES.get(name, []))),
+                    factors=esc(factors_json),
+                    avg=avg_sql,
+                )
+            )
+        parts.append(",\n".join(factor_rows))
+        parts.append(
+            """
+) AS v(name, city, external_key, aliases, factors, avg_score)
+JOIN public.kb_countries co ON co.country_code = 'JP'
+JOIN public.kb_entities e ON e.entity_type = 'hotel' AND e.active = true AND e.country_id = co.id
+  AND (
+    e.external_key = v.external_key
+    OR lower(e.name) = lower(v.name)
+    OR (v.aliases <> '' AND e.name = ANY (string_to_array(v.aliases, '|')))
+    OR exists (
+      SELECT 1 FROM unnest(coalesce(e.aliases, '{}'::text[])) a
+      WHERE lower(a) = lower(v.name)
+    )
+  )
+WHERE d.entity_id = e.id;
+"""
+        )
 
     # 7e consortia
     consortia_rows = []
@@ -794,7 +949,8 @@ def main() -> None:
     lines = extract_docx_lines(DOCX)
     hotels = parse_hotels(lines)
     experiences = parse_experiences(lines)
-    sql = generate_sql(hotels, experiences)
+    score_matrix = parse_score_matrix(lines)
+    sql = generate_sql(hotels, experiences, score_matrix)
 
     seed = SEED_018.read_text(encoding="utf-8")
     if MARKER in seed:
@@ -812,7 +968,7 @@ def main() -> None:
             "-- Experience-bank restaurants/activities are NOT seeded yet (unverified per guide;\n"
             "--   advisor_take still blank for Keshav).\n",
             "-- Seeds place facts + guide hotels + experience bank for Trip Builder Japan tests.\n"
-            "-- Hotels: insert missing / repair Unspecified city / luxury_band / consortia.\n"
+            "-- Hotels: insert missing / repair Unspecified city / Tier 1–3 + guide fields / consortia.\n"
             "-- Experiences: activities + restaurants (kb_scraped, client_ready=false; no advisor_take).\n",
         )
     SEED_018.write_text(seed + "\n" + MARKER + "\n" + sql, encoding="utf-8")

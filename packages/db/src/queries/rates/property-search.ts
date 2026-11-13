@@ -6,13 +6,7 @@ import type {
   PropertyPriceBand,
   PropertySearchHit,
 } from "../../schema";
-
-const TIERS = new Set<HotelPriceTier>(["ultra_luxury", "luxury", "premium"]);
-
-function asTier(value: string | null | undefined): HotelPriceTier | null {
-  if (!value || !TIERS.has(value as HotelPriceTier)) return null;
-  return value as HotelPriceTier;
-}
+import { asHotelPriceTier } from "../../utils/hotel-price-tier";
 
 /** Map RPC / Atlas luxury_band onto PropertySearchHit.price_tier (app alias). */
 function asHit(row: Record<string, unknown>): PropertySearchHit {
@@ -27,7 +21,7 @@ function asHit(row: Record<string, unknown>): PropertySearchHit {
     country: (row.country as string | null) ?? null,
     score: Number(row.score ?? 0),
     aliases: Array.isArray(row.aliases) ? (row.aliases as string[]) : [],
-    price_tier: asTier(band),
+    price_tier: asHotelPriceTier(band),
     style_tags: Array.isArray(row.style_tags) ? (row.style_tags as string[]) : [],
   };
 }
@@ -71,7 +65,7 @@ function detailsOf(
   const raw = row.kb_hotel_details;
   const details = Array.isArray(raw) ? raw[0] : raw;
   return {
-    price_tier: asTier(details?.luxury_band ?? null),
+    price_tier: asHotelPriceTier(details?.luxury_band ?? null),
     style_tags: Array.isArray(details?.style_tags) ? details!.style_tags! : [],
   };
 }

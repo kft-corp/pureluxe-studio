@@ -79,16 +79,31 @@ export function createDeskTools(actor: DeskActor): Omit<DeskAgentHandlers, "getC
       return { clients: result.clients.map(toClientListRow), total: result.total };
     },
 
-    async getPlaceNotes({ query, cityHint, destination, applyIn, earlier }) {
+    async getPlaceNotes({
+      query,
+      cityHint,
+      destination,
+      applyIn,
+      earlier,
+      travelFrom,
+      travelTo,
+    }) {
       const atlas = await answerAtlasStay({
         question: query,
         cityHint: cityHint ?? null,
         destination: destination ?? null,
         applyIn: applyIn ?? null,
         earlier: earlier ?? null,
+        travelFrom: travelFrom ?? null,
+        travelTo: travelTo ?? null,
       });
+      const placeTitle =
+        atlas.place.city?.trim() ||
+        atlas.place.country?.trim() ||
+        null;
       return {
         matched: atlas.matched,
+        title: placeTitle,
         notes: atlas.matched ? atlas.answer : null,
         hotels: atlas.hotels.map((hotel) => ({
           name: hotel.name,

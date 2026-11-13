@@ -4,6 +4,7 @@ import type { RateCompareCard } from "../../tools";
 import type { TripFacts } from "../../types";
 
 import { defineAgentTool } from "./define-tool";
+import { resolveRateSearchInput } from "./rate-search-gate";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD.");
 
@@ -46,15 +47,16 @@ export const ratesGetSnapshotTool = defineAgentTool({
 export const ratesSearchTool = defineAgentTool({
   name: "rates_search",
   description: [
-    "Search rates for one or more hotels in a destination for given dates and party. A saved stay is NOT required — never ask the advisor to save a stay or confirm before searching.",
-    "Use when the advisor names hotels for prices, asks for rates / cheapest / compare costs, or says \"need rates\" / \"suggest and get rates\". Pass hotels in one call (max 5); they run in parallel. Run immediately; never ask \"Search rates?\".",
+    "Search rates for one or more hotels in a destination for given dates and party. A saved stay hotel is NOT required — never ask the advisor to save a stay or confirm before searching.",
+    "HARD GATE: only call when check-in, check-out, rooms, and adult count are known from the trip facts or this message. Prefer trip facts (starts_on/ends_on, travellers) when set. If any of those are missing, do NOT call this tool and do NOT invent dates or party — ask once in plain text. Child count may be 0.",
+    "Use when the advisor names hotels for prices, asks for rates / cheapest / compare costs, or says \"need rates\" / \"suggest and get rates\". Pass hotels in one call (max 5); they run in parallel. Never ask \"Search rates?\".",
     "Do not use after hotel_find when the advisor only asked to suggest or find hotels — wait until they ask for rates in plain text.",
-    "When suggest-and-rates in one message: search the top 1–2 hotel_find picks unless they named more hotels or said all / every.",
+    "When suggest-and-rates in one message: only rates_search the top 1–2 contracted (contracted true) hotel_find picks. For Preferred/guide-only (contracted false): do not rates_search — say Preferred with no rate file yet and offer paste quote.",
     "When the client already chose a room (selected in trip facts / booking stage) and the advisor only wants today's price for that choice: search only the chosen hotel(s), then reply in short prose comparing the chosen room's quoted sell to today's cost. Do not suggest other rooms or treat it as a new quote. Never mention hotel minimum markup or commission rate.",
     "When the advisor also wants the hotel on the trip itinerary, call trip_set_stays in the same turn, then this. Pricing alone does not need trip_set_stays.",
     "Do not use for place questions (place_get_notes) or to list hotels without prices (hotel_find).",
     "Returns one entry per hotel: ok | no_rates | not_in_pureluxe | several_matches | offline | timeout, with alternatives when not ok. Cost is advisor-only. Never echo status codes or brand names in the reply — say \"I can't offer that hotel\" / \"no rates for those dates\" in plain language.",
-    "When status is no_rates: say so, suggest other stay dates or another hotel from hotel_find, or rates_use_pasted_quote — never invent prices or seasons.",
+    "When status is no_rates or the hotel is Preferred-only: say so, offer rates_use_pasted_quote or another Contracted hotel — never invent prices or seasons.",
     "Do not use when the advisor only changes markup or sell — that is quote_add_options / quote_set_client_price (no new search, no rate table). Never say you refreshed rates for a markup change.",
     "After this tool (shopping only): Studio shows the room-rate table only on the first pull or when dates, party/travellers, rooms, or new hotels were searched. If show_compare_card is false (same dates/party and hotels already covered): do not say \"see the table below\" or that you refreshed rates; reply in 1–2 short lines. The table shows cost only — no sell or Set markup in the UI. When the table is shown: reply in 1–2 short lines (which room to prefer + next step: add with a markup or sell). Do not restate hotel, dates, party, preference, prices, meal plans, or the full inclusions list. Heads-up only for cancel/market risk. Package rates → package sheet + extra-night; sell after markup is package + extras for the stay. Nightly → cost per night / stay cost. Never paste a markdown table of rooms or prices. Advisors add rooms via chat with quote_add_options — never tell them to tap Add or any rate-row control (founder #19). Prefer rates_get_snapshot for follow-ups that do not need a fresh search.",
     "When comparing hotels on fit (which hotel is better), use the fixed hotel-compare markdown table (Entry room, Pool upgrade, Water / overwater, Meal plans, Transfers & taxes, Free cancel until, Applied markup; optional Location / Family). That compare table is separate from the room-rate UI table. Pass child_ages when the advisor stated ages.",
@@ -67,11 +69,21 @@ export const ratesSearchTool = defineAgentTool({
         .min(1)
         .max(5)
         .describe("Hotel names to search, in the order the advisor named them."),
-      check_in: isoDate,
-      check_out: isoDate,
-      rooms: z.number().int().min(1).max(10).default(1),
-      adults: z.number().int().min(1).max(20),
-      children: z.number().int().min(0).max(20).default(0),
+      check_in: isoDate
+        .optional()
+        .describe("YYYY-MM-DD from trip facts or the advisor message — never invent."),
+      check_out: isoDate
+        .optional()
+        .describe("YYYY-MM-DD from trip facts or the advisor message — never invent."),
+      rooms: z.number().int().min(1).max(10).optional().describe("Rooms; default one per two adults when known."),
+      adults: z
+        .number()
+        .int()
+        .min(1)
+        .max(20)
+        .optional()
+        .describe("Adult count from trip travellers or the advisor message — never invent."),
+      children: z.number().int().min(0).max(20).optional().describe("Child/infant count; 0 when none."),
       child_ages: z
         .array(z.number().int().min(0).max(17))
         .max(20)
@@ -110,15 +122,29 @@ export const ratesSearchTool = defineAgentTool({
     }
     return buttons.slice(0, 8);
   },
-  run: (input, handlers) =>
-    handlers.searchRates({
+  run: async (input, handlers, _call, trip) => {
+    const resolved = resolveRateSearchInput(
+      {
+        check_in: input.check_in ?? "",
+        check_out: input.check_out ?? "",
+        rooms: input.rooms,
+        adults: input.adults ?? 0,
+        children: input.children,
+      },
+      trip ?? null,
+    );
+    if ("error" in resolved) {
+      return { error: resolved.error, missing: resolved.missing };
+    }
+    return handlers.searchRates({
       destination: input.destination,
       hotels: input.hotels,
-      checkIn: input.check_in,
-      checkOut: input.check_out,
-      rooms: input.rooms,
-      adults: input.adults,
-      children: input.children,
+      checkIn: resolved.checkIn,
+      checkOut: resolved.checkOut,
+      rooms: resolved.rooms,
+      adults: resolved.adults,
+      children: resolved.children,
       childAges: input.child_ages,
-    }),
+    });
+  },
 });

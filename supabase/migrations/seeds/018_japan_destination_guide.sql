@@ -6,11 +6,19 @@
 --   2026-11-03 · Keshav Arya
 --
 -- Seeds place facts + guide hotels + experience bank for Trip Builder Japan tests.
--- Hotels: insert missing / repair Unspecified city / luxury_band / consortia.
+-- Hotels: insert missing / repair Unspecified city / Tier 1–3 + guide fields / consortia.
 -- Experiences: activities + restaurants (kb_scraped, client_ready=false; no advisor_take).
 --
 -- Depends on:
 --   migrations/016_atlas_kb.sql (+ wave columns used by hotel_details)
+--   migrations/031_kb_country_season_windows.sql (season table for When to go)
+--   migrations/032_kb_country_visa_typed_fields.sql (typed visa fee/apply/docs)
+--   migrations/033_kb_country_facts_logistics.sql (getting there/around, etiquette, …)
+--   migrations/034_kb_destination_facts_best_for.sql (city best_for)
+--   migrations/035_kb_itineraries_typed_fields.sql (duration / suits / default)
+--   migrations/036_kb_experience_bank_typed_fields.sql (who/lead/veg on details)
+--   migrations/037_kb_hotel_guide_typed_fields.sql (hotel area/partner/score + Tier labels)
+--   migrations/038_kb_hotel_guide_score_factors.sql (guide_score_factors matrix jsonb)
 --   seeds/016_atlas_kb.sql (Japan country + base cities/hotels)
 -- Regenerate entities section:
 --   python supabase/migrations/seeds/_generate/generate_japan_destination_guide.py
@@ -44,6 +52,12 @@ INSERT INTO public.kb_country_facts (
   best_season,
   safety_notes,
   general_notes,
+  getting_there,
+  getting_around,
+  etiquette_notes,
+  dining_notes,
+  pitfalls,
+  ideal_trip_length,
   kb_tier,
   provenance
 )
@@ -51,25 +65,15 @@ SELECT
   c.id,
   'JPY',
   'Yen. Cards widely accepted in hotels and restaurants; cash still needed at small restaurants, shrines and rural ryokan.',
-  'Best windows: late March to mid-April (cherry blossom) and late October to late November (autumn colour). Both book out early — lock Kyoto hotels 9 to 12 months ahead. Peak PureLuxe view: sakura end-March to early April; plum blossom Feb–Mar also sellable. Avoid Golden Week (29 Apr–5 May). Autumn colour Oct–Nov; ski Dec–Mar. Value windows: February, May and June. May balances good weather with far fewer crowds than sakura. Hokkaido sold mainly for skiing; summer suits outdoors clients.',
-  'Japan is safe and punctual. Logistics mistakes are expensive — advisor value is sequencing, access and restaurant reservations. Year-end shutdown (~29 Dec–3 Jan) closes many restaurants and shops. Tattoos can be restricted at public onsen (private onsen baths avoid this); no tipping; shoes off at ryokan; quiet on trains.',
-  $japan_general$
-Japan rewards 10 to 14 nights for a first visit: Tokyo and Kyoto are the spine; one or two nature or onsen stops make it feel luxury rather than a city tour.
-
-Getting there: open-jaw Tokyo + Osaka is best; direct flights to Tokyo when available. Prefer Haneda over Narita when there is a choice.
-
-Getting around: Shinkansen links Tokyo, Kyoto/Osaka, Hiroshima and Kanazawa (Tokyo–Kyoto ~2h15). Luggage forwarding (takkyubin) between hotels is standard and cheap. Private drivers suit Hakone, Kyoto day trips and families.
-
-Restaurants: top restaurants book 1 to 3 months out; many need a hotel concierge or member card. Omakase counters often cannot take dietary changes at short notice. PureLuxe has vegetarian / Jain restaurant suggestions.
-
-Common pitfalls: trying to do too much; touristy FOMO instead of experiencing the place; not booking key pieces in advance.
-
-Ideal length (first-time): 10 nights — Tokyo 5, Kyoto/Osaka 4, 1 ryokan night. Return-client length still to confirm.
-
-Season snapshot (approx.): Spring Mar–May 8–22°C; early summer Jun–Jul humid/rainy on main islands; Aug 30–37°C in Tokyo/Kyoto/Osaka (Obon ~13–16 Aug); autumn Sep typhoon-prone then Oct–Nov 10–22°C; winter Dec–Feb 0–10°C in Tokyo/Kyoto, heavy snow in Hokkaido/Nagano.
-
-Updated with Keshav's answers 3 Nov 2026; hand-authored advisor_take still to be written.
-$japan_general$,
+  'Best windows: late March to mid-April (cherry blossom) and late October to late November (autumn colour). Lock Kyoto hotels 9 to 12 months ahead. Peak PureLuxe: sakura end-March to early April; plum blossom Feb–Mar also sellable. Avoid Golden Week (29 Apr–5 May). Value: February, May and June. Hokkaido mainly skiing; summer for outdoors clients.',
+  'Japan is safe and punctual. Logistics mistakes are expensive — advisor value is sequencing, access and restaurant reservations. Year-end shutdown (~29 Dec–3 Jan) closes many restaurants and shops.',
+  'Japan rewards 10 to 14 nights for a first visit: Tokyo and Kyoto are the spine; one or two nature or onsen stops make it feel luxury rather than a city tour. Updated with Keshav''s answers 3 Nov 2026; hand-authored advisor_take still to be written.',
+  'An open-jaw pairing of Tokyo and Osaka is best; direct flights to Tokyo work when available. Haneda is more convenient than Narita if there is a choice.',
+  'The Shinkansen links Tokyo, Kyoto/Osaka, Hiroshima and Kanazawa; Tokyo to Kyoto is about 2h15. Luggage forwarding (takkyubin) between hotels is standard and cheap, so clients rarely carry bags on trains. Private drivers suit Hakone, Kyoto day trips and families.',
+  'Tattoos can be restricted at public onsen (private onsen baths avoid this); no tipping; shoes off at ryokan; quiet on trains.',
+  'Top restaurants book 1 to 3 months out and many need a hotel concierge or a member card; omakase counters often cannot take dietary changes at short notice. For vegetarian and Jain clients, PureLuxe has restaurant suggestions that cater to these needs.',
+  'Trying to do too much, doing touristy things out of FOMO instead of experiencing the place, and not making key bookings in advance.',
+  '10 nights is ideal for a first-time client: 5 in Tokyo, 4 across Kyoto and Osaka, and 1 ryokan night. Length for return clients still to confirm. A fuller first visit often runs 10 to 14 nights.',
   'kb_verified',
   'kb'
 FROM public.kb_countries c
@@ -78,26 +82,30 @@ WHERE c.country_code = 'JP'
     SELECT 1 FROM public.kb_country_facts f WHERE f.country_id = c.id
   );
 
--- If a thin row already exists, fill empty columns from the guide (do not overwrite advisor_take).
+-- Refresh logistics + keep season summary (do not overwrite advisor_take).
 UPDATE public.kb_country_facts f
 SET
   currency_code = COALESCE(NULLIF(trim(f.currency_code), ''), 'JPY'),
-  currency_notes = COALESCE(
-    NULLIF(trim(f.currency_notes), ''),
-    'Yen. Cards widely accepted in hotels and restaurants; cash still needed at small restaurants, shrines and rural ryokan.'
-  ),
-  best_season = COALESCE(
-    NULLIF(trim(f.best_season), ''),
-    'Best windows: late March to mid-April (cherry blossom) and late October to late November (autumn colour). Lock Kyoto hotels 9–12 months ahead. Avoid Golden Week. Value: Feb, May, June.'
-  ),
-  safety_notes = COALESCE(
-    NULLIF(trim(f.safety_notes), ''),
-    'Safe and punctual. Year-end shutdown ~29 Dec–3 Jan. Public onsen may restrict tattoos; no tipping; shoes off at ryokan; quiet on trains.'
-  ),
-  general_notes = COALESCE(
-    NULLIF(trim(f.general_notes), ''),
-    'First visit: 10–14 nights. Spine Tokyo + Kyoto plus nature/onsen. Open-jaw Tokyo/Osaka; prefer Haneda. Shinkansen + takkyubin. Top restaurants 1–3 months out.'
-  ),
+  currency_notes =
+    'Yen. Cards widely accepted in hotels and restaurants; cash still needed at small restaurants, shrines and rural ryokan.',
+  best_season =
+    'Best windows: late March to mid-April (cherry blossom) and late October to late November (autumn colour). Lock Kyoto hotels 9 to 12 months ahead. Peak PureLuxe: sakura end-March to early April; plum blossom Feb–Mar also sellable. Avoid Golden Week (29 Apr–5 May). Value: February, May and June. Hokkaido mainly skiing; summer for outdoors clients.',
+  safety_notes =
+    'Japan is safe and punctual. Logistics mistakes are expensive — advisor value is sequencing, access and restaurant reservations. Year-end shutdown (~29 Dec–3 Jan) closes many restaurants and shops.',
+  general_notes =
+    'Japan rewards 10 to 14 nights for a first visit: Tokyo and Kyoto are the spine; one or two nature or onsen stops make it feel luxury rather than a city tour. Updated with Keshav''s answers 3 Nov 2026; hand-authored advisor_take still to be written.',
+  getting_there =
+    'An open-jaw pairing of Tokyo and Osaka is best; direct flights to Tokyo work when available. Haneda is more convenient than Narita if there is a choice.',
+  getting_around =
+    'The Shinkansen links Tokyo, Kyoto/Osaka, Hiroshima and Kanazawa; Tokyo to Kyoto is about 2h15. Luggage forwarding (takkyubin) between hotels is standard and cheap, so clients rarely carry bags on trains. Private drivers suit Hakone, Kyoto day trips and families.',
+  etiquette_notes =
+    'Tattoos can be restricted at public onsen (private onsen baths avoid this); no tipping; shoes off at ryokan; quiet on trains.',
+  dining_notes =
+    'Top restaurants book 1 to 3 months out and many need a hotel concierge or a member card; omakase counters often cannot take dietary changes at short notice. For vegetarian and Jain clients, PureLuxe has restaurant suggestions that cater to these needs.',
+  pitfalls =
+    'Trying to do too much, doing touristy things out of FOMO instead of experiencing the place, and not making key bookings in advance.',
+  ideal_trip_length =
+    '10 nights is ideal for a first-time client: 5 in Tokyo, 4 across Kyoto and Osaka, and 1 ryokan night. Length for return clients still to confirm. A fuller first visit often runs 10 to 14 nights.',
   kb_tier = CASE WHEN f.kb_tier = 'llm_general' THEN 'kb_verified' ELSE f.kb_tier END,
   updated_at = now()
 FROM public.kb_countries c
@@ -105,8 +113,236 @@ WHERE f.country_id = c.id
   AND c.country_code = 'JP';
 
 -- =============================================================================
+-- 1b. Japan season windows (guide Weather table → kb_country_season_windows)
+-- =============================================================================
+-- Requires migration 031_kb_country_season_windows.sql.
+
+INSERT INTO public.kb_country_season_windows (
+  country_id,
+  season_key,
+  label,
+  months_label,
+  month_from,
+  month_to,
+  climate_notes,
+  best_for,
+  watch_outs,
+  demand_level,
+  book_ahead_notes,
+  sort_order,
+  kb_tier,
+  provenance,
+  active
+)
+SELECT
+  c.id,
+  v.season_key,
+  v.label,
+  v.months_label,
+  v.month_from,
+  v.month_to,
+  v.climate_notes,
+  v.best_for,
+  v.watch_outs,
+  v.demand_level,
+  v.book_ahead_notes,
+  v.sort_order,
+  'kb_verified',
+  'kb',
+  true
+FROM public.kb_countries c
+CROSS JOIN (VALUES
+  (
+    'spring',
+    'Spring',
+    'Mar to May',
+    3,
+    5,
+    '8 to 22°C; blossom moves from late March (Tokyo, Kyoto) to early May (Hokkaido).',
+    'Classic first trip, gardens, Kyoto',
+    'Blossom dates shift 1 to 2 weeks each year; Golden Week (29 Apr to 5 May) is peak domestic travel',
+    'peak',
+    'Lock Kyoto hotels 9 to 12 months ahead for sakura',
+    10
+  ),
+  (
+    'early_summer',
+    'Early summer',
+    'Jun to Jul',
+    6,
+    7,
+    '20 to 30°C, humid; rainy season mid-Jun to mid-Jul on the main islands.',
+    'Hokkaido lavender, Japanese Alps, Okinawa',
+    'Rain and humidity in Tokyo and Kyoto; typhoon season starts in Okinawa',
+    'value',
+    NULL,
+    20
+  ),
+  (
+    'summer',
+    'Summer',
+    'Aug',
+    8,
+    8,
+    '30 to 37°C in Tokyo, Kyoto, Osaka.',
+    'Hokkaido, mountains, festivals',
+    'Obon (about 13 to 16 Aug), heavy heat, typhoon risk',
+    'avoid',
+    NULL,
+    30
+  ),
+  (
+    'autumn',
+    'Autumn',
+    'Sep to Nov',
+    9,
+    11,
+    'Sep hot and typhoon-prone; Oct to Nov 10 to 22°C and clear.',
+    'Foliage (Hokkaido Oct; Tokyo and Kyoto mid to late Nov), food',
+    'Beautiful but less crowded than cherry blossom season; Sep typhoon risk',
+    'peak',
+    'Lock Kyoto hotels 9 to 12 months ahead for autumn colour',
+    40
+  ),
+  (
+    'winter',
+    'Winter',
+    'Dec to Feb',
+    12,
+    2,
+    '0 to 10°C in Tokyo and Kyoto; heavy snow in Hokkaido and Nagano.',
+    'Niseko and Hakuba powder (Jan to Feb), onsen, Sapporo Snow Festival (early Feb)',
+    'Year-end shutdown (about 29 Dec to 3 Jan) closes many restaurants and shops',
+    'shoulder',
+    NULL,
+    50
+  )
+) AS v(
+  season_key,
+  label,
+  months_label,
+  month_from,
+  month_to,
+  climate_notes,
+  best_for,
+  watch_outs,
+  demand_level,
+  book_ahead_notes,
+  sort_order
+)
+WHERE c.country_code = 'JP'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM public.kb_country_season_windows w
+    WHERE w.country_id = c.id
+      AND w.season_key = v.season_key
+      AND w.active = true
+  );
+
+-- Refresh copy on re-seed when keys already exist.
+UPDATE public.kb_country_season_windows w
+SET
+  label = v.label,
+  months_label = v.months_label,
+  month_from = v.month_from,
+  month_to = v.month_to,
+  climate_notes = v.climate_notes,
+  best_for = v.best_for,
+  watch_outs = v.watch_outs,
+  demand_level = v.demand_level,
+  book_ahead_notes = v.book_ahead_notes,
+  sort_order = v.sort_order,
+  kb_tier = 'kb_verified',
+  updated_at = now()
+FROM public.kb_countries c,
+LATERAL (VALUES
+  (
+    'spring',
+    'Spring',
+    'Mar to May',
+    3,
+    5,
+    '8 to 22°C; blossom moves from late March (Tokyo, Kyoto) to early May (Hokkaido).',
+    'Classic first trip, gardens, Kyoto',
+    'Blossom dates shift 1 to 2 weeks each year; Golden Week (29 Apr to 5 May) is peak domestic travel',
+    'peak',
+    'Lock Kyoto hotels 9 to 12 months ahead for sakura',
+    10
+  ),
+  (
+    'early_summer',
+    'Early summer',
+    'Jun to Jul',
+    6,
+    7,
+    '20 to 30°C, humid; rainy season mid-Jun to mid-Jul on the main islands.',
+    'Hokkaido lavender, Japanese Alps, Okinawa',
+    'Rain and humidity in Tokyo and Kyoto; typhoon season starts in Okinawa',
+    'value',
+    NULL,
+    20
+  ),
+  (
+    'summer',
+    'Summer',
+    'Aug',
+    8,
+    8,
+    '30 to 37°C in Tokyo, Kyoto, Osaka.',
+    'Hokkaido, mountains, festivals',
+    'Obon (about 13 to 16 Aug), heavy heat, typhoon risk',
+    'avoid',
+    NULL,
+    30
+  ),
+  (
+    'autumn',
+    'Autumn',
+    'Sep to Nov',
+    9,
+    11,
+    'Sep hot and typhoon-prone; Oct to Nov 10 to 22°C and clear.',
+    'Foliage (Hokkaido Oct; Tokyo and Kyoto mid to late Nov), food',
+    'Beautiful but less crowded than cherry blossom season; Sep typhoon risk',
+    'peak',
+    'Lock Kyoto hotels 9 to 12 months ahead for autumn colour',
+    40
+  ),
+  (
+    'winter',
+    'Winter',
+    'Dec to Feb',
+    12,
+    2,
+    '0 to 10°C in Tokyo and Kyoto; heavy snow in Hokkaido and Nagano.',
+    'Niseko and Hakuba powder (Jan to Feb), onsen, Sapporo Snow Festival (early Feb)',
+    'Year-end shutdown (about 29 Dec to 3 Jan) closes many restaurants and shops',
+    'shoulder',
+    NULL,
+    50
+  )
+) AS v(
+  season_key,
+  label,
+  months_label,
+  month_from,
+  month_to,
+  climate_notes,
+  best_for,
+  watch_outs,
+  demand_level,
+  book_ahead_notes,
+  sort_order
+)
+WHERE w.country_id = c.id
+  AND c.country_code = 'JP'
+  AND w.season_key = v.season_key
+  AND w.active = true;
+
+-- =============================================================================
 -- 2. Visa — Indian passport → Japan (PureLuxe default = sticker / embassy)
 -- =============================================================================
+-- Requires migration 032_kb_country_visa_typed_fields.sql for typed columns.
 
 INSERT INTO public.kb_country_visa_rules (
   country_id,
@@ -115,6 +351,13 @@ INSERT INTO public.kb_country_visa_rules (
   details,
   entry_type,
   official_url,
+  fee_text,
+  processing_text,
+  where_to_apply,
+  documents_text,
+  advisor_tips,
+  alternate_routes,
+  is_pureluxe_default,
   kb_tier,
   provenance,
   last_reviewed_at,
@@ -125,20 +368,19 @@ SELECT
   'IN',
   'Indian passport holders need a visa for Japan. PureLuxe default is the sticker (embassy) visa via VFS; allow about 2 weeks. A tourist e-Visa also exists (single entry, up to 90 days) but is not the PureLuxe default.',
   $japan_visa$
-PureLuxe process (Nov 2026):
-- Visa type: sticker visa (PureLuxe default). Tourist e-Visa (single entry, up to 90 days) also exists for Indian passport holders (reported since April 2024) — secondary sources; not PureLuxe default.
-- Where to apply: VFS Global centres in India for the Embassy of Japan (New Delhi) and consulates (Mumbai, Chennai, Kolkata, Bengaluru).
-- Fee: Rs 3,100 per person.
-- Processing: about 2 weeks.
-- Entry notes: PureLuxe can assist with filing. e-Visa route is for air arrivals only.
-- Typical documents: passport valid >6 months; signed visa application form; covering letter (purpose of visit); company GST certificate copy (self-employed); hotel vouchers; day-to-day itinerary in Japan; personal income tax papers for 3 years; original personal bank statements (last 3 months, updated); 2 colour photos on white background, 2×2 inches, face covering 80%; confirmed return ticket.
-
-Advisor tips: allow 2 weeks when promising dates; build hotel confirmations into the itinerary early (application asks for them). Further tips from Keshav still to add.
-
 Sources (secondary, not official): Business Today Jan 2026, BankBazaar, GoDigit, Visa Fee Calculator. Re-check official Embassy / VFS guidance before confirming to clients.
 $japan_visa$,
   'embassy',
   NULL,
+  'Rs 3,100 per person',
+  'About 2 weeks',
+  'VFS Global centres in India for the Embassy of Japan (New Delhi) and consulates (Mumbai, Chennai, Kolkata, Bengaluru)',
+  $japan_visa_docs$
+Passport valid for more than 6 months; visa application form, completed and signed; covering letter stating the purpose of the visit; copy of the company's GST certificate (for self-employed applicants); hotel vouchers; day-to-day itinerary in Japan; personal income tax papers for 3 years; original personal bank statements, updated, for the last 3 months; 2 colour photos on a white background, 2 x 2 inches with the face covering 80%; confirmed return ticket.
+$japan_visa_docs$,
+  'Allow about 2 weeks for the visa when promising dates, and build hotel confirmations into the itinerary early since the application asks for them. Further tips from Keshav still to add.',
+  'A tourist e-Visa (single entry, up to 90 days) also exists for Indian passport holders (reported since April 2024) — secondary sources; not the PureLuxe default. e-Visa route is for air arrivals only. PureLuxe can assist with the sticker-visa application.',
+  true,
   'kb_verified',
   'kb',
   timestamptz '2026-11-03',
@@ -150,6 +392,38 @@ WHERE c.country_code = 'JP'
     WHERE v.country_id = c.id
       AND v.passport_country_code = 'IN'
   );
+
+-- Refresh typed fields on re-seed (migration 032 columns).
+UPDATE public.kb_country_visa_rules v
+SET
+  summary =
+    'Indian passport holders need a visa for Japan. PureLuxe default is the sticker (embassy) visa via VFS; allow about 2 weeks. A tourist e-Visa also exists (single entry, up to 90 days) but is not the PureLuxe default.',
+  details =
+    $japan_visa_upd$
+Sources (secondary, not official): Business Today Jan 2026, BankBazaar, GoDigit, Visa Fee Calculator. Re-check official Embassy / VFS guidance before confirming to clients.
+$japan_visa_upd$,
+  entry_type = 'embassy',
+  fee_text = 'Rs 3,100 per person',
+  processing_text = 'About 2 weeks',
+  where_to_apply =
+    'VFS Global centres in India for the Embassy of Japan (New Delhi) and consulates (Mumbai, Chennai, Kolkata, Bengaluru)',
+  documents_text =
+    $japan_visa_docs_upd$
+Passport valid for more than 6 months; visa application form, completed and signed; covering letter stating the purpose of the visit; copy of the company's GST certificate (for self-employed applicants); hotel vouchers; day-to-day itinerary in Japan; personal income tax papers for 3 years; original personal bank statements, updated, for the last 3 months; 2 colour photos on a white background, 2 x 2 inches with the face covering 80%; confirmed return ticket.
+$japan_visa_docs_upd$,
+  advisor_tips =
+    'Allow about 2 weeks for the visa when promising dates, and build hotel confirmations into the itinerary early since the application asks for them. Further tips from Keshav still to add.',
+  alternate_routes =
+    'A tourist e-Visa (single entry, up to 90 days) also exists for Indian passport holders (reported since April 2024) — secondary sources; not the PureLuxe default. e-Visa route is for air arrivals only. PureLuxe can assist with the sticker-visa application.',
+  is_pureluxe_default = true,
+  kb_tier = 'kb_verified',
+  last_reviewed_at = timestamptz '2026-11-03',
+  updated_at = now()
+FROM public.kb_countries c
+WHERE v.country_id = c.id
+  AND c.country_code = 'JP'
+  AND v.passport_country_code = 'IN'
+  AND v.active = true;
 
 -- =============================================================================
 -- 3. Cities from the guide that may be missing in 016
@@ -186,6 +460,7 @@ INSERT INTO public.kb_destination_facts (
   best_time_to_visit,
   ideal_length_of_stay,
   vibe,
+  best_for,
   staff_notes,
   kb_tier,
   provenance
@@ -195,6 +470,7 @@ SELECT
   v.best_time,
   v.length,
   v.vibe,
+  v.best_for,
   v.staff,
   v.tier,
   'kb'
@@ -204,6 +480,7 @@ FROM (VALUES
     'Mar to May, Oct to Nov',
     '4 to 7 nights (first-time anchor often 5)',
     'Dense, modern, food and design capital; neighbourhoods differ sharply (Marunouchi/Ginza polished, Roppongi/Azabu international, Shinjuku/Shibuya energetic).',
+    'First-timers, food, shopping, families',
     'Neighbourhood (PureLuxe): Ginza most popular with Indian clients for shopping; Otemachi and Nihonbashi also in demand; Akasaka good value; Roppongi for food and nightlife.',
     'kb_verified'
   ),
@@ -212,6 +489,7 @@ FROM (VALUES
     'Late Mar to Apr, mid to late Nov',
     '3 to 4 nights',
     'Temples, gardens, geisha districts, traditional ryokan; Higashiyama and Gion historic, Kyoto Station/Karasuma central.',
+    'Culture, couples, honeymoon',
     'Neighbourhood (PureLuxe): area around the river is best; Ritz-Carlton has the best luxury location; Park Hyatt also well placed. Book 9–12 months ahead for sakura.',
     'kb_verified'
   ),
@@ -220,6 +498,7 @@ FROM (VALUES
     'Year-round',
     '1 to 2 nights (often combined with Nara / Kyoto)',
     'Street food and nightlife; Nara deer park and temples as a day trip.',
+    'Food lovers, families (Universal Studios Japan)',
     'Stay around Umeda or Osaka Station. Good for food lovers and families (Universal Studios Japan).',
     'kb_scraped'
   ),
@@ -228,6 +507,7 @@ FROM (VALUES
     'Year-round',
     'Day trip from Osaka/Kyoto (or 1 night)',
     'Deer park, Todai-ji and Kasuga Taisha — classic day trip from Osaka/Kyoto.',
+    'Food lovers, families — usually with Osaka',
     'Usually sold as Osaka/Nara pairing rather than a standalone multi-night stay.',
     'kb_scraped'
   ),
@@ -236,6 +516,7 @@ FROM (VALUES
     'Oct to Mar for clear Fuji views',
     '1 to 2 nights',
     'Onsen ryokan with Fuji views; easy ~1.5h from Tokyo.',
+    'Couples, slow luxury, short trips',
     'Couples, slow luxury, short trips. Strong honeymoon / ryokan night.',
     'kb_scraped'
   ),
@@ -244,6 +525,7 @@ FROM (VALUES
     'Jan to Feb (ski); Jul to Aug (summer)',
     '3 to 5 nights',
     'Powder ski in winter; lavender and cool air in summer (wider Hokkaido).',
+    'Ski, families, summer escape',
     'Hokkaido sold mainly for skiing. Pair with Tokyo/Kyoto on ski+cities trips.',
     'kb_scraped'
   ),
@@ -252,6 +534,7 @@ FROM (VALUES
     'Jan to Feb (Snow Festival); Jul to Aug',
     '2 to 3 nights within a 3–5 night Hokkaido block',
     'Hokkaido city hub; winter festival and summer base for Furano/outdoors.',
+    'Ski, families, summer escape — Hokkaido hub',
     'Summer alternative when replacing Osaka/Hiroshima for cooler weather.',
     'kb_scraped'
   ),
@@ -260,6 +543,7 @@ FROM (VALUES
     'Jul to Aug (lavender); winter ski nearby',
     '2 to 3 nights within a Hokkaido block',
     'Lavender fields and cool summer air; ski region access in winter.',
+    'Ski, families, summer escape — lavender / outdoors',
     'Summer Hokkaido outdoor escape.',
     'kb_scraped'
   ),
@@ -268,6 +552,7 @@ FROM (VALUES
     'Apr to Nov',
     '2 nights',
     'Preserved Edo streets, gardens, craft; gateway toward Japan Alps / Takayama.',
+    'Return visitors, culture',
     'Return visitors and culture-led itineraries.',
     'kb_scraped'
   ),
@@ -276,6 +561,7 @@ FROM (VALUES
     'Apr to Nov',
     '1 to 2 nights (often with Kanazawa)',
     'Preserved streets and Japan Alps character.',
+    'Return visitors, culture — often with Kanazawa',
     'Guide notes Takayama has no past PureLuxe itinerary experience-bank entries yet.',
     'kb_scraped'
   ),
@@ -284,6 +570,7 @@ FROM (VALUES
     'Mar to May, Oct to Nov',
     '1 to 2 nights (or day trip from Osaka)',
     'Peace memorial, Seto Inland Sea access; slower history-led pace.',
+    'History, slower pace',
     'Often appears as Osaka day trip; also used on Grand Japan with Miyajima.',
     'kb_scraped'
   ),
@@ -292,6 +579,7 @@ FROM (VALUES
     'Mar to May, Oct to Nov',
     '1 night or day trip with Hiroshima',
     'Shrine island (Itsukushima) on the Seto Inland Sea.',
+    'History, slower pace — with Hiroshima',
     'Pair with Hiroshima on extended itineraries.',
     'kb_scraped'
   ),
@@ -300,6 +588,7 @@ FROM (VALUES
     'Mar to Nov',
     '2 nights',
     'Contemporary art islands and design hotels (Setouchi).',
+    'Art lovers, return visitors',
     'Art lovers / return visitors. Optional add-on on Grand Japan. No past itinerary experience-bank entries yet.',
     'kb_scraped'
   ),
@@ -308,6 +597,7 @@ FROM (VALUES
     'Mar to Nov',
     '2 nights',
     'Contemporary art islands and design hotels spanning the Seto Inland Sea.',
+    'Art lovers, return visitors',
     'Use with Naoshima / art-led clients.',
     'kb_scraped'
   ),
@@ -316,6 +606,7 @@ FROM (VALUES
     'Apr to Jun, Sep to Oct',
     '3 to 4 nights',
     'Subtropical beaches, Ryukyu culture; ties into Maldives-style beach clients.',
+    'Beach add-on, families',
     'Beach add-on / honeymoon finish. Families also fit.',
     'kb_scraped'
   ),
@@ -324,6 +615,7 @@ FROM (VALUES
     'Apr to Jun, Sep to Oct',
     '3 to 4 nights (within Okinawa/Miyako beach finish)',
     'Beach island finish for Okinawa / Miyako stays.',
+    'Beach add-on, families',
     'Rosewood Miyakojima sits here in hotel lists.',
     'kb_scraped'
   ),
@@ -332,6 +624,7 @@ FROM (VALUES
     'Apr to Nov (outdoor); year-round for shrine',
     '1 to 2 nights',
     'UNESCO Toshogu shrine; Lake Chuzenji outdoors (kayak, cycle, waterfalls).',
+    'Extra location PureLuxe can add — shrine / outdoors',
     'Extra location PureLuxe can add. Ritz-Carlton Nikko on Lake Chuzenji.',
     'kb_scraped'
   ),
@@ -340,10 +633,11 @@ FROM (VALUES
     'Apr to Nov',
     '1 to 2 nights (Kurashiki ryokan)',
     'Kurashiki canal town / ryokan stop on some culture routes.',
+    'Culture routes — Kurashiki ryokan stop',
     'Ryokan Kurashiki listed under Okayama in hotel scoring.',
     'kb_scraped'
   )
-) AS v(city, best_time, length, vibe, staff, tier)
+) AS v(city, best_time, length, vibe, best_for, staff, tier)
 JOIN public.kb_countries co ON co.country_code = 'JP'
 JOIN public.kb_cities ci
   ON ci.country_id = co.id
@@ -351,6 +645,118 @@ JOIN public.kb_cities ci
 WHERE NOT EXISTS (
   SELECT 1 FROM public.kb_destination_facts f WHERE f.city_id = ci.id
 );
+
+-- Refresh best_for + neighbourhood notes from the guide (do not invent new cities here).
+UPDATE public.kb_destination_facts f
+SET
+  best_time_to_visit = v.best_time,
+  ideal_length_of_stay = v.length,
+  vibe = v.vibe,
+  best_for = v.best_for,
+  staff_notes = v.staff,
+  kb_tier = CASE
+    WHEN f.kb_tier = 'llm_general' THEN v.tier
+    WHEN v.tier = 'kb_verified' THEN 'kb_verified'
+    ELSE f.kb_tier
+  END,
+  updated_at = now()
+FROM (VALUES
+  ('Tokyo', 'Mar to May, Oct to Nov', '4 to 7 nights (first-time anchor often 5)',
+    'Dense, modern, food and design capital; neighbourhoods differ sharply (Marunouchi/Ginza polished, Roppongi/Azabu international, Shinjuku/Shibuya energetic).',
+    'First-timers, food, shopping, families',
+    'Neighbourhood (PureLuxe): Ginza most popular with Indian clients for shopping; Otemachi and Nihonbashi also in demand; Akasaka good value; Roppongi for food and nightlife.',
+    'kb_verified'),
+  ('Kyoto', 'Late Mar to Apr, mid to late Nov', '3 to 4 nights',
+    'Temples, gardens, geisha districts, traditional ryokan; Higashiyama and Gion historic, Kyoto Station/Karasuma central.',
+    'Culture, couples, honeymoon',
+    'Neighbourhood (PureLuxe): area around the river is best; Ritz-Carlton has the best luxury location; Park Hyatt also well placed. Book 9–12 months ahead for sakura.',
+    'kb_verified'),
+  ('Osaka', 'Year-round', '1 to 2 nights (often combined with Nara / Kyoto)',
+    'Street food and nightlife; Nara deer park and temples as a day trip.',
+    'Food lovers, families (Universal Studios Japan)',
+    'Stay around Umeda or Osaka Station. Good for food lovers and families (Universal Studios Japan).',
+    'kb_scraped'),
+  ('Nara', 'Year-round', 'Day trip from Osaka/Kyoto (or 1 night)',
+    'Deer park, Todai-ji and Kasuga Taisha — classic day trip from Osaka/Kyoto.',
+    'Food lovers, families — usually with Osaka',
+    'Usually sold as Osaka/Nara pairing rather than a standalone multi-night stay.',
+    'kb_scraped'),
+  ('Hakone', 'Oct to Mar for clear Fuji views', '1 to 2 nights',
+    'Onsen ryokan with Fuji views; easy ~1.5h from Tokyo.',
+    'Couples, slow luxury, short trips',
+    'Couples, slow luxury, short trips. Strong honeymoon / ryokan night.',
+    'kb_scraped'),
+  ('Niseko', 'Jan to Feb (ski); Jul to Aug (summer)', '3 to 5 nights',
+    'Powder ski in winter; lavender and cool air in summer (wider Hokkaido).',
+    'Ski, families, summer escape',
+    'Hokkaido sold mainly for skiing. Pair with Tokyo/Kyoto on ski+cities trips.',
+    'kb_scraped'),
+  ('Sapporo', 'Jan to Feb (Snow Festival); Jul to Aug', '2 to 3 nights within a 3–5 night Hokkaido block',
+    'Hokkaido city hub; winter festival and summer base for Furano/outdoors.',
+    'Ski, families, summer escape — Hokkaido hub',
+    'Summer alternative when replacing Osaka/Hiroshima for cooler weather.',
+    'kb_scraped'),
+  ('Furano', 'Jul to Aug (lavender); winter ski nearby', '2 to 3 nights within a Hokkaido block',
+    'Lavender fields and cool summer air; ski region access in winter.',
+    'Ski, families, summer escape — lavender / outdoors',
+    'Summer Hokkaido outdoor escape.',
+    'kb_scraped'),
+  ('Kanazawa', 'Apr to Nov', '2 nights',
+    'Preserved Edo streets, gardens, craft; gateway toward Japan Alps / Takayama.',
+    'Return visitors, culture',
+    'Return visitors and culture-led itineraries.',
+    'kb_scraped'),
+  ('Takayama', 'Apr to Nov', '1 to 2 nights (often with Kanazawa)',
+    'Preserved streets and Japan Alps character.',
+    'Return visitors, culture — often with Kanazawa',
+    'Guide notes Takayama has no past PureLuxe itinerary experience-bank entries yet.',
+    'kb_scraped'),
+  ('Hiroshima', 'Mar to May, Oct to Nov', '1 to 2 nights (or day trip from Osaka)',
+    'Peace memorial, Seto Inland Sea access; slower history-led pace.',
+    'History, slower pace',
+    'Often appears as Osaka day trip; also used on Grand Japan with Miyajima.',
+    'kb_scraped'),
+  ('Miyajima', 'Mar to May, Oct to Nov', '1 night or day trip with Hiroshima',
+    'Shrine island (Itsukushima) on the Seto Inland Sea.',
+    'History, slower pace — with Hiroshima',
+    'Pair with Hiroshima on extended itineraries.',
+    'kb_scraped'),
+  ('Naoshima', 'Mar to Nov', '2 nights',
+    'Contemporary art islands and design hotels (Setouchi).',
+    'Art lovers, return visitors',
+    'Art lovers / return visitors. Optional add-on on Grand Japan. No past itinerary experience-bank entries yet.',
+    'kb_scraped'),
+  ('Setouchi', 'Mar to Nov', '2 nights',
+    'Contemporary art islands and design hotels spanning the Seto Inland Sea.',
+    'Art lovers, return visitors',
+    'Use with Naoshima / art-led clients.',
+    'kb_scraped'),
+  ('Okinawa', 'Apr to Jun, Sep to Oct', '3 to 4 nights',
+    'Subtropical beaches, Ryukyu culture; ties into Maldives-style beach clients.',
+    'Beach add-on, families',
+    'Beach add-on / honeymoon finish. Families also fit.',
+    'kb_scraped'),
+  ('Miyako Island', 'Apr to Jun, Sep to Oct', '3 to 4 nights (within Okinawa/Miyako beach finish)',
+    'Beach island finish for Okinawa / Miyako stays.',
+    'Beach add-on, families',
+    'Rosewood Miyakojima sits here in hotel lists.',
+    'kb_scraped'),
+  ('Nikko', 'Apr to Nov (outdoor); year-round for shrine', '1 to 2 nights',
+    'UNESCO Toshogu shrine; Lake Chuzenji outdoors (kayak, cycle, waterfalls).',
+    'Extra location PureLuxe can add — shrine / outdoors',
+    'Extra location PureLuxe can add. Ritz-Carlton Nikko on Lake Chuzenji.',
+    'kb_scraped'),
+  ('Okayama', 'Apr to Nov', '1 to 2 nights (Kurashiki ryokan)',
+    'Kurashiki canal town / ryokan stop on some culture routes.',
+    'Culture routes — Kurashiki ryokan stop',
+    'Ryokan Kurashiki listed under Okayama in hotel scoring.',
+    'kb_scraped')
+) AS v(city, best_time, length, vibe, best_for, staff, tier)
+JOIN public.kb_countries co ON co.country_code = 'JP'
+JOIN public.kb_cities ci
+  ON ci.country_id = co.id
+ AND lower(ci.name) = lower(v.city)
+WHERE f.city_id = ci.id;
 
 -- =============================================================================
 -- 5. Audience notes (trip_style constrained)
@@ -385,15 +791,32 @@ WHERE NOT EXISTS (
 -- =============================================================================
 -- 6. Suggested itinerary templates (kb_itineraries + items)
 --    Night counts still draft per guide; lengthen later.
+--    Requires migration 035_kb_itineraries_typed_fields.sql.
 -- =============================================================================
 
 INSERT INTO public.kb_itineraries (
-  title, destination_summary, country_id, kb_tier, provenance, client_ready, active
+  title,
+  destination_summary,
+  country_id,
+  duration_nights,
+  suits,
+  sort_order,
+  is_default_first_trip,
+  seasonal_notes,
+  kb_tier,
+  provenance,
+  client_ready,
+  active
 )
 SELECT
   v.title,
   v.summary,
   c.id,
+  v.nights,
+  v.suits,
+  v.sort_order,
+  v.is_default,
+  v.seasonal,
   'kb_scraped',
   'kb',
   false,
@@ -401,31 +824,129 @@ SELECT
 FROM (VALUES
   (
     'Classic Japan',
-    '7 nights — Tokyo 3, Kyoto 3, Osaka 1 (fly out of Kansai). Suits first-timers on a tight schedule. First-time PureLuxe anchor prefers longer: Tokyo 5 + Kyoto/Osaka 4 + 1 ryokan.'
+    'Tokyo 3, Kyoto 3, Osaka 1 (fly out of Kansai). First-time PureLuxe anchor prefers longer: Tokyo 5 + Kyoto/Osaka 4 + 1 ryokan.',
+    7,
+    'First-timers on a tight schedule',
+    10,
+    true,
+    $japan_itin_seasonal$
+Sakura (late Mar to mid Apr): prioritise Kyoto and Tokyo; book 9 to 12 months out and keep a flexible 2 to 3 day blossom window.
+Autumn (mid to late Nov): same shape as Classic or Culture and food, with Kyoto first to secure foliage weeks.
+Summer: replace Osaka and Hiroshima with Hokkaido (Sapporo, Furano) for cooler weather.
+Family: add Osaka (Universal Studios Japan), Tokyo DisneySea and fewer hotel changes.
+Honeymoon: Hakone or a Kyoto ryokan night, plus a beach finish in Okinawa.
+$japan_itin_seasonal$
   ),
   (
     'Japan with onsen',
-    '9 nights — Tokyo 3, Hakone 1, Kyoto 3, Osaka/Nara 2. Suits couples and slow luxury.'
+    'Tokyo 3, Hakone 1, Kyoto 3, Osaka/Nara 2.',
+    9,
+    'Couples, slow luxury',
+    20,
+    false,
+    NULL
   ),
   (
     'Culture and food',
-    '12 nights — Tokyo 4, Kanazawa 2, Kyoto 4, Osaka 2. Food-led and culture-led clients.'
+    'Tokyo 4, Kanazawa 2, Kyoto 4, Osaka 2.',
+    12,
+    'Food-led and culture-led clients',
+    30,
+    false,
+    NULL
   ),
   (
     'Grand Japan',
-    '14 nights — Tokyo 4, Hakone 1, Kyoto 4, Hiroshima/Miyajima 2, Osaka 2, plus Naoshima 1 optional. Return visitors / extended trips.'
+    'Tokyo 4, Hakone 1, Kyoto 4, Hiroshima/Miyajima 2, Osaka 2, plus Naoshima 1 optional.',
+    14,
+    'Return visitors, extended trips',
+    40,
+    false,
+    NULL
   ),
   (
     'Japan ski and cities',
-    '10 nights — Niseko 4 to 5, Tokyo 3, Kyoto 2 to 3 (Dec to Mar). Families, ski and festive travel.'
+    'Niseko 4 to 5, Tokyo 3, Kyoto 2 to 3 (Dec to Mar).',
+    10,
+    'Families, ski and festive travel',
+    50,
+    false,
+    NULL
   )
-) AS v(title, summary)
+) AS v(title, summary, nights, suits, sort_order, is_default, seasonal)
 JOIN public.kb_countries c ON c.country_code = 'JP'
 WHERE NOT EXISTS (
   SELECT 1 FROM public.kb_itineraries i
   WHERE i.country_id = c.id
     AND lower(i.title) = lower(v.title)
 );
+
+-- Refresh typed shape fields from the guide (do not wipe day items).
+UPDATE public.kb_itineraries i
+SET
+  destination_summary = v.summary,
+  duration_nights = v.nights,
+  suits = v.suits,
+  sort_order = v.sort_order,
+  is_default_first_trip = v.is_default,
+  seasonal_notes = v.seasonal,
+  updated_at = now()
+FROM (VALUES
+  (
+    'Classic Japan',
+    'Tokyo 3, Kyoto 3, Osaka 1 (fly out of Kansai). First-time PureLuxe anchor prefers longer: Tokyo 5 + Kyoto/Osaka 4 + 1 ryokan.',
+    7,
+    'First-timers on a tight schedule',
+    10,
+    true,
+    $japan_itin_seasonal_upd$
+Sakura (late Mar to mid Apr): prioritise Kyoto and Tokyo; book 9 to 12 months out and keep a flexible 2 to 3 day blossom window.
+Autumn (mid to late Nov): same shape as Classic or Culture and food, with Kyoto first to secure foliage weeks.
+Summer: replace Osaka and Hiroshima with Hokkaido (Sapporo, Furano) for cooler weather.
+Family: add Osaka (Universal Studios Japan), Tokyo DisneySea and fewer hotel changes.
+Honeymoon: Hakone or a Kyoto ryokan night, plus a beach finish in Okinawa.
+$japan_itin_seasonal_upd$
+  ),
+  (
+    'Japan with onsen',
+    'Tokyo 3, Hakone 1, Kyoto 3, Osaka/Nara 2.',
+    9,
+    'Couples, slow luxury',
+    20,
+    false,
+    NULL::text
+  ),
+  (
+    'Culture and food',
+    'Tokyo 4, Kanazawa 2, Kyoto 4, Osaka 2.',
+    12,
+    'Food-led and culture-led clients',
+    30,
+    false,
+    NULL::text
+  ),
+  (
+    'Grand Japan',
+    'Tokyo 4, Hakone 1, Kyoto 4, Hiroshima/Miyajima 2, Osaka 2, plus Naoshima 1 optional.',
+    14,
+    'Return visitors, extended trips',
+    40,
+    false,
+    NULL::text
+  ),
+  (
+    'Japan ski and cities',
+    'Niseko 4 to 5, Tokyo 3, Kyoto 2 to 3 (Dec to Mar).',
+    10,
+    'Families, ski and festive travel',
+    50,
+    false,
+    NULL::text
+  )
+) AS v(title, summary, nights, suits, sort_order, is_default, seasonal)
+JOIN public.kb_countries c ON c.country_code = 'JP'
+WHERE i.country_id = c.id
+  AND lower(i.title) = lower(v.title);
 
 -- Classic Japan
 INSERT INTO public.kb_itinerary_items (itinerary_id, day_number, sort_order, entity_id, note)
@@ -545,7 +1066,7 @@ WHERE lower(i.title) = 'japan ski and cities'
 -- 7. Guide hotels (Japan Destination Guide) + city repairs
 -- =============================================================================
 -- Inserts missing hotels; re-points Japan Unspecified rows to the guide city;
--- upgrades description / luxury_band / consortia from the guide.
+-- upgrades description / Tier 1–3 band / guide_area|partner|score / consortia.
 -- Safe to re-run.
 
 -- 7a. Re-point known Unspecified Japan hotels to the correct city
@@ -778,65 +1299,71 @@ WHERE e.entity_type = 'hotel'
   );
 
 
--- 7d. Hotel details — luxury_band from proposed tier
-INSERT INTO public.kb_hotel_details (entity_id, amenities, style_tags, luxury_band, best_for)
+-- 7d. Hotel details — Tier 1/2/3 + guide_area / guide_partner / guide_score
+INSERT INTO public.kb_hotel_details (
+  entity_id, amenities, style_tags, luxury_band,
+  guide_area, guide_partner, guide_score, best_for
+)
 SELECT
   e.id,
   '{}'::text[],
   ARRAY[lower(replace(v.tier, ' ', '_'))],
-  v.luxury_band,
+  v.tier,
+  NULLIF(v.area, ''),
+  NULLIF(v.partner, ''),
+  v.guide_score,
   '{}'::text[]
 FROM (VALUES
 
-  ('Aman Tokyo', 'Tokyo', 'Tier 1', 'ultra_luxury', 'jp-guide-aman-tokyo', 'Aman Tokyo'),
-  ('Four Seasons Tokyo at Otemachi', 'Tokyo', 'Tier 1', 'ultra_luxury', 'jp-guide-four-seasons-tokyo-at-otemachi', 'Four Seasons — Tokyo at Otemachi|Four Seasons Tokyo Otemachi'),
-  ('Mandarin Oriental Tokyo', 'Tokyo', 'Tier 1', 'ultra_luxury', 'jp-guide-mandarin-oriental-tokyo', 'Mandarin Oriental, Tokyo|Mandarin Oriental Tokyo'),
-  ('Palace Hotel Tokyo', 'Tokyo', 'Tier 1', 'ultra_luxury', 'jp-guide-palace-hotel-tokyo', 'Palace Hotel Tokyo'),
-  ('The Peninsula Tokyo', 'Tokyo', 'Tier 1', 'ultra_luxury', 'jp-guide-the-peninsula-tokyo', 'Peninsula Tokyo'),
-  ('The Okura Tokyo', 'Tokyo', 'Tier 1', 'ultra_luxury', 'jp-guide-the-okura-tokyo', 'The Okura Tokyo'),
-  ('Janu Tokyo', 'Tokyo', 'Tier 1', 'ultra_luxury', 'jp-guide-janu-tokyo', 'Janu Tokyo'),
-  ('The Ritz-Carlton, Tokyo', 'Tokyo', 'Tier 1', 'ultra_luxury', 'jp-guide-the-ritz-carlton-tokyo', 'The Ritz-Carlton Tokyo|Ritz-Carlton Tokyo'),
-  ('Four Seasons Tokyo at Marunouchi', 'Tokyo', 'Tier 2', 'luxury', 'jp-guide-four-seasons-tokyo-at-marunouchi', 'Four Seasons — Tokyo at Marunouchi'),
-  ('Park Hyatt Tokyo', 'Tokyo', 'Tier 2', 'luxury', 'jp-guide-park-hyatt-tokyo', 'Park Hyatt Tokyo'),
-  ('Imperial Hotel Tokyo', 'Tokyo', 'Tier 2', 'luxury', 'jp-guide-imperial-hotel-tokyo', 'Imperial Hotel, Tokyo'),
-  ('Shangri-La Tokyo', 'Tokyo', 'Tier 2', 'luxury', 'jp-guide-shangri-la-tokyo', 'Shangri-La Tokyo'),
-  ('Grand Hyatt Tokyo', 'Tokyo', 'Tier 2', 'luxury', 'jp-guide-grand-hyatt-tokyo', 'Grand Hyatt Tokyo'),
-  ('ANA InterContinental Tokyo', 'Tokyo', 'Tier 2', 'luxury', 'jp-guide-ana-intercontinental-tokyo', 'ANA InterContinental Tokyo'),
-  ('Fairmont Tokyo', 'Tokyo', 'Tier 2', 'luxury', 'jp-guide-fairmont-tokyo', 'Fairmont Tokyo'),
-  ('1 Hotel Tokyo', 'Tokyo', 'Tier 2', 'luxury', 'jp-guide-1-hotel-tokyo', '1 Hotel Tokyo'),
-  ('The New Otani Executive House Zen', 'Tokyo', 'Tier 2', 'luxury', 'jp-guide-the-new-otani-executive-house-zen', 'The New Otani Executive House Zen'),
-  ('Capitol Hotel Tokyu', 'Tokyo', 'Tier 3', 'premium', 'jp-guide-capitol-hotel-tokyu', 'Capitol Hotel Tokyu'),
-  ('Kimpton Shinjuku Tokyo', 'Tokyo', 'Tier 3', 'premium', 'jp-guide-kimpton-shinjuku-tokyo', 'Kimpton Shinjuku Tokyo'),
-  ('Hotel Indigo Tokyo Shibuya', 'Tokyo', 'Tier 3', 'premium', 'jp-guide-hotel-indigo-tokyo-shibuya', 'Hotel Indigo Tokyo Shibuya'),
-  ('BELLUSTAR TOKYO, A Pan Pacific Hotel', 'Tokyo', 'Tier 3', 'premium', 'jp-guide-bellustar-tokyo-a-pan-pacific-hotel', 'BELLUSTAR TOKYO, A Pan Pacific Hotel'),
-  ('Aman Kyoto', 'Kyoto', 'Tier 1', 'ultra_luxury', 'jp-guide-aman-kyoto', 'Aman Kyoto'),
-  ('Four Seasons Kyoto', 'Kyoto', 'Tier 1', 'ultra_luxury', 'jp-guide-four-seasons-kyoto', 'Four Seasons — Kyoto'),
-  ('The Ritz-Carlton Kyoto', 'Kyoto', 'Tier 1', 'ultra_luxury', 'jp-guide-the-ritz-carlton-kyoto', 'The Ritz-Carlton, Kyoto|Ritz-Carlton Kyoto'),
-  ('Capella Kyoto', 'Kyoto', 'Tier 1', 'ultra_luxury', 'jp-guide-capella-kyoto', 'Capella Kyoto'),
-  ('Hotel The Mitsui Kyoto', 'Kyoto', 'Tier 1', 'ultra_luxury', 'jp-guide-hotel-the-mitsui-kyoto', 'Hotel The Mitsui Kyoto'),
-  ('Six Senses Kyoto', 'Kyoto', 'Tier 1', 'ultra_luxury', 'jp-guide-six-senses-kyoto', 'Six Senses Kyoto'),
-  ('Park Hyatt Kyoto', 'Kyoto', 'Tier 2', 'luxury', 'jp-guide-park-hyatt-kyoto', 'Park Hyatt Kyoto'),
-  ('ROKU Kyoto, LXR Hotels', 'Kyoto', 'Tier 2', 'luxury', 'jp-guide-roku-kyoto-lxr-hotels', 'ROKU Kyoto, LXR Hotels & Resorts'),
-  ('Hotel Seiryu Kyoto Kiyomizu', 'Kyoto', 'Tier 2', 'luxury', 'jp-guide-hotel-seiryu-kyoto-kiyomizu', 'The Hotel Seiryu Kyoto Kiyomizu|The Hotel Seiryu Kyoto Kiyomizu'),
-  ('Imperial Hotel Kyoto', 'Kyoto', 'Tier 2', 'luxury', 'jp-guide-imperial-hotel-kyoto', 'Imperial Hotel, Kyoto'),
-  ('Dusit Thani Kyoto', 'Kyoto', 'Tier 3', 'premium', 'jp-guide-dusit-thani-kyoto', 'Dusit Thani Kyoto'),
-  ('FAUCHON L''Hotel Kyoto', 'Kyoto', 'Tier 3', 'premium', 'jp-guide-fauchon-l-hotel-kyoto', 'FAUCHON L''Hotel Kyoto'),
-  ('Four Seasons Osaka', 'Osaka', 'Tier 1', 'ultra_luxury', 'jp-guide-four-seasons-osaka', 'Four Seasons — Osaka'),
-  ('The St. Regis Osaka', 'Osaka', 'Tier 1', 'ultra_luxury', 'jp-guide-the-st-regis-osaka', ''),
-  ('Waldorf Astoria Osaka', 'Osaka', 'Tier 1', 'ultra_luxury', 'jp-guide-waldorf-astoria-osaka', 'Waldorf Astoria Osaka'),
-  ('Conrad Osaka', 'Osaka', 'Tier 2', 'luxury', 'jp-guide-conrad-osaka', 'Conrad Osaka'),
-  ('Patina Osaka', 'Osaka', 'Tier 2', 'luxury', 'jp-guide-patina-osaka', 'Patina Osaka'),
-  ('Gora Kadan', 'Hakone', 'Tier 1', 'ultra_luxury', 'jp-guide-gora-kadan', ''),
-  ('ESPACIO The Hakone Geihinkan Rin Poh Ki Ryu', 'Hakone', 'Tier 1', 'ultra_luxury', 'jp-guide-espacio-the-hakone-geihinkan-rin-poh-ki-ryu', 'ESPACIO The Hakone Geihinkan Rin Poh Ki Ryu'),
-  ('Park Hyatt Niseko Hanazono', 'Niseko', 'Tier 1', 'ultra_luxury', 'jp-guide-park-hyatt-niseko-hanazono', ''),
-  ('Higashiyama Niseko Village, a Ritz-Carlton Reserve', 'Niseko', 'Tier 1', 'ultra_luxury', 'jp-guide-higashiyama-niseko-village-a-ritz-carlton-reserve', ''),
-  ('Hinode Hills Niseko', 'Niseko', 'Tier 3', 'premium', 'jp-guide-hinode-hills-niseko', ''),
-  ('The Ritz-Carlton, Nikko', 'Nikko', 'Tier 1', 'ultra_luxury', 'jp-guide-the-ritz-carlton-nikko', ''),
-  ('Rosewood Miyakojima', 'Miyako Island', 'Tier 1', 'ultra_luxury', 'jp-guide-rosewood-miyakojima', 'Rosewood Miyakojima'),
-  ('Halekulani Okinawa', 'Okinawa', 'Tier 2', 'luxury', 'jp-guide-halekulani-okinawa', 'Halekulani Okinawa'),
-  ('Ryokan Kurashiki', 'Okayama', 'Tier 2', 'luxury', 'jp-guide-ryokan-kurashiki', 'Ryokan Kurashiki')
+  ('Aman Tokyo', 'Tokyo', 'Tier 1', 'Otemachi', 'Not yet contracted; placeholder only', 3.7, 'jp-guide-aman-tokyo', 'Aman Tokyo'),
+  ('Four Seasons Tokyo at Otemachi', 'Tokyo', 'Tier 1', 'Otemachi', 'Four Seasons Preferred Partner; quoted to clients', 4.1, 'jp-guide-four-seasons-tokyo-at-otemachi', 'Four Seasons — Tokyo at Otemachi|Four Seasons Tokyo Otemachi'),
+  ('Mandarin Oriental Tokyo', 'Tokyo', 'Tier 1', 'Nihonbashi', 'Mandarin Oriental Fan Club; quoted to clients', 4.3, 'jp-guide-mandarin-oriental-tokyo', 'Mandarin Oriental, Tokyo|Mandarin Oriental Tokyo'),
+  ('Palace Hotel Tokyo', 'Tokyo', 'Tier 1', 'Marunouchi', 'Leaders Club; quoted to clients', 3.9, 'jp-guide-palace-hotel-tokyo', 'Palace Hotel Tokyo'),
+  ('The Peninsula Tokyo', 'Tokyo', 'Tier 1', 'Yurakucho', 'Peninsula', 4.2, 'jp-guide-the-peninsula-tokyo', 'Peninsula Tokyo'),
+  ('The Okura Tokyo', 'Tokyo', 'Tier 1', 'Toranomon', 'LHW Vita; confirm', 3.4, 'jp-guide-the-okura-tokyo', 'The Okura Tokyo'),
+  ('Janu Tokyo', 'Tokyo', 'Tier 1', 'Azabudai Hills', 'Serandipians', 3.6, 'jp-guide-janu-tokyo', 'Janu Tokyo'),
+  ('The Ritz-Carlton, Tokyo', 'Tokyo', 'Tier 1', 'Roppongi (Tokyo Midtown)', 'Marriott Stars; confirm', 3.6, 'jp-guide-the-ritz-carlton-tokyo', 'The Ritz-Carlton Tokyo|Ritz-Carlton Tokyo'),
+  ('Four Seasons Tokyo at Marunouchi', 'Tokyo', 'Tier 2', 'Marunouchi', 'Four Seasons Preferred Partner; confirm', 3.6, 'jp-guide-four-seasons-tokyo-at-marunouchi', 'Four Seasons — Tokyo at Marunouchi'),
+  ('Park Hyatt Tokyo', 'Tokyo', 'Tier 2', 'Shinjuku', 'Hyatt Prive; not yet contracted in KB, confirm', 3.6, 'jp-guide-park-hyatt-tokyo', 'Park Hyatt Tokyo'),
+  ('Imperial Hotel Tokyo', 'Tokyo', 'Tier 2', 'Hibiya', 'LHW Vita; confirm', 3.4, 'jp-guide-imperial-hotel-tokyo', 'Imperial Hotel, Tokyo'),
+  ('Shangri-La Tokyo', 'Tokyo', 'Tier 2', 'Marunouchi', 'Shangri-La', 3.9, 'jp-guide-shangri-la-tokyo', 'Shangri-La Tokyo'),
+  ('Grand Hyatt Tokyo', 'Tokyo', 'Tier 2', 'Roppongi', 'Hyatt Prive; confirm', 3.6, 'jp-guide-grand-hyatt-tokyo', 'Grand Hyatt Tokyo'),
+  ('ANA InterContinental Tokyo', 'Tokyo', 'Tier 2', 'Akasaka', 'IHG', 3.4, 'jp-guide-ana-intercontinental-tokyo', 'ANA InterContinental Tokyo'),
+  ('Fairmont Tokyo', 'Tokyo', 'Tier 2', 'Shibaura', 'Accor; confirm', 3.4, 'jp-guide-fairmont-tokyo', 'Fairmont Tokyo'),
+  ('1 Hotel Tokyo', 'Tokyo', 'Tier 2', 'Akasaka', 'Confirm', 3.0, 'jp-guide-1-hotel-tokyo', '1 Hotel Tokyo'),
+  ('The New Otani Executive House Zen', 'Tokyo', 'Tier 2', 'Akasaka', 'Confirm', 3.6, 'jp-guide-the-new-otani-executive-house-zen', 'The New Otani Executive House Zen'),
+  ('Capitol Hotel Tokyu', 'Tokyo', 'Tier 3', 'Akasaka', 'Preferred Hotels; in KB, confirm', 3.4, 'jp-guide-capitol-hotel-tokyu', 'Capitol Hotel Tokyu'),
+  ('Kimpton Shinjuku Tokyo', 'Tokyo', 'Tier 3', 'Shinjuku', 'IHG', 3.0, 'jp-guide-kimpton-shinjuku-tokyo', 'Kimpton Shinjuku Tokyo'),
+  ('Hotel Indigo Tokyo Shibuya', 'Tokyo', 'Tier 3', 'Shibuya', 'IHG', 3.0, 'jp-guide-hotel-indigo-tokyo-shibuya', 'Hotel Indigo Tokyo Shibuya'),
+  ('BELLUSTAR TOKYO, A Pan Pacific Hotel', 'Tokyo', 'Tier 3', 'Kabukicho, Shinjuku', 'Confirm', 3.3, 'jp-guide-bellustar-tokyo-a-pan-pacific-hotel', 'BELLUSTAR TOKYO, A Pan Pacific Hotel'),
+  ('Aman Kyoto', 'Kyoto', 'Tier 1', 'Northern Kyoto, forest setting', 'Confirm', 3.2, 'jp-guide-aman-kyoto', 'Aman Kyoto'),
+  ('Four Seasons Kyoto', 'Kyoto', 'Tier 1', 'Higashiyama', 'Four Seasons Preferred Partner; confirm', 3.9, 'jp-guide-four-seasons-kyoto', 'Four Seasons — Kyoto'),
+  ('The Ritz-Carlton Kyoto', 'Kyoto', 'Tier 1', 'Kamogawa riverside', 'Marriott Stars', 3.9, 'jp-guide-the-ritz-carlton-kyoto', 'The Ritz-Carlton, Kyoto|Ritz-Carlton Kyoto'),
+  ('Capella Kyoto', 'Kyoto', 'Tier 1', 'Higashiyama', 'LHW Vita, Serandipains', 3.9, 'jp-guide-capella-kyoto', 'Capella Kyoto'),
+  ('Hotel The Mitsui Kyoto', 'Kyoto', 'Tier 1', 'Nijo', 'Marriott Stars', 3.7, 'jp-guide-hotel-the-mitsui-kyoto', 'Hotel The Mitsui Kyoto'),
+  ('Six Senses Kyoto', 'Kyoto', 'Tier 1', 'Higashiyama', 'IHG Destined', 3.6, 'jp-guide-six-senses-kyoto', 'Six Senses Kyoto'),
+  ('Park Hyatt Kyoto', 'Kyoto', 'Tier 2', 'Higashiyama', 'Hyatt Prive', 4.1, 'jp-guide-park-hyatt-kyoto', 'Park Hyatt Kyoto'),
+  ('ROKU Kyoto, LXR Hotels', 'Kyoto', 'Tier 2', 'Kitayama', 'Hilton for Luxury', 3.1, 'jp-guide-roku-kyoto-lxr-hotels', 'ROKU Kyoto, LXR Hotels & Resorts'),
+  ('Hotel Seiryu Kyoto Kiyomizu', 'Kyoto', 'Tier 2', 'Kiyomizu', 'LHW Vita', 3.6, 'jp-guide-hotel-seiryu-kyoto-kiyomizu', 'The Hotel Seiryu Kyoto Kiyomizu|The Hotel Seiryu Kyoto Kiyomizu'),
+  ('Imperial Hotel Kyoto', 'Kyoto', 'Tier 2', 'Gion', 'LHW Vita', 3.5, 'jp-guide-imperial-hotel-kyoto', 'Imperial Hotel, Kyoto'),
+  ('Dusit Thani Kyoto', 'Kyoto', 'Tier 3', 'Karasuma', 'Serandipians', 3.4, 'jp-guide-dusit-thani-kyoto', 'Dusit Thani Kyoto'),
+  ('FAUCHON L''Hotel Kyoto', 'Kyoto', 'Tier 3', 'Gion', 'SLH Within', 3.5, 'jp-guide-fauchon-l-hotel-kyoto', 'FAUCHON L''Hotel Kyoto'),
+  ('Four Seasons Osaka', 'Osaka', 'Tier 1', 'Umeda/Kita', 'Four Seasons Preferred Partner', 4.2, 'jp-guide-four-seasons-osaka', 'Four Seasons — Osaka'),
+  ('The St. Regis Osaka', 'Osaka', 'Tier 1', 'Honmachi', 'Marriott Stars', 3.9, 'jp-guide-the-st-regis-osaka', ''),
+  ('Waldorf Astoria Osaka', 'Osaka', 'Tier 1', 'Umeda', 'Hilton for Luxury', 4.4, 'jp-guide-waldorf-astoria-osaka', 'Waldorf Astoria Osaka'),
+  ('Conrad Osaka', 'Osaka', 'Tier 2', 'Nakanoshima', 'Hilton for Luxury', 3.8, 'jp-guide-conrad-osaka', 'Conrad Osaka'),
+  ('Patina Osaka', 'Osaka', 'Tier 2', 'Nakanoshima', 'Serandipians', 3.9, 'jp-guide-patina-osaka', 'Patina Osaka'),
+  ('Gora Kadan', 'Hakone', 'Tier 1', 'Gora, Hakone', 'Relais and Chateaux', 3.5, 'jp-guide-gora-kadan', ''),
+  ('ESPACIO The Hakone Geihinkan Rin Poh Ki Ryu', 'Hakone', 'Tier 1', 'Sengokuhara, Hakone', 'LHW Vita', 4.2, 'jp-guide-espacio-the-hakone-geihinkan-rin-poh-ki-ryu', 'ESPACIO The Hakone Geihinkan Rin Poh Ki Ryu'),
+  ('Park Hyatt Niseko Hanazono', 'Niseko', 'Tier 1', 'Hanazono', 'Hyatt Prive', 3.9, 'jp-guide-park-hyatt-niseko-hanazono', ''),
+  ('Higashiyama Niseko Village, a Ritz-Carlton Reserve', 'Niseko', 'Tier 1', 'Niseko Village', 'Marriott Stars; confirm', 3.1, 'jp-guide-higashiyama-niseko-village-a-ritz-carlton-reserve', ''),
+  ('Hinode Hills Niseko', 'Niseko', 'Tier 3', 'Niseko Village', 'Hilton for Luxury', NULL, 'jp-guide-hinode-hills-niseko', ''),
+  ('The Ritz-Carlton, Nikko', 'Nikko', 'Tier 1', 'Lake Chuzenji', 'Marriott Stars', 4.1, 'jp-guide-the-ritz-carlton-nikko', ''),
+  ('Rosewood Miyakojima', 'Miyako Island', 'Tier 1', 'Miyako Island', 'Rosewood Elite', 4.0, 'jp-guide-rosewood-miyakojima', 'Rosewood Miyakojima'),
+  ('Halekulani Okinawa', 'Okinawa', 'Tier 2', 'Onna, Okinawa', 'LHW Vita', 3.7, 'jp-guide-halekulani-okinawa', 'Halekulani Okinawa'),
+  ('Ryokan Kurashiki', 'Okayama', 'Tier 2', 'Kurashiki', 'Confirm', 3.4, 'jp-guide-ryokan-kurashiki', 'Ryokan Kurashiki')
 
-) AS v(name, city, tier, luxury_band, external_key, aliases)
+) AS v(name, city, tier, area, partner, guide_score, external_key, aliases)
 JOIN public.kb_countries co ON co.country_code = 'JP'
 JOIN public.kb_cities ci ON ci.country_id = co.id AND lower(ci.name) = lower(v.city)
 JOIN public.kb_entities e ON e.entity_type = 'hotel' AND e.active = true AND e.country_id = co.id
@@ -855,7 +1382,10 @@ WHERE NOT EXISTS (
 
 UPDATE public.kb_hotel_details d
 SET
-  luxury_band = COALESCE(d.luxury_band, v.luxury_band),
+  luxury_band = COALESCE(v.tier, d.luxury_band),
+  guide_area = COALESCE(NULLIF(v.area, ''), d.guide_area),
+  guide_partner = COALESCE(NULLIF(v.partner, ''), d.guide_partner),
+  guide_score = COALESCE(v.guide_score, d.guide_score),
   style_tags = CASE
     WHEN d.style_tags = '{}'::text[] THEN ARRAY[lower(replace(v.tier, ' ', '_'))]
     ELSE d.style_tags
@@ -863,55 +1393,125 @@ SET
   updated_at = now()
 FROM (VALUES
 
-  ('Aman Tokyo', 'Tokyo', 'Tier 1', 'ultra_luxury', 'jp-guide-aman-tokyo', 'Aman Tokyo'),
-  ('Four Seasons Tokyo at Otemachi', 'Tokyo', 'Tier 1', 'ultra_luxury', 'jp-guide-four-seasons-tokyo-at-otemachi', 'Four Seasons — Tokyo at Otemachi|Four Seasons Tokyo Otemachi'),
-  ('Mandarin Oriental Tokyo', 'Tokyo', 'Tier 1', 'ultra_luxury', 'jp-guide-mandarin-oriental-tokyo', 'Mandarin Oriental, Tokyo|Mandarin Oriental Tokyo'),
-  ('Palace Hotel Tokyo', 'Tokyo', 'Tier 1', 'ultra_luxury', 'jp-guide-palace-hotel-tokyo', 'Palace Hotel Tokyo'),
-  ('The Peninsula Tokyo', 'Tokyo', 'Tier 1', 'ultra_luxury', 'jp-guide-the-peninsula-tokyo', 'Peninsula Tokyo'),
-  ('The Okura Tokyo', 'Tokyo', 'Tier 1', 'ultra_luxury', 'jp-guide-the-okura-tokyo', 'The Okura Tokyo'),
-  ('Janu Tokyo', 'Tokyo', 'Tier 1', 'ultra_luxury', 'jp-guide-janu-tokyo', 'Janu Tokyo'),
-  ('The Ritz-Carlton, Tokyo', 'Tokyo', 'Tier 1', 'ultra_luxury', 'jp-guide-the-ritz-carlton-tokyo', 'The Ritz-Carlton Tokyo|Ritz-Carlton Tokyo'),
-  ('Four Seasons Tokyo at Marunouchi', 'Tokyo', 'Tier 2', 'luxury', 'jp-guide-four-seasons-tokyo-at-marunouchi', 'Four Seasons — Tokyo at Marunouchi'),
-  ('Park Hyatt Tokyo', 'Tokyo', 'Tier 2', 'luxury', 'jp-guide-park-hyatt-tokyo', 'Park Hyatt Tokyo'),
-  ('Imperial Hotel Tokyo', 'Tokyo', 'Tier 2', 'luxury', 'jp-guide-imperial-hotel-tokyo', 'Imperial Hotel, Tokyo'),
-  ('Shangri-La Tokyo', 'Tokyo', 'Tier 2', 'luxury', 'jp-guide-shangri-la-tokyo', 'Shangri-La Tokyo'),
-  ('Grand Hyatt Tokyo', 'Tokyo', 'Tier 2', 'luxury', 'jp-guide-grand-hyatt-tokyo', 'Grand Hyatt Tokyo'),
-  ('ANA InterContinental Tokyo', 'Tokyo', 'Tier 2', 'luxury', 'jp-guide-ana-intercontinental-tokyo', 'ANA InterContinental Tokyo'),
-  ('Fairmont Tokyo', 'Tokyo', 'Tier 2', 'luxury', 'jp-guide-fairmont-tokyo', 'Fairmont Tokyo'),
-  ('1 Hotel Tokyo', 'Tokyo', 'Tier 2', 'luxury', 'jp-guide-1-hotel-tokyo', '1 Hotel Tokyo'),
-  ('The New Otani Executive House Zen', 'Tokyo', 'Tier 2', 'luxury', 'jp-guide-the-new-otani-executive-house-zen', 'The New Otani Executive House Zen'),
-  ('Capitol Hotel Tokyu', 'Tokyo', 'Tier 3', 'premium', 'jp-guide-capitol-hotel-tokyu', 'Capitol Hotel Tokyu'),
-  ('Kimpton Shinjuku Tokyo', 'Tokyo', 'Tier 3', 'premium', 'jp-guide-kimpton-shinjuku-tokyo', 'Kimpton Shinjuku Tokyo'),
-  ('Hotel Indigo Tokyo Shibuya', 'Tokyo', 'Tier 3', 'premium', 'jp-guide-hotel-indigo-tokyo-shibuya', 'Hotel Indigo Tokyo Shibuya'),
-  ('BELLUSTAR TOKYO, A Pan Pacific Hotel', 'Tokyo', 'Tier 3', 'premium', 'jp-guide-bellustar-tokyo-a-pan-pacific-hotel', 'BELLUSTAR TOKYO, A Pan Pacific Hotel'),
-  ('Aman Kyoto', 'Kyoto', 'Tier 1', 'ultra_luxury', 'jp-guide-aman-kyoto', 'Aman Kyoto'),
-  ('Four Seasons Kyoto', 'Kyoto', 'Tier 1', 'ultra_luxury', 'jp-guide-four-seasons-kyoto', 'Four Seasons — Kyoto'),
-  ('The Ritz-Carlton Kyoto', 'Kyoto', 'Tier 1', 'ultra_luxury', 'jp-guide-the-ritz-carlton-kyoto', 'The Ritz-Carlton, Kyoto|Ritz-Carlton Kyoto'),
-  ('Capella Kyoto', 'Kyoto', 'Tier 1', 'ultra_luxury', 'jp-guide-capella-kyoto', 'Capella Kyoto'),
-  ('Hotel The Mitsui Kyoto', 'Kyoto', 'Tier 1', 'ultra_luxury', 'jp-guide-hotel-the-mitsui-kyoto', 'Hotel The Mitsui Kyoto'),
-  ('Six Senses Kyoto', 'Kyoto', 'Tier 1', 'ultra_luxury', 'jp-guide-six-senses-kyoto', 'Six Senses Kyoto'),
-  ('Park Hyatt Kyoto', 'Kyoto', 'Tier 2', 'luxury', 'jp-guide-park-hyatt-kyoto', 'Park Hyatt Kyoto'),
-  ('ROKU Kyoto, LXR Hotels', 'Kyoto', 'Tier 2', 'luxury', 'jp-guide-roku-kyoto-lxr-hotels', 'ROKU Kyoto, LXR Hotels & Resorts'),
-  ('Hotel Seiryu Kyoto Kiyomizu', 'Kyoto', 'Tier 2', 'luxury', 'jp-guide-hotel-seiryu-kyoto-kiyomizu', 'The Hotel Seiryu Kyoto Kiyomizu|The Hotel Seiryu Kyoto Kiyomizu'),
-  ('Imperial Hotel Kyoto', 'Kyoto', 'Tier 2', 'luxury', 'jp-guide-imperial-hotel-kyoto', 'Imperial Hotel, Kyoto'),
-  ('Dusit Thani Kyoto', 'Kyoto', 'Tier 3', 'premium', 'jp-guide-dusit-thani-kyoto', 'Dusit Thani Kyoto'),
-  ('FAUCHON L''Hotel Kyoto', 'Kyoto', 'Tier 3', 'premium', 'jp-guide-fauchon-l-hotel-kyoto', 'FAUCHON L''Hotel Kyoto'),
-  ('Four Seasons Osaka', 'Osaka', 'Tier 1', 'ultra_luxury', 'jp-guide-four-seasons-osaka', 'Four Seasons — Osaka'),
-  ('The St. Regis Osaka', 'Osaka', 'Tier 1', 'ultra_luxury', 'jp-guide-the-st-regis-osaka', ''),
-  ('Waldorf Astoria Osaka', 'Osaka', 'Tier 1', 'ultra_luxury', 'jp-guide-waldorf-astoria-osaka', 'Waldorf Astoria Osaka'),
-  ('Conrad Osaka', 'Osaka', 'Tier 2', 'luxury', 'jp-guide-conrad-osaka', 'Conrad Osaka'),
-  ('Patina Osaka', 'Osaka', 'Tier 2', 'luxury', 'jp-guide-patina-osaka', 'Patina Osaka'),
-  ('Gora Kadan', 'Hakone', 'Tier 1', 'ultra_luxury', 'jp-guide-gora-kadan', ''),
-  ('ESPACIO The Hakone Geihinkan Rin Poh Ki Ryu', 'Hakone', 'Tier 1', 'ultra_luxury', 'jp-guide-espacio-the-hakone-geihinkan-rin-poh-ki-ryu', 'ESPACIO The Hakone Geihinkan Rin Poh Ki Ryu'),
-  ('Park Hyatt Niseko Hanazono', 'Niseko', 'Tier 1', 'ultra_luxury', 'jp-guide-park-hyatt-niseko-hanazono', ''),
-  ('Higashiyama Niseko Village, a Ritz-Carlton Reserve', 'Niseko', 'Tier 1', 'ultra_luxury', 'jp-guide-higashiyama-niseko-village-a-ritz-carlton-reserve', ''),
-  ('Hinode Hills Niseko', 'Niseko', 'Tier 3', 'premium', 'jp-guide-hinode-hills-niseko', ''),
-  ('The Ritz-Carlton, Nikko', 'Nikko', 'Tier 1', 'ultra_luxury', 'jp-guide-the-ritz-carlton-nikko', ''),
-  ('Rosewood Miyakojima', 'Miyako Island', 'Tier 1', 'ultra_luxury', 'jp-guide-rosewood-miyakojima', 'Rosewood Miyakojima'),
-  ('Halekulani Okinawa', 'Okinawa', 'Tier 2', 'luxury', 'jp-guide-halekulani-okinawa', 'Halekulani Okinawa'),
-  ('Ryokan Kurashiki', 'Okayama', 'Tier 2', 'luxury', 'jp-guide-ryokan-kurashiki', 'Ryokan Kurashiki')
+  ('Aman Tokyo', 'Tokyo', 'Tier 1', 'Otemachi', 'Not yet contracted; placeholder only', 3.7, 'jp-guide-aman-tokyo', 'Aman Tokyo'),
+  ('Four Seasons Tokyo at Otemachi', 'Tokyo', 'Tier 1', 'Otemachi', 'Four Seasons Preferred Partner; quoted to clients', 4.1, 'jp-guide-four-seasons-tokyo-at-otemachi', 'Four Seasons — Tokyo at Otemachi|Four Seasons Tokyo Otemachi'),
+  ('Mandarin Oriental Tokyo', 'Tokyo', 'Tier 1', 'Nihonbashi', 'Mandarin Oriental Fan Club; quoted to clients', 4.3, 'jp-guide-mandarin-oriental-tokyo', 'Mandarin Oriental, Tokyo|Mandarin Oriental Tokyo'),
+  ('Palace Hotel Tokyo', 'Tokyo', 'Tier 1', 'Marunouchi', 'Leaders Club; quoted to clients', 3.9, 'jp-guide-palace-hotel-tokyo', 'Palace Hotel Tokyo'),
+  ('The Peninsula Tokyo', 'Tokyo', 'Tier 1', 'Yurakucho', 'Peninsula', 4.2, 'jp-guide-the-peninsula-tokyo', 'Peninsula Tokyo'),
+  ('The Okura Tokyo', 'Tokyo', 'Tier 1', 'Toranomon', 'LHW Vita; confirm', 3.4, 'jp-guide-the-okura-tokyo', 'The Okura Tokyo'),
+  ('Janu Tokyo', 'Tokyo', 'Tier 1', 'Azabudai Hills', 'Serandipians', 3.6, 'jp-guide-janu-tokyo', 'Janu Tokyo'),
+  ('The Ritz-Carlton, Tokyo', 'Tokyo', 'Tier 1', 'Roppongi (Tokyo Midtown)', 'Marriott Stars; confirm', 3.6, 'jp-guide-the-ritz-carlton-tokyo', 'The Ritz-Carlton Tokyo|Ritz-Carlton Tokyo'),
+  ('Four Seasons Tokyo at Marunouchi', 'Tokyo', 'Tier 2', 'Marunouchi', 'Four Seasons Preferred Partner; confirm', 3.6, 'jp-guide-four-seasons-tokyo-at-marunouchi', 'Four Seasons — Tokyo at Marunouchi'),
+  ('Park Hyatt Tokyo', 'Tokyo', 'Tier 2', 'Shinjuku', 'Hyatt Prive; not yet contracted in KB, confirm', 3.6, 'jp-guide-park-hyatt-tokyo', 'Park Hyatt Tokyo'),
+  ('Imperial Hotel Tokyo', 'Tokyo', 'Tier 2', 'Hibiya', 'LHW Vita; confirm', 3.4, 'jp-guide-imperial-hotel-tokyo', 'Imperial Hotel, Tokyo'),
+  ('Shangri-La Tokyo', 'Tokyo', 'Tier 2', 'Marunouchi', 'Shangri-La', 3.9, 'jp-guide-shangri-la-tokyo', 'Shangri-La Tokyo'),
+  ('Grand Hyatt Tokyo', 'Tokyo', 'Tier 2', 'Roppongi', 'Hyatt Prive; confirm', 3.6, 'jp-guide-grand-hyatt-tokyo', 'Grand Hyatt Tokyo'),
+  ('ANA InterContinental Tokyo', 'Tokyo', 'Tier 2', 'Akasaka', 'IHG', 3.4, 'jp-guide-ana-intercontinental-tokyo', 'ANA InterContinental Tokyo'),
+  ('Fairmont Tokyo', 'Tokyo', 'Tier 2', 'Shibaura', 'Accor; confirm', 3.4, 'jp-guide-fairmont-tokyo', 'Fairmont Tokyo'),
+  ('1 Hotel Tokyo', 'Tokyo', 'Tier 2', 'Akasaka', 'Confirm', 3.0, 'jp-guide-1-hotel-tokyo', '1 Hotel Tokyo'),
+  ('The New Otani Executive House Zen', 'Tokyo', 'Tier 2', 'Akasaka', 'Confirm', 3.6, 'jp-guide-the-new-otani-executive-house-zen', 'The New Otani Executive House Zen'),
+  ('Capitol Hotel Tokyu', 'Tokyo', 'Tier 3', 'Akasaka', 'Preferred Hotels; in KB, confirm', 3.4, 'jp-guide-capitol-hotel-tokyu', 'Capitol Hotel Tokyu'),
+  ('Kimpton Shinjuku Tokyo', 'Tokyo', 'Tier 3', 'Shinjuku', 'IHG', 3.0, 'jp-guide-kimpton-shinjuku-tokyo', 'Kimpton Shinjuku Tokyo'),
+  ('Hotel Indigo Tokyo Shibuya', 'Tokyo', 'Tier 3', 'Shibuya', 'IHG', 3.0, 'jp-guide-hotel-indigo-tokyo-shibuya', 'Hotel Indigo Tokyo Shibuya'),
+  ('BELLUSTAR TOKYO, A Pan Pacific Hotel', 'Tokyo', 'Tier 3', 'Kabukicho, Shinjuku', 'Confirm', 3.3, 'jp-guide-bellustar-tokyo-a-pan-pacific-hotel', 'BELLUSTAR TOKYO, A Pan Pacific Hotel'),
+  ('Aman Kyoto', 'Kyoto', 'Tier 1', 'Northern Kyoto, forest setting', 'Confirm', 3.2, 'jp-guide-aman-kyoto', 'Aman Kyoto'),
+  ('Four Seasons Kyoto', 'Kyoto', 'Tier 1', 'Higashiyama', 'Four Seasons Preferred Partner; confirm', 3.9, 'jp-guide-four-seasons-kyoto', 'Four Seasons — Kyoto'),
+  ('The Ritz-Carlton Kyoto', 'Kyoto', 'Tier 1', 'Kamogawa riverside', 'Marriott Stars', 3.9, 'jp-guide-the-ritz-carlton-kyoto', 'The Ritz-Carlton, Kyoto|Ritz-Carlton Kyoto'),
+  ('Capella Kyoto', 'Kyoto', 'Tier 1', 'Higashiyama', 'LHW Vita, Serandipains', 3.9, 'jp-guide-capella-kyoto', 'Capella Kyoto'),
+  ('Hotel The Mitsui Kyoto', 'Kyoto', 'Tier 1', 'Nijo', 'Marriott Stars', 3.7, 'jp-guide-hotel-the-mitsui-kyoto', 'Hotel The Mitsui Kyoto'),
+  ('Six Senses Kyoto', 'Kyoto', 'Tier 1', 'Higashiyama', 'IHG Destined', 3.6, 'jp-guide-six-senses-kyoto', 'Six Senses Kyoto'),
+  ('Park Hyatt Kyoto', 'Kyoto', 'Tier 2', 'Higashiyama', 'Hyatt Prive', 4.1, 'jp-guide-park-hyatt-kyoto', 'Park Hyatt Kyoto'),
+  ('ROKU Kyoto, LXR Hotels', 'Kyoto', 'Tier 2', 'Kitayama', 'Hilton for Luxury', 3.1, 'jp-guide-roku-kyoto-lxr-hotels', 'ROKU Kyoto, LXR Hotels & Resorts'),
+  ('Hotel Seiryu Kyoto Kiyomizu', 'Kyoto', 'Tier 2', 'Kiyomizu', 'LHW Vita', 3.6, 'jp-guide-hotel-seiryu-kyoto-kiyomizu', 'The Hotel Seiryu Kyoto Kiyomizu|The Hotel Seiryu Kyoto Kiyomizu'),
+  ('Imperial Hotel Kyoto', 'Kyoto', 'Tier 2', 'Gion', 'LHW Vita', 3.5, 'jp-guide-imperial-hotel-kyoto', 'Imperial Hotel, Kyoto'),
+  ('Dusit Thani Kyoto', 'Kyoto', 'Tier 3', 'Karasuma', 'Serandipians', 3.4, 'jp-guide-dusit-thani-kyoto', 'Dusit Thani Kyoto'),
+  ('FAUCHON L''Hotel Kyoto', 'Kyoto', 'Tier 3', 'Gion', 'SLH Within', 3.5, 'jp-guide-fauchon-l-hotel-kyoto', 'FAUCHON L''Hotel Kyoto'),
+  ('Four Seasons Osaka', 'Osaka', 'Tier 1', 'Umeda/Kita', 'Four Seasons Preferred Partner', 4.2, 'jp-guide-four-seasons-osaka', 'Four Seasons — Osaka'),
+  ('The St. Regis Osaka', 'Osaka', 'Tier 1', 'Honmachi', 'Marriott Stars', 3.9, 'jp-guide-the-st-regis-osaka', ''),
+  ('Waldorf Astoria Osaka', 'Osaka', 'Tier 1', 'Umeda', 'Hilton for Luxury', 4.4, 'jp-guide-waldorf-astoria-osaka', 'Waldorf Astoria Osaka'),
+  ('Conrad Osaka', 'Osaka', 'Tier 2', 'Nakanoshima', 'Hilton for Luxury', 3.8, 'jp-guide-conrad-osaka', 'Conrad Osaka'),
+  ('Patina Osaka', 'Osaka', 'Tier 2', 'Nakanoshima', 'Serandipians', 3.9, 'jp-guide-patina-osaka', 'Patina Osaka'),
+  ('Gora Kadan', 'Hakone', 'Tier 1', 'Gora, Hakone', 'Relais and Chateaux', 3.5, 'jp-guide-gora-kadan', ''),
+  ('ESPACIO The Hakone Geihinkan Rin Poh Ki Ryu', 'Hakone', 'Tier 1', 'Sengokuhara, Hakone', 'LHW Vita', 4.2, 'jp-guide-espacio-the-hakone-geihinkan-rin-poh-ki-ryu', 'ESPACIO The Hakone Geihinkan Rin Poh Ki Ryu'),
+  ('Park Hyatt Niseko Hanazono', 'Niseko', 'Tier 1', 'Hanazono', 'Hyatt Prive', 3.9, 'jp-guide-park-hyatt-niseko-hanazono', ''),
+  ('Higashiyama Niseko Village, a Ritz-Carlton Reserve', 'Niseko', 'Tier 1', 'Niseko Village', 'Marriott Stars; confirm', 3.1, 'jp-guide-higashiyama-niseko-village-a-ritz-carlton-reserve', ''),
+  ('Hinode Hills Niseko', 'Niseko', 'Tier 3', 'Niseko Village', 'Hilton for Luxury', NULL, 'jp-guide-hinode-hills-niseko', ''),
+  ('The Ritz-Carlton, Nikko', 'Nikko', 'Tier 1', 'Lake Chuzenji', 'Marriott Stars', 4.1, 'jp-guide-the-ritz-carlton-nikko', ''),
+  ('Rosewood Miyakojima', 'Miyako Island', 'Tier 1', 'Miyako Island', 'Rosewood Elite', 4.0, 'jp-guide-rosewood-miyakojima', 'Rosewood Miyakojima'),
+  ('Halekulani Okinawa', 'Okinawa', 'Tier 2', 'Onna, Okinawa', 'LHW Vita', 3.7, 'jp-guide-halekulani-okinawa', 'Halekulani Okinawa'),
+  ('Ryokan Kurashiki', 'Okayama', 'Tier 2', 'Kurashiki', 'Confirm', 3.4, 'jp-guide-ryokan-kurashiki', 'Ryokan Kurashiki')
 
-) AS v(name, city, tier, luxury_band, external_key, aliases)
+) AS v(name, city, tier, area, partner, guide_score, external_key, aliases)
+JOIN public.kb_countries co ON co.country_code = 'JP'
+JOIN public.kb_entities e ON e.entity_type = 'hotel' AND e.active = true AND e.country_id = co.id
+  AND (
+    e.external_key = v.external_key
+    OR lower(e.name) = lower(v.name)
+    OR (v.aliases <> '' AND e.name = ANY (string_to_array(v.aliases, '|')))
+    OR exists (
+      SELECT 1 FROM unnest(coalesce(e.aliases, '{}'::text[])) a
+      WHERE lower(a) = lower(v.name)
+    )
+  )
+WHERE d.entity_id = e.id;
+
+
+-- 7f. Hotel guide_score_factors (internal matrix; full-name keys)
+UPDATE public.kb_hotel_details d
+SET
+  guide_score_factors = v.factors::jsonb,
+  guide_score = COALESCE(v.avg_score, d.guide_score),
+  updated_at = now()
+FROM (VALUES
+
+  ('1 Hotel Tokyo', 'Tokyo', 'jp-guide-1-hotel-tokyo', '1 Hotel Tokyo', '{"luxury":4,"support":2,"rooms":4,"food_and_beverage":3,"neighbourhood":3,"access":3,"service":3,"character":4,"wellness":3,"family":3,"indian_client_fit":2,"value":3,"views_and_privacy":3,"consistency":2}', 3.0),
+  ('Aman Kyoto', 'Kyoto', 'jp-guide-aman-kyoto', 'Aman Kyoto', '{"luxury":5,"support":2,"rooms":4,"food_and_beverage":3,"neighbourhood":2,"access":2,"service":3,"character":4,"wellness":4,"family":3,"indian_client_fit":3,"value":2,"views_and_privacy":4,"consistency":4}', 3.2),
+  ('Aman Tokyo', 'Tokyo', 'jp-guide-aman-tokyo', 'Aman Tokyo', '{"luxury":5,"support":2,"rooms":5,"food_and_beverage":4,"neighbourhood":4,"access":5,"service":3,"character":5,"wellness":5,"family":2,"indian_client_fit":3,"value":2,"views_and_privacy":5,"consistency":2}', 3.7),
+  ('ANA InterContinental Tokyo', 'Tokyo', 'jp-guide-ana-intercontinental-tokyo', 'ANA InterContinental Tokyo', '{"luxury":2,"support":3,"rooms":3,"food_and_beverage":3,"neighbourhood":3,"access":3,"service":4,"character":3,"wellness":3,"family":4,"indian_client_fit":4,"value":4,"views_and_privacy":4,"consistency":4}', 3.4),
+  ('BELLUSTAR TOKYO, A Pan Pacific Hotel', 'Tokyo', 'jp-guide-bellustar-tokyo-a-pan-pacific-hotel', 'BELLUSTAR TOKYO, A Pan Pacific Hotel', '{"luxury":3,"support":3,"rooms":4,"food_and_beverage":3,"neighbourhood":4,"access":4,"service":4,"character":4,"wellness":3,"family":2,"indian_client_fit":2,"value":3,"views_and_privacy":4,"consistency":3}', 3.3),
+  ('Capella Kyoto', 'Kyoto', 'jp-guide-capella-kyoto', 'Capella Kyoto', '{"luxury":5,"support":4,"rooms":4,"food_and_beverage":4,"neighbourhood":4,"access":3,"service":4,"character":5,"wellness":4,"family":3,"indian_client_fit":3,"value":3,"views_and_privacy":4,"consistency":4}', 3.9),
+  ('Capitol Hotel Tokyu', 'Tokyo', 'jp-guide-capitol-hotel-tokyu', 'Capitol Hotel Tokyu', '{"luxury":3,"support":4,"rooms":4,"food_and_beverage":3,"neighbourhood":3,"access":4,"service":4,"character":3,"wellness":3,"family":3,"indian_client_fit":3,"value":5,"views_and_privacy":3,"consistency":3}', 3.4),
+  ('Conrad Osaka', 'Osaka', 'jp-guide-conrad-osaka', 'Conrad Osaka', '{"luxury":4,"support":4,"rooms":4,"food_and_beverage":4,"neighbourhood":3,"access":3,"service":4,"character":3,"wellness":3,"family":4,"indian_client_fit":4,"value":4,"views_and_privacy":5,"consistency":4}', 3.8),
+  ('Dusit Thani Kyoto', 'Kyoto', 'jp-guide-dusit-thani-kyoto', 'Dusit Thani Kyoto', '{"luxury":3,"support":4,"rooms":3,"food_and_beverage":3,"neighbourhood":4,"access":4,"service":3,"character":3,"wellness":3,"family":4,"indian_client_fit":4,"value":4,"views_and_privacy":3,"consistency":3}', 3.4),
+  ('ESPACIO The Hakone Geihinkan Rin Poh Ki Ryu', 'Hakone', 'jp-guide-espacio-the-hakone-geihinkan-rin-poh-ki-ryu', 'ESPACIO The Hakone Geihinkan Rin Poh Ki Ryu', '{"luxury":5,"support":4,"rooms":5,"food_and_beverage":5,"neighbourhood":4,"access":3,"service":5,"character":5,"wellness":5,"family":3,"indian_client_fit":3,"value":3,"views_and_privacy":5,"consistency":4}', 4.2),
+  ('Fairmont Tokyo', 'Tokyo', 'jp-guide-fairmont-tokyo', 'Fairmont Tokyo', '{"luxury":4,"support":4,"rooms":4,"food_and_beverage":3,"neighbourhood":3,"access":4,"service":4,"character":3,"wellness":3,"family":3,"indian_client_fit":3,"value":3,"views_and_privacy":3,"consistency":3}', 3.4),
+  ('FAUCHON L''Hotel Kyoto', 'Kyoto', 'jp-guide-fauchon-l-hotel-kyoto', 'FAUCHON L''Hotel Kyoto', '{"luxury":3,"support":5,"rooms":3,"food_and_beverage":3,"neighbourhood":4,"access":4,"service":4,"character":4,"wellness":2,"family":3,"indian_client_fit":3,"value":4,"views_and_privacy":3,"consistency":4}', 3.5),
+  ('Four Seasons Kyoto', 'Kyoto', 'jp-guide-four-seasons-kyoto', 'Four Seasons — Kyoto', '{"luxury":4,"support":4,"rooms":4,"food_and_beverage":4,"neighbourhood":4,"access":3,"service":4,"character":4,"wellness":4,"family":4,"indian_client_fit":4,"value":3,"views_and_privacy":4,"consistency":4}', 3.9),
+  ('Four Seasons Osaka', 'Osaka', 'jp-guide-four-seasons-osaka', 'Four Seasons — Osaka', '{"luxury":5,"support":4,"rooms":5,"food_and_beverage":4,"neighbourhood":4,"access":3,"service":5,"character":4,"wellness":4,"family":4,"indian_client_fit":4,"value":4,"views_and_privacy":4,"consistency":5}', 4.2),
+  ('Four Seasons Tokyo at Marunouchi', 'Tokyo', 'jp-guide-four-seasons-tokyo-at-marunouchi', 'Four Seasons — Tokyo at Marunouchi', '{"luxury":4,"support":3,"rooms":4,"food_and_beverage":4,"neighbourhood":4,"access":5,"service":5,"character":3,"wellness":3,"family":3,"indian_client_fit":3,"value":3,"views_and_privacy":3,"consistency":3}', 3.6),
+  ('Four Seasons Tokyo at Otemachi', 'Tokyo', 'jp-guide-four-seasons-tokyo-at-otemachi', 'Four Seasons — Tokyo at Otemachi|Four Seasons Tokyo Otemachi', '{"luxury":4,"support":4,"rooms":5,"food_and_beverage":4,"neighbourhood":4,"access":5,"service":5,"character":4,"wellness":4,"family":4,"indian_client_fit":4,"value":3,"views_and_privacy":4,"consistency":3}', 4.1),
+  ('Gora Kadan', 'Hakone', 'jp-guide-gora-kadan', '', '{"luxury":4,"support":4,"rooms":4,"food_and_beverage":4,"neighbourhood":3,"access":2,"service":4,"character":4,"wellness":5,"family":3,"indian_client_fit":2,"value":2,"views_and_privacy":4,"consistency":4}', 3.5),
+  ('Grand Hyatt Tokyo', 'Tokyo', 'jp-guide-grand-hyatt-tokyo', 'Grand Hyatt Tokyo', '{"luxury":3,"support":3,"rooms":3,"food_and_beverage":3,"neighbourhood":5,"access":4,"service":3,"character":4,"wellness":4,"family":4,"indian_client_fit":4,"value":3,"views_and_privacy":4,"consistency":3}', 3.6),
+  ('Halekulani Okinawa', 'Okinawa', 'jp-guide-halekulani-okinawa', 'Halekulani Okinawa', '{"luxury":4,"support":4,"rooms":4,"food_and_beverage":3,"neighbourhood":3,"access":2,"service":5,"character":4,"wellness":4,"family":4,"indian_client_fit":3,"value":3,"views_and_privacy":5,"consistency":4}', 3.7),
+  ('Higashiyama Niseko Village, a Ritz-Carlton Reserve', 'Niseko', 'jp-guide-higashiyama-niseko-village-a-ritz-carlton-reserve', '', '{"luxury":4,"support":3,"rooms":4,"food_and_beverage":3,"neighbourhood":3,"access":3,"service":3,"character":3,"wellness":4,"family":3,"indian_client_fit":2,"value":2,"views_and_privacy":4,"consistency":3}', 3.1),
+  ('Hotel Indigo Tokyo Shibuya', 'Tokyo', 'jp-guide-hotel-indigo-tokyo-shibuya', 'Hotel Indigo Tokyo Shibuya', '{"luxury":3,"rooms":3,"food_and_beverage":3,"neighbourhood":3,"access":4,"service":3,"character":3,"wellness":2,"family":2,"indian_client_fit":3,"value":4,"views_and_privacy":3,"consistency":3}', 3.0),
+  ('Hotel Seiryu Kyoto Kiyomizu', 'Kyoto', 'jp-guide-hotel-seiryu-kyoto-kiyomizu', 'The Hotel Seiryu Kyoto Kiyomizu|The Hotel Seiryu Kyoto Kiyomizu', '{"luxury":4,"support":4,"rooms":3,"food_and_beverage":3,"neighbourhood":4,"access":4,"service":3,"character":3,"wellness":3,"family":4,"indian_client_fit":4,"value":4,"views_and_privacy":4,"consistency":3}', 3.6),
+  ('Hotel The Mitsui Kyoto', 'Kyoto', 'jp-guide-hotel-the-mitsui-kyoto', 'Hotel The Mitsui Kyoto', '{"luxury":4,"support":3,"rooms":4,"food_and_beverage":3,"neighbourhood":4,"access":4,"service":4,"character":5,"wellness":4,"family":3,"indian_client_fit":3,"value":3,"views_and_privacy":4,"consistency":4}', 3.7),
+  ('Imperial Hotel Kyoto', 'Kyoto', 'jp-guide-imperial-hotel-kyoto', 'Imperial Hotel, Kyoto', '{"luxury":4,"rooms":3,"food_and_beverage":4,"neighbourhood":4,"access":4,"service":3,"character":4,"wellness":3,"family":4,"indian_client_fit":4,"value":3,"views_and_privacy":3,"consistency":3}', 3.5),
+  ('Imperial Hotel Tokyo', 'Tokyo', 'jp-guide-imperial-hotel-tokyo', 'Imperial Hotel, Tokyo', '{"luxury":2,"support":3,"rooms":3,"food_and_beverage":4,"neighbourhood":5,"access":4,"service":3,"character":4,"wellness":3,"family":4,"indian_client_fit":4,"value":4,"views_and_privacy":3,"consistency":2}', 3.4),
+  ('Janu Tokyo', 'Tokyo', 'jp-guide-janu-tokyo', 'Janu Tokyo', '{"luxury":5,"support":2,"rooms":5,"food_and_beverage":3,"neighbourhood":3,"access":4,"service":4,"character":5,"wellness":5,"family":3,"indian_client_fit":3,"value":2,"views_and_privacy":4,"consistency":2}', 3.6),
+  ('Kimpton Shinjuku Tokyo', 'Tokyo', 'jp-guide-kimpton-shinjuku-tokyo', 'Kimpton Shinjuku Tokyo', '{"luxury":3,"rooms":3,"food_and_beverage":3,"neighbourhood":3,"access":3,"service":4,"character":4,"wellness":2,"family":2,"indian_client_fit":3,"value":3,"views_and_privacy":3,"consistency":3}', 3.0),
+  ('Mandarin Oriental Tokyo', 'Tokyo', 'jp-guide-mandarin-oriental-tokyo', 'Mandarin Oriental, Tokyo|Mandarin Oriental Tokyo', '{"luxury":3,"support":5,"rooms":4,"food_and_beverage":5,"neighbourhood":5,"access":4,"service":5,"character":4,"wellness":5,"family":4,"indian_client_fit":4,"value":3,"views_and_privacy":4,"consistency":5}', 4.3),
+  ('Palace Hotel Tokyo', 'Tokyo', 'jp-guide-palace-hotel-tokyo', 'Palace Hotel Tokyo', '{"luxury":4,"support":3,"rooms":4,"food_and_beverage":3,"neighbourhood":5,"access":5,"service":5,"character":4,"wellness":4,"family":3,"indian_client_fit":3,"value":4,"views_and_privacy":5,"consistency":2}', 3.9),
+  ('Park Hyatt Kyoto', 'Kyoto', 'jp-guide-park-hyatt-kyoto', 'Park Hyatt Kyoto', '{"luxury":5,"support":3,"rooms":5,"food_and_beverage":5,"neighbourhood":5,"access":5,"service":5,"character":4,"wellness":4,"family":3,"indian_client_fit":3,"value":2,"views_and_privacy":4,"consistency":4}', 4.1),
+  ('Park Hyatt Niseko Hanazono', 'Niseko', 'jp-guide-park-hyatt-niseko-hanazono', '', '{"luxury":5,"support":3,"rooms":4,"food_and_beverage":4,"neighbourhood":4,"access":4,"service":3,"character":3,"wellness":5,"family":4,"indian_client_fit":3,"value":3,"views_and_privacy":5,"consistency":4}', 3.9),
+  ('Park Hyatt Tokyo', 'Tokyo', 'jp-guide-park-hyatt-tokyo', 'Park Hyatt Tokyo', '{"luxury":4,"support":3,"rooms":4,"food_and_beverage":3,"neighbourhood":3,"access":3,"service":4,"character":5,"wellness":4,"family":3,"indian_client_fit":3,"value":3,"views_and_privacy":5,"consistency":3}', 3.6),
+  ('Patina Osaka', 'Osaka', 'jp-guide-patina-osaka', 'Patina Osaka', '{"luxury":5,"support":4,"rooms":4,"food_and_beverage":4,"neighbourhood":3,"access":2,"service":4,"character":4,"wellness":4,"family":3,"indian_client_fit":4,"value":4,"views_and_privacy":5,"consistency":4}', 3.9),
+  ('ROKU Kyoto, LXR Hotels', 'Kyoto', 'jp-guide-roku-kyoto-lxr-hotels', 'ROKU Kyoto, LXR Hotels & Resorts', '{"luxury":3,"support":3,"rooms":4,"food_and_beverage":3,"neighbourhood":2,"access":2,"service":3,"character":3,"wellness":4,"family":3,"indian_client_fit":3,"value":4,"views_and_privacy":4,"consistency":3}', 3.1),
+  ('Rosewood Miyakojima', 'Miyako Island', 'jp-guide-rosewood-miyakojima', 'Rosewood Miyakojima', '{"luxury":5,"support":4,"rooms":5,"food_and_beverage":4,"neighbourhood":3,"access":2,"service":5,"character":4,"wellness":4,"family":4,"indian_client_fit":3,"value":4,"views_and_privacy":5,"consistency":4}', 4.0),
+  ('Ryokan Kurashiki', 'Okayama', 'jp-guide-ryokan-kurashiki', 'Ryokan Kurashiki', '{"luxury":3,"support":3,"rooms":4,"food_and_beverage":4,"neighbourhood":4,"access":2,"service":5,"character":5,"wellness":3,"family":2,"indian_client_fit":2,"value":3,"views_and_privacy":3,"consistency":4}', 3.4),
+  ('Shangri-La Tokyo', 'Tokyo', 'jp-guide-shangri-la-tokyo', 'Shangri-La Tokyo', '{"luxury":4,"support":3,"rooms":4,"food_and_beverage":3,"neighbourhood":4,"access":5,"service":5,"character":3,"wellness":4,"family":4,"indian_client_fit":4,"value":3,"views_and_privacy":5,"consistency":4}', 3.9),
+  ('Six Senses Kyoto', 'Kyoto', 'jp-guide-six-senses-kyoto', 'Six Senses Kyoto', '{"luxury":4,"support":4,"rooms":4,"food_and_beverage":3,"neighbourhood":3,"access":3,"service":4,"character":3,"wellness":5,"family":3,"indian_client_fit":4,"value":3,"views_and_privacy":3,"consistency":4}', 3.6),
+  ('The New Otani Executive House Zen', 'Tokyo', 'jp-guide-the-new-otani-executive-house-zen', 'The New Otani Executive House Zen', '{"luxury":3,"support":4,"rooms":4,"food_and_beverage":3,"neighbourhood":4,"access":3,"service":4,"character":3,"wellness":3,"family":4,"indian_client_fit":4,"value":4,"views_and_privacy":3,"consistency":4}', 3.6),
+  ('The Okura Tokyo', 'Tokyo', 'jp-guide-the-okura-tokyo', 'The Okura Tokyo', '{"luxury":3,"support":3,"rooms":3,"food_and_beverage":3,"neighbourhood":3,"access":3,"service":5,"character":5,"wellness":4,"family":3,"indian_client_fit":3,"value":3,"views_and_privacy":4,"consistency":3}', 3.4),
+  ('The Peninsula Tokyo', 'Tokyo', 'jp-guide-the-peninsula-tokyo', 'Peninsula Tokyo', '{"luxury":3,"support":4,"rooms":4,"food_and_beverage":3,"neighbourhood":5,"access":5,"service":5,"character":4,"wellness":5,"family":4,"indian_client_fit":4,"value":3,"views_and_privacy":5,"consistency":5}', 4.2),
+  ('The Ritz-Carlton, Kyoto', 'Kyoto', 'jp-guide-the-ritz-carlton-kyoto', '', '{"luxury":4,"support":3,"rooms":4,"food_and_beverage":3,"neighbourhood":5,"access":5,"service":4,"character":3,"wellness":3,"family":4,"indian_client_fit":4,"value":4,"views_and_privacy":4,"consistency":4}', 3.9),
+  ('The Ritz-Carlton, Nikko', 'Nikko', 'jp-guide-the-ritz-carlton-nikko', '', '{"luxury":5,"support":3,"rooms":4,"food_and_beverage":3,"neighbourhood":5,"access":2,"service":5,"character":4,"wellness":5,"family":4,"indian_client_fit":4,"value":4,"views_and_privacy":5,"consistency":4}', 4.1),
+  ('The Ritz-Carlton, Tokyo', 'Tokyo', 'jp-guide-the-ritz-carlton-tokyo', 'The Ritz-Carlton Tokyo|Ritz-Carlton Tokyo', '{"luxury":3,"support":3,"rooms":3,"food_and_beverage":3,"neighbourhood":4,"access":4,"service":3,"character":4,"wellness":4,"family":4,"indian_client_fit":4,"value":4,"views_and_privacy":4,"consistency":4}', 3.6),
+  ('The St. Regis Osaka', 'Osaka', 'jp-guide-the-st-regis-osaka', '', '{"luxury":4,"support":3,"rooms":4,"food_and_beverage":3,"neighbourhood":4,"access":4,"service":5,"character":4,"wellness":4,"family":4,"indian_client_fit":4,"value":3,"views_and_privacy":4,"consistency":4}', 3.9),
+  ('Waldorf Astoria Osaka', 'Osaka', 'jp-guide-waldorf-astoria-osaka', 'Waldorf Astoria Osaka', '{"luxury":5,"support":5,"rooms":5,"food_and_beverage":4,"neighbourhood":5,"access":5,"service":5,"character":4,"wellness":3,"family":3,"indian_client_fit":4,"value":4,"views_and_privacy":5,"consistency":4}', 4.4)
+
+) AS v(name, city, external_key, aliases, factors, avg_score)
 JOIN public.kb_countries co ON co.country_code = 'JP'
 JOIN public.kb_entities e ON e.entity_type = 'hotel' AND e.active = true AND e.country_id = co.id
   AND (

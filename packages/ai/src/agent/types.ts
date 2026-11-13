@@ -10,6 +10,8 @@ export type AgentToolRisk = "read" | "undo" | "approval";
 /** Atlas notes for a country, city or hotel. */
 export type PlaceNotes = {
   matched: boolean;
+  /** Place or hotel label for the destination card header when known. */
+  title?: string | null;
   /** Plain-language notes. Null when PureLuxe has none for that name. */
   notes: string | null;
   hotels: Array<{ name: string; city: string; contracted: boolean | null }>;
@@ -243,6 +245,10 @@ export type DeskAgentHandlers = DeskToolHandlers & {
     applyIn?: string;
     /** Recent place context when the question omits the destination. */
     earlier?: string;
+    /** Trip stay start YYYY-MM-DD for season Heads-up. */
+    travelFrom?: string;
+    /** Trip stay end YYYY-MM-DD. */
+    travelTo?: string;
   }) => Promise<PlaceNotes>;
 };
 

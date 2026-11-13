@@ -119,10 +119,22 @@ export function createTripAgentTools(options: Options): TripAgentHandlers {
         tripCityHint(latest) ||
         tripCityHint(changed) ||
         null;
+      let detail = latest ?? changed;
+      if (!detail) {
+        try {
+          detail = await getTripDetail(options.tripId, actor);
+        } catch {
+          detail = null;
+        }
+      }
+      const stay =
+        detail?.stays?.find((row) => row.check_in) ?? detail?.stay ?? null;
       return desk.getPlaceNotes({
         ...input,
         earlier: earlier ?? undefined,
         cityHint: cityHint ?? undefined,
+        travelFrom: stay?.check_in ?? undefined,
+        travelTo: stay?.check_out ?? undefined,
       });
     },
 

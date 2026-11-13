@@ -169,8 +169,8 @@ export type PropertyContractOfferType =
   | "bundle"
   | "other";
 
-/** Hotels-sheet luxury band on kb_hotel_details (024; was price_tier). */
-export type HotelPriceTier = "ultra_luxury" | "luxury" | "premium";
+/** Guide proposed tier on kb_hotel_details.luxury_band (037). */
+export type HotelPriceTier = "Tier 1" | "Tier 2" | "Tier 3";
 
 /** How a quote option was added (trip_line_items.added_via, 021). */
 export type TripLineItemAddedVia = "agent" | "button" | "paste" | "manual";

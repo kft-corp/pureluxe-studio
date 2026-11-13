@@ -94,7 +94,7 @@ export function TripBuilderChatPane({
 
   if (!detail && !hasDraftThread) {
     return (
-      <div className="h-full min-h-0 w-full overflow-y-auto">
+      <div className="h-full min-h-0 w-full overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="mx-auto flex min-h-full w-full max-w-lg flex-col items-center justify-center px-6 py-16 text-center sm:py-20">
           <AgentPurivaMark />
           <h2 className="studio-type-hero mt-6 text-ink">Where to next?</h2>
@@ -291,7 +291,7 @@ function ChatScrollArea({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex h-full min-h-0 w-full flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain px-3 pt-3 pb-3 sm:px-6 sm:pt-4"
+        className="flex h-full min-h-0 w-full flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain px-3 pt-3 pb-3 sm:px-6 sm:pt-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
       {chatLoading && messages.length === 0 && streamingContent == null ? (
         <div className={CHAT_COLUMN_CLASS}>
