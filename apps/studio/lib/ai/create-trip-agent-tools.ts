@@ -3,7 +3,11 @@ import { AppError } from "@pureluxe/shared";
 
 import { getClientProfile } from "@/lib/clients";
 import { readRateSnapshot } from "@/lib/rates/rate-search-store";
-import { getTripDetail, getTripReadiness, type TripDetail } from "@/lib/trip-builder";
+import {
+  getTripDetail,
+  getTripReadiness,
+  type TripDetail,
+} from "@/lib/trip-builder";
 import { loadChildAgeFacts } from "@/lib/trip-builder/party/child-ages-for-facts";
 import {
   acceptAndSelectQuoteFinal,
@@ -109,6 +113,52 @@ export function createTripAgentTools(options: Options): TripAgentHandlers {
 
   const desk = createDeskTools(options);
 
+  async function loadTripDetailForTools() {
+    let detail = latest ?? changed;
+    if (!detail) {
+      try {
+        detail = await getTripDetail(options.tripId, actor);
+      } catch {
+        detail = null;
+      }
+    }
+    return detail;
+  }
+
+  function partyFromDetail(detail: TripDetail | null | undefined) {
+    const travellers = detail?.travellers ?? [];
+    if (travellers.length === 0) return { adults: undefined, children: undefined };
+    return {
+      adults: travellers.filter((row) => row.party_role === "adult").length,
+      children: travellers.filter(
+        (row) => row.party_role === "child" || row.party_role === "infant",
+      ).length,
+    };
+  }
+
+  async function prefHintsFromLead(
+    detail: TripDetail | null | undefined,
+  ): Promise<string[] | undefined> {
+    const clientId = detail?.trip?.primary_client_id?.trim();
+    if (!clientId) return undefined;
+    try {
+      const profile = await getClientProfile(clientId);
+      const hints: string[] = [];
+      for (const pref of profile.client.preferences ?? []) {
+        const label = pref.label?.trim();
+        if (!label) continue;
+        hints.push(pref.sentiment === "avoid" ? `avoid:${label}` : label);
+      }
+      for (const diet of profile.client.health_profile?.dietary_restrictions ?? []) {
+        const line = diet?.trim();
+        if (line) hints.push(line);
+      }
+      return hints.length > 0 ? hints : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
   return {
     ...desk,
 
@@ -119,22 +169,35 @@ export function createTripAgentTools(options: Options): TripAgentHandlers {
         tripCityHint(latest) ||
         tripCityHint(changed) ||
         null;
-      let detail = latest ?? changed;
-      if (!detail) {
-        try {
-          detail = await getTripDetail(options.tripId, actor);
-        } catch {
-          detail = null;
-        }
-      }
+      const detail = await loadTripDetailForTools();
       const stay =
         detail?.stays?.find((row) => row.check_in) ?? detail?.stay ?? null;
+      const party = partyFromDetail(detail);
       return desk.getPlaceNotes({
         ...input,
         earlier: earlier ?? undefined,
         cityHint: cityHint ?? undefined,
         travelFrom: stay?.check_in ?? undefined,
         travelTo: stay?.check_out ?? undefined,
+        adults: party.adults,
+        children: party.children,
+      });
+    },
+
+    async findHotels(input) {
+      const detail = await loadTripDetailForTools();
+      const party = partyFromDetail(detail);
+      const prefHints = await prefHintsFromLead(detail);
+      const ask =
+        [input.destination, input.name, input.similarTo, input.priceBandLike]
+          .filter(Boolean)
+          .join(" ") || undefined;
+      return desk.findHotels({
+        ...input,
+        adults: party.adults,
+        children: party.children,
+        ask: input.ask ?? ask,
+        prefHints: input.prefHints ?? prefHints,
       });
     },
 

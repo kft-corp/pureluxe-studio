@@ -7,6 +7,7 @@ import { MEHTA_QUESTIONS } from "./mehta-questions";
 import { MULTI_CITY_SPLIT } from "./multi-city-split";
 import {
   CLIENT_BASE_QUESTIONS,
+  MEHTA_FAMILY_HOTEL_FIT,
   MEHTA_V2_ACCEPTANCE,
   MEHTA_V2_PAST_TRIPS,
   MEHTA_V2_SET_UP_CHECKS,
@@ -22,6 +23,7 @@ export const AGENT_SCENARIOS: Array<{ scenario: AgentScenario; seed: ScenarioSee
   { scenario: MEHTA_QUESTIONS, seed: MEHTA_MALDIVES_SEED },
   { scenario: MULTI_CITY_SPLIT, seed: MEHTA_MALDIVES_SEED },
   { scenario: MEHTA_V2_ACCEPTANCE, seed: MEHTA_FAMILY_SEED },
+  { scenario: MEHTA_FAMILY_HOTEL_FIT, seed: MEHTA_FAMILY_SEED },
   { scenario: MEHTA_V2_SET_UP_CHECKS, seed: MEHTA_FAMILY_SEED },
   { scenario: MEHTA_V2_UPCOMING_TRIP, seed: MEHTA_FAMILY_WITH_TRIPS_SEED },
   { scenario: MEHTA_V2_PAST_TRIPS, seed: MEHTA_FAMILY_WITH_TRIPS_SEED },

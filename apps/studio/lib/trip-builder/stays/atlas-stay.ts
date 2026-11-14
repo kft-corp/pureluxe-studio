@@ -167,13 +167,17 @@ function windowsForTravelMonths(
   );
 }
 
-function formatSeasonWindowBullet(row: KbCountrySeasonWindow): string {
+function formatSeasonWindowBullet(
+  row: KbCountrySeasonWindow,
+  tripStyle?: KbTripStyle | null,
+): string {
   const title = row.months_label?.trim()
     ? `${row.label} (${row.months_label.trim()})`
     : row.label;
+  const bestFor = bestForForParty(row.best_for?.trim() || null, tripStyle ?? null);
   const parts = [
     row.climate_notes?.trim() || null,
-    row.best_for?.trim() ? `Best for: ${row.best_for.trim()}` : null,
+    bestFor ? `Best for: ${bestFor}` : null,
     row.watch_outs?.trim() ? `Watch out: ${row.watch_outs.trim()}` : null,
     row.book_ahead_notes?.trim() ? `Book ahead: ${row.book_ahead_notes.trim()}` : null,
   ].filter(Boolean);
@@ -573,6 +577,54 @@ function detectTripStyle(question: string): KbTripStyle | null {
   return null;
 }
 
+/**
+ * Trip party from Studio (travellers on the open trip). Children → family;
+ * never assume honeymoon for two adults alone.
+ */
+function tripStyleFromParty(
+  adults: number | null | undefined,
+  children: number | null | undefined,
+): KbTripStyle | null {
+  const a = typeof adults === "number" && adults >= 0 ? adults : null;
+  const c = typeof children === "number" && children >= 0 ? children : null;
+  if (a == null && c == null) return null;
+  const adultCount = a ?? 0;
+  const childCount = c ?? 0;
+  if (adultCount + childCount <= 0) return null;
+  if (childCount > 0) return "family";
+  if (adultCount === 1) return "solo";
+  if (adultCount >= 3) return "group";
+  return null;
+}
+
+/** Party on the trip wins over ask keywords when it is a family (kids travelling). */
+function resolveTripStyle(
+  question: string,
+  adults?: number | null,
+  children?: number | null,
+): KbTripStyle | null {
+  const fromParty = tripStyleFromParty(adults, children);
+  if (fromParty === "family") return "family";
+  return detectTripStyle(question) ?? fromParty;
+}
+
+/** Drop honeymoon/couples-only Best-for lines when the trip party is a family. */
+function bestForForParty(
+  bestFor: string | null | undefined,
+  tripStyle: KbTripStyle | null,
+): string | null {
+  const text = bestFor?.trim() || null;
+  if (!text) return null;
+  if (
+    tripStyle === "family" &&
+    /\bhoneymoon\b|\bcouples?\b/i.test(text) &&
+    !/\bfamil\w*|\bkids?\b|\bchildren\b/i.test(text)
+  ) {
+    return null;
+  }
+  return text;
+}
+
 function placeFocus(question: string, listHotels: boolean): PlaceFocus {
   if (listHotels) return "hotels";
   if (WANTS_VISA.test(question) || WANTS_FEE.test(question) || WANTS_APPLY.test(question)) {
@@ -616,6 +668,7 @@ async function briefExperiencesAnswer(
   placeHint: string,
   question: string,
   wantFull: boolean,
+  party?: { adults?: number | null; children?: number | null },
 ): Promise<string> {
   const restaurantsOnly = /\brestaurants?|where to eat|dining|omakase|vegetarian|jain\b/i.test(
     question,
@@ -625,12 +678,16 @@ async function briefExperiencesAnswer(
     !/\brestaurants?|where to eat|dining|omakase\b/i.test(question);
   const activityLimit = restaurantsOnly ? 0 : wantFull ? 6 : 4;
   const restaurantLimit = activitiesOnly ? 0 : wantFull ? 4 : 3;
+  const partyStyle = resolveTripStyle(question, party?.adults, party?.children);
   const hits = await listKbExperiencesForPlaceSuggest({
     place: placeHint,
     activityLimit,
     restaurantLimit,
-    preferFamily: /\bfamil\w*|\bkids?\b|\bchildren\b/i.test(question),
-    preferCouples: /\bhoneymoon\b|\bcouples?\b/i.test(question),
+    preferFamily:
+      partyStyle === "family" || /\bfamil\w*|\bkids?\b|\bchildren\b/i.test(question),
+    preferCouples:
+      partyStyle !== "family" &&
+      (partyStyle === "honeymoon" || /\bhoneymoon\b|\bcouples?\b/i.test(question)),
     preferVeg: /\bvegetarian|jain|veg\b/i.test(question),
     preferBookAhead: /\bbook ahead|lead time|reserve|omakase\b/i.test(question),
   });
@@ -984,7 +1041,7 @@ function formatVisitCityBullet(
 ): string {
   const nights = firstSentence(facts.ideal_length_of_stay, 90);
   const vibe = firstSentence(facts.vibe, 140);
-  const bestFor = firstSentence(facts.best_for, 80);
+  const bestFor = bestForForParty(firstSentence(facts.best_for, 80), options.tripStyle ?? null);
   const season = options.expanded
     ? firstSentence(facts.best_time_to_visit, 70)
     : null;
@@ -1017,10 +1074,20 @@ async function briefVisitPlanAnswer(
   const { includeWhen, includeWhere, expanded, preferSeasonTable, tripStyle } =
     options;
 
+  const audienceLead =
+    tripStyle === "family"
+      ? "family trip"
+      : tripStyle === "honeymoon"
+        ? "honeymoon"
+        : tripStyle === "solo"
+          ? "solo trip"
+          : tripStyle === "group"
+            ? "group trip"
+            : "first luxury trip";
   blocks.push(
     expanded || preferSeasonTable
-      ? `${country.name} — fuller first-trip map:`
-      : `${country.name} for a first luxury trip:`,
+      ? `${country.name} — fuller ${audienceLead} map:`
+      : `${country.name} for a ${audienceLead}:`,
   );
 
   if (includeWhen) {
@@ -1029,6 +1096,7 @@ async function briefVisitPlanAnswer(
         expanded: expanded || preferSeasonTable,
         travelFrom: options.travelFrom,
         travelTo: options.travelTo,
+        tripStyle: options.tripStyle,
       }),
     );
   }
@@ -1043,7 +1111,7 @@ async function briefVisitPlanAnswer(
           ? `${itinerary.duration_nights} nights`
           : null;
       const route = firstSentence(itinerary.destination_summary, 160);
-      const suits = firstSentence(itinerary.suits, 70);
+      const suits = bestForForParty(firstSentence(itinerary.suits, 70), tripStyle ?? null);
       const shapeBits = [nights, route, suits ? `Suits ${suits}` : null]
         .filter(Boolean)
         .join(" — ");
@@ -1202,6 +1270,7 @@ function briefWhenToGo(
     expanded: boolean;
     travelFrom?: string | null;
     travelTo?: string | null;
+    tripStyle?: KbTripStyle | null;
   },
 ): string {
   const parts: string[] = [];
@@ -1225,7 +1294,9 @@ function briefWhenToGo(
 
   if (options.expanded && windows.length > 0) {
     parts.push(
-      `**Season by season:**\n${windows.map(formatSeasonWindowBullet).join("\n")}`,
+      `**Season by season:**\n${windows
+        .map((row) => formatSeasonWindowBullet(row, options.tripStyle))
+        .join("\n")}`,
     );
   }
 
@@ -1246,11 +1317,13 @@ function briefSeasonAnswer(
   windows: KbCountrySeasonWindow[],
   travelFrom?: string | null,
   travelTo?: string | null,
+  tripStyle?: KbTripStyle | null,
 ): string {
   return briefWhenToGo(countryName, bestSeason, windows, {
     expanded: windows.length > 0,
     travelFrom,
     travelTo,
+    tripStyle,
   });
 }
 
@@ -1260,15 +1333,17 @@ function briefCityAnswer(
   focus: PlaceFocus,
   wantFull: boolean,
   audienceNote?: KbDestinationAudienceNote | null,
+  tripStyle?: KbTripStyle | null,
 ): string | null {
   if (!facts) return null;
+  const bestForLine = bestForForParty(facts.best_for, tripStyle ?? audienceNote?.trip_style ?? null);
   if (wantFull) {
     return (
       section(cityName, [
         facts.best_time_to_visit,
         facts.ideal_length_of_stay,
         facts.vibe,
-        facts.best_for ? `Best for: ${facts.best_for}` : null,
+        bestForLine ? `Best for: ${bestForLine}` : null,
         facts.staff_notes,
         audienceNote?.note
           ? `For ${audienceNote.trip_style}: ${audienceNote.note}`
@@ -1295,7 +1370,10 @@ function briefCityAnswer(
   }
   const vibe = firstSentence(facts.vibe, 180);
   const nights = firstSentence(facts.ideal_length_of_stay, 100);
-  const bestFor = firstSentence(facts.best_for, 100);
+  const bestFor = bestForForParty(
+    firstSentence(facts.best_for, 100),
+    tripStyle ?? audienceNote?.trip_style ?? null,
+  );
   const audience = audienceNote?.note
     ? firstSentence(audienceNote.note, 140)
     : null;
@@ -1389,13 +1467,17 @@ export async function answerAtlasStay(input: {
   travelFrom?: string | null;
   /** Trip stay end (YYYY-MM-DD). */
   travelTo?: string | null;
+  /** Adults on the open trip (from travellers). */
+  adults?: number | null;
+  /** Children + infants on the open trip. */
+  children?: number | null;
 }): Promise<AtlasStayAnswer> {
   const question = input.question.trim();
   const hint = input.cityHint?.trim() || "";
   const travelFrom = input.travelFrom?.trim() || null;
   const travelTo = input.travelTo?.trim() || null;
   const wantFull = WANTS_FULL.test(question);
-  const tripStyle = detectTripStyle(question);
+  const tripStyle = resolveTripStyle(question, input.adults, input.children);
   const countries = await listActiveKbCountries();
   const citiesByCountry = await Promise.all(
     countries.map(async (country) => ({
@@ -1536,7 +1618,10 @@ export async function answerAtlasStay(input: {
     } else if (focus === "experiences") {
       const hint = placeCity?.name ?? placeCountry.name;
       blocks.push(
-        await briefExperiencesAnswer(hint, hint, question, wantFull),
+        await briefExperiencesAnswer(hint, hint, question, wantFull, {
+          adults: input.adults,
+          children: input.children,
+        }),
       );
     } else if (focus === "visit_plan") {
       const wantsSeason = WANTS_SEASON.test(question);
@@ -1570,6 +1655,7 @@ export async function answerAtlasStay(input: {
           seasonWindows,
           travelFrom,
           travelTo,
+          tripStyle,
         ),
       );
     } else if (focus === "length") {
@@ -1588,7 +1674,9 @@ export async function answerAtlasStay(input: {
         : `No visa rule on file for a ${passport} passport.`;
       const seasonBlock =
         seasonWindows.length > 0
-          ? `Seasons:\n${seasonWindows.map(formatSeasonWindowBullet).join("\n")}`
+          ? `Seasons:\n${seasonWindows
+              .map((row) => formatSeasonWindowBullet(row, tripStyle))
+              .join("\n")}`
           : facts?.best_season
             ? `Season: ${facts.best_season}`
             : null;
@@ -1647,6 +1735,7 @@ export async function answerAtlasStay(input: {
       focus,
       wantFull,
       cityBundle?.audience_note ?? null,
+      tripStyle,
     );
     if (cityLine) blocks.push(cityLine);
   }

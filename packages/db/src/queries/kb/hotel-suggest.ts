@@ -141,16 +141,248 @@ function chooseIfLine(details: KbHotelDetails | null, styleTags: string[]): stri
   return null;
 }
 
-/** Rank: linked/shoppable → higher luxury band → guide score → name. */
-export function compareKbHotelSuggestHits(a: KbHotelSuggestHit, b: KbHotelSuggestHit): number {
+/**
+ * Ranking context for matrix-weighted hotel suggest (behind the scenes).
+ * Party from trip travellers; ask from the advisor message; prefs from client profile.
+ */
+export type HotelSuggestParty = {
+  adults?: number | null;
+  children?: number | null;
+  /** Advisor ask / destination query (romantic, spa, family, business, …). */
+  ask?: string | null;
+  /** Client preference / diet labels (e.g. connecting rooms, pescatarian, avoid nightlife). */
+  prefHints?: string[] | null;
+};
+
+/** @deprecated Use HotelSuggestParty (same shape; kept for call-site clarity). */
+export type HotelSuggestRankContext = HotelSuggestParty;
+
+function bump(
+  weights: Partial<Record<KbHotelGuideScoreFactorKey, number>>,
+  key: KbHotelGuideScoreFactorKey,
+  factor: number,
+): void {
+  weights[key] = (weights[key] ?? 1) * factor;
+}
+
+function applyAskFactorWeights(
+  weights: Partial<Record<KbHotelGuideScoreFactorKey, number>>,
+  ask: string,
+): void {
+  const q = ask.toLowerCase();
+  if (/\bfamil\w*|\bkids?\b|\bchildren\b|\bteen/i.test(q)) {
+    bump(weights, "family", 2.2);
+    bump(weights, "rooms", 1.5);
+    bump(weights, "service", 1.35);
+    bump(weights, "views_and_privacy", 0.75);
+  }
+  if (/\bhoneymoon\b|\bromantic\b|\bcouples?\b/i.test(q)) {
+    bump(weights, "views_and_privacy", 1.6);
+    bump(weights, "character", 1.35);
+    bump(weights, "wellness", 1.3);
+    bump(weights, "family", 0.5);
+  }
+  if (/\bspa\b|\bwellness\b|\bonsen\b/i.test(q)) {
+    bump(weights, "wellness", 1.8);
+    bump(weights, "service", 1.2);
+  }
+  if (/\bbusiness\b|\bmeeting\b|\bwork\b/i.test(q)) {
+    bump(weights, "access", 1.6);
+    bump(weights, "support", 1.4);
+    bump(weights, "consistency", 1.3);
+  }
+  if (/\bquiet\b|\bcalm\b|\bpeaceful\b/i.test(q)) {
+    bump(weights, "neighbourhood", 1.5);
+    bump(weights, "character", 1.3);
+  }
+  if (/\bview\b|\bprivacy\b|\bocean\b|\bfuji\b/i.test(q)) {
+    bump(weights, "views_and_privacy", 1.6);
+  }
+  if (/\bfood\b|\bdining\b|\brestaurant\b|\bculinary\b/i.test(q)) {
+    bump(weights, "food_and_beverage", 1.7);
+  }
+  if (/\bindian\b|\bjain\b|\bvegetarian\b|\bveg\b|\bpescatarian\b/i.test(q)) {
+    bump(weights, "indian_client_fit", 1.8);
+    bump(weights, "food_and_beverage", 1.4);
+  }
+  if (/\bsolo\b/i.test(q)) {
+    bump(weights, "access", 1.35);
+    bump(weights, "neighbourhood", 1.25);
+    bump(weights, "family", 0.45);
+  }
+}
+
+function applyPrefFactorWeights(
+  weights: Partial<Record<KbHotelGuideScoreFactorKey, number>>,
+  prefHints: string[],
+): void {
+  for (const raw of prefHints) {
+    const label = raw.trim().toLowerCase();
+    if (!label) continue;
+    const avoid = label.startsWith("avoid:");
+    const text = avoid ? label.slice(6).trim() : label;
+    const mult = avoid ? 0.55 : 1.55;
+    if (/famil|kids?|children|connecting|interconnecting/.test(text)) {
+      bump(weights, "family", mult);
+      bump(weights, "rooms", avoid ? 0.7 : 1.4);
+    }
+    if (/quiet|calm|peaceful|noise/.test(text)) {
+      bump(weights, "neighbourhood", mult);
+      bump(weights, "character", avoid ? 0.75 : 1.25);
+    }
+    if (/spa|wellness|onsen/.test(text)) {
+      bump(weights, "wellness", mult);
+    }
+    if (/view|privacy|ocean|beach/.test(text)) {
+      bump(weights, "views_and_privacy", mult);
+    }
+    if (
+      /food|dining|vegetarian|jain|pescatarian|vegan|diet|halal|kosher/.test(text)
+    ) {
+      bump(weights, "food_and_beverage", mult);
+      if (/indian|jain|vegetarian|veg|pescatarian/.test(text)) {
+        bump(weights, "indian_client_fit", mult);
+      }
+    }
+    if (/service|butler|attentive/.test(text)) {
+      bump(weights, "service", mult);
+      bump(weights, "support", avoid ? 0.75 : 1.25);
+    }
+    if (/nightlife|party|club/.test(text) && avoid) {
+      bump(weights, "neighbourhood", 1.35);
+      bump(weights, "character", 1.2);
+    }
+  }
+}
+
+function partyFactorWeights(
+  ctx?: HotelSuggestParty | null,
+): Partial<Record<KbHotelGuideScoreFactorKey, number>> {
+  const adults = typeof ctx?.adults === "number" ? ctx.adults : null;
+  const children = typeof ctx?.children === "number" ? ctx.children : null;
+  const weights: Partial<Record<KbHotelGuideScoreFactorKey, number>> = {};
+  for (const key of KB_HOTEL_GUIDE_SCORE_FACTOR_KEYS) {
+    weights[key] = 1;
+  }
+  if (children != null && children > 0) {
+    weights.family = 2.5;
+    weights.rooms = 1.8;
+    weights.service = 1.6;
+    weights.support = 1.5;
+    weights.food_and_beverage = 1.3;
+    weights.views_and_privacy = 0.7;
+    weights.character = 0.85;
+  } else if (adults === 1) {
+    weights.access = 1.4;
+    weights.neighbourhood = 1.3;
+    weights.family = 0.4;
+  } else if (adults != null && adults >= 3) {
+    weights.rooms = 1.6;
+    weights.family = 1.4;
+    weights.support = 1.3;
+  } else if (adults === 2) {
+    weights.views_and_privacy = 1.45;
+    weights.character = 1.3;
+    weights.wellness = 1.25;
+    weights.family = 0.55;
+  }
+
+  const ask = ctx?.ask?.trim();
+  if (ask) applyAskFactorWeights(weights, ask);
+
+  const prefs = (ctx?.prefHints ?? []).filter(Boolean);
+  if (prefs.length > 0) applyPrefFactorWeights(weights, prefs);
+
+  // Ask "family" without trip kids still tilts family when party unset.
+  if (
+    (children == null || children === 0) &&
+    ask &&
+    /\bfamil\w*|\bkids?\b|\bchildren\b/i.test(ask) &&
+    !/\bhoneymoon\b/i.test(ask)
+  ) {
+    bump(weights, "family", 1.35);
+  }
+
+  return weights;
+}
+
+/**
+ * Weighted average of matrix factors (1–5). Null when no scored factors.
+ * Party + ask + client prefs tilt weights behind the scenes.
+ */
+export function matrixFitScore(
+  factors: KbHotelGuideScoreFactors | null | undefined,
+  party?: HotelSuggestParty | null,
+): number | null {
+  if (!factors || Object.keys(factors).length === 0) return null;
+  const weights = partyFactorWeights(party);
+  let sum = 0;
+  let weightSum = 0;
+  for (const key of KB_HOTEL_GUIDE_SCORE_FACTOR_KEYS) {
+    const value = factors[key];
+    if (value == null || !Number.isFinite(value)) continue;
+    const weight = weights[key] ?? 1;
+    sum += value * weight;
+    weightSum += weight;
+  }
+  if (weightSum <= 0) return null;
+  return sum / weightSum;
+}
+
+/**
+ * Behind-the-scenes quality for ranking: ~40% guide average + 60% matrix fit
+ * when both exist; falls back to whichever is present.
+ */
+export function guideQualityScore(
+  hit: Pick<KbHotelSuggestHit, "guide_score" | "guide_score_factors">,
+  party?: HotelSuggestParty | null,
+): number {
+  const average = hit.guide_score;
+  const fit = matrixFitScore(hit.guide_score_factors, party);
+  if (average != null && Number.isFinite(average) && fit != null) {
+    return average * 0.4 + fit * 0.6;
+  }
+  if (fit != null) return fit;
+  if (average != null && Number.isFinite(average)) return average;
+  return 0;
+}
+
+/** Drop honeymoon/couples-only choose-if when ranking for a family party/ask. */
+export function softChooseIfForParty(
+  chooseIf: string | null | undefined,
+  party?: HotelSuggestParty | null,
+): string | null {
+  const text = chooseIf?.trim() || null;
+  if (!text) return null;
+  const kids = typeof party?.children === "number" ? party.children : 0;
+  const askFamily =
+    party?.ask &&
+    /\bfamil\w*|\bkids?\b|\bchildren\b/i.test(party.ask) &&
+    !/\bhoneymoon\b/i.test(party.ask);
+  if (
+    (kids > 0 || askFamily) &&
+    /\bhoneymoon\b|\bcouples?\b/i.test(text) &&
+    !/\bfamil\w*|\bkids?\b|\bchildren\b/i.test(text)
+  ) {
+    return null;
+  }
+  return text;
+}
+
+/** Rank: linked/shoppable → higher luxury band → guide quality (avg + matrix) → place → name. */
+export function compareKbHotelSuggestHits(
+  a: KbHotelSuggestHit,
+  b: KbHotelSuggestHit,
+  party?: HotelSuggestParty | null,
+): number {
   const linked = Number(Boolean(b.property_id)) - Number(Boolean(a.property_id));
   if (linked !== 0) return linked;
   const tier =
     (b.luxury_band ? HOTEL_PRICE_TIER_RANK[b.luxury_band] : 0) -
     (a.luxury_band ? HOTEL_PRICE_TIER_RANK[a.luxury_band] : 0);
   if (tier !== 0) return tier;
-  const score = (b.guide_score ?? 0) - (a.guide_score ?? 0);
-  if (score !== 0) return score;
+  const quality = guideQualityScore(b, party) - guideQualityScore(a, party);
+  if (quality !== 0) return quality;
   const place = b.score - a.score;
   if (place !== 0) return place;
   return a.name.localeCompare(b.name);
@@ -239,10 +471,11 @@ async function hotelsForCityIds(
   cities: CityRow[],
   place: string,
   limit: number,
+  party?: HotelSuggestParty | null,
 ): Promise<KbHotelSuggestHit[]> {
   const hits: KbHotelSuggestHit[] = [];
   const seen = new Set<string>();
-  // Fetch a buffer so quality sort (tier / guide score) can beat alphabetical order.
+  // Fetch a buffer so quality sort (tier / guide + matrix) can beat alphabetical order.
   const fetchCap = Math.min(Math.max(limit * 6, 24), 60);
 
   for (const city of cities) {
@@ -268,17 +501,32 @@ async function hotelsForCityIds(
     }
   }
 
-  return hits.sort(compareKbHotelSuggestHits).slice(0, limit);
+  return softHits(hits, party).slice(0, limit);
+}
+
+/** Soften choose_if + rank with matrix context. */
+function softHits(
+  hits: KbHotelSuggestHit[],
+  party?: HotelSuggestParty | null,
+): KbHotelSuggestHit[] {
+  return hits
+    .map((hit) => ({
+      ...hit,
+      choose_if: softChooseIfForParty(hit.choose_if, party),
+    }))
+    .sort((a, b) => compareKbHotelSuggestHits(a, b, party));
 }
 
 /**
  * Preferred Atlas hotels for a city or country name (e.g. Kyoto, Japan).
  * Excludes placeholders and the Unspecified city bucket.
- * Ranked by linked → luxury band → guide score (not A–Z).
+ * Ranked by linked → luxury band → guide quality (avg + matrix fit) — not A–Z.
  */
 export async function listKbHotelsForPlaceSuggest(input: {
   place: string;
   limit?: number;
+  /** Trip party / ask / prefs — tilts matrix weights. */
+  party?: HotelSuggestParty | null;
 }): Promise<KbHotelSuggestHit[]> {
   const place = input.place.trim();
   const limit = Math.min(Math.max(input.limit ?? 8, 1), 20);
@@ -286,7 +534,7 @@ export async function listKbHotelsForPlaceSuggest(input: {
 
   const cities = await findCitiesByName(place);
   if (cities.length > 0) {
-    return hotelsForCityIds(cities, place, limit);
+    return hotelsForCityIds(cities, place, limit, input.party);
   }
 
   const countries = await listActiveKbCountries();
@@ -311,7 +559,7 @@ export async function listKbHotelsForPlaceSuggest(input: {
     kb_countries: { name: country.name, country_code: country.country_code },
   }));
 
-  return hotelsForCityIds(asRows, place, limit);
+  return hotelsForCityIds(asRows, place, limit, input.party);
 }
 
 /**
@@ -361,6 +609,7 @@ export async function searchKbHotelsByName(input: {
   query: string;
   place?: string | null;
   limit?: number;
+  party?: HotelSuggestParty | null;
 }): Promise<KbHotelSuggestHit[]> {
   const query = input.query.trim();
   const limit = Math.min(Math.max(input.limit ?? 5, 1), 10);
@@ -417,5 +666,5 @@ export async function searchKbHotelsByName(input: {
     );
   }
 
-  return hits.sort(compareKbHotelSuggestHits).slice(0, limit);
+  return softHits(hits, input.party).slice(0, limit);
 }

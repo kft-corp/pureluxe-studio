@@ -114,5 +114,13 @@ export type HotelToolHandlers = {
     limit?: number;
     /** False skips the experience bank (silent coverage probes). Default true. */
     includeExperiences?: boolean;
+    /** Trip adults — Studio injects for matrix ranking. */
+    adults?: number;
+    /** Trip children + infants — Studio injects for matrix ranking. */
+    children?: number;
+    /** Advisor ask / query text for style tilt. */
+    ask?: string;
+    /** Client preference / diet labels from the lead profile. */
+    prefHints?: string[];
   }) => Promise<HotelFindResult>;
 };

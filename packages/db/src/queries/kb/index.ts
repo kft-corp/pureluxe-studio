@@ -74,9 +74,14 @@ export {
 } from "./entity-details";
 export {
   compareKbHotelSuggestHits,
+  guideQualityScore,
   listKbHotelSuggestByPropertyIds,
   listKbHotelsForPlaceSuggest,
+  matrixFitScore,
   searchKbHotelsByName,
+  softChooseIfForParty,
+  type HotelSuggestParty,
+  type HotelSuggestRankContext,
   type KbHotelSuggestHit,
 } from "./hotel-suggest";
 export {

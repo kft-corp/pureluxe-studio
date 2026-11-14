@@ -1,4 +1,5 @@
 import {
+  guideQualityScore,
   listActiveHotelsInDestination,
   listKbExperiencesForPlaceSuggest,
   listKbHotelSuggestByPropertyIds,
@@ -6,8 +7,10 @@ import {
   listPropertyPriceBands,
   searchKbHotelsByName,
   searchPropertiesRanked,
+  softChooseIfForParty,
   typicalNightlyForProperty,
   type HotelPriceTier,
+  type HotelSuggestParty,
   type KbExperienceSuggestHit,
   type KbHotelGuideScoreFactors,
   type KbHotelSuggestHit,
@@ -34,6 +37,14 @@ export type FindHotelsInput = {
   limit?: number;
   /** False for silent coverage probes — skip experience bank. Default true. */
   includeExperiences?: boolean;
+  /** Adults on the open trip — tilts matrix ranking behind the scenes. */
+  adults?: number | null;
+  /** Children + infants on the open trip. */
+  children?: number | null;
+  /** Advisor ask text (or destination/query) for style tilt — romantic, spa, family, … */
+  ask?: string | null;
+  /** Client preference / diet labels from the lead profile. */
+  prefHints?: string[] | null;
 };
 
 export type FoundHotel = {
@@ -117,7 +128,10 @@ function toFound(hit: PropertySearchHit): FoundHotel {
   };
 }
 
-function toFoundAtlas(hit: KbHotelSuggestHit): FoundHotel {
+function toFoundAtlas(
+  hit: KbHotelSuggestHit,
+  party?: HotelSuggestParty | null,
+): FoundHotel {
   const contracted = Boolean(hit.property_id);
   return {
     name: hit.name,
@@ -133,20 +147,26 @@ function toFoundAtlas(hit: KbHotelSuggestHit): FoundHotel {
     area: hit.area,
     partner: hit.partner,
     why: hit.why,
-    choose_if: hit.choose_if,
+    choose_if: softChooseIfForParty(hit.choose_if, party),
     guide_rating: hit.guide_score,
     guide_score_factors: hit.guide_score_factors ?? {},
   };
 }
 
-function applyAtlasMeta(hotel: FoundHotel, hit: KbHotelSuggestHit): FoundHotel {
+function applyAtlasMeta(
+  hotel: FoundHotel,
+  hit: KbHotelSuggestHit,
+  party?: HotelSuggestParty | null,
+): FoundHotel {
   const factors = hit.guide_score_factors ?? {};
   return {
     ...hotel,
     area: hit.area ?? hotel.area,
     partner: hit.partner ?? hotel.partner,
     why: hit.why ?? hotel.why,
-    choose_if: hit.choose_if ?? hotel.choose_if,
+    choose_if:
+      softChooseIfForParty(hit.choose_if ?? hotel.choose_if, party) ??
+      hotel.choose_if,
     guide_rating: hit.guide_score ?? hotel.guide_rating,
     guide_score_factors:
       Object.keys(factors).length > 0 ? factors : hotel.guide_score_factors,
@@ -197,6 +217,7 @@ async function attachExperiences(
   result: Omit<FindHotelsResult, "experiences">,
   place: string | null,
   include: boolean,
+  party?: HotelSuggestParty | null,
 ): Promise<FindHotelsResult> {
   const base: FindHotelsResult = {
     hotels: result.hotels,
@@ -207,16 +228,47 @@ async function attachExperiences(
   if (!include || result.hotels.length === 0) return base;
   const hint = experiencePlaceHint(result.hotels, place);
   if (!hint) return base;
+  const kids = typeof party?.children === "number" ? party.children : 0;
   try {
     const rows = await listKbExperiencesForPlaceSuggest({
       place: hint,
       activityLimit: EXPERIENCE_ACTIVITY_LIMIT,
       restaurantLimit: EXPERIENCE_RESTAURANT_LIMIT,
+      preferFamily: kids > 0,
+      preferCouples: kids === 0 && party?.adults === 2,
     });
     return { ...base, experiences: rows.map(toFoundExperience) };
   } catch {
     return base;
   }
+}
+
+/** Re-order shortlist using guide average + matrix fit (party-weighted). */
+function sortByGuideQuality(
+  hotels: FoundHotel[],
+  party?: HotelSuggestParty | null,
+): FoundHotel[] {
+  return [...hotels].sort((a, b) => {
+    const contracted = Number(b.contracted) - Number(a.contracted);
+    if (contracted !== 0) return contracted;
+    const quality =
+      guideQualityScore(
+        {
+          guide_score: b.guide_rating,
+          guide_score_factors: b.guide_score_factors,
+        },
+        party,
+      ) -
+      guideQualityScore(
+        {
+          guide_score: a.guide_rating,
+          guide_score_factors: a.guide_score_factors,
+        },
+        party,
+      );
+    if (quality !== 0) return quality;
+    return a.name.localeCompare(b.name);
+  });
 }
 
 function normName(value: string): string {
@@ -299,6 +351,7 @@ async function hotelsNearPrice(
   reference: PropertySearchHit,
   candidates: PropertySearchHit[],
   limit: number,
+  party?: HotelSuggestParty | null,
 ): Promise<PropertySearchHit[]> {
   const bands = await listPropertyPriceBands([
     reference.id,
@@ -309,6 +362,9 @@ async function hotelsNearPrice(
 
   const low = refPrice * (1 - PRICE_BAND_TOLERANCE);
   const high = refPrice * (1 + PRICE_BAND_TOLERANCE);
+  const atlasByProperty = await listKbHotelSuggestByPropertyIds(
+    candidates.map((c) => c.id),
+  );
 
   return candidates
     .map((hotel) => {
@@ -320,7 +376,29 @@ async function hotelsNearPrice(
     .sort((a, b) => {
       const da = Math.abs((a.price ?? 0) - refPrice);
       const db = Math.abs((b.price ?? 0) - refPrice);
-      return da - db || a.hotel.name.localeCompare(b.hotel.name);
+      if (da !== db) return da - db;
+      // Matrix / guide as tie-break inside the same price distance.
+      const atlasA = atlasByProperty.get(a.hotel.id);
+      const atlasB = atlasByProperty.get(b.hotel.id);
+      const qa = atlasA
+        ? guideQualityScore(
+            {
+              guide_score: atlasA.guide_score,
+              guide_score_factors: atlasA.guide_score_factors,
+            },
+            party,
+          )
+        : 0;
+      const qb = atlasB
+        ? guideQualityScore(
+            {
+              guide_score: atlasB.guide_score,
+              guide_score_factors: atlasB.guide_score_factors,
+            },
+            party,
+          )
+        : 0;
+      return qb - qa || a.hotel.name.localeCompare(b.hotel.name);
     })
     .slice(0, limit)
     .map((row) => row.hotel);
@@ -329,13 +407,14 @@ async function hotelsNearPrice(
 /** Attach Atlas area / partner / why / choose_if onto Rate Layer hits. */
 async function enrichRateHotels(
   rateHits: PropertySearchHit[],
+  party?: HotelSuggestParty | null,
 ): Promise<FoundHotel[]> {
   if (rateHits.length === 0) return [];
   const byProperty = await listKbHotelSuggestByPropertyIds(rateHits.map((h) => h.id));
   return rateHits.map((hit) => {
     const found = toFound(hit);
     const atlas = byProperty.get(hit.id);
-    return atlas ? applyAtlasMeta(found, atlas) : found;
+    return atlas ? applyAtlasMeta(found, atlas, party) : found;
   });
 }
 
@@ -345,12 +424,19 @@ async function mergeAtlasFill(
   place: string,
   limit: number,
   tier: HotelPriceTier | null,
+  party?: HotelSuggestParty | null,
+  /** False keeps Rate Layer / price-band order (only fills gaps from Atlas). */
+  reorderByGuide = true,
 ): Promise<FoundHotel[]> {
-  if (rateHotels.length >= limit) return rateHotels.slice(0, limit);
+  if (rateHotels.length >= limit) {
+    const sliced = rateHotels.slice(0, limit);
+    return reorderByGuide ? sortByGuideQuality(sliced, party) : sliced;
+  }
 
   const atlas = await listKbHotelsForPlaceSuggest({
     place,
     limit: Math.min(limit * 4, 16),
+    party,
   });
   const seen = new Set(rateHotels.map((h) => normName(h.name)));
   const merged = [...rateHotels];
@@ -361,10 +447,10 @@ async function mergeAtlasFill(
     const key = normName(hit.name);
     if (seen.has(key)) continue;
     seen.add(key);
-    merged.push(toFoundAtlas(hit));
+    merged.push(toFoundAtlas(hit, party));
   }
 
-  return merged;
+  return reorderByGuide ? sortByGuideQuality(merged, party) : merged;
 }
 
 function emptyNote(place: string, tier: HotelPriceTier | null): string {
@@ -387,6 +473,18 @@ export async function findHotels(input: FindHotelsInput): Promise<FindHotelsResu
   const priceBandLike = input.priceBandLike?.trim() || null;
   const tier = input.tier ?? null;
   const includeExperiences = input.includeExperiences !== false;
+  const askText =
+    input.ask?.trim() ||
+    [input.destination, input.name, input.similarTo, input.priceBandLike]
+      .filter(Boolean)
+      .join(" ") ||
+    null;
+  const party: HotelSuggestParty | null = {
+    adults: input.adults ?? null,
+    children: input.children ?? null,
+    ask: askText,
+    prefHints: input.prefHints ?? null,
+  };
 
   if (!name && !destination && !similarTo && !priceBandLike && !tier) {
     return {
@@ -401,11 +499,12 @@ export async function findHotels(input: FindHotelsInput): Promise<FindHotelsResu
   if (name && !similarTo && !priceBandLike && !tier) {
     const { hit, didYouMean } = await resolveNamedHotel(name, destination);
     if (hit) {
-      const hotels = await enrichRateHotels([hit]);
+      const hotels = await enrichRateHotels([hit], party);
       return attachExperiences(
         { hotels, did_you_mean: [], note: null },
         destination ?? hit.city ?? hit.destination,
         includeExperiences,
+        party,
       );
     }
     if (didYouMean.length > 0) {
@@ -420,9 +519,14 @@ export async function findHotels(input: FindHotelsInput): Promise<FindHotelsResu
     const atlas = await resolveNamedAtlasHotel(name, destination);
     if (atlas.hit) {
       return attachExperiences(
-        { hotels: [toFoundAtlas(atlas.hit)], did_you_mean: [], note: null },
+        {
+          hotels: [toFoundAtlas(atlas.hit, party)],
+          did_you_mean: [],
+          note: null,
+        },
         destination ?? atlas.hit.city ?? atlas.hit.country,
         includeExperiences,
+        party,
       );
     }
     if (atlas.didYouMean.length > 0) {
@@ -508,7 +612,7 @@ export async function findHotels(input: FindHotelsInput): Promise<FindHotelsResu
   }
 
   if (reference && priceBandLike) {
-    candidates = await hotelsNearPrice(reference, candidates, limit);
+    candidates = await hotelsNearPrice(reference, candidates, limit, party);
   }
 
   // "Six Senses and two others in the same tier" — include the named hotel
@@ -523,8 +627,16 @@ export async function findHotels(input: FindHotelsInput): Promise<FindHotelsResu
     rateHits.push(hit);
   }
 
-  const rateFound = await enrichRateHotels(rateHits);
-  const hotels = await mergeAtlasFill(rateFound, place, limit, targetTier);
+  const rateFound = await enrichRateHotels(rateHits, party);
+  // Price-band keeps proximity order (matrix is tie-break inside band); others full re-rank.
+  const hotels = await mergeAtlasFill(
+    rateFound,
+    place,
+    limit,
+    targetTier,
+    party,
+    !priceBandLike,
+  );
 
   if (hotels.length === 0) {
     return {
@@ -552,5 +664,6 @@ export async function findHotels(input: FindHotelsInput): Promise<FindHotelsResu
     },
     place,
     includeExperiences,
+    party,
   );
 }

@@ -6,6 +6,8 @@ export type RateSearchGateInput = {
   rooms?: number;
   adults: number;
   children?: number;
+  /** Destination / city for this rates search — picks the matching stay on multi-city trips. */
+  destination?: string | null;
 };
 
 export type RateSearchResolved = {
@@ -16,17 +18,82 @@ export type RateSearchResolved = {
   children: number;
 };
 
-/** Trip dates: trip window, else first stay with both dates. */
-export function datesFromTrip(trip: TripFacts | null): { checkIn: string; checkOut: string } | null {
-  if (trip?.starts_on && trip?.ends_on) {
+type TripStayDates = {
+  city: string;
+  check_in: string | null;
+  check_out: string | null;
+};
+
+function isIsoDate(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function hasStayDates(
+  stay: TripStayDates | null | undefined,
+): stay is TripStayDates & { check_in: string; check_out: string } {
+  return Boolean(
+    stay?.check_in &&
+      stay?.check_out &&
+      isIsoDate(stay.check_in) &&
+      isIsoDate(stay.check_out) &&
+      stay.check_out > stay.check_in,
+  );
+}
+
+function normPlace(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+/** Stay whose city matches the rates destination (e.g. Maldives on a Tokyo+Maldives trip). */
+function stayMatchingDestination(
+  trip: TripFacts | null,
+  destination?: string | null,
+): TripStayDates | null {
+  const place = destination?.trim();
+  if (!place || !trip) return null;
+  const needle = normPlace(place);
+  const stays: TripStayDates[] = [
+    ...(trip.stays ?? []),
+    ...(trip.stay ? [trip.stay] : []),
+  ];
+  const match = stays.find((stay) => {
+    const city = stay.city?.trim();
+    if (!city) return false;
+    const hay = normPlace(city);
+    return hay === needle || hay.includes(needle) || needle.includes(hay);
+  });
+  return match ?? null;
+}
+
+/**
+ * Dates for a rates search: matching stay by destination → open/first stay → trip window.
+ * Never prefer the full trip window when a stay for that destination exists (multi-city).
+ */
+export function datesFromTrip(
+  trip: TripFacts | null,
+  destination?: string | null,
+): { checkIn: string; checkOut: string } | null {
+  const matched = stayMatchingDestination(trip, destination);
+  if (hasStayDates(matched)) {
+    return { checkIn: matched.check_in, checkOut: matched.check_out };
+  }
+
+  const open = trip?.stay;
+  if (hasStayDates(open)) {
+    return { checkIn: open.check_in, checkOut: open.check_out };
+  }
+
+  const first =
+    trip?.stays?.find((row) => hasStayDates(row)) ??
+    null;
+  if (hasStayDates(first)) {
+    return { checkIn: first.check_in, checkOut: first.check_out };
+  }
+
+  if (trip?.starts_on && trip?.ends_on && isIsoDate(trip.starts_on) && isIsoDate(trip.ends_on)) {
     return { checkIn: trip.starts_on, checkOut: trip.ends_on };
   }
-  const stay =
-    trip?.stays?.find((row) => row.check_in && row.check_out) ??
-    (trip?.stay?.check_in && trip?.stay?.check_out ? trip.stay : null);
-  if (stay?.check_in && stay?.check_out) {
-    return { checkIn: stay.check_in, checkOut: stay.check_out };
-  }
+
   return null;
 }
 
@@ -43,19 +110,51 @@ export function partyFromTrip(trip: TripFacts | null): { adults: number; childre
 }
 
 /**
- * Prefer trip facts for dates/party; fill rooms from input or 1 per two adults.
- * Returns `{ error, missing }` when check-in/out, adults, or rooms cannot be resolved
- * without inventing — agent must ask once.
+ * Resolve dates/party for rates_search.
+ * Dates: destination-matched stay wins over a full trip window; explicit input wins when it
+ * is not just the whole-trip starts_on/ends_on on a multi-stay trip. Never invent.
  */
 export function resolveRateSearchInput(
   input: RateSearchGateInput,
   trip: TripFacts | null,
 ): RateSearchResolved | { error: string; missing: string[] } {
-  const tripDates = datesFromTrip(trip);
+  const inputIn = input.check_in?.trim() ?? "";
+  const inputOut = input.check_out?.trim() ?? "";
+  const inputDatesOk =
+    isIsoDate(inputIn) && isIsoDate(inputOut) && inputOut > inputIn
+      ? { checkIn: inputIn, checkOut: inputOut }
+      : null;
+
+  const tripWindow =
+    trip?.starts_on &&
+    trip?.ends_on &&
+    isIsoDate(trip.starts_on) &&
+    isIsoDate(trip.ends_on) &&
+    trip.ends_on > trip.starts_on
+      ? { checkIn: trip.starts_on, checkOut: trip.ends_on }
+      : null;
+
+  const matchedStay = stayMatchingDestination(trip, input.destination);
+  const matchedDates = hasStayDates(matchedStay)
+    ? { checkIn: matchedStay.check_in, checkOut: matchedStay.check_out }
+    : null;
+
+  const inputIsWholeTrip =
+    Boolean(inputDatesOk && tripWindow) &&
+    inputDatesOk!.checkIn === tripWindow!.checkIn &&
+    inputDatesOk!.checkOut === tripWindow!.checkOut;
+
+  // Multi-city: Maldives destination + Maldives stay → use that stay, not Tokyo→Maldives window.
+  const tripDates = datesFromTrip(trip, input.destination);
+  const preferred =
+    matchedDates && (inputIsWholeTrip || !inputDatesOk)
+      ? matchedDates
+      : (inputDatesOk ?? tripDates);
+
   const tripParty = partyFromTrip(trip);
 
-  const checkIn = tripDates?.checkIn ?? input.check_in?.trim() ?? "";
-  const checkOut = tripDates?.checkOut ?? input.check_out?.trim() ?? "";
+  const checkIn = preferred?.checkIn ?? "";
+  const checkOut = preferred?.checkOut ?? "";
   const adults = tripParty?.adults ?? input.adults;
   const children = tripParty?.children ?? input.children ?? 0;
   const rooms =
@@ -64,7 +163,7 @@ export function resolveRateSearchInput(
       : Math.max(1, Math.ceil((adults || 0) / 2));
 
   const missing: string[] = [];
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(checkIn) || !/^\d{4}-\d{2}-\d{2}$/.test(checkOut)) {
+  if (!isIsoDate(checkIn) || !isIsoDate(checkOut)) {
     missing.push("check-in and check-out dates");
   } else if (checkOut <= checkIn) {
     missing.push("check-out after check-in");
@@ -75,8 +174,6 @@ export function resolveRateSearchInput(
   if (!Number.isInteger(rooms) || rooms < 1) {
     missing.push("room count");
   }
-  // children may be 0 — only flag when trip has minors with unknown age and rates need ages
-  // (handled in prompts); count itself can be 0.
 
   if (missing.length > 0) {
     return {

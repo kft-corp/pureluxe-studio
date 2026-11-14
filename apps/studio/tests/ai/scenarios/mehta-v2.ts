@@ -54,6 +54,48 @@ const familyRequest: ScenarioStep = {
     "Golden test #15. Every Mehta match is one household, so Ravi (the household's primary) leads without asking and all four travel. The new trip opens and the next steps run in its chat.",
 };
 
+/** Family party already on the trip — hotel suggest must not lead with honeymoon. */
+export const MEHTA_FAMILY_HOTEL_FIT: AgentScenario = {
+  id: "mehta-family-hotel-fit",
+  title: "Family party — hotel suggest uses family fit, not honeymoon framing",
+  now: "2026-10-21T10:50:00+05:30",
+  advisorMemberId: "member-vijay",
+  steps: [
+    familyRequest,
+    {
+      id: "suggest-family-hotels",
+      flowStages: [4],
+      buildStage: "stage-3c",
+      title: "Suggest hotels for the family party already on the trip",
+      advisor: {
+        kind: "say",
+        text: "Suggest hotels in Maldives for them",
+        variants: [
+          "Which hotels should we book for this family?",
+          "Suggest 3 Maldives hotels for the Mehtas",
+        ],
+      },
+      expect: {
+        tools: { called: ["hotel_find"], notCalled: ["rates_search"] },
+        reply: {
+          mentions: ["family"],
+          mustNot: ["honeymoon", "Best for: couples", "Best for: couple"],
+        },
+        readOnly: true,
+        confirmations: 0,
+      },
+      note:
+        "Trip has 2 adults + 2 children; matrix/party ranking and reply must fit a family, not honeymoon.",
+    },
+  ],
+  budget: {
+    maxAdvisorInputsToQuoteSent: 9,
+    maxConfirmationsTotal: 0,
+    maxApprovalsToQuoteSent: 0,
+  },
+  everyReply: { mustNot: V2_MUST_NOT },
+};
+
 /** Golden test #14: Keshav's acceptance test, under 10 messages, the send is the only approval. */
 export const MEHTA_V2_ACCEPTANCE: AgentScenario = {
   id: "mehta-v2-acceptance",

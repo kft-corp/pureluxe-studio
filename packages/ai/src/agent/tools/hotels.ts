@@ -53,9 +53,8 @@ function tripDestination(trip: TripFacts | null, hotelDestination?: string | nul
 
 /** Rates · hotel (or Did you mean) when trip has dates + party. Skip coverage / Preferred-only. */
 function hotelFindChoices(result: unknown, trip: TripFacts | null): AgentChoice[] {
-  const tripDates = datesFromTrip(trip);
   const tripParty = partyFromTrip(trip);
-  if (!tripDates || !tripParty) return [];
+  if (!tripParty) return [];
   const { hotels, did_you_mean: didYouMean, coverage_check } = hotelFindPayload(result);
   if (coverage_check) return [];
   const rooms = Math.max(1, Math.ceil(tripParty.adults / 2));
@@ -72,6 +71,9 @@ function hotelFindChoices(result: unknown, trip: TripFacts | null): AgentChoice[
   const destination =
     tripDestination(trip, hotels[0]?.destination) ?? tripDestination(trip, null);
   if (!destination) return [];
+
+  const tripDates = datesFromTrip(trip, destination);
+  if (!tripDates) return [];
 
   const ratesArgs = (hotelNames: string[]) => ({
     destination,
@@ -140,8 +142,8 @@ export const hotelFindTool = defineDeskTool({
     "Coverage check (founder #16): after dates/stays are set, before asking hotel-in-mind / suggest — pass destination + coverage_check true (limit 1). Silent in the UI. If hotels empty: say none loaded and ask for names or a paste quote — never offer to suggest. If any hotel returned (Rate Layer or Atlas): do NOT list hotel names; only ask in plain text whether they have a hotel in mind or want suggestions. List hotels only when they explicitly ask to suggest/find hotels (coverage_check false).",
     "For \"similar\" / \"same tier\" / \"same price range\", pass similar_to or tier so results stay in that band — do not list cheaper out-of-tier hotels from general knowledge.",
     "Do not use for hotel rules or charges (hotel_get), place notes (place_get_notes), or room prices (rates tools).",
-    "Returns hotels with tier, style tags, contracted, source, badge (Contracted | Preferred for rates logic only), plus area, partner, why, choose_if, guide_rating, and guide_score_factors (full-name keys: luxury, support, rooms, food_and_beverage, …) when known; plus experiences (curated activities + restaurants for the place). When the name is unclear, did_you_mean lists close matches instead of guessing.",
-    "Suggest / find hotels alone: call this tool only (no coverage_check) — do not call rates_search. Default limit 3. Reply shape (see trip/home prompt): numbered **Hotel name** with Area / Partner / Guide / Why / Choose if bullets; then ### Also for [City] from experiences when present; then **Pick:** one hotel + reason (may use area vs experiences), then rates/paste guidance and one who/dates question. Never invent names or ratings. Never show Contracted/Preferred tags on each hotel. Never dump the full factor matrix on every shortlist — use guide_score_factors only when the advisor asks why a Guide score is high/low or to compare factors. Never say tap Rates (founder #19). Empty result: ask for names or paste quote. Never say \"no hotels\" when this tool returned names.",
+    "Returns hotels ranked behind the scenes with guide_rating (show in chat as Rating only — never \"Guide\") plus guide_score_factors fit — weighted by trip party, advisor ask, and client pref hints when Studio passes them. Also returns tier, style tags, contracted, source, badge (rates logic only — never stamp Contracted/Preferred in chat), area, partner, why, choose_if, and experiences. When the name is unclear, did_you_mean lists close matches instead of guessing.",
+    "Suggest / find hotels alone: call this tool only (no coverage_check) — do not call rates_search. Default limit 3. Reply shape (see trip/home prompt): talkable intro; each hotel as `1. **Name** — Rating X.X` then 1–2 spoken sentences weaving area/why/choose_if — not a nested Area/Why/Best-for form; optional Programme line from partner when useful. Experiences: on a plain suggest-hotels ask do NOT list ### Nearby for the stay; in **Pick** cite at most one grounded nearby cue from experiences when it helps choose the hotel. Add ### Nearby (max 2–3) only when the ask mentions food / restaurants / things to do / activities / kids experiences or prefs clearly need it. **Pick** also uses area plus up to 1–2 plain-language strengths — never rating alone. Banned in chat: Guide, Partner, Choose if, score/scores, matrix, tool, Rate Layer, Atlas. Never dump factor keys or say \"family score\" / \"access score\" — translate to talkable English. Why A vs B / why rating high (only when asked): short 3–5 plain-strength compare from guide_score_factors only. Never invent names or ratings. Never say tap Rates (founder #19). Empty result: ask for names or paste quote. Never say \"no hotels\" when this tool returned names.",
     "Only when the same message also asks for prices, rates, cheapest, or \"suggest and get rates\" AND check-in, check-out, rooms, and adults are known: call rates_search next for the top 1–2 Contracted picks (or the hotels they named). Do not rates_search Preferred (contracted false) — offer paste quote instead. If dates/party missing, ask once; do not invent.",
   ].join(" "),
   schema: z
@@ -203,6 +205,14 @@ export const hotelFindTool = defineDeskTool({
       return { error: "Pass a hotel name, destination, tier, similar_to or price_band_like." };
     }
     const coverage = input.coverage_check === true;
+    const askBits = [
+      input.destination,
+      input.name,
+      input.similar_to,
+      input.price_band_like,
+    ]
+      .filter(Boolean)
+      .join(" ");
     const result = await handlers.findHotels({
       name: input.name,
       destination: input.destination,
@@ -211,6 +221,7 @@ export const hotelFindTool = defineDeskTool({
       priceBandLike: input.price_band_like,
       limit: coverage ? 1 : input.limit,
       includeExperiences: !coverage,
+      ask: askBits || undefined,
     });
     if (coverage && result && typeof result === "object") {
       return { ...result, coverage_check: true };

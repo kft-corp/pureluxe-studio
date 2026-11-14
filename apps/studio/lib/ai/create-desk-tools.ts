@@ -87,6 +87,8 @@ export function createDeskTools(actor: DeskActor): Omit<DeskAgentHandlers, "getC
       earlier,
       travelFrom,
       travelTo,
+      adults,
+      children,
     }) {
       const atlas = await answerAtlasStay({
         question: query,
@@ -96,6 +98,8 @@ export function createDeskTools(actor: DeskActor): Omit<DeskAgentHandlers, "getC
         earlier: earlier ?? null,
         travelFrom: travelFrom ?? null,
         travelTo: travelTo ?? null,
+        adults: adults ?? null,
+        children: children ?? null,
       });
       const placeTitle =
         atlas.place.city?.trim() ||

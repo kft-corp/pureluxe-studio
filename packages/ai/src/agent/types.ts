@@ -249,6 +249,10 @@ export type DeskAgentHandlers = DeskToolHandlers & {
     travelFrom?: string;
     /** Trip stay end YYYY-MM-DD. */
     travelTo?: string;
+    /** Adults on the open trip (from travellers) — personalises place briefs. */
+    adults?: number;
+    /** Children + infants on the open trip. */
+    children?: number;
   }) => Promise<PlaceNotes>;
 };
 
