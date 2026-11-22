@@ -2,6 +2,7 @@ import {
   deleteLineItemsForLeg,
   deleteTripLineItemsByIds,
   updateTrip as dbUpdateTrip,
+  upsertStayShellLineItem,
   type UpdateTripRecord,
 } from "@pureluxe/db";
 import { AppError, tripMessages, type UpdateTripInput } from "@pureluxe/shared";
@@ -21,8 +22,6 @@ import { markQuoteStale } from "../stays/stay-side-effects";
 import { getTripDetail } from "../trip/get-trip-detail";
 import type { TripDetail } from "../trip/trip-detail";
 import { updateTrip } from "../trip/update-trip";
-import { defaultRoomCount } from "../trip/resolve-dates";
-
 import { sameStay, tripShapeOf, type TripShape, type TripShapeStay } from "./trip-shape";
 
 type Actor = { memberId: string };
@@ -131,7 +130,8 @@ async function applyHotels(tripId: string, detail: TripDetail, stays: TripShapeS
           destination_profile_id: null,
           adults,
           children: party.children,
-          rooms: stay.rooms ?? current.rooms ?? defaultRoomCount(adults),
+          // Keep confirmed rooms; never invent ceil(adults/2) — rates gate asks if unset.
+          rooms: stay.rooms ?? current.rooms ?? null,
           confirm_overlap: true,
         },
         actor,
@@ -155,6 +155,23 @@ async function applyHotels(tripId: string, detail: TripDetail, stays: TripShapeS
       if (strayIds.length > 0) await deleteTripLineItemsByIds(strayIds);
       await deleteLineItemsForLeg(tripId, stay.leg_id);
       await markQuoteStale(tripId);
+      next = await getTripDetail(tripId, actor);
+    } else if (
+      stay.rooms != null &&
+      stay.rooms >= 1 &&
+      stay.rooms !== current.rooms
+    ) {
+      // Rooms confirmed before a hotel is chosen — write stay shell so summary shows Rooms.
+      await upsertStayShellLineItem({
+        trip_id: tripId,
+        leg_id: stay.leg_id,
+        property_id: null,
+        property_name: stay.city.trim() || "Stay",
+        created_by_id: actor.memberId,
+        adults,
+        children: party.children,
+        rooms: stay.rooms,
+      });
       next = await getTripDetail(tripId, actor);
     }
   }

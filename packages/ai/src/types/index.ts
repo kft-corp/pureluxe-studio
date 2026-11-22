@@ -19,6 +19,8 @@ export const TRIP_BUILDER_STAGE_LABELS: Record<TripBuilderStage, string> = {
 
 /** One saved / selected accommodation rate (lean model fact). */
 export type TripRateFact = {
+  /** trip_line_items.id — pass as option_id when two rooms share a name. */
+  id?: string;
   title: string;
   subtitle: string | null;
   cost_internal: number | null;
@@ -33,6 +35,10 @@ export type TripRateFact = {
   cancellation_policy?: string | null;
   /** Payment rules stored on this rate. Null when none are on file. */
   payment_policy?: string | null;
+  /** rate_search_result_id — pass as rate_ref when selecting a same-named Twin. */
+  rate_ref?: string | null;
+  /** Option order on the quote at that hotel (1, 2, …). */
+  option_rank?: number | null;
 };
 
 /**
@@ -84,6 +90,9 @@ export type TripFacts = {
     check_in: string | null;
     check_out: string | null;
     property_name: string | null;
+    adults?: number | null;
+    children?: number | null;
+    rooms?: number | null;
   } | null;
   /** Every hotel stay. Empty when the trip has none yet. */
   stays?: Array<{
@@ -92,6 +101,9 @@ export type TripFacts = {
     check_out: string | null;
     property_name: string | null;
     rate_selected: boolean;
+    adults?: number | null;
+    children?: number | null;
+    rooms?: number | null;
   }>;
   rates: {
     selected: TripRateFact | null;

@@ -54,9 +54,9 @@ export function sendHandoff(detail: TripDetail): string {
 
 export const AFTER_ACCEPT_STEPS = [
   "**Before you book**",
-  "1. Tap **Search rates again** to see today's availability and hotel price for this room.",
-  "2. If the hotel price changed, tap **Use today's cost** to update the cost.",
-  "3. Tap **Set sell** if the sell price needs to change.",
+  "1. For **live GDS** rooms, Studio rechecks today's price automatically (or ask **check today's price** anytime).",
+  "2. **Contracted** rooms skip live recheck — cost stays as on file.",
+  "3. If a GDS cost changed, tap **Use today's cost**, then **Set sell** if needed.",
   "4. Book with the hotel offline, then **Confirm hotel booking** in **Bookings** (confirmation / PNR required).",
   "5. On the **trip page**, record client payment, then mark **Trip ready for travel** when every stay is confirmed.",
   "",
@@ -68,11 +68,11 @@ export const AFTER_ACCEPT_STEPS = [
 ].join("\n");
 
 export const CHOSEN_ROOM_NEXT =
-  "Tap **Set sell** to set or change the sell price, or **Search rates again** to check today's hotel price for this room.";
+  "Tap **Set sell** to set or change the sell price. For live GDS rooms, ask **check today's price** anytime; contracted rates do not need a live recheck.";
 
 /** Shown once every stay has the client's room after accept. */
 export const BOOKING_PREP_GUIDE =
-  "Rooms are chosen. Next: check today's hotel price, book offline, then **Confirm hotel booking** in Bookings with the PNR. Clear travel prep (passports, visas, documents). Then record payment on the **trip page**. Ask **What's missing before booking?** if you need help.";
+  "Rooms are chosen. Live GDS rooms get an automatic today's-price check (ask again anytime). Contracted rooms skip live recheck. Then book offline, **Confirm hotel booking** in Bookings with the PNR, clear travel prep, and record payment on the **trip page**.";
 
 /** What the room choice did to prices: the room's quoted client price, team cost, and the trip total. */
 export function choiceSummary(

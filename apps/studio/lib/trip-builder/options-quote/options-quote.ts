@@ -22,6 +22,7 @@ import {
   toClientLine,
 } from "./client-wording";
 import { clientQuotePolicies, type ClientQuoteFacts } from "../stays/hotel-contract-facts";
+import { gdsClientQuoteFactsFromRaw } from "./gds-quote-facts";
 import {
   optionsQuoteFromTrip,
   roomsForOptionsQuote,
@@ -53,27 +54,49 @@ function emptyFacts(): ClientQuoteFacts {
   return { arrival: [], transfers: [], stay: [], benefits: [], charges: [] };
 }
 
-async function fillHotelPolicies(document: OptionsQuoteDocument) {
+function factsAreEmpty(facts: ClientQuoteFacts): boolean {
+  return (
+    facts.arrival.length === 0 &&
+    facts.transfers.length === 0 &&
+    facts.stay.length === 0 &&
+    facts.benefits.length === 0 &&
+    facts.charges.length === 0
+  );
+}
+
+async function fillHotelPolicies(document: OptionsQuoteDocument, detail: TripDetail) {
   const cache = new Map<string, ClientQuoteFacts>();
+  const byId = new Map(detail.rates.candidates.map((row) => [row.id, row]));
   for (const stay of document.stays) {
     for (const hotel of stay.hotels) {
       const loaded: ClientQuoteFacts[] = [];
       for (const room of hotel.rooms) {
-        if (!hotel.propertyId || !stay.checkIn || !stay.checkOut) {
-          loaded.push(emptyFacts());
-          continue;
+        const snapshot = byId.get(room.id) ?? null;
+        let found = emptyFacts();
+        if (hotel.propertyId && stay.checkIn && stay.checkOut) {
+          const key = [
+            hotel.propertyId,
+            stay.checkIn,
+            stay.checkOut,
+            room.contractId ?? "",
+            room.season ?? "",
+          ].join("|");
+          let cached = cache.get(key);
+          if (!cached) {
+            cached = await clientQuotePolicies({
+              propertyId: hotel.propertyId,
+              checkIn: stay.checkIn,
+              checkOut: stay.checkOut,
+              contractId: room.contractId,
+              seasons: room.season ? [room.season] : [],
+            });
+            cache.set(key, cached);
+          }
+          found = cached;
         }
-        const key = [hotel.propertyId, stay.checkIn, stay.checkOut, room.contractId ?? "", room.season ?? ""].join("|");
-        let found = cache.get(key);
-        if (!found) {
-          found = await clientQuotePolicies({
-            propertyId: hotel.propertyId,
-            checkIn: stay.checkIn,
-            checkOut: stay.checkOut,
-            contractId: room.contractId,
-            seasons: room.season ? [room.season] : [],
-          });
-          cache.set(key, found);
+        // Open / Public GDS: no contract pack — use Sabre shop raw on the saved rate.
+        if (factsAreEmpty(found)) {
+          found = gdsClientQuoteFactsFromRaw(snapshot?.extracted_raw ?? null);
         }
         loaded.push(found);
       }
@@ -82,14 +105,62 @@ async function fillHotelPolicies(document: OptionsQuoteDocument) {
   }
 }
 
-/** Prefix required extras that are not already in the rate wording. */
-function notIncludedLine(line: string, includedText: string): string {
+function isFreeOrOnRequestLine(line: string): boolean {
+  return (
+    /:\s*free\b/i.test(line) ||
+    /:\s*(USD|EUR|GBP|JPY)?\s*0(?:\.0+)?\b/i.test(line) ||
+    /\b(at no (extra )?charge|no (extra )?charge)\b/i.test(line)
+  );
+}
+
+function isMaybeChargeableLine(line: string): boolean {
+  return /\bmay be chargeable\b/i.test(line);
+}
+
+function rewordFreeExtra(line: string): string {
+  const label = line.replace(/^not included:\s*/i, "").split(":")[0]?.trim() || line.trim();
+  const text = `${label} available at no extra charge`;
+  return /[.!?]$/.test(text) ? text : `${text}.`;
+}
+
+function chargeTopic(line: string): string | null {
+  if (/\b(internet|wifi|wi-?\s*fi)\b/i.test(line)) return "internet";
+  if (/\bparking\b/i.test(line)) return "parking";
+  if (/\bbreakfast\b/i.test(line)) return "breakfast";
+  return null;
+}
+
+/**
+ * Paid extras → "Not included: …".
+ * Free / on-request → Good-to-know wording (never "Not included: Cribs: free").
+ * May-be-chargeable → plain Good-to-know (dropped when the same topic is already included).
+ * Returns null when the line should not appear on the client PDF.
+ */
+function clientChargeLine(line: string, includedText: string): string | null {
   const trimmed = line.trim();
-  if (!trimmed) return trimmed;
+  if (!trimmed) return null;
+  if (isFreeOrOnRequestLine(trimmed)) return rewordFreeExtra(trimmed);
+
+  const topic = chargeTopic(trimmed);
+  const included = includedText.toLowerCase();
+  if (
+    isMaybeChargeableLine(trimmed) &&
+    topic &&
+    ((topic === "internet" && /\b(internet|wifi|wi-?\s*fi)\b/i.test(included)) ||
+      (topic === "parking" && /\bparking\b/i.test(included)) ||
+      (topic === "breakfast" && /\bbreakfast\b/i.test(included)))
+  ) {
+    return null;
+  }
+  if (isMaybeChargeableLine(trimmed)) {
+    return /^not included:/i.test(trimmed)
+      ? trimmed.replace(/^not included:\s*/i, "")
+      : trimmed;
+  }
   if (/^not included:/i.test(trimmed)) return trimmed;
   const alreadyInRate =
     /\bincluded\b/i.test(trimmed) ||
-    (includedText.length > 0 && includedText.toLowerCase().includes(trimmed.toLowerCase().slice(0, 24)));
+    (included.length > 0 && included.includes(trimmed.toLowerCase().slice(0, 24)));
   if (alreadyInRate) return trimmed;
   return `Not included: ${trimmed}`;
 }
@@ -139,10 +210,17 @@ function placeHotelFacts(hotel: OptionsQuoteHotel, loaded: ClientQuoteFacts[]) {
     sharedIncludedText,
   );
   const charges = distinct([...rawCharges, ...transferExtras]);
-  const chargeLines = charges.map((line) => notIncludedLine(line, sharedIncludedText));
+  const chargeLines = charges
+    .map((line) => clientChargeLine(line, sharedIncludedText))
+    .filter((line): line is string => Boolean(line));
   hotel.arrival = arrival;
   hotel.transfers = gettingThere;
-  hotel.shared = distinct([...stay, ...benefits, ...chargeLines, ...(sharedNote ? [sharedNote] : [])]);
+  hotel.shared = distinct([
+    ...stay,
+    ...benefits,
+    ...chargeLines,
+    ...(sharedNote ? [sharedNote] : []),
+  ]);
   hotel.rooms.forEach((room, index) => {
     const facts = loaded[index] ?? emptyFacts();
     const note = room.note?.trim() || "";
@@ -159,7 +237,9 @@ function placeHotelFacts(hotel: OptionsQuoteHotel, loaded: ClientQuoteFacts[]) {
     const roomCharges = distinct([
       ...onlyHere(roomChargeFacts, rawCharges),
       ...roomTransferSplit.notIncluded,
-    ]).map((line) => notIncludedLine(line, includedText));
+    ])
+      .map((line) => clientChargeLine(line, includedText))
+      .filter((line): line is string => Boolean(line));
     room.extras = distinct([
       ...onlyHere(roomArrival, arrival),
       ...roomTransferSplit.gettingThere,
@@ -261,7 +341,7 @@ function fingerprintFor(
 export async function loadOptionsQuoteDocument(detail: TripDetail): Promise<OptionsQuoteDocument> {
   const narrative = detail.options_quote;
   const document = optionsQuoteFromTrip(detail, narrative.notes, narrative.title);
-  await fillHotelPolicies(document);
+  await fillHotelPolicies(document, detail);
   applyQuoteEdits(document, narrative.line_edits ?? {});
   return document;
 }

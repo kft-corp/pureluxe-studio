@@ -3,6 +3,26 @@
  * Shown under the agent reply; never parsed from model text.
  */
 
+/**
+ * One physical room inside a dual-shop combo (uneven occupancy merge).
+ * Shown stacked when meal/cancel/payment differ across rooms.
+ */
+export type RateCompareRoomSegment = {
+  /** e.g. "Room 1 · 2 adults" */
+  label: string;
+  room_name: string;
+  adults: number;
+  children: number;
+  guests: number;
+  board: string | null;
+  /** Occupancy / cancel / payment chips for this room only. */
+  detail: string | null;
+  /** Stay cost for this segment only. */
+  team_cost: number | null;
+  /** Per-night cost for this segment when nights known. */
+  team_per_night: number | null;
+};
+
 export type RateCompareRoom = {
   /** Stored rate_search_results.id — used when adding to the quote. */
   rate_ref: string;
@@ -24,7 +44,14 @@ export type RateCompareRoom = {
   rooms: number;
   /** Short board / meal-plan label, e.g. "Half board" / "AI". */
   board: string | null;
-  /** Advisor-facing source, e.g. "Contracted" / "Sabre". */
+  /**
+   * Compact room facts under the name, e.g. "Occupancy 3 · Non-refund · Prepaid".
+   * Max ~3 chips (occupancy / cancel / payment timing) — same for contracted + GDS.
+   */
+  detail: string | null;
+  /** Short payment / deposit line when known. */
+  payment: string | null;
+  /** Advisor-facing source, e.g. "Contracted" / "Public GDS". */
   source: string;
   /**
    * nightly = villa/night contract; package = fixed 3N/4N (or similar) product.
@@ -60,7 +87,16 @@ export type RateCompareRoom = {
   recommended: boolean;
   /** Suggested markup buttons, e.g. 25 / 30. */
   markup_buttons: number[];
-};
+  /**
+   * Dual-shop segments (Room 1 / Room 2). Null/omit for single-room or even multi-room shops.
+   */
+  segments?: RateCompareRoomSegment[] | null;
+  /**
+   * True when segments disagree on meal, cancel family, or payment timing —
+   * UI stacks Room 1 / Room 2 instead of a flat chip line.
+   */
+  terms_differ?: boolean;
+}
 
 export type RateCompareHotelStatus =
   | "ok"
@@ -74,10 +110,33 @@ export type RateCompareHotelStatus =
 export type RateCompareHotelNotes = {
   /** Cancel policy with cancel-by date when known. */
   cancellation: string | null;
+  /** Deposit / guarantee line when known (once per hotel). */
+  payment: string | null;
   /** Applied markup line when the advisor has chosen one; otherwise null. */
   markup: string | null;
   /** Combined inclusions across rooms (deduped, short). */
   inclusions: string[];
+  /**
+   * Hotel-level highlights (check-in/out, rating, city).
+   * Lean compare card — no amenity dump.
+   */
+  highlights: string[];
+  /**
+   * Short rate policy blurbs when present (e.g. min nights / sqm) — under the table only.
+   */
+  rate_terms: string[];
+  /**
+   * Short tax / service-charge already inside stay cost, when present.
+   */
+  in_stay: string | null;
+  /**
+   * Required stay extras (festive, green tax) and/or room extras (crib / rollaway).
+   */
+  extras: string | null;
+  /**
+   * How Cost / night vs Stay cost relate (contracted sheet vs all-in). Null/omit when N/A.
+   */
+  pricing?: string | null;
 };
 
 export type RateCompareHotel = {

@@ -1,0 +1,60 @@
+/**
+ * External rate suppliers (live I/O + map → RawRateInput).
+ * Rate Layer brain (search/resolve/results/pricing) stays supplier-agnostic.
+ *
+ * Offline contracted/manual stay under `src/offline/` + `adapters/` for now.
+ */
+
+export { searchHotelbeds } from "./hotelbeds";
+export {
+  buildSabreBasicAuth,
+  clearSabreAccessTokenCache,
+  defaultDiscoverStayDates,
+  getSabreAccessToken,
+  getSabreConfig,
+  hotelPriceCheck,
+  isSabreConfigured,
+  isSabreOpenGdsBrowseEnabled,
+  mapHotelDetailsToQuotes,
+  mapHotelDiscoverToCandidates,
+  isSabreReshopSignal,
+  mapHotelPriceCheckResponse,
+  mapHotelRatesToQuotes,
+  openGdsMinSabreRating,
+  priceCheckSabreRate,
+  sabreLog,
+  sabreRequest,
+  SabreHttpError,
+  searchHotelDetailsByCode,
+  searchHotelRatesByCode,
+  searchHotelsByAirport,
+  searchHotelsByGeo,
+  searchSabre,
+  type HotelPriceCheckInput,
+  type MapHotelDetailsToQuotesInput,
+  type MapHotelRatesToQuotesInput,
+  type PriceCheckSabreInput,
+  type PriceCheckSabreResult,
+  type SabreConfig,
+  type SabreDiscoverHotel,
+  type SabrePriceCheckFailureReason,
+  type SabrePriceCheckMapped,
+  type SabreRequestOptions,
+  type SearchHotelDetailsByCodeInput,
+  type SearchHotelRatesByCodeInput,
+  type SearchHotelsByAirportInput,
+  type SearchHotelsByGeoInput,
+  type SearchHotelRatesStay,
+  buildMatchingRoomOccupancies,
+  distributeAdultsAcrossRooms,
+  formatOccupancyShopLabel,
+  groupRoomOccupanciesForSabreShops,
+  hasUniformSabrePax,
+  mergeSabreOccupancyShopQuotes,
+  needsRoomOccupancySplit,
+  validateRoomOccupancies,
+  type RoomOccupancy,
+  type RoomOccupancyValidation,
+  type SabreOccupancyShopGroup,
+} from "./sabre";
+export { searchWholesale } from "./wholesale";

@@ -1,5 +1,6 @@
 import {
   getRateSourcesSetting,
+  listActiveNegotiatedRateCodes,
   listActiveWholesalersForProfile,
 } from "@pureluxe/db";
 import { rateMessages } from "@pureluxe/shared";
@@ -16,6 +17,7 @@ import {
   normalizeRate,
   rankAndRecommend,
 } from "../results";
+import type { AdapterResult } from "../adapters/types";
 import type {
   NormalizedRateOption,
   RateRoutingMeta,
@@ -25,6 +27,43 @@ import type {
 
 function isOfflineSource(code: string): boolean {
   return code === "offline_manual" || code === "offline_contracted";
+}
+
+/** Prefer timeout / auth / bad-code style notes over generic empty copy. */
+function pickAdapterTeamMessage(results: AdapterResult[]): string | null {
+  const messages = results
+    .map((row) => row.message?.trim())
+    .filter((msg): msg is string => Boolean(msg));
+  if (messages.length === 0) return null;
+
+  const rank = (msg: string): number => {
+    if (/timed out/i.test(msg)) return 0;
+    if (/sign-in|credentials/i.test(msg)) return 1;
+    if (
+      /invalid or inactive|isn't mapped|GDS code|don't have live rates|can't pull live rates/i.test(
+        msg,
+      )
+    ) {
+      return 2;
+    }
+    if (/temporarily unavailable/i.test(msg)) return 3;
+    if (/rejected this rate search/i.test(msg)) return 4;
+    if (/No live GDS rates/i.test(msg)) return 5;
+    if (/No special negotiated/i.test(msg)) return 6;
+    return 7;
+  };
+
+  return [...messages].sort((a, b) => rank(a) - rank(b))[0] ?? null;
+}
+
+/** Heads-ups from successful adapters only (skip empty-adapter noise). */
+function pickOkAdapterMessages(results: AdapterResult[]): string | null {
+  const messages = results
+    .filter((row) => row.status === "ok")
+    .map((row) => row.message?.trim())
+    .filter((msg): msg is string => Boolean(msg));
+  if (messages.length === 0) return null;
+  return [...new Set(messages)].join(" ");
 }
 
 /**
@@ -98,10 +137,18 @@ export async function searchRatesForLeg(
     wholesalers,
   });
 
+  const needsNegotiated = plan.steps.some(
+    (step) => step.source === "gds_negotiated",
+  );
+  const negotiated_rate_codes = needsNegotiated
+    ? await listActiveNegotiatedRateCodes()
+    : [];
+
   const ran = await runAdapterPlan(plan, {
     request,
     contracted_rates: resolved.contracted_rates,
     wholesalers,
+    negotiated_rate_codes,
   });
 
   const routing: RateRoutingMeta = {
@@ -139,7 +186,7 @@ export async function searchRatesForLeg(
       status: "ok",
       options: ranked,
       routing,
-      message: null,
+      message: pickOkAdapterMessages(ran.results),
       adapterResults: ran.results,
     });
   }
@@ -163,7 +210,9 @@ export async function searchRatesForLeg(
       status: "stub",
       options: [],
       routing,
-      message: rateMessages.error.liveRatesUnavailable,
+      message:
+        pickAdapterTeamMessage(ran.results) ??
+        rateMessages.error.liveRatesUnavailable,
       adapterResults: ran.results,
     });
   }
@@ -172,7 +221,8 @@ export async function searchRatesForLeg(
     status: "empty",
     options: [],
     routing,
-    message: rateMessages.error.noRatesFound,
+    message:
+      pickAdapterTeamMessage(ran.results) ?? rateMessages.error.noRatesFound,
     adapterResults: ran.results,
   });
 }

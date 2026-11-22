@@ -42,6 +42,13 @@ export type RatesSearchHotelInput = {
   name: string;
 };
 
+/** Guests in one room for multi-room family rate shops. */
+export type RatesRoomOccupancy = {
+  adults: number;
+  children?: number;
+  childAges?: number[];
+};
+
 /** Input for multi-hotel rates_search (no saved stay required). */
 export type RatesSearchInput = {
   destination: string;
@@ -51,8 +58,20 @@ export type RatesSearchInput = {
   rooms: number;
   adults: number;
   children: number;
+  /** Under-2 guests (contracted occupancy excludes from max_children). */
+  infants?: number;
   /** Stated child ages for this search; prefer over passport DOBs when set. */
   childAges?: number[];
+  /**
+   * When rooms > 1 and children > 0 — one entry per room if uneven/mixed.
+   * Even splits may be auto-applied when omitted.
+   */
+  roomOccupancies?: RatesRoomOccupancy[];
+  /**
+   * Stage 6 — Sabre hotel codes keyed by hotel name (open-GDS shortlist).
+   * When set, Studio shops by code with property_id null.
+   */
+  hotelCodes?: Record<string, string>;
 };
 
 /** One room/hotel to put on the options quote. */
@@ -174,6 +193,11 @@ export type QuotePreviewResult = {
 export type QuoteSelectFinalInput = {
   hotel: string;
   room: string;
+  /**
+   * trip_line_items.id from trip facts — required.
+   * Advisor names the room in chat; the agent resolves to this id, then select uses only the id.
+   */
+  optionId: string;
 };
 
 export type RatesUsePastedQuoteInput = {
@@ -262,6 +286,12 @@ export type TripAgentHandlers = DeskAgentHandlers & {
   getRateSnapshot: () => Promise<RateSnapshot>;
   /** Multi-hotel rate search; no saved stay required (Stage 3c). */
   searchRates: (input: RatesSearchInput) => Promise<unknown>;
+  /** Today's price for a chosen / named room (GDS live; contracted skips). */
+  priceCheckRate: (input: {
+    hotel?: string;
+    room?: string;
+    lineItemId?: string;
+  }) => Promise<unknown>;
   setClient: (
     input: { clientId: string; withHousehold: boolean; lead: LeadChoice },
     call: ToolCallRef,

@@ -7,6 +7,7 @@ import {
   type PropertyContract,
   type PropertyContractedRate,
 } from "@pureluxe/db";
+import { rateMessages } from "@pureluxe/shared";
 
 import { cancellationSummaryFromPolicies } from "../offline/contract-cancellation";
 import {
@@ -121,12 +122,14 @@ export async function searchOfflineContracted(
   );
   const adults = request.adults > 0 ? request.adults : 2;
   const children = request.children ?? 0;
+  const infants = Math.max(0, request.infants ?? 0);
   const rooms = request.rooms && request.rooms > 0 ? request.rooms : 1;
   const clientMarkets = request.client_market_codes ?? [];
 
   const quotes: RawRateInput[] = [];
   let hiddenOccupancy = 0;
   let hiddenMarket = 0;
+  let occupancyUnknown = 0;
 
   for (const category of categories) {
     const roomCategory = category || null;
@@ -155,8 +158,10 @@ export async function searchOfflineContracted(
       check_out: request.check_out,
       adults,
       children,
+      infants,
       rooms,
       child_ages: request.child_ages,
+      room_occupancies: request.room_occupancies,
       client_market_codes: clientMarkets,
     });
 
@@ -167,6 +172,7 @@ export async function searchOfflineContracted(
     }
 
     const price = priced.price;
+    if (price.occupancy_limits_unknown) occupancyUnknown += 1;
     const offerNames = price.applied_offers.map((offer) => offer.name);
     const inclusions = [
       ...benefitLines(rate),
@@ -206,6 +212,8 @@ export async function searchOfflineContracted(
         rooms: price.rooms,
         adults: price.adults,
         children: price.children,
+        infants: price.infants,
+        occupancy_limits_unknown: price.occupancy_limits_unknown,
         party_rooms: price.party_rooms,
         pricing_scope: price.scope,
         per_room: price.per_room,
@@ -226,29 +234,33 @@ export async function searchOfflineContracted(
         base_children: rate.base_children,
         max_adults: rate.max_adults,
         max_children: rate.max_children,
+        max_occupancy: rate.max_occupancy ?? null,
         notes: rate.notes,
       },
     });
   }
 
   if (quotes.length === 0) {
-    const parts = [
+    const crowded = rooms === 1 && adults + children >= 4;
+    const occupancyMessage =
       hiddenOccupancy > 0
-        ? `${hiddenOccupancy} room${hiddenOccupancy === 1 ? "" : "s"} hidden — party does not fit`
-        : null,
+        ? crowded
+          ? rateMessages.error.contractedOccupancyNoFitCrowded
+          : rateMessages.error.contractedOccupancyNoFit
+        : null;
+    const marketMessage =
       hiddenMarket > 0
-        ? `${hiddenMarket} rate${hiddenMarket === 1 ? "" : "s"} hidden — market does not match the client`
-        : null,
-    ].filter(Boolean);
+        ? `${hiddenMarket} rate${hiddenMarket === 1 ? "" : "s"} hidden — market does not match the client.`
+        : null;
 
     return {
       source: "offline_contracted",
       status: "empty",
       quotes: [],
       message:
-        parts.length > 0
-          ? parts.join(". ") + "."
-          : "No contracted rate covers this stay for the party.",
+        occupancyMessage ??
+        marketMessage ??
+        "No contracted rate covers this stay for the party.",
     };
   }
 
@@ -262,6 +274,9 @@ export async function searchOfflineContracted(
     notes.push(
       `${hiddenMarket} rate${hiddenMarket === 1 ? "" : "s"} left out — other market only`,
     );
+  }
+  if (occupancyUnknown > 0) {
+    notes.push(rateMessages.warn.contractedOccupancyUnknown);
   }
   if (quotes.some((quote) => quote.raw?.needs_child_ages === true)) {
     notes.push(

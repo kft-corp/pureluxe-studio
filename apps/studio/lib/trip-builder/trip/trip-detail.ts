@@ -83,6 +83,15 @@ export type TripRateSnapshot = {
   /** Max children from the contracted rate, when stored. */
   max_children: number | null;
   inclusions: string[];
+  /**
+   * Supplier raw from extracted_json (GDS shop fields for PDF facts).
+   * Null when the row has no extracted raw.
+   */
+  extracted_raw: Record<string, unknown> | null;
+  /** Stored rate offer this option was copied from — disambiguates same-named Twins. */
+  rate_search_result_id: string | null;
+  /** Option 1 / 2 order per hotel on the quote. */
+  option_rank: number | null;
   status: TripLineItem["status"];
   selected: boolean;
 };
@@ -191,7 +200,22 @@ function numberFromExtracted(extracted: Record<string, unknown> | null, key: str
   return Number.isFinite(amount) ? amount : null;
 }
 
+function extractedRawFromJson(
+  value: Record<string, unknown> | null | undefined,
+): Record<string, unknown> | null {
+  const raw = value?.raw;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  return raw as Record<string, unknown>;
+}
+
 function toRateSnapshot(row: TripLineItem): TripRateSnapshot {
+  const extracted = row.extracted_json;
+  const raw = extractedRawFromJson(extracted);
+  const maxFromExtracted = numberFromExtracted(extracted, "max_adults");
+  const maxFromRaw =
+    raw && typeof raw.max_occupancy === "number" && Number.isFinite(raw.max_occupancy)
+      ? raw.max_occupancy
+      : null;
   return {
     id: row.id,
     leg_id: row.leg_id,
@@ -208,15 +232,21 @@ function toRateSnapshot(row: TripLineItem): TripRateSnapshot {
     rate_source_code: row.rate_source_code,
     cancellation_policy: row.cancellation_policy,
     payment_policy: row.payment_policy,
-    season_code: seasonCodeFromExtracted(row.extracted_json),
+    season_code: seasonCodeFromExtracted(extracted),
     property_id: row.property_id,
-    contract_id: textFromExtracted(row.extracted_json, "contract_id"),
-    rate_note: textFromExtracted(row.extracted_json, "notes"),
-    max_adults: numberFromExtracted(row.extracted_json, "max_adults"),
-    max_children: numberFromExtracted(row.extracted_json, "max_children"),
+    contract_id: textFromExtracted(extracted, "contract_id"),
+    rate_note: textFromExtracted(extracted, "notes"),
+    max_adults: maxFromExtracted ?? maxFromRaw,
+    max_children: numberFromExtracted(extracted, "max_children"),
     inclusions: Array.isArray(row.inclusions)
       ? row.inclusions.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
       : [],
+    extracted_raw: raw,
+    rate_search_result_id: row.rate_search_result_id ?? null,
+    option_rank:
+      typeof row.option_rank === "number" && Number.isFinite(row.option_rank)
+        ? row.option_rank
+        : null,
     status: row.status,
     selected: row.selected,
   };

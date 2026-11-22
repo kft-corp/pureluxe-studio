@@ -23,7 +23,10 @@ const quoteOption = z
     client_price: z.number().min(0).optional(),
     currency: z.string().trim().length(3).optional(),
     rank: z.number().int().min(1).max(20).optional(),
-    /** From the last rates_search card when the advisor taps Add. */
+    /**
+     * From rates_search room.rate_ref. Required when two rooms share a name
+     * (e.g. Twin non-refund + Twin free cancel) so each maps to a distinct offer.
+     */
     rate_ref: z.string().uuid().optional(),
   })
   .strict()
@@ -38,6 +41,7 @@ export const quoteAddOptionsTool = defineAgentTool({
     "Add or update any number of rooms from any number of hotels on the options quote in one call, each with a markup percent or a client price.",
     "Use when the advisor names rooms and prices or markups together, e.g. \"Beach Villa at 30% and Water Villa at 25%, for all 3 hotels\", \"add the first two suggested rooms\", or \"make the Kihavah water villa 10% instead\".",
     "Pass absolute client prices exactly as stated — never multiply by the trip's room count or by nights, and never treat a figure as per-room unless the advisor said so. Pass percentage markups as markup_percent. Every option needs markup_percent or client_price — ask if neither is given.",
+    "When adding two rooms with the same name (e.g. Twin non-refundable and Twin free cancel), pass each room's rate_ref from the rates_search table so both stay on the quote; without rate_ref, include cancel wording in room (\"Twin non-refundable\" / \"Twin free cancel\").",
     "Call once with every room in this message; do not call again for the same ask.",
     "Markup or sell-only changes: use this tool (or quote_set_client_price) alone — never rates_search; the rate table must not reappear.",
     "Does NOT set the stay hotel — the hotel stays blank / options pending until the client accepts a room (quote_accept_and_select).",
@@ -456,21 +460,44 @@ export const quoteSendTool = defineAgentTool({
   run: (_input, handlers, call) => handlers.sendQuote(call),
 });
 
+const quoteSelectRoom = z
+  .object({
+    hotel: hotelName,
+    room: roomName,
+    /**
+     * Required. From trip facts candidates (option_id).
+     * Advisor may name the room in chat; resolve to this id from facts, then select by id only.
+     * Works for same-named rooms that differ by cancel, meal, payment, or anything else.
+     */
+    option_id: z.string().uuid(),
+  })
+  .strict();
+
+function toSelectFinalInput(input: z.infer<typeof quoteSelectRoom>) {
+  return {
+    hotel: input.hotel,
+    room: input.room,
+    optionId: input.option_id,
+  };
+}
+
 export const quoteSelectFinalTool = defineAgentTool({
   name: "quote_select_final",
   description: [
     "Record the client's final room when the quote is already accepted (Client said yes / pricing locked / booking).",
     "Creates a pending hotel booking; Undo cancels it (or restores the previous room).",
-    "Use when status is already booking / pricing locked and the advisor names the room. If not yet accepted, use quote_accept_and_select instead.",
+    "Always pass option_id from trip facts for the chosen room. Hotel and room are labels only — selection uses option_id.",
+    "When the advisor names a room: match it against trip facts candidates (meal, cancel, payment, rank), pick that candidate's option_id. If two still fit, ask one short clarifying question — never remove another option to force a match.",
+    "Use when status is already booking / pricing locked. If not yet accepted, use quote_accept_and_select instead.",
     "Do not use to send the quote (quote_send), add rooms (quote_add_options), or change prices. The room must already be on the quote.",
+    "Studio adds a price-recheck line to the summary: live GDS → today's check (may update cost); contracted/pasted → no live recheck needed. Include that outcome.",
     "Runs immediately with Undo — no Confirm card. Returns a summary.",
   ].join(" "),
-  schema: z.object({ hotel: hotelName, room: roomName }).strict(),
+  schema: quoteSelectRoom,
   risk: "undo",
   progress: () => "Recording the client's room…",
   quickReply: true,
-  run: (input, handlers, call) =>
-    handlers.selectFinal({ hotel: input.hotel, room: input.room }, call),
+  run: (input, handlers, call) => handlers.selectFinal(toSelectFinalInput(input), call),
 });
 
 function acceptAndSelectConfirm(input: { hotel: string; room: string }, trip: TripFacts | null): string {
@@ -482,16 +509,19 @@ export const quoteAcceptAndSelectTool = defineAgentTool({
   name: "quote_accept_and_select",
   description: [
     "Mark Client said yes (accept) and record their room in one step. Sets the stay hotel to that room's hotel.",
+    "Always pass option_id from trip facts for the chosen room. Hotel and room are labels only — selection uses option_id.",
+    "When the advisor names a room: match it against trip facts candidates (meal, cancel, payment, rank), pick that candidate's option_id. If two still fit, ask one short clarifying question — never remove another option to force a match.",
     "Use when the advisor says the client wants to book a named room / option — e.g. \"Aarav wants the water villa\", \"they chose option 2\", \"client went with Kihavah\".",
     "Do not send them to the trip page to accept. Prefer this over quote_select_final when not yet accepted.",
     "When already accepted / pricing locked, quote_select_final is enough. Do not use to send the quote (quote_send) or add rooms.",
+    "Studio adds a price-recheck line to the summary: live GDS → today's check (may update cost); contracted/pasted → no live recheck needed. Include that outcome.",
     "Shows a Confirm card first. Returns a summary.",
   ].join(" "),
-  schema: z.object({ hotel: hotelName, room: roomName }).strict(),
+  schema: quoteSelectRoom,
   risk: "approval",
   progress: () => "Accepting and recording the room…",
   quickReply: true,
   confirm: (input, trip) => acceptAndSelectConfirm(input, trip),
   run: (input, handlers, call) =>
-    handlers.acceptAndSelect({ hotel: input.hotel, room: input.room }, call),
+    handlers.acceptAndSelect(toSelectFinalInput(input), call),
 });

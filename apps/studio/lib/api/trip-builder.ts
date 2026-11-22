@@ -105,6 +105,44 @@ export function searchTripBuilderRates(input: SearchRatesBody) {
   });
 }
 
+export type TripBuilderPriceCheckResult = {
+  status: "unchanged" | "changed" | "unavailable" | "skipped" | "error";
+  note: string;
+  rate_source_code: string | null;
+  rate_source_label: string | null;
+  hotel: string | null;
+  room: string | null;
+  cost_on_file: number | null;
+  currency_on_file: string | null;
+  cost_today: number | null;
+  currency_today: string | null;
+  update: {
+    lineItemId: string;
+    room: string;
+    amount: number;
+    currency: string;
+  } | null;
+  needs_live_check: boolean;
+  requires_reshop?: boolean;
+};
+
+/** Recheck today's price for a chosen / named room (GDS live; contracted skips). */
+export function priceCheckTripBuilderRate(input: {
+  trip_id: string;
+  line_item_id?: string | null;
+  hotel?: string | null;
+  room?: string | null;
+}) {
+  return fetchApi<
+    TripBuilderPriceCheckResult | { results: TripBuilderPriceCheckResult[]; note: string }
+  >(apiRoutes.tripBuilder.ratesPriceCheck, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+    cache: "no-store",
+  });
+}
+
 /** Paste a hotel quote onto the trip (pending review). */
 export function pasteTripBuilderLineItem(input: PasteLineItemBody) {
   return fetchApi<TripLineItem>(apiRoutes.tripBuilder.lineItemsPaste, {

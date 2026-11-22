@@ -34,6 +34,7 @@ import {
   usePastedQuote,
   type TripChangeContext,
 } from "@/lib/trip-builder/actions";
+import { recheckChosenRate } from "@/lib/trip-builder/rates/recheck-chosen-rate";
 import { searchRatesForHotels } from "@/lib/trip-builder/rates/search-rates-for-hotels";
 
 import { loadChatHistory } from "@/lib/trip-builder/chat/chat-history";
@@ -64,6 +65,54 @@ function tripCityHint(detail: TripDetail | null): string | null {
   const stays = detail.stays.length > 0 ? detail.stays : detail.stay ? [detail.stay] : [];
   const cities = [...new Set(stays.map((stay) => stay.city?.trim()).filter(Boolean))];
   return cities[0] ?? null;
+}
+
+function isIsoDate(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+/** Stay dates for open-GDS discover — destination-matched stay, else first stay, else trip window. */
+function stayDatesForPlace(
+  detail: TripDetail | null,
+  place: string | null | undefined,
+): { checkIn: string; checkOut: string } | null {
+  if (!detail) return null;
+  const stays =
+    detail.stays.length > 0 ? detail.stays : detail.stay ? [detail.stay] : [];
+  const needle = place?.trim().toLowerCase() || null;
+  const matched = needle
+    ? stays.find((stay) => {
+        const city = stay.city?.trim().toLowerCase() ?? "";
+        if (!city) return false;
+        return city === needle || city.includes(needle) || needle.includes(city);
+      })
+    : null;
+  const pick =
+    matched ??
+    stays.find(
+      (stay) =>
+        stay.check_in &&
+        stay.check_out &&
+        isIsoDate(stay.check_in) &&
+        isIsoDate(stay.check_out) &&
+        stay.check_out > stay.check_in,
+    ) ??
+    detail.stay;
+  const checkIn = pick?.check_in?.trim() ?? "";
+  const checkOut = pick?.check_out?.trim() ?? "";
+  if (
+    isIsoDate(checkIn) &&
+    isIsoDate(checkOut) &&
+    checkOut > checkIn
+  ) {
+    return { checkIn, checkOut };
+  }
+  const start = detail.trip?.starts_on?.trim() ?? "";
+  const end = detail.trip?.ends_on?.trim() ?? "";
+  if (isIsoDate(start) && isIsoDate(end) && end > start) {
+    return { checkIn: start, checkOut: end };
+  }
+  return null;
 }
 
 /**
@@ -192,12 +241,15 @@ export function createTripAgentTools(options: Options): TripAgentHandlers {
         [input.destination, input.name, input.similarTo, input.priceBandLike]
           .filter(Boolean)
           .join(" ") || undefined;
+      const stayDates = stayDatesForPlace(detail, input.destination ?? null);
       return desk.findHotels({
         ...input,
         adults: party.adults,
         children: party.children,
         ask: input.ask ?? ask,
         prefHints: input.prefHints ?? prefHints,
+        checkIn: input.checkIn ?? stayDates?.checkIn ?? null,
+        checkOut: input.checkOut ?? stayDates?.checkOut ?? null,
       });
     },
 
@@ -237,7 +289,21 @@ export function createTripAgentTools(options: Options): TripAgentHandlers {
           rooms: input.rooms,
           adults: input.adults,
           children: input.children,
+          infants: input.infants,
           childAges: input.childAges,
+          roomOccupancies: input.roomOccupancies,
+          hotelCodes: input.hotelCodes,
+        },
+        actor,
+      ),
+
+    priceCheckRate: (input) =>
+      recheckChosenRate(
+        {
+          tripId: options.tripId,
+          lineItemId: input.lineItemId,
+          hotel: input.hotel,
+          room: input.room,
         },
         actor,
       ),

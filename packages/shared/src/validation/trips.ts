@@ -138,7 +138,8 @@ export const setTripStaySchema = z
     destination_profile_id: optionalUuid,
     adults: z.number().int().min(1).max(20),
     children: z.number().int().min(0).max(20),
-    rooms: z.number().int().min(1).max(20),
+    /** Null/omit = not set yet — rates search asks before shopping. */
+    rooms: z.number().int().min(1).max(20).nullable().optional(),
     /** Save even when the nights overlap another stay. */
     confirm_overlap: z.boolean().optional().default(false),
   })

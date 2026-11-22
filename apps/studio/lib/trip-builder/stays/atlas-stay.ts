@@ -102,6 +102,19 @@ const WANTS_EXPERIENCES =
 const WANTS_MORE_PLACES =
   /\b(more places|other (cities|places|destinations)|show more|expand|full (list|route|itinerary)|all (cities|places)|more cities|more destinations)\b/i;
 
+/**
+ * Country-wide route asks — keep the multi-city spine even if a city name appears.
+ * City-named when+where without these cues stays city-scoped.
+ */
+const WANTS_COUNTRY_ROUTE =
+  /\b(first (?:trip|visit|timer)|golden route|which (cities|places|destinations)|destinations? to visit|places to visit|classic (?:\w+ )?route|grand \w+|multi-?city|around (?:the )?country|whole (?:country|trip)|full (?:country )?itinerary)\b/i;
+
+/**
+ * Open city brief — when+where plus a short experience teaser (not a dining/activity dump on every ask).
+ */
+const WANTS_CITY_OVERVIEW =
+  /\b(tell me about|what(?:'s| is) .{0,40}\blike\b|overview of|a few days (?:in|around)|few nights (?:in|around)|plan (?:a )?(?:few )?days? (?:in|around)|weekend in|city guide|brief (?:on|about))\b/i;
+
 /** Prefer these cities first on a country visit-plan (Japan-style spine). */
 const FIRST_TRIP_CITY_ORDER = [
   "Tokyo",
@@ -634,8 +647,12 @@ function placeFocus(question: string, listHotels: boolean): PlaceFocus {
   if (WANTS_EXPERIENCES.test(question)) return "experiences";
   const wantsSeason = WANTS_SEASON.test(question);
   const wantsWhere = WANTS_WHERE.test(question);
-  // When + where (or where / first-trip alone) → structured visit plan from Atlas.
-  if (wantsWhere || (wantsSeason && /\band\b/i.test(question) && /\bwhere\b/i.test(question))) {
+  // When + where, city overview ("tell me about Tokyo"), or where / first-trip alone.
+  if (
+    wantsWhere ||
+    WANTS_CITY_OVERVIEW.test(question) ||
+    (wantsSeason && /\band\b/i.test(question) && /\bwhere\b/i.test(question))
+  ) {
     return "visit_plan";
   }
   if (wantsSeason) return "season";
@@ -668,16 +685,17 @@ async function briefExperiencesAnswer(
   placeHint: string,
   question: string,
   wantFull: boolean,
-  party?: { adults?: number | null; children?: number | null },
+  party?: { adults?: number | null; children?: number | null; teaser?: boolean },
 ): Promise<string> {
+  const teaser = Boolean(party?.teaser);
   const restaurantsOnly = /\brestaurants?|where to eat|dining|omakase|vegetarian|jain\b/i.test(
     question,
   ) && !/\bthings to do|experiences?|activit\w*\b/i.test(question);
   const activitiesOnly =
     /\bthings to do|experiences?|activit\w*\b/i.test(question) &&
     !/\brestaurants?|where to eat|dining|omakase\b/i.test(question);
-  const activityLimit = restaurantsOnly ? 0 : wantFull ? 6 : 4;
-  const restaurantLimit = activitiesOnly ? 0 : wantFull ? 4 : 3;
+  const activityLimit = restaurantsOnly ? 0 : teaser ? 2 : wantFull ? 6 : 4;
+  const restaurantLimit = activitiesOnly ? 0 : teaser ? 2 : wantFull ? 4 : 3;
   const partyStyle = resolveTripStyle(question, party?.adults, party?.children);
   const hits = await listKbExperiencesForPlaceSuggest({
     place: placeHint,
@@ -692,17 +710,23 @@ async function briefExperiencesAnswer(
     preferBookAhead: /\bbook ahead|lead time|reserve|omakase\b/i.test(question),
   });
   if (hits.length === 0) {
-    return `I don't have curated experiences or restaurants for ${placeLabel} yet.`;
+    return teaser
+      ? ""
+      : `I don't have curated experiences or restaurants for ${placeLabel} yet.`;
   }
   const city = hits[0]?.city?.trim() || placeLabel;
   const blocks = [
-    `**${city} — experience bank** (unverified guide entries; confirm before booking)`,
+    teaser
+      ? `### Things to do & eat\n**${city}** — a short sample (confirm before booking):`
+      : `**${city} — experience bank** (unverified guide entries; confirm before booking)`,
     hits.map(formatExperienceBullet).join("\n"),
   ];
-  if (!wantFull) {
+  if (!wantFull && !teaser) {
     blocks.push(
       "Ask for more / full list, restaurants only, or vegetarian / Jain options if needed.",
     );
+  } else if (teaser) {
+    blocks.push("Ask for more restaurants or things to do if you want a longer list.");
   }
   return blocks.join("\n\n");
 }
@@ -1057,6 +1081,113 @@ function formatVisitCityBullet(
   ].filter(Boolean);
   const body = bits.length > 0 ? bits.join(" — ") : "See destination notes.";
   return `- **${cityName}**${nights ? ` (${nights})` : ""}: ${body}`;
+}
+
+/**
+ * When+where for a named city: stay on that city (neighbourhoods / length / vibe),
+ * not the country multi-city spine.
+ */
+async function briefCityVisitPlanAnswer(
+  city: KbCity,
+  country: KbCountry | null,
+  countryFacts: KbCountryFacts | null,
+  seasonWindows: KbCountrySeasonWindow[],
+  options: VisitPlanOptions,
+): Promise<string> {
+  const blocks: string[] = [];
+  const { includeWhen, includeWhere, expanded, preferSeasonTable, tripStyle } =
+    options;
+  const audienceLead =
+    tripStyle === "family"
+      ? "family trip"
+      : tripStyle === "honeymoon"
+        ? "honeymoon"
+        : tripStyle === "solo"
+          ? "solo trip"
+          : tripStyle === "group"
+            ? "group trip"
+            : "first luxury stay";
+  blocks.push(
+    expanded || preferSeasonTable
+      ? `${city.name} — fuller ${audienceLead} brief:`
+      : `${city.name} for a ${audienceLead}:`,
+  );
+
+  const cityBundle = await loadKbCityPlaceBundle({
+    city_id: city.id,
+    trip_style: tripStyle ?? null,
+  });
+  const cityFacts = cityBundle?.facts;
+
+  if (includeWhen) {
+    const cityWhen = cityFacts?.best_time_to_visit?.trim() || null;
+    if (cityWhen) {
+      const whenLines = noteBullets(cityWhen, preferSeasonTable || expanded ? 6 : 4);
+      blocks.push(
+        whenLines.length === 1 && !(preferSeasonTable || expanded)
+          ? `### When to go\n**${city.name}:** ${whenLines[0]}`
+          : `### When to go\n${whenLines.map(formatVisitBullet).filter(Boolean).join("\n")}`,
+      );
+      if ((preferSeasonTable || expanded) && seasonWindows.length > 0 && country) {
+        blocks.push(
+          `**Season by season (${country.name}):**\n${seasonWindows
+            .map((row) => formatSeasonWindowBullet(row, tripStyle))
+            .join("\n")}`,
+        );
+      }
+    } else if (country) {
+      blocks.push(
+        briefWhenToGo(country.name, countryFacts?.best_season ?? null, seasonWindows, {
+          expanded: expanded || preferSeasonTable,
+          travelFrom: options.travelFrom,
+          travelTo: options.travelTo,
+          tripStyle,
+        }),
+      );
+    } else {
+      blocks.push(
+        `### When to go\n- I don't have a best-time note for ${city.name} yet.`,
+      );
+    }
+    const headsUp = seasonDateHeadsUp(
+      city.name,
+      seasonWindows,
+      options.travelFrom,
+      options.travelTo,
+    );
+    if (headsUp && cityWhen) blocks.push(headsUp);
+  }
+
+  if (includeWhere) {
+    const whereLines: string[] = [];
+    if (cityFacts) {
+      whereLines.push(
+        formatVisitCityBullet(city.name, cityFacts, {
+          expanded: true,
+          audienceNote: cityBundle?.audience_note?.note ?? null,
+          tripStyle: tripStyle ?? null,
+        }),
+      );
+      const neighbourhood = cityFacts.staff_notes?.trim();
+      if (neighbourhood) {
+        whereLines.push(
+          `- **Where to stay:** ${clipNote(neighbourhood, expanded ? 420 : 280)}`,
+        );
+      }
+    }
+    if (country && !expanded) {
+      whereLines.push(
+        `- **Wider ${country.name} route:** say if you want Kyoto, onsen, Osaka or a classic multi-city spine.`,
+      );
+    }
+    blocks.push(
+      whereLines.length > 0
+        ? `### Where to go\n${whereLines.join("\n")}`
+        : `### Where to go\n- I don't have destination notes for ${city.name} yet.`,
+    );
+  }
+
+  return blocks.join("\n\n");
 }
 
 /**
@@ -1630,34 +1761,68 @@ export async function answerAtlasStay(input: {
       // Where-only → skip When; when+where (incl. "…and where") → both.
       const includeWhen = wantsSeason || !hasWhereWord;
       const includeWhere = hasWhereWord || !wantsSeason;
-      blocks.push(
-        await briefVisitPlanAnswer(
-          placeCountry,
-          facts ?? null,
-          bundle?.cities ?? [],
-          seasonWindows,
-          {
-            includeWhen,
-            includeWhere,
-            expanded,
-            preferSeasonTable: wantsSeason,
+      const planOptions: VisitPlanOptions = {
+        includeWhen,
+        includeWhere,
+        expanded,
+        preferSeasonTable: wantsSeason,
+        travelFrom,
+        travelTo,
+        tripStyle,
+      };
+      // Named city (e.g. "when to visit Tokyo and where") → city brief, not country spine.
+      const cityScopedVisit =
+        Boolean(namedCity) && !WANTS_COUNTRY_ROUTE.test(question);
+      if (cityScopedVisit && namedCity) {
+        blocks.push(
+          await briefCityVisitPlanAnswer(
+            namedCity,
+            placeCountry,
+            facts ?? null,
+            seasonWindows,
+            planOptions,
+          ),
+        );
+        // Open city brief ("tell me about / a few days in …") → short experience teaser only.
+        if (WANTS_CITY_OVERVIEW.test(question)) {
+          const teaser = await briefExperiencesAnswer(
+            namedCity.name,
+            namedCity.name,
+            question,
+            false,
+            {
+              adults: input.adults,
+              children: input.children,
+              teaser: true,
+            },
+          );
+          if (teaser) blocks.push(teaser);
+        }
+      } else {
+        blocks.push(
+          await briefVisitPlanAnswer(
+            placeCountry,
+            facts ?? null,
+            bundle?.cities ?? [],
+            seasonWindows,
+            planOptions,
+          ),
+        );
+      }
+    } else if (focus === "season") {
+      // City-named "when to visit Tokyo" → city best-time; country table only if no city.
+      if (!(namedCity && !WANTS_COUNTRY_ROUTE.test(question))) {
+        blocks.push(
+          briefSeasonAnswer(
+            placeCountry.name,
+            facts?.best_season ?? null,
+            seasonWindows,
             travelFrom,
             travelTo,
             tripStyle,
-          },
-        ),
-      );
-    } else if (focus === "season") {
-      blocks.push(
-        briefSeasonAnswer(
-          placeCountry.name,
-          facts?.best_season ?? null,
-          seasonWindows,
-          travelFrom,
-          travelTo,
-          tripStyle,
-        ),
-      );
+          ),
+        );
+      }
     } else if (focus === "length") {
       blocks.push(briefCountryLength(placeCountry.name, facts ?? null));
     } else if (focus === "money") {
@@ -1805,10 +1970,18 @@ export async function answerAtlasStay(input: {
   }
   if (focus === "visit_plan" && blocks.length > 0) {
     const expandedVisit = wantFull || WANTS_MORE_PLACES.test(question);
+    const cityScopedVisit =
+      Boolean(namedCity) && !WANTS_COUNTRY_ROUTE.test(question);
+    const cityOverview =
+      cityScopedVisit && WANTS_CITY_OVERVIEW.test(question);
     blocks.push(
-      expandedVisit
-        ? "Who is this for, and what dates or interests matter most? I can narrow the route once I know."
-        : "Want more places beyond this spine, or who is this for and roughly when?",
+      cityOverview
+        ? `Which neighbourhood or dates matter most for ${namedCity!.name}?`
+        : cityScopedVisit
+          ? `Want restaurants and things to do for ${namedCity!.name} next, or widen to a ${placeCountry?.name ?? "country"} multi-city route?`
+          : expandedVisit
+            ? "Who is this for, and what dates or interests matter most? I can narrow the route once I know."
+            : "Want more places beyond this spine, or who is this for and roughly when?",
     );
   }
 

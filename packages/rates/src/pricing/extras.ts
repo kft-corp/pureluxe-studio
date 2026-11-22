@@ -94,7 +94,13 @@ export function occupancyExtraCharges(input: {
 
   const extraAdults = Math.max(0, input.room.adults - Math.max(0, input.rate.base_adults));
   const includedChildren = Math.max(0, input.rate.base_children);
-  const extraChildAges = input.room.child_ages.slice(includedChildren);
+  const infantAges = Array.from(
+    { length: Math.max(0, input.room.infants ?? 0) },
+    () => 0,
+  );
+  // Infants first (age 0), then children — base_children covers the first N ages.
+  const allMinorAges = [...infantAges, ...input.room.child_ages];
+  const extraChildAges = allMinorAges.slice(includedChildren);
 
   const applied: AppliedExtra[] = [];
   const addons = input.addons.filter(
@@ -169,6 +175,7 @@ export function mandatoryExtraCharges(input: {
   const people: { age: number | null }[] = [];
   for (const room of input.rooms) {
     for (let i = 0; i < room.adults; i++) people.push({ age: 30 });
+    for (let i = 0; i < Math.max(0, room.infants ?? 0); i++) people.push({ age: 0 });
     for (const age of room.child_ages) people.push({ age });
   }
 

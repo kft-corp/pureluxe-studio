@@ -1,4 +1,5 @@
 import type { NormalizedRateOption } from "@pureluxe/rates";
+import { rateSourceLabel } from "@pureluxe/shared";
 
 import { occupancyLine } from "@/lib/rates/rate-search-pack";
 
@@ -76,6 +77,9 @@ export function cancellationForStay(
 function sourceLabel(code: string): string {
   if (code === "offline_contracted") return "Contracted rate";
   if (code === "offline_manual") return "Pasted quote";
+  if (code === "gds_public" || code === "gds_negotiated") {
+    return rateSourceLabel(code);
+  }
   return code.replaceAll("_", " ");
 }
 

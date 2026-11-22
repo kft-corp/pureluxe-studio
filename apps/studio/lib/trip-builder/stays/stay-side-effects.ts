@@ -60,6 +60,7 @@ async function markOneQuoteStale(
 /**
  * Founder #3: drop priced quote options when party / rooms / nights / city change
  * so old costs cannot remain looking current. Stay shell is kept.
+ * Does not re-search rates — advisor must ask for rates again.
  */
 export async function clearStaleQuotePricesForLeg(
   tripId: string,

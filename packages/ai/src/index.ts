@@ -102,6 +102,7 @@ export {
   type RateCompareHotel,
   type RateCompareHotelNotes,
   type RateCompareRoom,
+  type RateCompareRoomSegment,
   type BookingBrief,
   type BookingHistoryRow,
   type ClientBrief,

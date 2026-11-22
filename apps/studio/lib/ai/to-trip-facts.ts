@@ -7,6 +7,7 @@ import type { TripDetail, TripRateSnapshot } from "@/lib/trip-builder";
 
 function toRateFact(rate: TripRateSnapshot) {
   return {
+    id: rate.id,
     title: rate.title,
     subtitle: rate.subtitle,
     cost_internal: rate.cost_internal,
@@ -17,6 +18,8 @@ function toRateFact(rate: TripRateSnapshot) {
     inclusions: rate.inclusions,
     cancellation_policy: rate.cancellation_policy,
     payment_policy: rate.payment_policy,
+    rate_ref: rate.rate_search_result_id,
+    option_rank: rate.option_rank,
   };
 }
 
@@ -32,6 +35,9 @@ function stayFact(
     rate_selected: rates.candidates.some(
       (rate) => rate.selected && rate.leg_id === stay.leg_id,
     ),
+    adults: stay.adults,
+    children: stay.children,
+    rooms: stay.rooms,
   };
 }
 
@@ -106,6 +112,9 @@ export function toTripFacts(
           check_in: open.check_in,
           check_out: open.check_out,
           property_name: open.property_name,
+          adults: open.adults,
+          children: open.children,
+          rooms: open.rooms,
         }
       : null,
     stays,

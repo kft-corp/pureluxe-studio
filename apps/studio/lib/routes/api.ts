@@ -67,6 +67,7 @@ export const apiRoutes = {
     /** Pre-trip home chat — ephemeral, client lookup tools only. */
     preTripChat: "/api/trip-builder/pre-trip/chat",
     ratesSearch: "/api/trip-builder/rates/search",
+    ratesPriceCheck: "/api/trip-builder/rates/price-check",
     lineItemsPaste: "/api/trip-builder/line-items/paste",
     lineItemsFromRate: "/api/trip-builder/line-items/from-rate",
     lineItemApprove: (lineItemId: string) =>

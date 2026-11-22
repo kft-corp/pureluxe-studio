@@ -189,7 +189,7 @@ export async function setTripStay(
     created_by_id: actor.memberId,
     adults,
     children,
-    rooms: input.rooms,
+    rooms: input.rooms ?? null,
   });
 
   let clientName: string | null = null;

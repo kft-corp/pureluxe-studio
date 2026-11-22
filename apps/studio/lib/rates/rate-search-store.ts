@@ -13,11 +13,16 @@ import type { NormalizedRateOption, SearchRatesResult } from "@pureluxe/rates";
 import type { SearchRatesBody } from "@pureluxe/shared";
 
 import { buildRateSearchNotes } from "./rate-search-pack";
-import { bestRoomMatch, hotelNameMatch } from "./room-match";
+import {
+  bestRoomMatch,
+  cancelHintBonus,
+  hotelNameMatch,
+  roomTitleScore,
+} from "./room-match";
 import type { HotelRateSearchOutcome } from "@/lib/trip-builder/rates/search-rates-for-hotels";
 
 /** How long the last hotel search stays open for follow-up questions. */
-const FOLLOW_UP_TTL_MS = 30 * 60 * 1000;
+const FOLLOW_UP_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 type SearchMeta = {
   hotel_brief: string | null;
@@ -293,11 +298,16 @@ export async function loadStoredRateOption(
   };
 }
 
-/** Match a hotel+room against the latest open search. */
+/**
+ * Match a hotel+room against the latest open search.
+ * Pass excludeResultIds when adding several same-named rooms in one batch so
+ * each Twin maps to a different stored rate.
+ */
 export async function findStoredRateByHotelRoom(
   tripId: string,
   hotel: string,
   room: string,
+  options?: { excludeResultIds?: string[] },
 ): Promise<{
   option: NormalizedRateOption;
   resultId: string;
@@ -309,12 +319,57 @@ export async function findStoredRateByHotelRoom(
   const atHotel = search.results.filter((row) =>
     hotelNameMatch(row.property_name ?? "", hotel),
   );
-  const pool = atHotel.length > 0 ? atHotel : search.results;
-  const hit = bestRoomMatch(pool, room, (row) => row.room_title);
-  if (!hit) return null;
+  const excluded = new Set(options?.excludeResultIds ?? []);
+  const pool = (atHotel.length > 0 ? atHotel : search.results).filter(
+    (row) => !excluded.has(row.id),
+  );
+  if (pool.length === 0) return null;
+
+  const hit = bestRoomMatch(
+    pool,
+    room,
+    (row) => row.room_title,
+    (row) => row.cancellation,
+  );
+  if (hit) {
+    return {
+      option: toOption(hit, search),
+      resultId: hit.id,
+      legId: search.event.leg_id ?? null,
+      destinationText: search.event.destination_text ?? null,
+    };
+  }
+
+  // Ambiguous same titles (e.g. two "Twin") — score cancel hints, else next unused by cost.
+  type Scored = { row: (typeof pool)[number]; score: number };
+  const scored: Scored[] = [];
+  for (const row of pool) {
+    const titleScore = roomTitleScore(row.room_title, room);
+    if (titleScore === 0) continue;
+    scored.push({
+      row,
+      score: titleScore + cancelHintBonus(row.cancellation, room, row.room_title),
+    });
+  }
+  if (scored.length === 0) return null;
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return Number(a.row.team_cost) - Number(b.row.team_cost);
+  });
+
+  const topScore = scored[0]!.score;
+  const tied = scored.filter((entry) => entry.score === topScore);
+  const pick =
+    tied.length > 1
+      ? // Still tied after cancel hints: cheapest unused (batch add of two Twins).
+        [...tied].sort(
+          (a, b) => Number(a.row.team_cost) - Number(b.row.team_cost),
+        )[0]!
+      : scored[0]!;
+
   return {
-    option: toOption(hit, search),
-    resultId: hit.id,
+    option: toOption(pick.row, search),
+    resultId: pick.row.id,
     legId: search.event.leg_id ?? null,
     destinationText: search.event.destination_text ?? null,
   };

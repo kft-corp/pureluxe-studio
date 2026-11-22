@@ -29,6 +29,20 @@ function textOrMissing(value: string | null | undefined): string {
   return trimmed ? clip(trimmed) : "missing";
 }
 
+function formatStayGuests(
+  adults: number | null | undefined,
+  children: number | null | undefined,
+): string {
+  const parts: string[] = [];
+  if (adults != null && adults > 0) {
+    parts.push(adults === 1 ? "1 adult" : `${adults} adults`);
+  }
+  if (children != null && children > 0) {
+    parts.push(children === 1 ? "1 child" : `${children} children`);
+  }
+  return parts.length > 0 ? parts.join(", ") : "missing";
+}
+
 function clip(value: string, max = MAX_TEXT): string {
   if (value.length <= max) return value;
   return `${value.slice(0, max - 1)}…`;
@@ -68,6 +82,9 @@ function formatRate(rate: TripRateFact): string {
   const bits = [
     rate.title,
     rate.subtitle ? `(${rate.subtitle})` : null,
+    rate.id ? `option_id ${rate.id}` : null,
+    rate.rate_ref ? `rate_ref ${rate.rate_ref}` : null,
+    rate.option_rank != null ? `option_rank ${rate.option_rank}` : null,
     `cost ${money(rate.cost_internal, rate.currency)}`,
     rate.sell_amount != null
       ? `sell ${money(rate.sell_amount, rate.currency)}`
@@ -149,6 +166,8 @@ export function buildTripContext(trip: TripFacts): string {
       `- Check-in: ${textOrMissing(trip.stay.check_in)}`,
       `- Check-out: ${textOrMissing(trip.stay.check_out)}`,
       `- Nights: ${nights != null ? String(nights) : "missing"}`,
+      `- Rooms: ${trip.stay.rooms != null ? String(trip.stay.rooms) : "missing"}`,
+      `- Guests: ${formatStayGuests(trip.stay.adults, trip.stay.children)}`,
     );
   } else {
     stays.forEach((stay, index) => {
@@ -159,6 +178,8 @@ export function buildTripContext(trip: TripFacts): string {
         `  Check-in: ${textOrMissing(stay.check_in)}`,
         `  Check-out: ${textOrMissing(stay.check_out)}`,
         `  Nights: ${nightsForStay != null ? String(nightsForStay) : "missing"}`,
+        `  Rooms: ${stay.rooms != null ? String(stay.rooms) : "missing"}`,
+        `  Guests: ${formatStayGuests(stay.adults, stay.children)}`,
         `  Rate selected: ${stay.rate_selected ? "yes" : "no"}`,
       );
     });

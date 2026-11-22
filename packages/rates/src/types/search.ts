@@ -17,16 +17,36 @@ export type SearchRatesRequest = {
   destination_text?: string | null;
   /** Curated hotel id from public.properties when known. */
   property_id?: string | null;
+  /**
+   * Sabre hotel code when shopping open-GDS / unmapped (Stage 6).
+   * Used when `property_id` is null; ignored when a mapped property code exists.
+   */
+  supplier_hotel_code?: string | null;
+  /** Display name for open-GDS shop (optional; Sabre response name wins when present). */
+  supplier_hotel_name?: string | null;
   check_in: string;
   check_out: string;
   adults: number;
+  /** Non-infant children (age 2+). Infants use `infants`. */
   children?: number;
+  /** Under-2 guests — contracted occupancy excludes them from max_children / max_occupancy. */
+  infants?: number;
   rooms?: number;
   /**
    * Child ages on check-in (years). Used for age-banded extras (R12 / Fix 8).
    * When omitted and bands change the price, pricing assumes a default age.
    */
   child_ages?: number[];
+  /**
+   * Explicit guests per room when rooms > 1 (required for uneven parties).
+   * Matching or mixed layouts OK — Sabre dual-shops mixed Adult/Children counts.
+   * Never invent a split.
+   */
+  room_occupancies?: Array<{
+    adults: number;
+    children?: number;
+    child_ages?: number[];
+  }>;
   /**
    * ISO country codes for the client's market (usually lead nationality).
    * Used to hide market-restricted contracts (R11).

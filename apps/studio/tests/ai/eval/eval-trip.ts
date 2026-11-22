@@ -14,6 +14,8 @@ export type EvalTrip = {
   assumed: string[];
   /** Options on the quote (Stage 3d). */
   quoteOptions: Array<{
+    /** Stable id for select-by-option_id (mirrors trip_line_items.id). */
+    id: string;
     hotel: string;
     room: string;
     markupPercent: number | null;
@@ -154,6 +156,7 @@ export function toEvalTripFacts(trip: EvalTrip, seed: ScenarioSeed, today: strin
         option.room.toLowerCase().includes(trip.chosenOption.room.toLowerCase()),
     );
     return {
+      id: option.id,
       title: `${option.hotel} · ${option.room}`,
       subtitle:
         option.markupPercent != null
@@ -176,6 +179,11 @@ export function toEvalTripFacts(trip: EvalTrip, seed: ScenarioSeed, today: strin
     candidates.find((row) => row.selected) ??
     (trip.chosenOption
       ? {
+          id: trip.quoteOptions.find(
+            (option) =>
+              option.hotel.toLowerCase().includes(trip.chosenOption!.hotel.toLowerCase()) &&
+              option.room.toLowerCase().includes(trip.chosenOption!.room.toLowerCase()),
+          )?.id,
           title: `${trip.chosenOption.hotel} · ${trip.chosenOption.room}`,
           subtitle: null,
           cost_internal: null,

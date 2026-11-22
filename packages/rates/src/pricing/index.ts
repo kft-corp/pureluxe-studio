@@ -26,9 +26,12 @@ export {
 } from "./offers";
 export {
   ASSUMED_CHILD_AGE,
+  occupancyLimitsUnknown,
   partyFitsRate,
+  partyRoomsFromOccupancies,
   roomFitsOccupancy,
   splitPartyAcrossRooms,
+  type OccupancyLimits,
   type PartyRoom,
 } from "./party";
 export {

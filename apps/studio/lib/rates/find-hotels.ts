@@ -12,10 +12,25 @@ import {
   type HotelPriceTier,
   type HotelSuggestParty,
   type KbExperienceSuggestHit,
-  type KbHotelGuideScoreFactors,
   type KbHotelSuggestHit,
   type PropertySearchHit,
 } from "@pureluxe/db";
+import { rateMessages } from "@pureluxe/shared";
+
+import {
+  type FindHotelsInput,
+  type FindHotelsResult,
+  type FoundExperience,
+  type FoundHotel,
+} from "./find-hotels-types";
+import { fillOpenGdsIfThin } from "./open-gds-fill";
+
+export type {
+  FindHotelsInput,
+  FindHotelsResult,
+  FoundExperience,
+  FoundHotel,
+} from "./find-hotels-types";
 
 const LINKED_SCORE = 0.7;
 const UNSURE_SCORE = 0.35;
@@ -26,83 +41,20 @@ const DEFAULT_SUGGEST_LIMIT = 3;
 const EXPERIENCE_ACTIVITY_LIMIT = 3;
 const EXPERIENCE_RESTAURANT_LIMIT = 2;
 
-export type FindHotelsInput = {
-  name?: string | null;
-  destination?: string | null;
-  tier?: HotelPriceTier | null;
-  /** Hotel name to match style and tier against. */
-  similarTo?: string | null;
-  /** Hotel name whose price band others should match. */
-  priceBandLike?: string | null;
-  limit?: number;
-  /** False for silent coverage probes — skip experience bank. Default true. */
-  includeExperiences?: boolean;
-  /** Adults on the open trip — tilts matrix ranking behind the scenes. */
-  adults?: number | null;
-  /** Children + infants on the open trip. */
-  children?: number | null;
-  /** Advisor ask text (or destination/query) for style tilt — romantic, spa, family, … */
-  ask?: string | null;
-  /** Client preference / diet labels from the lead profile. */
-  prefHints?: string[] | null;
-};
-
-export type FoundHotel = {
-  name: string;
-  destination: string | null;
-  city: string | null;
-  country: string | null;
-  tier: HotelPriceTier | null;
-  style_tags: string[];
-  score: number;
-  /**
-   * True when Rate Layer can shop this hotel (properties row).
-   * False = Atlas preferred/guide only — suggest names, rates need paste/GDS/link.
-   */
-  contracted: boolean;
-  /** Where the hit came from. */
-  source: "rate_layer" | "atlas";
-  /** Advisor-facing badge: Contracted = shoppable; Preferred = guide list only. */
-  badge: "Contracted" | "Preferred";
-  /** Neighbourhood / guide area when known. */
-  area: string | null;
-  /** Partner / consortia label when known. */
-  partner: string | null;
-  /** One-line why from Atlas advisor take / description. */
-  why: string | null;
-  /** Short "choose if" fit line. */
-  choose_if: string | null;
-  /** Destination-guide internal score when known (advisor-facing). */
-  guide_rating: number | null;
-  /** Internal guide matrix factors (full-name keys); for why/compare — never clients. */
-  guide_score_factors: KbHotelGuideScoreFactors;
-};
-
-export type FoundExperience = {
-  kind: "activity" | "restaurant";
-  name: string;
-  city: string | null;
-  guide_type: string | null;
-  who_it_suits: string | null;
-  lead_time: string | null;
-  veg_jain: string | null;
-  why: string | null;
-};
-
-export type FindHotelsResult = {
-  hotels: FoundHotel[];
-  /** Curated activities + restaurants for the place (empty when none / skipped). */
-  experiences: FoundExperience[];
-  /** Suggested names when the query was unclear. */
-  did_you_mean: string[];
-  note: string | null;
-};
-
 function emptyDecisionFields(): Pick<
   FoundHotel,
-  "area" | "partner" | "why" | "choose_if" | "guide_rating" | "guide_score_factors"
+  | "property_id"
+  | "sabre_hotel_code"
+  | "area"
+  | "partner"
+  | "why"
+  | "choose_if"
+  | "guide_rating"
+  | "guide_score_factors"
 > {
   return {
+    property_id: null,
+    sabre_hotel_code: null,
     area: null,
     partner: null,
     why: null,
@@ -125,6 +77,7 @@ function toFound(hit: PropertySearchHit): FoundHotel {
     source: "rate_layer",
     badge: "Contracted",
     ...emptyDecisionFields(),
+    property_id: hit.id,
   };
 }
 
@@ -144,6 +97,8 @@ function toFoundAtlas(
     contracted,
     source: "atlas",
     badge: contracted ? "Contracted" : "Preferred",
+    property_id: hit.property_id,
+    sabre_hotel_code: null,
     area: hit.area,
     partner: hit.partner,
     why: hit.why,
@@ -243,14 +198,22 @@ async function attachExperiences(
   }
 }
 
+/** Contracted → Preferred (Atlas) → Open GDS, then guide quality. */
+function sourceRank(hotel: FoundHotel): number {
+  if (hotel.contracted || hotel.source === "rate_layer") return 3;
+  if (hotel.source === "atlas") return 2;
+  if (hotel.source === "open_gds") return 1;
+  return 0;
+}
+
 /** Re-order shortlist using guide average + matrix fit (party-weighted). */
 function sortByGuideQuality(
   hotels: FoundHotel[],
   party?: HotelSuggestParty | null,
 ): FoundHotel[] {
   return [...hotels].sort((a, b) => {
-    const contracted = Number(b.contracted) - Number(a.contracted);
-    if (contracted !== 0) return contracted;
+    const bySource = sourceRank(b) - sourceRank(a);
+    if (bySource !== 0) return bySource;
     const quality =
       guideQualityScore(
         {
@@ -453,7 +416,18 @@ async function mergeAtlasFill(
   return reorderByGuide ? sortByGuideQuality(merged, party) : merged;
 }
 
-function emptyNote(place: string, tier: HotelPriceTier | null): string {
+function emptyNote(
+  place: string,
+  tier: HotelPriceTier | null,
+  openAttempted: boolean,
+  coverageOnly: boolean,
+): string {
+  if (coverageOnly) {
+    return rateMessages.find.coverageNoPreferred;
+  }
+  if (openAttempted) {
+    return rateMessages.find.openGdsEmpty;
+  }
   return tier
     ? `No ${tier.replaceAll("_", " ")} hotels found in ${place}.`
     : `No hotels found in ${place}.`;
@@ -473,6 +447,7 @@ export async function findHotels(input: FindHotelsInput): Promise<FindHotelsResu
   const priceBandLike = input.priceBandLike?.trim() || null;
   const tier = input.tier ?? null;
   const includeExperiences = input.includeExperiences !== false;
+  const skipOpenGds = input.skipOpenGds === true;
   const askText =
     input.ask?.trim() ||
     [input.destination, input.name, input.similarTo, input.priceBandLike]
@@ -629,7 +604,7 @@ export async function findHotels(input: FindHotelsInput): Promise<FindHotelsResu
 
   const rateFound = await enrichRateHotels(rateHits, party);
   // Price-band keeps proximity order (matrix is tie-break inside band); others full re-rank.
-  const hotels = await mergeAtlasFill(
+  const merged = await mergeAtlasFill(
     rateFound,
     place,
     limit,
@@ -638,29 +613,55 @@ export async function findHotels(input: FindHotelsInput): Promise<FindHotelsResu
     !priceBandLike,
   );
 
+  // Silent coverage: preferred only. Explicit suggest: thin list → open-GDS (min rating 4).
+  const {
+    hotels,
+    filled: openFilled,
+    attempted: openAttempted,
+  } = skipOpenGds
+    ? {
+        hotels: merged,
+        filled: false,
+        attempted: false,
+      }
+    : await fillOpenGdsIfThin({
+        hotels: merged,
+        place,
+        adults: party.adults,
+        children: party.children,
+        checkIn: input.checkIn,
+        checkOut: input.checkOut,
+      });
+
   if (hotels.length === 0) {
     return {
       hotels: [],
       experiences: [],
       did_you_mean: [],
-      note: emptyNote(place, targetTier),
+      note: emptyNote(place, targetTier, openAttempted, skipOpenGds),
     };
   }
 
   const onlyAtlas = hotels.every((h) => h.source === "atlas");
+  const hasOpen = hotels.some((h) => h.source === "open_gds");
   const mixed =
     hotels.some((h) => h.source === "rate_layer") &&
-    hotels.some((h) => h.source === "atlas");
+    hotels.some((h) => h.source === "atlas" || h.source === "open_gds");
+
+  let note: string | null = null;
+  if (openFilled || hasOpen) {
+    note = rateMessages.find.openGdsFilled;
+  } else if (onlyAtlas) {
+    note = rateMessages.find.atlasOnly;
+  } else if (mixed) {
+    note = rateMessages.find.mixed;
+  }
 
   return attachExperiences(
     {
       hotels,
       did_you_mean: [],
-      note: onlyAtlas
-        ? "Preferred hotels from the destination guide — none are in the contracted rate file yet. Suggest names now; rates need a paste quote (or a linked/GDS hotel) when asked."
-        : mixed
-          ? "Contracted Rate Layer hotels first; preferred guide hotels fill the rest. Only call rates for contracted picks (or paste quote)."
-          : null,
+      note,
     },
     place,
     includeExperiences,

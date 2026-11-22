@@ -2,12 +2,14 @@
  * @pureluxe/rates — shared Rate Layer brain for Studio and (later) Client App.
  * Spec: docs/studio/rate-layer.md
  *
- * Layout (MVP, mirrors @pureluxe/auth use-case folders):
- *   search/   — public entry
- *   resolve/  — destination + layer + adapter plan
- *   results/  — normalize, rank, margin, guest
- *   offline/  — paste path
- *   adapters/ — supplier I/O (next slice)
+ * Layout:
+ *   search/     — public entry
+ *   resolve/    — destination + layer + adapter plan
+ *   results/    — normalize, rank, margin, guest
+ *   pricing/    — contracted math
+ *   offline/    — paste + contract policy helpers
+ *   adapters/   — plan orchestration + offline adapters
+ *   suppliers/  — Sabre / Hotelbeds / wholesale I/O
  *   types/ + errors/
  */
 
@@ -64,17 +66,68 @@ export {
 
 export {
   runAdapterPlan,
-  searchHotelbeds,
   searchOfflineContracted,
   searchOfflineManual,
-  searchSabre,
-  searchWholesale,
   type AdapterContext,
   type AdapterResult,
   type AdapterResultStatus,
   type RateAdapter,
   type RunAdapterPlanResult,
 } from "./adapters";
+
+export {
+  buildSabreBasicAuth,
+  clearSabreAccessTokenCache,
+  defaultDiscoverStayDates,
+  getSabreAccessToken,
+  getSabreConfig,
+  hotelPriceCheck,
+  isSabreConfigured,
+  isSabreOpenGdsBrowseEnabled,
+  mapHotelDetailsToQuotes,
+  mapHotelDiscoverToCandidates,
+  isSabreReshopSignal,
+  mapHotelPriceCheckResponse,
+  mapHotelRatesToQuotes,
+  openGdsMinSabreRating,
+  priceCheckSabreRate,
+  sabreLog,
+  sabreRequest,
+  SabreHttpError,
+  searchHotelbeds,
+  searchHotelDetailsByCode,
+  searchHotelRatesByCode,
+  searchHotelsByAirport,
+  searchHotelsByGeo,
+  searchSabre,
+  searchWholesale,
+  type HotelPriceCheckInput,
+  type MapHotelDetailsToQuotesInput,
+  type MapHotelRatesToQuotesInput,
+  type PriceCheckSabreInput,
+  type PriceCheckSabreResult,
+  type SabreConfig,
+  type SabreDiscoverHotel,
+  type SabrePriceCheckFailureReason,
+  type SabrePriceCheckMapped,
+  type SabreRequestOptions,
+  type SearchHotelDetailsByCodeInput,
+  type SearchHotelRatesByCodeInput,
+  type SearchHotelsByAirportInput,
+  type SearchHotelsByGeoInput,
+  type SearchHotelRatesStay,
+  buildMatchingRoomOccupancies,
+  distributeAdultsAcrossRooms,
+  formatOccupancyShopLabel,
+  groupRoomOccupanciesForSabreShops,
+  hasUniformSabrePax,
+  mergeSabreOccupancyShopQuotes,
+  needsRoomOccupancySplit,
+  validateRoomOccupancies,
+  type RoomOccupancy,
+  type RoomOccupancyValidation,
+  type SabreOccupancyShopGroup,
+} from "./suppliers";
 
 export { resolveRates, searchRatesForLeg } from "./search";
 
@@ -97,6 +150,8 @@ export {
   rateForNight,
   roomFitsOccupancy,
   roundMoney,
+  occupancyLimitsUnknown,
+  partyRoomsFromOccupancies,
   splitPartyAcrossRooms,
   stayNights,
   type AppliedExtra,

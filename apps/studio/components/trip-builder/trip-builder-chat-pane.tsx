@@ -27,10 +27,7 @@ import {
   type TripBuilderRateCard as RateCard,
   type TripBuilderStayNotes,
 } from "./trip-builder-rate-card";
-import {
-  TripBuilderRateCompare,
-  type RateCompareAddOption,
-} from "./trip-builder-rate-compare";
+import { TripBuilderRateCompare } from "./trip-builder-rate-compare";
 import { CHAT_COLUMN_CLASS, chatDayKey, chatDayLabel, plainReplyText } from "./trip-builder-helpers";
 import { ChatSkeleton } from "./trip-builder-skeleton";
 
@@ -54,8 +51,6 @@ type TripBuilderChatPaneProps = {
   stayNotes: TripBuilderStayNotes | null;
   activeLegId?: string | null;
   onLoadOlder: () => void;
-  /** Add a room from the compare card (Stage 3d). */
-  onAddRateOption?: (option: RateCompareAddOption) => void;
   /** Resume an incomplete assistant reply from the checkpointer. */
   onContinueIncomplete?: () => void;
 };
@@ -77,7 +72,6 @@ export function TripBuilderChatPane({
   stayNotes,
   activeLegId = null,
   onLoadOlder,
-  onAddRateOption,
   onContinueIncomplete,
 }: TripBuilderChatPaneProps) {
   const hasDraftThread =
@@ -138,7 +132,6 @@ export function TripBuilderChatPane({
       rateCompare={streamingContent ? null : rateCompare}
       stayNotes={streamingContent ? null : stayNotes}
       offersDisabled={busy}
-      onAddRateOption={canWrite ? onAddRateOption : undefined}
       onContinueIncomplete={canWrite && !busy ? onContinueIncomplete : undefined}
     />
   );
@@ -168,7 +161,6 @@ function ChatScrollArea({
   rateCompare,
   stayNotes,
   offersDisabled,
-  onAddRateOption,
   onContinueIncomplete,
 }: {
   chatLoading: boolean;
@@ -185,7 +177,6 @@ function ChatScrollArea({
   rateCompare: RateCompareCard | null;
   stayNotes: TripBuilderStayNotes | null;
   offersDisabled: boolean;
-  onAddRateOption?: (option: RateCompareAddOption) => void;
   onContinueIncomplete?: () => void;
 }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -310,7 +301,6 @@ function ChatScrollArea({
           rateCompare={rateCompare}
           stayNotes={stayNotes}
           offersDisabled={offersDisabled}
-          onAddRateOption={onAddRateOption}
           onContinueIncomplete={onContinueIncomplete}
           endRef={endRef}
         />
@@ -388,7 +378,7 @@ function stageCueFor(
   }
   if (stage === "booking") {
     if (staysAwaitingRoom(detail) > 0) {
-      return "Client said yes. Tap **This is their room** for each stay. Then check today's price, book offline, confirm the hotel in **Bookings** with the PNR, and clear travel prep.";
+      return "Client said yes. Tap **This is their room** for each stay. Live GDS rooms recheck today's price automatically (ask anytime). Then book offline, confirm in **Bookings** with the PNR, and clear travel prep.";
     }
     return BOOKING_PREP_GUIDE;
   }
@@ -410,7 +400,6 @@ function ChatMessageList({
   rateCompare,
   stayNotes,
   offersDisabled,
-  onAddRateOption,
   onContinueIncomplete,
   endRef,
 }: {
@@ -425,7 +414,6 @@ function ChatMessageList({
   rateCompare: RateCompareCard | null;
   stayNotes: TripBuilderStayNotes | null;
   offersDisabled: boolean;
-  onAddRateOption?: (option: RateCompareAddOption) => void;
   onContinueIncomplete?: () => void;
   endRef: React.RefObject<HTMLDivElement | null>;
 }) {
@@ -463,13 +451,7 @@ function ChatMessageList({
     if (savedCompare || savedSplit) {
       return (
         <>
-          {savedCompare ? (
-            <TripBuilderRateCompare
-              compare={savedCompare}
-              disabled={offersDisabled}
-              onAddOption={onAddRateOption}
-            />
-          ) : null}
+          {savedCompare ? <TripBuilderRateCompare compare={savedCompare} /> : null}
           {savedSplit ? <TripBuilderLegSplit split={savedSplit} /> : null}
         </>
       );
@@ -479,13 +461,7 @@ function ChatMessageList({
     // Prefer a saved card already rendered above when this reply has none.
     if (latestRateCompareMessageId != null) return null;
     if (rateCompare != null) {
-      return (
-        <TripBuilderRateCompare
-          compare={rateCompare}
-          disabled={offersDisabled}
-          onAddOption={onAddRateOption}
-        />
-      );
+      return <TripBuilderRateCompare compare={rateCompare} />;
     }
     if (rateCards.length > 0) {
       return (
@@ -497,11 +473,7 @@ function ChatMessageList({
 
   const welcomeOffers =
     rateCompare != null ? (
-      <TripBuilderRateCompare
-        compare={rateCompare}
-        disabled={offersDisabled}
-        onAddOption={onAddRateOption}
-      />
+      <TripBuilderRateCompare compare={rateCompare} />
     ) : rateCards.length > 0 ? (
       <MessageOffers rateCards={rateCards} stayNotes={stayNotes} disabled={offersDisabled} />
     ) : null;

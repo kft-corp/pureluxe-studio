@@ -1,4 +1,4 @@
-import type { AdapterContext, AdapterResult } from "./types";
+import type { AdapterContext, AdapterResult } from "../../adapters/types";
 
 /**
  * Stub: Hotelbeds / OTA bedbank. Live API later.

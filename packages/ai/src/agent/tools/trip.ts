@@ -61,7 +61,7 @@ export const tripSetTravellersTool = defineAgentTool({
   description: [
     "Add or remove travellers, or change someone between adult, child, and infant. The lead always stays.",
     "Use when the advisor adds or drops a person, or says someone is a child. Find a new person's id with client_search first.",
-    "When ages are stated (e.g. kids are 16): pass age on add — under 2 infant, under 12 child, 12+ adult; ages are saved without needing a passport; pass child_ages on rates_search the same turn.",
+    "When ages are stated (e.g. kids are 16): pass age on add — under 2 infant, under 12 child, 12+ adult; ages are saved without needing a passport. Do not rates_search on this turn unless they also asked for rates — pass child_ages later when they do.",
     "Do not use to change the lead (use trip_set_client).",
     "Returns a summary of the change; the advisor gets Undo.",
   ].join(" "),
@@ -125,6 +125,7 @@ export const tripSetDatesTool = defineAgentTool({
   description: [
     "Set the whole trip's start and end dates from what the advisor said. Pass MM-DD when they gave no year: Studio picks the next occurrence and shows the year as assumed. The result has the exact dates.",
     "A single stay that covered the trip moves with the new dates. If other stays would fall outside, set the stays together with the dates using trip_set_stays.",
+    "Do not call rates_search after this tool unless the advisor also asked for rates/prices in the same message (founder #3).",
     "When a destination is already on the trip and you would next ask about hotels: hotel_find with coverage_check true for that destination in the same turn (founder #16) — do not list hotels unless they ask to suggest.",
     "Do not use to move every date by the same number of days (use trip_shift_dates).",
     "Returns a summary of the change; the advisor gets Undo.",
@@ -146,8 +147,9 @@ export const tripSetStaysTool = defineAgentTool({
     "Set every stay on the trip at once, in order, with an optional hotel and rooms for each. One stay without dates covers the whole trip.",
     "Use when the advisor names where they go, changes a stay's dates, city or hotel, or adds a stay. Pass the full list, existing stays included; stays left out are removed.",
     "Do not use for the first multi-city split proposal (Malé then Baa, etc.) — use trip_propose_split so Studio shows Accept. Use this after they say accept / apply the split, or when stays are already split and only need a hotel/date tweak.",
-    "Pass hotel null to clear a hotel on a stay — quote rooms on that stay (and any rooms labelled with that hotel) are removed with it. Pass start and end too when the trip dates change at the same time; like all dates here, MM-DD when the advisor gave no year. Rooms default to one per two adults when a hotel is set.",
-    "Before asking hotel-in-mind / suggest as the next step: hotel_find with coverage_check true (limit 1) per stay city; if none loaded (Rate Layer and Atlas empty), say so and ask for names or a paste quote — if any hotel returned, ask hotel-in-mind vs suggest without listing hotels (founder #16).",
+    "Pass hotel null to clear a hotel on a stay — quote rooms on that stay (and any rooms labelled with that hotel) are removed with it. Pass start and end too when the trip dates change at the same time; like all dates here, MM-DD when the advisor gave no year. Pass rooms when the advisor stated a room count (required before rates_search) — never invent rooms when only setting a hotel.",
+    "Do not call rates_search after this tool unless the advisor also asked for rates/prices in the same message (founder #3).",
+    "Before asking hotel next-step: hotel_find with coverage_check true (limit 1) per stay city; if preferred empty, offer live suggestions or name/paste (founder #16) — if any hotel returned, ask hotel-in-mind vs suggest without listing hotels.",
     "Do not use to remove a stay that has the client's room (use trip_remove_stay).",
     "Returns a summary of the change; the advisor gets Undo.",
   ].join(" "),
@@ -190,6 +192,7 @@ export const tripShiftDatesTool = defineAgentTool({
   description: [
     "Move the whole trip and every stay by the same number of days, for example when a flight moves. Hotels stay; selected rates clear and pending bookings are cancelled.",
     "Use when the advisor moves the whole trip earlier or later.",
+    "Do not call rates_search after this tool unless the advisor also asked for rates/prices in the same message (founder #3).",
     "Do not use to set new dates of a different length (use trip_set_dates).",
     "Runs at once with Undo; the advisor confirms first only when a stay has the client's room. Returns a summary of the change.",
   ].join(" "),

@@ -72,8 +72,8 @@ export function buildAdvisorPath(input: PathInput): AdvisorPath {
 
   const prepHint =
     travelPrepCount > 0
-      ? `Check today's price in Trip Builder, clear travel prep (${travelPrepCount} item${travelPrepCount === 1 ? "" : "s"}), book the hotel offline, then confirm each stay in Bookings with the PNR.`
-      : "Check today's price in Trip Builder, book the hotel offline, then confirm each stay in Bookings with the PNR.";
+      ? `For live GDS rooms, recheck today's price in Trip Builder (automatic after room choice, or ask anytime). Clear travel prep (${travelPrepCount} item${travelPrepCount === 1 ? "" : "s"}), book offline, then confirm each stay in Bookings with the PNR.`
+      : "For live GDS rooms, recheck today's price in Trip Builder (automatic after room choice, or ask anytime). Contracted rates skip live recheck. Book offline, then confirm each stay in Bookings with the PNR.";
 
   const steps: AdvisorPathStep[] = [
     {

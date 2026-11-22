@@ -3,20 +3,13 @@
 import { useState } from "react";
 
 import type { RateCompareCard, RateCompareHotel, RateCompareRoom } from "@pureluxe/ai/chat-stream";
+import { rateMessages } from "@pureluxe/shared";
 
 import { formatRoomMoney, roundMoney } from "@/lib/rates/price-math";
 import { cn } from "@/lib/utils/cn";
 
-/** Kept for callers that still type the old Add callback; the rates table no longer shows Add. */
-export type RateCompareAddOption = {
-  hotel: string;
-  room: string;
-  markupPercent: number;
-  rateRef: string;
-};
-
 /** First rooms shown per hotel; advisor expands for the rest. */
-const INITIAL_ROOMS_VISIBLE = 3;
+const INITIAL_ROOMS_VISIBLE = 5;
 
 function statusLabel(status: RateCompareHotel["status"]): string {
   switch (status) {
@@ -41,7 +34,16 @@ function mealPlanLabel(board: string | null | undefined): string {
   const key = raw.toLowerCase().replace(/\s+/g, " ");
   if (key === "hb" || key === "half board") return "Half board";
   if (key === "fb" || key === "full board") return "Full board";
-  if (key === "bb" || key === "bed & breakfast" || key === "bed and breakfast") return "Breakfast";
+  if (
+    key === "bb" ||
+    key === "bed & breakfast" ||
+    key === "bed and breakfast" ||
+    key === "breakfast" ||
+    key === "room with breakfast" ||
+    key.includes("breakfast")
+  ) {
+    return "Room with breakfast";
+  }
   if (key === "ai" || key === "all inclusive" || key === "all-inclusive") return "All inclusive";
   if (key === "ro" || key === "room only") return "Room only";
   return raw;
@@ -112,17 +114,29 @@ function CostCell({ amount, currency }: { amount: number; currency: string }) {
 }
 
 function RoomNameCell({ room }: { room: RateCompareRoom }) {
+  const subtitle = [room.detail?.trim(), room.package_label?.trim()]
+    .filter(Boolean)
+    .filter((part, index, all) => {
+      const key = part!.toLowerCase();
+      return all.findIndex((row) => row!.toLowerCase() === key) === index;
+    })
+    .join(" · ");
   return (
     <>
-      {room.room_name || "—"}
-      {room.recommended ? (
-        <span className="ml-1 text-[12px] font-medium text-accent-ink">Pick</span>
-      ) : null}
-      {room.package_label ? (
-        <span className="mt-0.5 block text-[12px] text-ink-subtle">{room.package_label}</span>
+      <span className="block">{room.room_name || "—"}</span>
+      {subtitle ? (
+        <span className="mt-0.5 block text-[12px] text-ink-subtle">{subtitle}</span>
       ) : null}
     </>
   );
+}
+
+function segmentRoomLine(
+  segment: NonNullable<RateCompareRoom["segments"]>[number],
+): string {
+  return [segment.label, segment.room_name, segment.detail]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 /** Party · rooms · nights for this rates_search (does not claim every cell is that total). */
@@ -158,9 +172,6 @@ export function TripBuilderRateCompare({
   compare,
 }: {
   compare: RateCompareCard;
-  /** Ignored — kept so existing call sites keep typing. */
-  disabled?: boolean;
-  onAddOption?: (option: RateCompareAddOption) => void;
 }) {
   const hotels = compare.hotels ?? [];
   const contextLine = searchContextLine(compare);
@@ -191,6 +202,11 @@ export function TripBuilderRateCompare({
           />
         ))}
       </div>
+      {hotels.some((hotel) => hotel.status === "ok" && (hotel.rooms?.length ?? 0) > 0) ? (
+        <p className="text-[12.5px] text-ink-subtle">
+          {rateMessages.hint.askRoomOrFullInfo}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -220,12 +236,7 @@ function HotelRates({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-        <h4 className="text-[15px] font-medium text-ink">
-          {hotel.hotel}
-          {hotel.recommended ? (
-            <span className="ml-1.5 text-[12px] font-normal text-accent-ink">Best fit</span>
-          ) : null}
-        </h4>
+        <h4 className="text-[15px] font-medium text-ink">{hotel.hotel}</h4>
         {hotel.status === "ok" && sharedSource ? (
           <span className="text-[12px] text-ink-subtle">{sharedSource}</span>
         ) : null}
@@ -314,7 +325,7 @@ function HotelRates({
               </thead>
               <tbody>
                 {visibleRooms.map((room) => (
-                  <RoomTableRow
+                  <RoomTableRows
                     key={room.rate_ref}
                     room={room}
                     nights={nights}
@@ -350,7 +361,11 @@ function HotelRates({
   );
 }
 
-function RoomTableRow({
+/**
+ * Single-room: one table row.
+ * Dual-shop combo: two inner rows (Room 1 / Room 2) with stay total rowspan.
+ */
+function RoomTableRows({
   room,
   nights,
   packageMode,
@@ -363,48 +378,182 @@ function RoomTableRow({
 }) {
   const { teamTotal, teamPerNight, packageTeam, extraTeam } = roomCosts(room, nights);
   const showAsPackage = packageMode || isPackageRoom(room);
+  const segments =
+    room.segments && room.segments.length >= 2 ? room.segments : null;
+  const cellTone = room.recommended ? "bg-accent-soft/40" : null;
+  /** Contracted same-category stacks have no per-room money — rowspan sheet nightly. */
+  const sharedNightly =
+    segments != null &&
+    segments.every((segment) => segment.team_per_night == null);
 
+  if (!segments) {
+    return (
+      <tr className="border-b border-divider align-top">
+        <td className={cn("break-words px-3 py-2 text-ink", cellTone)}>
+          <RoomNameCell room={room} />
+        </td>
+        <td className={cn("break-words px-3 py-2 text-ink-muted", cellTone)}>
+          {mealPlanLabel(room.board)}
+        </td>
+        {showAsPackage ? (
+          <>
+            <td className={cn("px-3 py-2", cellTone)}>
+              <CostCell amount={packageTeam} currency={room.currency} />
+            </td>
+            <td className={cn("px-3 py-2", cellTone)}>
+              {extraTeam != null ? (
+                <CostCell amount={extraTeam} currency={room.currency} />
+              ) : (
+                <span className="text-ink-subtle">—</span>
+              )}
+            </td>
+            <td className={cn("px-3 py-2 font-medium", cellTone)}>
+              <CostCell amount={teamTotal} currency={room.currency} />
+            </td>
+          </>
+        ) : (
+          <>
+            <td className={cn("px-3 py-2", cellTone)}>
+              <CostCell amount={teamPerNight} currency={room.currency} />
+            </td>
+            <td className={cn("px-3 py-2 font-medium", cellTone)}>
+              <CostCell amount={teamTotal} currency={room.currency} />
+            </td>
+          </>
+        )}
+        {showSource ? (
+          <td className={cn("break-words px-3 py-2 text-ink-muted", cellTone)}>
+            {room.source ?? "—"}
+          </td>
+        ) : null}
+      </tr>
+    );
+  }
+
+  const span = segments.length;
   return (
-    <tr
-      className={cn(
-        "border-b border-divider/60 align-top",
-        room.recommended ? "bg-accent-soft/40" : null,
-      )}
-    >
-      <td className="break-words px-3 py-2 text-ink">
-        <RoomNameCell room={room} />
-      </td>
-      <td className="break-words px-3 py-2 text-ink-muted">{mealPlanLabel(room.board)}</td>
-      {showAsPackage ? (
-        <>
-          <td className="px-3 py-2">
-            <CostCell amount={packageTeam} currency={room.currency} />
-          </td>
-          <td className="px-3 py-2">
-            {extraTeam != null ? (
-              <CostCell amount={extraTeam} currency={room.currency} />
+    <>
+      {segments.map((segment, index) => {
+        const isFirst = index === 0;
+        const isLast = index === segments.length - 1;
+        const padY = isFirst ? "pt-2.5 pb-1" : "pt-1 pb-2.5";
+        // No line between Room 1/2; thick rule only after the whole combo.
+        const edge = isLast ? "border-b-2 border-border" : "border-b-0";
+        return (
+          <tr key={`${room.rate_ref}-${segment.label}`} className="align-top">
+            <td
+              className={cn(
+                "break-words px-3 text-ink",
+                padY,
+                edge,
+                cellTone,
+              )}
+            >
+              {isFirst ? (
+                <span className="mb-1 block text-[13px] font-semibold text-ink">
+                  {room.room_name || "—"}
+                </span>
+              ) : null}
+              <span className="block text-[12.5px] text-ink-muted">
+                {segmentRoomLine(segment)}
+              </span>
+            </td>
+            <td
+              className={cn(
+                "break-words px-3 text-ink-muted",
+                padY,
+                edge,
+                cellTone,
+              )}
+            >
+              {mealPlanLabel(segment.board)}
+            </td>
+            {showAsPackage ? (
+              <>
+                {isFirst ? (
+                  <>
+                    <td
+                      className={cn("px-3 py-2.5 border-b-2 border-border", cellTone)}
+                      rowSpan={span}
+                    >
+                      <CostCell amount={packageTeam} currency={room.currency} />
+                    </td>
+                    <td
+                      className={cn("px-3 py-2.5 border-b-2 border-border", cellTone)}
+                      rowSpan={span}
+                    >
+                      {extraTeam != null ? (
+                        <CostCell amount={extraTeam} currency={room.currency} />
+                      ) : (
+                        <span className="text-ink-subtle">—</span>
+                      )}
+                    </td>
+                    <td
+                      className={cn(
+                        "px-3 py-2.5 font-medium border-b-2 border-border",
+                        cellTone,
+                      )}
+                      rowSpan={span}
+                    >
+                      <CostCell amount={teamTotal} currency={room.currency} />
+                    </td>
+                  </>
+                ) : null}
+              </>
             ) : (
-              <span className="text-ink-subtle">—</span>
+              <>
+                {sharedNightly ? (
+                  isFirst ? (
+                    <td
+                      className={cn(
+                        "px-3 py-2.5 border-b-2 border-border",
+                        cellTone,
+                      )}
+                      rowSpan={span}
+                    >
+                      <CostCell amount={teamPerNight} currency={room.currency} />
+                    </td>
+                  ) : null
+                ) : (
+                  <td className={cn("px-3", padY, edge, cellTone)}>
+                    {segment.team_per_night != null ? (
+                      <CostCell
+                        amount={segment.team_per_night}
+                        currency={room.currency}
+                      />
+                    ) : (
+                      <span className="text-ink-subtle">—</span>
+                    )}
+                  </td>
+                )}
+                {isFirst ? (
+                  <td
+                    className={cn(
+                      "px-3 py-2.5 font-medium border-b-2 border-border",
+                      cellTone,
+                    )}
+                    rowSpan={span}
+                  >
+                    <CostCell amount={teamTotal} currency={room.currency} />
+                  </td>
+                ) : null}
+              </>
             )}
-          </td>
-          <td className="px-3 py-2">
-            <CostCell amount={teamTotal} currency={room.currency} />
-          </td>
-        </>
-      ) : (
-        <>
-          <td className="px-3 py-2">
-            <CostCell amount={teamPerNight} currency={room.currency} />
-          </td>
-          <td className="px-3 py-2">
-            <CostCell amount={teamTotal} currency={room.currency} />
-          </td>
-        </>
-      )}
-      {showSource ? (
-        <td className="break-words px-3 py-2 text-ink-muted">{room.source ?? "—"}</td>
-      ) : null}
-    </tr>
+            {showSource && isFirst ? (
+              <td
+                className={cn(
+                  "break-words px-3 py-2.5 text-ink-muted border-b-2 border-border",
+                  cellTone,
+                )}
+                rowSpan={span}
+              >
+                {room.source ?? "—"}
+              </td>
+            ) : null}
+          </tr>
+        );
+      })}
+    </>
   );
 }
 
@@ -433,20 +582,50 @@ function RoomMobileCard({
       )}
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
-        <h5 className="min-w-0 text-[14px] font-medium break-words text-ink">
+        <h5
+          className={cn(
+            "min-w-0 break-words text-ink",
+            room.segments && room.segments.length >= 2
+              ? "text-[14px] font-semibold"
+              : "text-[14px] font-medium",
+          )}
+        >
           {room.room_name || "—"}
-          {room.recommended ? (
-            <span className="ml-1.5 text-[12px] font-medium text-accent-ink">Pick</span>
-          ) : null}
         </h5>
         {showSource ? (
           <span className="shrink-0 text-[12px] text-ink-subtle">{room.source ?? "—"}</span>
         ) : null}
       </div>
-      <p className="mt-0.5 text-[12.5px] text-ink-muted">
-        {mealPlanLabel(room.board)}
-        {room.package_label ? ` · ${room.package_label}` : ""}
-      </p>
+      {room.segments && room.segments.length >= 2 ? (
+        <ul className="mt-1.5 space-y-1 border-l-2 border-divider/70 pl-2.5">
+          {room.segments.map((segment) => (
+            <li key={segment.label} className="text-[12.5px] text-ink-muted">
+              <span>{segmentRoomLine(segment)}</span>
+              <span className="text-ink-subtle">
+                {" · "}
+                {mealPlanLabel(segment.board)}
+                {segment.team_per_night != null
+                  ? ` · ${formatRoomMoney(segment.team_per_night, room.currency)}/night`
+                  : ""}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-0.5 text-[12.5px] text-ink-muted">
+          {[
+            mealPlanLabel(room.board),
+            room.detail?.trim(),
+            room.package_label?.trim(),
+          ]
+            .filter(Boolean)
+            .filter((part, index, all) => {
+              const key = part!.toLowerCase();
+              return all.findIndex((row) => row!.toLowerCase() === key) === index;
+            })
+            .join(" · ")}
+        </p>
+      )}
       <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-[13px]">
         {showAsPackage ? (
           <>
@@ -505,10 +684,41 @@ function HotelNotes({
   packageMode: boolean;
   searchRooms: number;
 }) {
-  const notes = hotel.notes ?? { cancellation: null, markup: null, inclusions: [] };
+  const notes = hotel.notes ?? {
+    cancellation: null,
+    payment: null,
+    markup: null,
+    inclusions: [],
+    highlights: [],
+    rate_terms: [],
+    in_stay: null,
+    extras: null,
+    pricing: null,
+  };
   const cancellation = notes.cancellation ?? null;
+  const payment = notes.payment ?? null;
   const inclusions = notes.inclusions ?? [];
-  if (!cancellation && inclusions.length === 0 && !packageMode) {
+  const highlights = notes.highlights ?? [];
+  const rateTerms = notes.rate_terms ?? [];
+  const inStay = notes.in_stay?.trim() || null;
+  const extras = notes.extras?.trim() || null;
+  const pricing = notes.pricing?.trim() || null;
+  const extrasLookRequired =
+    Boolean(extras) &&
+    /\b(green tax|christmas|new year|festive|supplement|seaplane|transfer)\b/i.test(
+      extras!,
+    );
+  if (
+    !cancellation &&
+    !payment &&
+    inclusions.length === 0 &&
+    highlights.length === 0 &&
+    rateTerms.length === 0 &&
+    !inStay &&
+    !extras &&
+    !pricing &&
+    !packageMode
+  ) {
     return null;
   }
   const stayLabel = stayCostColumnLabel(searchRooms);
@@ -525,16 +735,54 @@ function HotelNotes({
           </dd>
         </div>
       ) : null}
+      {!packageMode && pricing ? (
+        <div>
+          <dt className="inline font-medium text-ink">Pricing: </dt>
+          <dd className="inline">{pricing}</dd>
+        </div>
+      ) : null}
+      {highlights.length > 0 ? (
+        <div>
+          <dt className="inline font-medium text-ink">Hotel: </dt>
+          <dd className="inline">{highlights.join(" · ")}</dd>
+        </div>
+      ) : null}
+      {rateTerms.length > 0 ? (
+        <div>
+          <dt className="inline font-medium text-ink">Rate terms: </dt>
+          <dd className="inline">{rateTerms.join(" · ")}</dd>
+        </div>
+      ) : null}
       {cancellation ? (
         <div>
           <dt className="inline font-medium text-ink">Cancellation: </dt>
           <dd className="inline">{cancellation}</dd>
         </div>
       ) : null}
+      {payment ? (
+        <div>
+          <dt className="inline font-medium text-ink">Payment: </dt>
+          <dd className="inline">{payment}</dd>
+        </div>
+      ) : null}
       {inclusions.length > 0 ? (
         <div>
           <dt className="inline font-medium text-ink">Included: </dt>
           <dd className="inline">{inclusions.join(", ")}</dd>
+        </div>
+      ) : null}
+      {inStay ? (
+        <div>
+          <dt className="inline font-medium text-ink">In stay: </dt>
+          <dd className="inline">{inStay}</dd>
+        </div>
+      ) : null}
+      {extras ? (
+        <div>
+          <dt className="inline font-medium text-ink">
+            {extrasLookRequired ? "Required extras: " : "Extras: "}
+          </dt>
+          <dd className="inline">{extras}</dd>
         </div>
       ) : null}
     </dl>

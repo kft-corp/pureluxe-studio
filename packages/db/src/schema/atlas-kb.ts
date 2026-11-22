@@ -86,12 +86,38 @@ export type KbCountry = {
   updated_at: string;
 };
 
+/** Sabre GeoRef UOM for city-center hotel search. */
+export type KbSearchUom = "MI" | "KM";
+
 /** Row from public.kb_cities. */
 export type KbCity = {
   id: string;
   country_id: string;
   name: string;
   destination_profile_id: string | null;
+  /** City-center lat for Sabre GetHotelAvail GeoSearch (039). */
+  latitude: number | null;
+  longitude: number | null;
+  /** Default Sabre geo radius; null → app default. */
+  default_search_radius: number | null;
+  default_search_uom: KbSearchUom | null;
+  /** Preferred airport for Sabre airport RefPoint search (039). */
+  preferred_airport_id: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Row from public.kb_airports (039). */
+export type KbAirport = {
+  id: string;
+  /** IATA code, uppercase 3 letters (CDG, DPS). */
+  iata_code: string;
+  name: string;
+  city_id: string | null;
+  country_id: string | null;
+  latitude: number | null;
+  longitude: number | null;
   active: boolean;
   created_at: string;
   updated_at: string;

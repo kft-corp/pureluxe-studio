@@ -1,4 +1,4 @@
-import type { AdapterContext, AdapterResult } from "./types";
+import type { AdapterContext, AdapterResult } from "../../adapters/types";
 
 /**
  * Stub: destination wholesaler partner API. Live API later.

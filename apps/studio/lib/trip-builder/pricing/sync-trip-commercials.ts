@@ -17,9 +17,12 @@ export async function refreshTripAfterRateChange(
   actor: { memberId: string },
 ): Promise<void> {
   await syncTripCommercials(tripId);
-  await closeTripRateSearches(tripId);
+  // Sync pending booking while rate-search party facts may still be open,
+  // then expire searches. Quote lines should already freeze rooms/adults/children.
   const trip = await findTripById(tripId);
-  if (!trip?.primary_client_id) return;
-  const detail = await buildTripDetail(trip);
-  await syncTripHotelBooking(detail, actor);
+  if (trip?.primary_client_id) {
+    const detail = await buildTripDetail(trip);
+    await syncTripHotelBooking(detail, actor);
+  }
+  await closeTripRateSearches(tripId);
 }

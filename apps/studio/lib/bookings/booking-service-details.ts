@@ -277,7 +277,22 @@ export function listServiceDetailFields(
 
   if (parsed.serviceType === "hotel") {
     const d = parsed.details;
-    return collect(
+    const roomSegments = Array.isArray(d.gds_room_segments)
+      ? d.gds_room_segments
+      : [];
+    const rows = collect(
+      // GDS offline-book handoff first — ops need code + policies before times.
+      field("gds_hotel_code", "GDS hotel code", d.gds_hotel_code),
+      field("gds_hotel_name", "GDS hotel name", d.gds_hotel_name),
+      field("gds_rate_source", "Rate source", d.gds_rate_source),
+      field("room_type", "Room option", d.room_type),
+      field(
+        "board_basis",
+        "Meals included",
+        formatBoardBasisDisplay(d.board_basis, d.board_basis_label),
+      ),
+      field("rate_plan", "Booking rate", d.rate_plan),
+      field("payment_summary", "Payment terms", d.payment_summary),
       field(
         "check_in_time",
         "Check-in time",
@@ -288,15 +303,51 @@ export function listServiceDetailFields(
         "Check-out time",
         d.check_out_time ? formatTimeOfDay(d.check_out_time) : null,
       ),
-      field("room_type", "Room type", d.room_type),
-      field(
-        "board_basis",
-        "Meals included",
-        formatBoardBasisDisplay(d.board_basis, d.board_basis_label),
-      ),
-      field("rate_plan", "Booking rate", d.rate_plan),
       field("special_requests", "Special requests", d.special_requests),
+      roomSegments.length === 0
+        ? field("gds_rate_key", "Rate key", d.gds_rate_key)
+        : null,
+      field("gds_booking_key", "Booking key", d.gds_booking_key),
     );
+
+    roomSegments.forEach((segment, index) => {
+      if (!segment || typeof segment !== "object") return;
+      const rec = segment as Record<string, unknown>;
+      const label =
+        (typeof rec.label === "string" && rec.label.trim()) ||
+        (typeof rec.room_name === "string" && rec.room_name.trim()) ||
+        `Room ${index + 1}`;
+      const summary = [
+        typeof rec.board === "string" && rec.board.trim()
+          ? `Meal ${rec.board.trim()}`
+          : null,
+        typeof rec.cancellation_summary === "string" &&
+        rec.cancellation_summary.trim()
+          ? `Cancel: ${rec.cancellation_summary.trim()}`
+          : null,
+        typeof rec.payment_summary === "string" && rec.payment_summary.trim()
+          ? `Pay: ${rec.payment_summary.trim()}`
+          : null,
+        typeof rec.rate_key === "string" && rec.rate_key.trim()
+          ? `Key: ${rec.rate_key.trim()}`
+          : null,
+        typeof rec.confirmation_ref === "string" &&
+        rec.confirmation_ref.trim()
+          ? `Conf: ${rec.confirmation_ref.trim()}`
+          : "Conf: (add after book)",
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      if (summary) {
+        rows.push({
+          key: `gds_room_segments.${index}`,
+          label: `Room ${index + 1} · ${label}`,
+          value: summary,
+        });
+      }
+    });
+
+    return rows;
   }
 
   if (parsed.serviceType === "flight") {

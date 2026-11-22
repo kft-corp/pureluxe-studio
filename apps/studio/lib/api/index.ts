@@ -72,6 +72,7 @@ export {
   listTripChatMessages,
   listTripBuilderTrips,
   pasteTripBuilderLineItem,
+  priceCheckTripBuilderRate,
   saveTripBuilderChatLines,
   searchTripBuilderRates,
   selectTripBuilderLineItem,

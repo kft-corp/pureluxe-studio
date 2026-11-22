@@ -39,6 +39,7 @@ export {
   searchActivePropertiesByName,
   listActiveContractedRatesForStay,
   listActiveContractedRatesOverlappingStay,
+  listActiveSabreCodesForPropertyIds,
   listActiveSupplierCodesForProperty,
   type FindContractedRateInput,
   type PropertyWithSupplierCodes,

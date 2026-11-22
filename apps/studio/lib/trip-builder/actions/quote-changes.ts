@@ -19,6 +19,7 @@ import {
   clearSelectedAccommodationForLeg,
   deleteTripLineItemsByIds,
   findLatestRateSearch,
+  findOpenHotelBookingForTrip,
   pointStayShellAtHotel,
   updateStayOption,
   updateTrip,
@@ -37,6 +38,7 @@ import { setJourneyStatus } from "@/lib/trips/set-journey-status";
 
 import { partyCounts } from "../party/trip-party";
 import { attachRateOption } from "../rates/attach-rate-option";
+import { recheckLiveGdsOnSelect } from "../rates/recheck-chosen-rate";
 import { selectAccommodationRate } from "../rates/select-accommodation-rate";
 import { pasteTripLineItem } from "../rates/paste-line-item";
 import { syncTripHotelBooking } from "../pricing/sync-trip-booking";
@@ -67,45 +69,121 @@ import { markQuoteStale } from "../stays/stay-side-effects";
 import { isQuoteAccepted, isQuoteWithClient } from "@/lib/trips/trip-status";
 
 import { withTripChange, type TripChangeContext } from "./with-trip-change";
+import {
+  baseRoomName,
+  cancelHintBonus,
+  hotelNameMatch as hotelNamesMatch,
+  normRoomKey,
+  roomTitleScore,
+} from "@/lib/rates/room-match";
 
 function norm(value: string): string {
-  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ");
+  return normRoomKey(value);
 }
 
-function sameHotelRoom(
-  row: { property_name: string | null; subtitle: string | null; title: string },
-  hotel: string,
-  room: string,
-): boolean {
-  const rowHotel = norm(row.property_name ?? "");
-  const rowRoom = norm(row.subtitle ?? row.title);
+type QuoteRow = TripDetail["rates"]["candidates"][number];
+
+type QuoteRowLookup = {
+  hotel: string;
+  room: string;
+  /** trip_line_items.id — preferred when two Twins share a name. */
+  optionId?: string;
+  /** rate_search_result_id from the rates table / trip facts. */
+  rateRef?: string;
+  /** option_rank on the quote (1, 2, …) at that hotel. */
+  optionRank?: number;
+};
+
+function rowRoomTitle(row: QuoteRow): string {
+  return row.subtitle?.trim() || row.title;
+}
+
+function sameHotelRoom(row: QuoteRow, hotel: string, room: string): boolean {
   const needleHotel = norm(hotel);
-  const needleRoom = norm(room);
   const hotelMatch =
     !needleHotel ||
-    !rowHotel ||
-    rowHotel === needleHotel ||
-    rowHotel.includes(needleHotel) ||
-    needleHotel.includes(rowHotel);
-  const roomMatch =
-    rowRoom === needleRoom || rowRoom.includes(needleRoom) || needleRoom.includes(rowRoom);
-  return hotelMatch && roomMatch;
+    !row.property_name?.trim() ||
+    hotelNamesMatch(row.property_name, hotel);
+  if (!hotelMatch) return false;
+  return roomTitleScore(rowRoomTitle(row), room) > 0;
 }
 
-/** Prefer hotel+room matches; fall back to a unique room name on the quote. */
+function scoreQuoteRow(row: QuoteRow, room: string): number {
+  const title = rowRoomTitle(row);
+  return (
+    roomTitleScore(title, room) +
+    cancelHintBonus(row.cancellation_policy, room, title)
+  );
+}
+
+/** Prefer id / rate_ref / rank; else hotel+room with cancel-hint tie-break. */
 function findQuoteRows(
   candidates: TripDetail["rates"]["candidates"],
-  hotel: string,
-  room: string,
+  lookup: QuoteRowLookup,
 ): TripDetail["rates"]["candidates"] {
-  const matched = candidates.filter((row) => sameHotelRoom(row, hotel, room));
-  if (matched.length > 0) return matched;
-  const needleRoom = norm(room);
+  const optionId = lookup.optionId?.trim();
+  if (optionId) {
+    const byId = candidates.filter((row) => row.id === optionId);
+    if (byId.length > 0) return byId;
+  }
+
+  const rateRef = lookup.rateRef?.trim();
+  if (rateRef) {
+    const byRef = candidates.filter((row) => row.rate_search_result_id === rateRef);
+    if (byRef.length === 1) return byRef;
+    if (byRef.length > 1) {
+      const atHotel = byRef.filter((row) =>
+        hotelNamesMatch(row.property_name ?? "", lookup.hotel),
+      );
+      if (atHotel.length === 1) return atHotel;
+      if (atHotel.length > 1) return disambiguateQuoteRows(atHotel, lookup.room);
+      return disambiguateQuoteRows(byRef, lookup.room);
+    }
+  }
+
+  if (lookup.optionRank != null && lookup.optionRank > 0) {
+    const atHotel = candidates.filter((row) =>
+      hotelNamesMatch(row.property_name ?? "", lookup.hotel),
+    );
+    const byRank = atHotel.filter((row) => row.option_rank === lookup.optionRank);
+    if (byRank.length === 1) return byRank;
+  }
+
+  const matched = candidates.filter((row) =>
+    sameHotelRoom(row, lookup.hotel, lookup.room),
+  );
+  if (matched.length > 0) return disambiguateQuoteRows(matched, lookup.room);
+
+  const needleRoom = norm(lookup.room);
+  const needleBase = norm(baseRoomName(lookup.room));
   const byRoom = candidates.filter((row) => {
-    const rowRoom = norm(row.subtitle ?? row.title);
-    return rowRoom === needleRoom || rowRoom.includes(needleRoom) || needleRoom.includes(rowRoom);
+    const title = rowRoomTitle(row);
+    const rowRoom = norm(title);
+    const rowBase = norm(baseRoomName(title));
+    return (
+      roomTitleScore(title, lookup.room) > 0 ||
+      rowRoom === needleRoom ||
+      rowBase === needleBase ||
+      rowRoom.includes(needleRoom) ||
+      needleRoom.includes(rowRoom)
+    );
   });
-  return byRoom.length === 1 ? byRoom : [];
+  return disambiguateQuoteRows(byRoom, lookup.room);
+}
+
+/** One clear winner after cancel hints; else all tied rows (caller reports ambiguous). */
+function disambiguateQuoteRows(
+  rows: QuoteRow[],
+  room: string,
+): QuoteRow[] {
+  if (rows.length <= 1) return rows;
+  const scored = rows
+    .map((row) => ({ row, score: scoreQuoteRow(row, room) }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
+  if (scored.length === 0) return rows;
+  const top = scored[0]!.score;
+  return scored.filter((entry) => entry.score === top).map((entry) => entry.row);
 }
 
 function listedStays(detail: TripDetail) {
@@ -234,6 +312,7 @@ async function ensureHotelsOnStays(
 async function resolveOffer(
   tripId: string,
   option: QuoteAddOptionsInput["options"][number],
+  resolveOpts?: { excludeResultIds?: string[] },
 ): Promise<{
   rateOption: NonNullable<Awaited<ReturnType<typeof loadStoredRateOption>>>["option"];
   resultId: string | null;
@@ -251,7 +330,12 @@ async function resolveOffer(
       };
     }
   }
-  const matched = await findStoredRateByHotelRoom(tripId, option.hotel, option.room);
+  const matched = await findStoredRateByHotelRoom(
+    tripId,
+    option.hotel,
+    option.room,
+    { excludeResultIds: resolveOpts?.excludeResultIds },
+  );
   if (!matched) return null;
   return {
     rateOption: matched.option,
@@ -370,8 +454,11 @@ export function addQuoteOptions(
       sell: number;
       markup: number | null;
     }> = [];
+    const usedResultIds: string[] = [];
     for (const option of input.options) {
-      const resolved = await resolveOffer(context.tripId, option);
+      const resolved = await resolveOffer(context.tripId, option, {
+        excludeResultIds: usedResultIds,
+      });
       if (!resolved) {
         missing.push(`${option.hotel} · ${option.room}`);
         continue;
@@ -386,6 +473,7 @@ export function addQuoteOptions(
         Math.abs(teamCost - resolved.rateOption.cost_internal) > 0.05
           ? { ...resolved.rateOption, cost_internal: teamCost }
           : resolved.rateOption;
+      if (resolved.resultId) usedResultIds.push(resolved.resultId);
       resolvedOptions.push({
         option,
         resolved: { ...resolved, rateOption },
@@ -415,30 +503,59 @@ export function addQuoteOptions(
     // Attach by stay dates only — do not set the stay hotel until the client chooses (#13).
     const detail = before;
 
+    const attachedRows: Array<{
+      lineItemId: string;
+      sell: number;
+      markup: number | null;
+      rank: number | null;
+      resultId: string | null;
+    }> = [];
+
     for (const { option, resolved, sell, markup } of resolvedOptions) {
       const hotelKey = norm(option.hotel);
       const nextRank = option.rank ?? (rankByHotel.get(hotelKey) ?? 0) + 1;
       rankByHotel.set(hotelKey, nextRank);
 
-      await attachRateOption(
+      const legId = legIdForHotel(detail, option.hotel, {
+        legId: resolved.legId,
+        checkIn: resolved.rateOption.check_in,
+        checkOut: resolved.rateOption.check_out,
+        destinationText: resolved.destinationText,
+      });
+      const stayForLeg = listedStays(detail).find((stay) => stay.leg_id === legId);
+      const partyRooms =
+        stayForLeg?.rooms != null && stayForLeg.rooms > 0
+          ? stayForLeg.rooms
+          : defaultRoomCount(
+              stayForLeg?.adults != null && stayForLeg.adults > 0 ? stayForLeg.adults : 2,
+            );
+      const partyAdults =
+        stayForLeg?.adults != null && stayForLeg.adults > 0 ? stayForLeg.adults : null;
+      const partyChildren =
+        stayForLeg?.children != null && stayForLeg.children >= 0 ? stayForLeg.children : null;
+
+      const attached = await attachRateOption(
         {
           trip_id: context.tripId,
-          leg_id: legIdForHotel(detail, option.hotel, {
-            legId: resolved.legId,
-            checkIn: resolved.rateOption.check_in,
-            checkOut: resolved.rateOption.check_out,
-            destinationText: resolved.destinationText,
-          }),
+          leg_id: legId,
           option: {
             ...resolved.rateOption,
             raw: {
               ...resolved.rateOption.raw,
+              // Freeze party on the quote line so pending booking sync does not
+              // depend on an open rate search after client confirm.
+              rooms: partyRooms,
+              ...(partyAdults != null ? { adults: partyAdults } : {}),
+              ...(partyChildren != null ? { children: partyChildren } : {}),
               quote_meta: {
                 markup_percent: markup,
                 option_rank: nextRank,
                 rate_search_result_id: resolved.resultId,
                 added_via: "agent",
                 sell_amount: sell,
+                rooms: partyRooms,
+                ...(partyAdults != null ? { adults: partyAdults } : {}),
+                ...(partyChildren != null ? { children: partyChildren } : {}),
               },
             },
           },
@@ -446,21 +563,24 @@ export function addQuoteOptions(
         },
         context.actor,
       );
+      attachedRows.push({
+        lineItemId: attached.id,
+        sell,
+        markup,
+        rank: option.rank ?? nextRank,
+        resultId: resolved.resultId,
+      });
       added.push(`${option.room} · ${option.hotel}`);
     }
 
-    // Re-apply quote columns — attachRateOption may not write them yet.
-    const afterAttach = await getTripDetail(context.tripId, context.actor);
-    for (const { option, resolved, sell, markup } of resolvedOptions) {
-      const row = afterAttach.rates.candidates.find((candidate) =>
-        sameHotelRoom(candidate, option.hotel, option.room),
-      );
-      if (!row) continue;
-      await updateStayOption(row.id, {
-        sell_amount: sell,
-        markup_percent: markup,
-        option_rank: option.rank ?? null,
-        rate_search_result_id: resolved.resultId,
+    // Re-apply quote columns by attached line-item id (not hotel+room name —
+    // two "Twin" rates would otherwise overwrite each other).
+    for (const row of attachedRows) {
+      await updateStayOption(row.lineItemId, {
+        sell_amount: row.sell,
+        markup_percent: row.markup,
+        option_rank: row.rank,
+        rate_search_result_id: row.resultId,
         added_via: "agent",
       });
     }
@@ -495,9 +615,11 @@ export function setQuoteClientPrices(
     }
     let count = 0;
     for (const price of input.prices) {
-      const row = before.rates.candidates.find((candidate) =>
-        sameHotelRoom(candidate, price.hotel, price.room),
-      );
+      const rows = findQuoteRows(before.rates.candidates, {
+        hotel: price.hotel,
+        room: price.room,
+      });
+      const row = rows.length === 1 ? rows[0] : null;
       if (!row) continue;
       const cost = row.cost_internal ?? 0;
       const sell = roundMoney(price.clientPrice);
@@ -562,7 +684,10 @@ export function removeQuoteOption(
     const removed: string[] = [];
     const missing: string[] = [];
     for (const target of targets) {
-      const rows = findQuoteRows(before.rates.candidates, target.hotel, target.room);
+      const rows = findQuoteRows(before.rates.candidates, {
+        hotel: target.hotel,
+        room: target.room,
+      });
       if (rows.length === 0) {
         missing.push(`${target.room} · ${target.hotel}`);
         continue;
@@ -1177,28 +1302,23 @@ async function selectQuoteFinalInner(
   undoBefore?: QuoteSelectFinalUndoPayload;
   undoAfter?: { kind: typeof QUOTE_SELECT_FINAL_UNDO; leg_id: string; line_item_id: string };
 }> {
-  const rows = findQuoteRows(before.rates.candidates, input.hotel, input.room);
-  if (rows.length === 0) {
+  // Standard path: advisor names a room in chat; agent resolves to option_id; select by id only.
+  const optionId = input.optionId?.trim();
+  if (!optionId) {
     throw new AppError({
-      userMessage: `No room matching ${input.room} at ${input.hotel} is on the options quote.`,
+      userMessage:
+        "Pass option_id from trip facts for the room the client chose. Hotel and room names alone are not enough when options can share a name.",
+      code: "trips.quote_option_id_required",
+      status: 400,
+    });
+  }
+  const row = before.rates.candidates.find((candidate) => candidate.id === optionId);
+  if (!row) {
+    throw new AppError({
+      userMessage: `No quote option matches that option_id for ${input.room} at ${input.hotel}. Use option_id from the current trip facts.`,
       code: "trips.quote_option_not_found",
       status: 404,
     });
-  }
-  if (rows.length > 1) {
-    throw new AppError({
-      userMessage: `Several rooms match ${input.room} at ${input.hotel}. Name the hotel and room more specifically.`,
-      code: "trips.quote_option_ambiguous",
-      status: 409,
-    });
-  }
-  const row = rows[0]!;
-  if (row.selected) {
-    return {
-      summary: `${row.subtitle?.trim() || row.title} at ${row.property_name ?? input.hotel} is already the client's room.`,
-      undoable: false,
-      after: null,
-    };
   }
   const legId = row.leg_id;
   if (!legId) {
@@ -1216,6 +1336,45 @@ async function selectQuoteFinalInner(
     });
   }
 
+  const hotelLabel = () =>
+    row.property_name?.trim() || input.hotel;
+  const roomLabel = () => row.subtitle?.trim() || row.title || input.room;
+
+  // Already selected: still refresh the pending booking snapshot (times, party, channel).
+  if (row.selected) {
+    const existingBooking = await findOpenHotelBookingForTrip(context.tripId, legId);
+    if (existingBooking && existingBooking.status !== "pending") {
+      return {
+        summary: `${roomLabel()} at ${hotelLabel()} is already the client's room.`,
+        undoable: false,
+        after: null,
+      };
+    }
+    const refreshed = await syncTripHotelBooking(before, context.actor);
+    const pending = await findOpenHotelBookingForTrip(context.tripId, legId);
+    if (!pending || pending.status !== "pending") {
+      throw new AppError({
+        userMessage: `Could not refresh the pending booking for ${roomLabel()} at ${hotelLabel()}. Check the client is on the trip and try again.`,
+        code: "trips.pending_booking_missing",
+        status: 409,
+      });
+    }
+    const recheckNote = await recheckLiveGdsOnSelect(
+      context.tripId,
+      row.id,
+      row.rate_source_code,
+      context.actor,
+    );
+    const base = refreshed
+      ? `${roomLabel()} at ${hotelLabel()} is already the client's room. Pending booking details were refreshed.`
+      : `${roomLabel()} at ${hotelLabel()} is already the client's room.`;
+    return {
+      summary: recheckNote ? `${base} ${recheckNote}` : base,
+      undoable: false,
+      after: await getTripDetail(context.tripId, context.actor),
+    };
+  }
+
   const previousSelectedId =
     before.rates.candidates.find((candidate) => candidate.selected && candidate.leg_id === legId)
       ?.id ?? null;
@@ -1223,7 +1382,7 @@ async function selectQuoteFinalInner(
 
   // Set stay hotel for the chosen room without setTripStay (that refuses when pricing is locked).
   // pointStayShellAtHotel is the same path selectAccommodationRate uses after lock (Issues #7 / #13).
-  const hotelName = row.property_name?.trim() || input.hotel;
+  const hotelName = hotelLabel();
   const stay = listedStays(before).find((s) => s.leg_id === legId);
   if (stay && hotelName && !hotelNameMatch(stay.property_name, hotelName)) {
     await pointStayShellAtHotel({
@@ -1236,8 +1395,29 @@ async function selectQuoteFinalInner(
 
   await selectAccommodationRate(row.id, context.actor, { keepOtherOptions: true });
   const after = await getTripDetail(context.tripId, context.actor);
+  // selectAccommodationRate → refreshTripAfterRateChange should have synced; verify.
+  let pending = await findOpenHotelBookingForTrip(context.tripId, legId);
+  if (!pending || pending.status !== "pending") {
+    await syncTripHotelBooking(after, context.actor);
+    pending = await findOpenHotelBookingForTrip(context.tripId, legId);
+  }
+  if (!pending || pending.status !== "pending") {
+    throw new AppError({
+      userMessage: `Recorded ${roomLabel()} at ${hotelLabel()}, but the pending booking was not created. Ensure the trip has a client and try again.`,
+      code: "trips.pending_booking_missing",
+      status: 409,
+    });
+  }
+
   const hotel = after.rates.selected?.property_name?.trim() || input.hotel;
   const room = after.rates.selected?.subtitle?.trim() || input.room;
+  // Live GDS: recheck Sabre before the advisor books offline; auto-apply cost if it moved.
+  const recheckNote = await recheckLiveGdsOnSelect(
+    context.tripId,
+    row.id,
+    row.rate_source_code,
+    context.actor,
+  );
   const undoBefore: QuoteSelectFinalUndoPayload = {
     kind: QUOTE_SELECT_FINAL_UNDO,
     leg_id: legId,
@@ -1245,10 +1425,11 @@ async function selectQuoteFinalInner(
     previous_selected_id: previousSelectedId,
     previous_status: previousStatus,
   };
+  const base = `Recorded ${room} at ${hotel} as the client's choice. A pending booking is ready.`;
   return {
-    summary: `Recorded ${room} at ${hotel} as the client's choice. A pending booking is ready.`,
+    summary: recheckNote ? `${base} ${recheckNote}` : base,
     undoable: true,
-    after,
+    after: await getTripDetail(context.tripId, context.actor),
     undoBefore,
     undoAfter: { kind: QUOTE_SELECT_FINAL_UNDO, leg_id: legId, line_item_id: row.id },
   };

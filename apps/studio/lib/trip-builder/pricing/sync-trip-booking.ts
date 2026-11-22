@@ -20,16 +20,45 @@ import {
 import { resolveBoardBasisFields } from "@/lib/bookings/booking-board-basis";
 import { nightsBetween } from "@/lib/bookings/booking-dates";
 
+import { parseCancelByDate, parseCancelDays } from "../rates/build-rate-compare";
+import {
+  comboCancelHandoffLine,
+  comboOccupancySegmentsFromRaw,
+  comboPaymentHandoffLine,
+  type ComboOccupancySegment,
+} from "../rates/combo-occupancy-segments";
 import { loadHotelStayFacts } from "../stays/hotel-contract-facts";
+import { defaultRoomCount } from "../trip/resolve-dates";
 import type { TripDetail, TripStaySnapshot } from "../trip/trip-detail";
 
 const TRIP_BUILDER_NOTE_PREFIX =
   "Created from Trip Builder for this stay.";
 
 const CONTRACT_CHANNEL: Record<PropertyContract["contract_type"], string> = {
+  wholesale: "Contracted · Wholesale",
+  package: "Contracted · Package",
+  tactical: "Contracted · Tactical",
+};
+
+/**
+ * Distribution / supplier brand for the commercial tab.
+ * Extensible: add new rate_source_code → label pairs as suppliers come online.
+ */
+const SUPPLIER_BY_SOURCE: Record<string, string> = {
+  gds_public: "Sabre",
+  gds_negotiated: "Sabre",
+  ota_bedbank: "Bedbank",
   wholesale: "Wholesale",
-  package: "Package",
-  tactical: "Tactical",
+  offline_manual: "Pasted quote",
+};
+
+const CHANNEL_BY_SOURCE: Record<string, string> = {
+  gds_public: "Public GDS · Sabre",
+  gds_negotiated: "Negotiated GDS · Sabre",
+  ota_bedbank: "Bedbank",
+  wholesale: "Wholesale",
+  offline_manual: "Pasted quote",
+  offline_contracted: "Contracted",
 };
 
 function textValue(value: unknown): string | null {
@@ -46,8 +75,109 @@ function rateBasisLabel(value: string | null): string | null {
 }
 
 function sourceChannel(code: string | null): string | null {
-  if (code === "offline_contracted") return "Contracted";
-  if (code === "offline_manual") return "Pasted quote";
+  if (!code) return null;
+  return CHANNEL_BY_SOURCE[code] ?? null;
+}
+
+/** HH:mm from Sabre ("3:00 PM") or 24h ("15:00") clock strings. */
+function normalizeClock(value: unknown): string | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const text = value.trim();
+  const ampm = /^(\d{1,2}):([0-5]\d)\s*(AM|PM)\b/i.exec(text);
+  if (ampm) {
+    let hours = Number(ampm[1]);
+    const minutes = ampm[2]!;
+    const suffix = ampm[3]!.toUpperCase();
+    if (!Number.isFinite(hours) || hours < 1 || hours > 12) return null;
+    if (suffix === "AM") hours = hours === 12 ? 0 : hours;
+    else hours = hours === 12 ? 12 : hours + 12;
+    return `${String(hours).padStart(2, "0")}:${minutes}`;
+  }
+  const match = /^([01]?\d|2[0-3]):([0-5]\d)/.exec(text);
+  if (!match) return null;
+  return `${match[1]!.padStart(2, "0")}:${match[2]}`;
+}
+
+function partyCountFromValue(value: unknown, allowZero = false): number | null {
+  const amount = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  if (!Number.isFinite(amount) || amount < 0) return null;
+  if (!allowZero && amount <= 0) return null;
+  return Math.floor(amount);
+}
+
+/** Party frozen on the quote line (extracted / raw), then stay, then defaults. */
+function resolveParty(
+  stay: TripStaySnapshot,
+  line: TripLineItem | null,
+): { rooms: number; adults: number | null; children: number | null } {
+  const extracted = extractedRecord(line);
+  const raw = rawFromLine(line);
+  const meta =
+    raw?.quote_meta && typeof raw.quote_meta === "object"
+      ? (raw.quote_meta as Record<string, unknown>)
+      : null;
+
+  const rooms =
+    partyCountFromValue(extracted?.rooms) ??
+    partyCountFromValue(raw?.rooms) ??
+    partyCountFromValue(meta?.rooms) ??
+    (stay.rooms != null && stay.rooms > 0 ? stay.rooms : null) ??
+    defaultRoomCount(stay.adults != null && stay.adults > 0 ? stay.adults : 2);
+
+  const adults =
+    partyCountFromValue(extracted?.adults) ??
+    partyCountFromValue(raw?.adults) ??
+    partyCountFromValue(meta?.adults) ??
+    (stay.adults != null && stay.adults > 0 ? stay.adults : null);
+
+  const children =
+    partyCountFromValue(extracted?.children, true) ??
+    partyCountFromValue(raw?.children, true) ??
+    partyCountFromValue(meta?.children, true) ??
+    (stay.children != null && stay.children >= 0 ? stay.children : null);
+
+  return { rooms, adults, children };
+}
+
+/** Prefer rate dates on the chosen option when valid; else stay dates. */
+function resolveStayDates(
+  stay: TripStaySnapshot,
+  line: TripLineItem | null,
+): { start: string | null; end: string | null } {
+  const extracted = extractedRecord(line);
+  const rateIn = textValue(extracted?.check_in);
+  const rateOut = textValue(extracted?.check_out);
+  if (rateIn && rateOut && rateOut > rateIn) {
+    return { start: rateIn, end: rateOut };
+  }
+  return { start: stay.check_in ?? null, end: stay.check_out ?? null };
+}
+
+/** Drop cancel/payment chips so meal plan stays clean on the booking. */
+function cleanBoardLabel(board: string | null): string | null {
+  if (!board?.trim()) return null;
+  const parts = board
+    .split(/\s*·\s*/)
+    .map((part) => part.trim())
+    .filter(
+      (part) =>
+        part.length > 0 &&
+        !/^(non[\s-]?refund|free cancel|refundable|prepaid|deposit|guarantee|pay at hotel)\b/i.test(
+          part,
+        ),
+    );
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+function resolveCancellationDeadline(
+  cancellation: string | null,
+  line: TripLineItem | null,
+  checkIn: string | null,
+): string | null {
+  const absolute = parseCancelByDate(cancellation, rawFromLine(line));
+  if (absolute) return absolute;
+  const cancelDays = parseCancelDays(cancellation);
+  if (checkIn && cancelDays != null) return addDaysIso(checkIn, -cancelDays);
   return null;
 }
 
@@ -80,32 +210,78 @@ function roomFromLine(line: TripLineItem | null): string | null {
 
 function boardFromLine(line: TripLineItem | null): string | null {
   const extracted = extractedRecord(line);
-  const board = textValue(extracted?.board);
+  const board = cleanBoardLabel(textValue(extracted?.board));
   if (board) return board;
   const subtitle = line?.subtitle?.trim();
   if (!subtitle?.includes(" · ")) return null;
-  return textValue(subtitle.split(" · ").slice(1).join(" · "));
+  return cleanBoardLabel(textValue(subtitle.split(" · ").slice(1).join(" · ")));
+}
+
+function rawFromLine(line: TripLineItem | null): Record<string, unknown> | null {
+  const extracted = extractedRecord(line);
+  const raw = extracted?.raw;
+  if (!raw || typeof raw !== "object") return null;
+  return raw as Record<string, unknown>;
 }
 
 function contractIdFromLine(line: TripLineItem | null): string | null {
-  const extracted = extractedRecord(line);
-  const raw = extracted?.raw;
-  if (!raw || typeof raw !== "object") return null;
-  return textValue((raw as Record<string, unknown>).contract_id);
+  return textValue(rawFromLine(line)?.contract_id);
 }
 
 function rateBasisFromLine(line: TripLineItem | null): string | null {
-  const extracted = extractedRecord(line);
-  const raw = extracted?.raw;
-  if (!raw || typeof raw !== "object") return null;
-  const record = raw as Record<string, unknown>;
+  const record = rawFromLine(line);
+  if (!record) return null;
   return textValue(record.rate_basis) ?? textValue(record.cost_unit);
+}
+
+/** Live GDS fields from the chosen rate (mapped or Open — no property required). */
+function gdsHandoffFromLine(line: TripLineItem | null): {
+  isGds: boolean;
+  hotelCode: string | null;
+  hotelName: string | null;
+  rateKey: string | null;
+  bookingKey: string | null;
+  ratePlanName: string | null;
+  sourceLabel: string | null;
+  openGds: boolean;
+} {
+  const code = line?.rate_source_code ?? null;
+  const isGds = code === "gds_public" || code === "gds_negotiated";
+  const raw = rawFromLine(line);
+  const hotelCode = textValue(raw?.sabre_hotel_code);
+  const hotelName =
+    textValue(raw?.sabre_hotel_name) ?? textValue(line?.property_name);
+  return {
+    isGds,
+    hotelCode,
+    hotelName,
+    rateKey: textValue(raw?.rate_key),
+    bookingKey: textValue(raw?.booking_key),
+    ratePlanName:
+      textValue(raw?.rate_plan_name) ?? textValue(raw?.rate_plan_code),
+    sourceLabel: sourceChannel(code),
+    openGds: isGds && !line?.property_id,
+  };
+}
+
+function addDaysIso(isoDate: string, deltaDays: number): string | null {
+  const ms = Date.parse(`${isoDate}T12:00:00Z`);
+  if (!Number.isFinite(ms)) return null;
+  const next = new Date(ms + deltaDays * 86_400_000);
+  return next.toISOString().slice(0, 10);
 }
 
 function ratePlanLabel(
   line: TripLineItem | null,
   contract: PropertyContract | null,
+  gds: ReturnType<typeof gdsHandoffFromLine>,
 ): string | null {
+  if (gds.isGds) {
+    const parts = [gds.sourceLabel, gds.ratePlanName].filter(
+      (part): part is string => Boolean(part),
+    );
+    if (parts.length > 0) return parts.join(" · ").slice(0, 200);
+  }
   const parts = [
     rateBasisLabel(rateBasisFromLine(line)),
     contract?.booking_code?.trim() || null,
@@ -119,10 +295,57 @@ function bookingChannel(
   contract: PropertyContract | null,
   line: TripLineItem | null,
 ): string | null {
-  const fromProperty = property?.commission_channel?.trim();
-  if (fromProperty) return fromProperty;
-  if (contract) return CONTRACT_CHANNEL[contract.contract_type];
-  return sourceChannel(line?.rate_source_code ?? null);
+  const code = line?.rate_source_code ?? null;
+
+  // Live GDS / bedbank / wholesale / paste — channel from rate source (supplier-aware).
+  if (
+    code === "gds_public" ||
+    code === "gds_negotiated" ||
+    code === "ota_bedbank" ||
+    code === "wholesale" ||
+    code === "offline_manual"
+  ) {
+    return sourceChannel(code);
+  }
+
+  if (contract || code === "offline_contracted") {
+    const basis = rateBasisLabel(rateBasisFromLine(line));
+    if (contract?.contract_type === "package" || basis === "Package") {
+      return "Contracted · Package";
+    }
+    if (basis === "Nightly") return "Contracted · Nights";
+    if (contract) return CONTRACT_CHANNEL[contract.contract_type];
+    return "Contracted";
+  }
+
+  // Future / unknown sources: prefer explicit source map, then property commission channel.
+  const fromSource = sourceChannel(code);
+  if (fromSource) return fromSource;
+  return property?.commission_channel?.trim() || null;
+}
+
+/**
+ * Commercial supplier (distribution), not the hotel name.
+ * GDS → Sabre; contracted → property/hotel; paste/bedbank/wholesale from map.
+ * Override via raw.supplier_name when a future supplier needs a custom label.
+ */
+function supplierNameForBooking(
+  line: TripLineItem | null,
+  property: Property | null,
+  hotelName: string,
+): string {
+  const raw = rawFromLine(line);
+  const override = textValue(raw?.supplier_name) ?? textValue(raw?.supplier);
+  if (override) return override;
+
+  const code = line?.rate_source_code ?? null;
+  if (code && SUPPLIER_BY_SOURCE[code]) return SUPPLIER_BY_SOURCE[code]!;
+
+  if (code === "offline_contracted") {
+    return property?.name?.trim() || hotelName;
+  }
+
+  return property?.name?.trim() || hotelName;
 }
 
 function commissionAmount(property: Property | null): number | null {
@@ -132,11 +355,44 @@ function commissionAmount(property: Property | null): number | null {
   return Number.isFinite(value) ? value : null;
 }
 
+function setOrDelete(
+  next: Record<string, unknown>,
+  key: string,
+  value: string | null,
+) {
+  if (value) next[key] = value;
+  else delete next[key];
+}
+
+/** Keep ops-entered confirmation refs when Trip Builder refreshes segments. */
+function mergeComboSegmentsWithExisting(
+  segments: ComboOccupancySegment[],
+  existing: Record<string, unknown> | null,
+): ComboOccupancySegment[] {
+  const prior = Array.isArray(existing?.gds_room_segments)
+    ? (existing!.gds_room_segments as Array<Record<string, unknown>>)
+    : [];
+  return segments.map((segment, index) => {
+    const match =
+      prior.find(
+        (row) =>
+          textValue(row.rate_key) &&
+          textValue(row.rate_key) === segment.rate_key,
+      ) ?? prior[index];
+    const confirmation =
+      textValue(match?.confirmation_ref) ?? segment.confirmation_ref ?? null;
+    return confirmation
+      ? { ...segment, confirmation_ref: confirmation }
+      : { ...segment, confirmation_ref: null };
+  });
+}
+
 function serviceDetailsForStay(
   existing: Record<string, unknown> | null,
   line: TripLineItem | null,
   contract: PropertyContract | null,
   times: { checkIn: string | null; checkOut: string | null },
+  paymentPolicy: string | null,
 ): Record<string, unknown> {
   const next: Record<string, unknown> = { ...(existing ?? {}) };
   if (times.checkIn) next.check_in_time = times.checkIn;
@@ -146,8 +402,18 @@ function serviceDetailsForStay(
     delete next.board_basis;
     delete next.board_basis_label;
     delete next.rate_plan;
+    delete next.gds_hotel_code;
+    delete next.gds_hotel_name;
+    delete next.gds_rate_source;
+    delete next.gds_rate_key;
+    delete next.gds_booking_key;
+    delete next.payment_summary;
+    delete next.gds_room_segments;
     return next;
   }
+
+  const gds = gdsHandoffFromLine(line);
+  const comboSegments = comboOccupancySegmentsFromRaw(rawFromLine(line));
 
   const room = roomFromLine(line);
   if (room) next.room_type = room;
@@ -165,28 +431,143 @@ function serviceDetailsForStay(
     delete next.board_basis_label;
   }
 
-  const plan = ratePlanLabel(line, contract);
+  const plan = ratePlanLabel(line, contract, gds);
   if (plan) next.rate_plan = plan;
   else delete next.rate_plan;
+
+  if (gds.isGds) {
+    setOrDelete(next, "gds_hotel_code", gds.hotelCode);
+    setOrDelete(next, "gds_hotel_name", gds.hotelName);
+    setOrDelete(next, "gds_rate_source", gds.sourceLabel);
+    setOrDelete(next, "gds_booking_key", gds.bookingKey);
+
+    if (comboSegments) {
+      const merged = mergeComboSegmentsWithExisting(comboSegments, existing);
+      next.gds_room_segments = merged;
+      // Parent key is null on combos — point ops at per-room keys.
+      const keys = merged
+        .map((segment) => segment.rate_key)
+        .filter((key): key is string => Boolean(key));
+      setOrDelete(
+        next,
+        "gds_rate_key",
+        keys.length > 0 ? `See room segments (${keys.length} keys)` : null,
+      );
+      setOrDelete(next, "payment_summary", comboPaymentHandoffLine(merged));
+    } else {
+      delete next.gds_room_segments;
+      setOrDelete(next, "gds_rate_key", gds.rateKey);
+      setOrDelete(next, "payment_summary", paymentPolicy);
+    }
+  } else {
+    delete next.gds_hotel_code;
+    delete next.gds_hotel_name;
+    delete next.gds_rate_source;
+    delete next.gds_rate_key;
+    delete next.gds_booking_key;
+    delete next.payment_summary;
+    delete next.gds_room_segments;
+  }
 
   return next;
 }
 
-function tripBuilderNotes(
-  inclusions: string[],
-  paymentPolicy: string | null,
-  recordNotes: string | null,
-): string {
+function formatSegmentBookLines(
+  segments: ComboOccupancySegment[],
+  currency: string | null,
+): string[] {
+  return segments.map((segment, index) => {
+    const bits = [
+      `Room ${index + 1} — ${segment.label}`,
+      segment.board ? `Meal: ${segment.board}` : null,
+      segment.cancellation_summary
+        ? `Cancel: ${segment.cancellation_summary}`
+        : null,
+      segment.payment_summary ? `Payment: ${segment.payment_summary}` : null,
+      segment.cost_internal != null
+        ? `Cost: ${[currency, String(segment.cost_internal)].filter(Boolean).join(" ")}`
+        : null,
+      segment.rate_key ? `Rate key: ${segment.rate_key}` : null,
+      segment.confirmation_ref
+        ? `Confirmation: ${segment.confirmation_ref}`
+        : "Confirmation: (add after offline book)",
+    ].filter((bit): bit is string => Boolean(bit));
+    return bits.join("\n  ");
+  });
+}
+
+function tripBuilderNotes(input: {
+  inclusions: string[];
+  paymentPolicy: string | null;
+  cancellation: string | null;
+  recordNotes: string | null;
+  line: TripLineItem | null;
+  hotel: string;
+  checkIn: string | null;
+  checkOut: string | null;
+  rooms: number | null;
+  adults: number | null;
+  children: number | null;
+  cost: number | null;
+  currency: string | null;
+}): string {
+  const gds = gdsHandoffFromLine(input.line);
+  const room = roomFromLine(input.line);
+  const board = boardFromLine(input.line);
+  const roomLine = [room, board].filter(Boolean).join(" · ");
+  const comboSegments = comboOccupancySegmentsFromRaw(rawFromLine(input.line));
+
   const lines = [
     `${TRIP_BUILDER_NOTE_PREFIX} The sell stays on the trip.`,
   ];
-  if (inclusions.length > 0) {
-    lines.push(`Includes: ${inclusions.join(", ")}.`);
+
+  if (gds.isGds) {
+    const bookLines = [
+      gds.openGds
+        ? "Book offline (Open GDS — not in PureLuxe hotel master):"
+        : "Book offline (GDS):",
+      comboSegments
+        ? "This option is two (or more) room reservations — book each room below, then store each confirmation."
+        : null,
+      `Hotel: ${gds.hotelName ?? input.hotel}`,
+      gds.hotelCode ? `GDS hotel code: ${gds.hotelCode}` : null,
+      gds.sourceLabel ? `Rate source: ${gds.sourceLabel}` : null,
+      roomLine ? `Option: ${roomLine}` : null,
+      input.checkIn && input.checkOut
+        ? `Dates: ${input.checkIn} → ${input.checkOut}`
+        : null,
+      input.adults != null || input.children != null || input.rooms != null
+        ? `Party: ${input.adults ?? "—"} adults, ${input.children ?? "—"} children, ${input.rooms ?? "—"} room(s)`
+        : null,
+      input.cost != null
+        ? `Stay cost (all rooms): ${input.currency ?? ""} ${input.cost}`.trim()
+        : null,
+    ].filter((line): line is string => Boolean(line));
+
+    if (comboSegments) {
+      bookLines.push("", "Per room:");
+      bookLines.push(...formatSegmentBookLines(comboSegments, input.currency));
+    } else {
+      bookLines.push(
+        ...[
+          input.cancellation ? `Cancel: ${input.cancellation}` : null,
+          input.paymentPolicy ? `Payment: ${input.paymentPolicy}` : null,
+          gds.rateKey ? `Rate key: ${gds.rateKey}` : null,
+          gds.bookingKey ? `Booking key: ${gds.bookingKey}` : null,
+        ].filter((line): line is string => Boolean(line)),
+      );
+    }
+    lines.push(bookLines.join("\n"));
+  } else {
+    if (input.paymentPolicy) {
+      lines.push(`Payment: ${input.paymentPolicy}`);
+    }
   }
-  if (paymentPolicy) {
-    lines.push(`Payment: ${paymentPolicy}`);
+
+  if (input.inclusions.length > 0) {
+    lines.push(`Includes: ${input.inclusions.join(", ")}.`);
   }
-  if (recordNotes) lines.push(recordNotes);
+  if (input.recordNotes) lines.push(input.recordNotes);
   return lines.join("\n\n");
 }
 
@@ -339,9 +720,8 @@ async function syncOneStay(
   }
   if (!clientId && !existing) return false;
 
-  const start = stay.check_in ?? null;
-  const end = stay.check_out ?? null;
   const line = await findTripLineItemById(selected.id);
+  const { start, end } = resolveStayDates(stay, line);
   const propertyId = line?.property_id ?? stay.property_id ?? null;
   const facts = propertyId
     ? await loadHotelStayFacts({
@@ -353,33 +733,65 @@ async function syncOneStay(
     : null;
   const property = facts?.property ?? (propertyId ? await findActivePropertyById(propertyId) : null);
   const contract = facts?.contract ?? null;
+  const gds = gdsHandoffFromLine(line);
   const tax =
     selected?.tax_percentage == null ? null : Number(selected.tax_percentage);
   const commission = commissionAmount(property);
   const inclusions = lineInclusions(line);
-  const paymentPolicy = textValue(line?.payment_policy);
-  const notes = tripBuilderNotes(inclusions, paymentPolicy, facts?.recordNotes ?? null);
+  const comboSegments = comboOccupancySegmentsFromRaw(rawFromLine(line));
+  const paymentPolicy = comboSegments
+    ? comboPaymentHandoffLine(comboSegments)
+    : textValue(line?.payment_policy) ?? textValue(selected?.payment_policy);
   const selectedPolicy = selected?.cancellation_policy?.trim() || null;
   const fromContract = facts?.cancellationLines.join("\n") || null;
-  const cancellation = selectedPolicy || fromContract || null;
+  const cancellation = comboSegments
+    ? comboCancelHandoffLine(comboSegments) ||
+      textValue(line?.cancellation_policy) ||
+      selectedPolicy ||
+      fromContract ||
+      null
+    : textValue(line?.cancellation_policy) || selectedPolicy || fromContract || null;
+  const cancellationDeadline = resolveCancellationDeadline(cancellation, line, start);
+  const hotelName = gds.hotelName?.trim() || hotel;
+  const party = resolveParty(stay, line);
+  const rawTimes = rawFromLine(line);
+  const checkInTime =
+    normalizeClock(rawTimes?.hotel_check_in_time) ?? facts?.checkInTime ?? null;
+  const checkOutTime =
+    normalizeClock(rawTimes?.hotel_check_out_time) ?? facts?.checkOutTime ?? null;
+  const notes = tripBuilderNotes({
+    inclusions,
+    paymentPolicy,
+    cancellation,
+    recordNotes: facts?.recordNotes ?? null,
+    line,
+    hotel: hotelName,
+    checkIn: start,
+    checkOut: end,
+    rooms: party.rooms,
+    adults: party.adults,
+    children: party.children,
+    cost: selected?.cost_internal ?? null,
+    currency: selected?.currency ?? null,
+  });
   const fields = {
-    title: hotel,
+    title: hotelName,
     client_id: clientId,
     trip_id: detail.trip.id,
     trip_leg_id: stay.leg_id,
     trip_line_item_id: selected?.id ?? null,
     property_id: propertyId,
-    hotel_name: hotel,
+    hotel_name: hotelName,
     city: property?.city?.trim() || stay.city || null,
     country: property?.country ?? null,
     chain: property?.chain?.trim() || null,
     start_date: start,
     end_date: end,
     nights: nightsBetween(start, end),
-    num_rooms: stay.rooms ?? null,
-    num_adults: stay.adults ?? null,
-    num_children: stay.children ?? null,
-    supplier_name: property?.name?.trim() || null,
+    num_rooms: party.rooms,
+    num_adults: party.adults,
+    num_children: party.children,
+    supplier_name: supplierNameForBooking(line, property, hotelName),
     booking_channel: bookingChannel(property, contract ?? null, line),
     currency: selected?.currency ?? null,
     cost_amount: selected?.cost_internal ?? null,
@@ -389,15 +801,17 @@ async function syncOneStay(
     tax_percentage: tax != null && Number.isFinite(tax) ? tax : null,
     ...(commission != null ? { commission_expected: commission } : {}),
     cancellation_policy: cancellation,
+    cancellation_deadline: cancellationDeadline,
     relationship_owner_id: detail.trip.relationship_owner_id ?? actor.memberId,
     service_details: serviceDetailsForStay(
       existing?.service_details ?? null,
       line,
       contract,
       {
-        checkIn: facts?.checkInTime ?? null,
-        checkOut: facts?.checkOutTime ?? null,
+        checkIn: checkInTime,
+        checkOut: checkOutTime,
       },
+      paymentPolicy,
     ),
     ...(existing == null || shouldRefreshNotes(existing.internal_notes)
       ? { internal_notes: notes }
@@ -447,7 +861,6 @@ async function syncOneStay(
     confirmed_at: null,
     cancelled_at: null,
     cancellation_reason: null,
-    cancellation_deadline: null,
     ticket_time_limit: null,
     amended_from_id: null,
     guest_visible: false,

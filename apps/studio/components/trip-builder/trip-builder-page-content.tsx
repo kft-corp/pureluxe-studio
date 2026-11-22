@@ -68,8 +68,8 @@ export function TripBuilderPageContent({
                   ? "Check the options quote, then send it and update the status on the trip page."
                   : "When they agree, mark Client said yes on the trip page, then say which room is theirs."
                 : staysAwaitingRoom(builder.detail) > 0
-                  ? "Say which room is theirs, then check today's price and travel prep before booking."
-                  : "Check today's price, book offline, Confirm hotel booking in Bookings with the PNR, then record payment on the trip.";
+                  ? "Say which room is theirs. Live GDS rooms recheck today's price automatically; then travel prep before booking."
+                  : "Live GDS: today's price is rechecked (ask anytime). Book offline, confirm in Bookings with the PNR, then record payment on the trip.";
 
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col bg-transparent">
@@ -108,7 +108,6 @@ export function TripBuilderPageContent({
               stayNotes={builder.stayNotes}
               activeLegId={builder.activeLegId}
               onLoadOlder={() => void builder.loadOlderMessages()}
-              onAddRateOption={builder.addRateOption}
               onContinueIncomplete={
                 builder.canWrite ? () => void builder.continueIncomplete() : undefined
               }

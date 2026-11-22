@@ -65,8 +65,8 @@ function existingTripChoices(result: unknown): AgentChoice[] {
 export const tripCreateTool = defineHomeTool({
   name: "trip_create",
   description: [
-    "Create a trip from the home chat with everything the advisor said: the client and their household, the dates, every stay with its hotel and rooms. The trip then opens for the advisor.",
-    "Use when the advisor asks for a trip, or taps \"Create trip\" for a client. Call it once with everything; don't ask for a yes first.",
+    "Create a trip from the home chat with everything the advisor said: the client and their household, the dates, every stay with its hotel and rooms when stated. Rooms are optional at create — omit if not said; never invent. Room count is asked before rates later.",
+    "Use when the advisor asks for a trip, or taps \"Create trip\" for a client. Call it once with everything; don't ask for a yes first, and don't block create waiting for rooms.",
     "Do not use when several different people match the name (list them and ask which one), or to change a trip that exists (open it with trip_open).",
     "Returns status created with a summary, or status existing when anyone travelling already has an upcoming trip: nothing was created, and buttons let the advisor open one or create the new trip anyway.",
   ].join(" "),

@@ -1,5 +1,6 @@
 import {
   findFirstTripLeg,
+  findStayShellLineItem,
   findTripLegById,
   insertTripLineItem,
   listPricedAccommodationLineItems,
@@ -15,8 +16,51 @@ import {
 
 import { requireEditableTrip } from "../access/require-assigned-trip";
 import { markQuoteStale } from "../stays/stay-side-effects";
+import { defaultRoomCount } from "../trip/resolve-dates";
 
 import { selectAccommodationRate } from "./select-accommodation-rate";
+
+function partyCount(value: unknown, allowZero = false): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return null;
+  if (!allowZero && value <= 0) return null;
+  return Math.floor(value);
+}
+
+/**
+ * Freeze stay party onto the option raw so pending booking sync does not
+ * depend on an open rate search (contracted, Sabre, or future suppliers).
+ */
+async function withFrozenParty(
+  tripId: string,
+  legId: string | null,
+  option: NormalizedRateOption,
+): Promise<NormalizedRateOption> {
+  const raw = { ...(option.raw ?? {}) };
+  if (typeof raw.rooms === "number" && raw.rooms > 0) return { ...option, raw };
+
+  let rooms: number | null = null;
+  let adults: number | null = null;
+  let children: number | null = null;
+  if (legId) {
+    const shell = await findStayShellLineItem(tripId, legId);
+    const extracted = shell?.extracted_json;
+    if (extracted && typeof extracted === "object") {
+      rooms = partyCount(extracted.rooms);
+      adults = partyCount(extracted.adults);
+      children = partyCount(extracted.children, true);
+    }
+  }
+  const resolvedRooms = rooms ?? defaultRoomCount(adults ?? 2);
+  return {
+    ...option,
+    raw: {
+      ...raw,
+      rooms: resolvedRooms,
+      ...(adults != null ? { adults } : {}),
+      ...(children != null ? { children } : {}),
+    },
+  };
+}
 
 function readQuoteMeta(raw: Record<string, unknown> | null | undefined): {
   sell_amount?: number | null;
@@ -44,9 +88,19 @@ function readQuoteMeta(raw: Record<string, unknown> | null | undefined): {
   };
 }
 
+function cancelFamilyKey(summary: string | null | undefined): string {
+  const text = summary?.toLowerCase() ?? "";
+  if (/non[\s-]?refundable|no refund/.test(text)) return "non_refundable";
+  if (/free cancel|refundable/.test(text)) return "refundable";
+  return "other";
+}
+
 /**
  * Attach a search option as a trip line item.
  * When select=true, marks it as the selected accommodation for the leg.
+ *
+ * Uniqueness: prefer rate_search_result_id so two "Twin" rates (non-refund vs
+ * free cancel) can both sit on the quote. Name-only dedupe is last resort.
  */
 export async function attachRateOption(
   input: AddRateOptionInput,
@@ -75,17 +129,43 @@ export async function attachRateOption(
     legId = (await findFirstTripLeg(input.trip_id))?.id ?? null;
   }
 
-  const draft = toLineItemFields(input.option as NormalizedRateOption);
-  const quoteMeta = readQuoteMeta((input.option as NormalizedRateOption).raw);
+  const optionWithParty = await withFrozenParty(
+    input.trip_id,
+    legId,
+    input.option as NormalizedRateOption,
+  );
+  const draft = toLineItemFields(optionWithParty);
+  const quoteMeta = readQuoteMeta(optionWithParty.raw);
+  const resultId = quoteMeta.rate_search_result_id?.trim() || null;
+
   if (legId) {
     const saved = await listPricedAccommodationLineItems(input.trip_id, legId);
-    const room = (draft.subtitle ?? draft.title).trim().toLowerCase();
-    const hotel = (draft.property_name ?? "").trim().toLowerCase();
     const duplicate = saved.find((row) => {
-      const sameHotel = (row.property_name ?? "").trim().toLowerCase() === hotel;
-      const sameRoom = (row.subtitle ?? row.title).trim().toLowerCase() === room;
-      return sameHotel && sameRoom;
+      if (resultId && row.rate_search_result_id) {
+        return row.rate_search_result_id === resultId;
+      }
+      if (resultId) return false;
+
+      const sameHotel =
+        (row.property_name ?? "").trim().toLowerCase() ===
+        (draft.property_name ?? "").trim().toLowerCase();
+      if (!sameHotel) return false;
+
+      const sameRoom =
+        (row.subtitle ?? row.title).trim().toLowerCase() ===
+        (draft.subtitle ?? draft.title).trim().toLowerCase();
+      if (!sameRoom) return false;
+
+      const costClose =
+        Math.abs(Number(row.cost_internal) - Number(draft.cost_internal)) <= 0.05;
+      if (!costClose) return false;
+
+      return (
+        cancelFamilyKey(row.cancellation_policy) ===
+        cancelFamilyKey(draft.cancellation_policy)
+      );
     });
+
     if (duplicate) {
       if (!input.select) return duplicate;
       return selectAccommodationRate(duplicate.id, actor);

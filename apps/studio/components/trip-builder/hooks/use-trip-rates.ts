@@ -5,11 +5,13 @@ import type { NormalizedRateOption } from "@pureluxe/rates";
 import {
   addTripBuilderRateOption,
   pasteTripBuilderLineItem,
+  priceCheckTripBuilderRate,
   searchTripBuilderRates,
   selectTripBuilderLineItem,
   setTripBuilderStay,
   updateTripBuilderQuote,
   updateTripBuilderStayOption,
+  type TripBuilderPriceCheckResult,
 } from "@/lib/api";
 import { showApiError, showWarningToast } from "@/lib/feedback";
 import { pageRoutes } from "@/lib/routes";
@@ -48,6 +50,16 @@ import {
 import { partyFromTravellers, travellersConfirmed } from "../stages";
 
 import type { TripChat } from "./use-trip-chat";
+
+function normalizePriceCheck(
+  data: TripBuilderPriceCheckResult | { results: TripBuilderPriceCheckResult[]; note: string },
+): TripBuilderPriceCheckResult {
+  if ("results" in data) {
+    const changed = data.results.find((row) => row.update) ?? data.results[0]!;
+    return { ...changed, note: data.note };
+  }
+  return data;
+}
 import type { TripCore } from "./use-trip-core";
 
 /** Rooms and prices: rate searches, room options with sells, the client's choice, and today's cost. */
@@ -101,6 +113,34 @@ export function useTripRates(core: TripCore, chat: TripChat) {
     setOffer(null);
     setBusy(true);
     try {
+      const chosenBefore = detail.rates.candidates.find(
+        (rate) => rate.selected && rate.leg_id === openStay.leg_id,
+      );
+      // Chosen room → source-aware today's price check (no full shop table).
+      if (chosenBefore && (detail.pricing_locked || quoteFrozen)) {
+        const roomName =
+          chosenBefore.subtitle?.trim() || chosenBefore.title || "this room";
+        if (isLiveGdsSource(chosenBefore.rate_source_code)) {
+          appendTurn(
+            userLine,
+            `Checking today's GDS price for **${roomName}**…`,
+          );
+          const recheckNote = await runAutoPriceRecheck(
+            detail.trip.id,
+            chosenBefore.id,
+          );
+          appendTurn("Today's price", recheckNote);
+        } else {
+          const recheckNote = await runAutoPriceRecheck(
+            detail.trip.id,
+            chosenBefore.id,
+          );
+          appendTurn(userLine, recheckNote);
+        }
+        await refreshAfterMutation(detail.trip.id);
+        return;
+      }
+
       if (!detail.pricing_locked && stayFieldsDiffer(party, openStay)) {
         const hotel = party.hotel.trim();
         const savedName = openStay.property_name?.trim() ?? "";
@@ -188,6 +228,34 @@ export function useTripRates(core: TripCore, chat: TripChat) {
     }
   }
 
+  function isLiveGdsSource(code: string | null | undefined): boolean {
+    return code === "gds_public" || code === "gds_negotiated";
+  }
+
+  async function runAutoPriceRecheck(tripId: string, lineItemId?: string | null) {
+    try {
+      const response = await priceCheckTripBuilderRate({
+        trip_id: tripId,
+        line_item_id: lineItemId ?? null,
+      });
+      const check = normalizePriceCheck(response.data);
+      setPendingCostUpdate(
+        check.update
+          ? {
+              lineItemId: check.update.lineItemId,
+              room: check.update.room,
+              amount: check.update.amount,
+              currency: check.update.currency,
+            }
+          : null,
+      );
+      return check.note;
+    } catch {
+      // Never stay silent — selection already succeeded, but advisors must know recheck failed.
+      return "Couldn't recheck today's GDS price. Ask **check today's price** again before you book.";
+    }
+  }
+
   async function selectSearchOption(
     option: NormalizedRateOption,
     userLine?: string,
@@ -201,16 +269,34 @@ export function useTripRates(core: TripCore, chat: TripChat) {
         option,
         select: true,
       });
-      await refreshAfterMutation(detail.trip.id);
+      const next = await refreshAfterMutation(detail.trip.id);
       setRateOptions([]);
       closeOffer("paste");
       const name =
         option.room_name || option.property_name || option.rate_source_code;
       const money = formatMoney(option.cost_internal, option.currency);
-      appendTurn(
-        userLine ?? (money ? `Select · ${name} · ${money}` : `Select · ${name}`),
-        `**${name}** is the room for this stay. The other options were removed. A pending hotel booking is in **Bookings**.\n\n${CHOSEN_ROOM_NEXT}\n\nOpen **Bookings** and set it to confirmed only after you check the stay.`,
-      );
+      const selectedId =
+        next.rates.candidates.find((row) => row.selected)?.id ??
+        next.rates.selected?.id ??
+        null;
+      const selectedRow =
+        next.rates.candidates.find((row) => row.id === selectedId) ??
+        next.rates.selected;
+      const user =
+        userLine ?? (money ? `Select · ${name} · ${money}` : `Select · ${name}`);
+      const base = `**${name}** is the room for this stay. The other options were removed. A pending hotel booking is in **Bookings**.`;
+      const followUp = `${CHOSEN_ROOM_NEXT}\n\nOpen **Bookings** and set it to confirmed only after you check the stay.`;
+      if (isLiveGdsSource(selectedRow?.rate_source_code ?? option.rate_source_code)) {
+        appendTurn(
+          user,
+          `${base}\n\nChecking today's GDS price for **${name}**…`,
+        );
+        const recheckNote = await runAutoPriceRecheck(detail.trip.id, selectedId);
+        appendTurn("Today's price", `${recheckNote}\n\n${followUp}`);
+      } else {
+        const recheckNote = await runAutoPriceRecheck(detail.trip.id, selectedId);
+        appendTurn(user, [base, recheckNote, followUp].filter(Boolean).join("\n\n"));
+      }
     } catch (error) {
       showApiError(error);
     } finally {
@@ -626,21 +712,30 @@ export function useTripRates(core: TripCore, chat: TripChat) {
       const row = detail.rates.candidates.find((item) => item.id === lineItemId);
       const money = row ? formatMoney(row.cost_internal, row.currency) : "";
       const room = row?.subtitle?.trim() || row?.title || "That room";
-      appendTurn(
+      const followUp = quoteFrozen
+        ? AFTER_ACCEPT_STEPS
+        : isQuoteWithClient(detail.trip.status)
+          ? `The trip keeps its status. When the client agrees to the quote, open the [trip page](${pageRoutes.trip(detail.trip.id)}) and mark **Client accepted** under Update status.`
+          : `${CHOSEN_ROOM_NEXT}\n\nOpen **Bookings** and set it to confirmed only after you check the stay.`;
+      const user =
         userLine ??
-          (row
-            ? money
-              ? `Select · ${row.title} · ${money}`
-              : `Select · ${row.title}`
-            : "Select rate"),
-        `${choiceSummary(room, row ?? null, next)}\n\n${
-          quoteFrozen
-            ? AFTER_ACCEPT_STEPS
-            : isQuoteWithClient(detail.trip.status)
-              ? `The trip keeps its status. When the client agrees to the quote, open the [trip page](${pageRoutes.trip(detail.trip.id)}) and mark **Client accepted** under Update status.`
-              : `${CHOSEN_ROOM_NEXT}\n\nOpen **Bookings** and set it to confirmed only after you check the stay.`
-        }`,
-      );
+        (row
+          ? money
+            ? `Select · ${row.title} · ${money}`
+            : `Select · ${row.title}`
+          : "Select rate");
+      const summary = choiceSummary(room, row ?? null, next);
+      if (isLiveGdsSource(row?.rate_source_code)) {
+        appendTurn(user, `${summary}\n\nChecking today's GDS price for **${room}**…`);
+        const recheckNote = await runAutoPriceRecheck(detail.trip.id, lineItemId);
+        appendTurn("Today's price", `${recheckNote}\n\n${followUp}`);
+      } else {
+        const recheckNote = await runAutoPriceRecheck(detail.trip.id, lineItemId);
+        appendTurn(
+          user,
+          [summary, recheckNote, followUp].filter(Boolean).join("\n\n"),
+        );
+      }
     } catch (error) {
       showApiError(error);
     } finally {

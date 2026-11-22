@@ -4,6 +4,7 @@ export {
   deleteLineItemsForLeg,
   deleteUnselectedStayOptions,
   updateStayOption,
+  patchTripLineItemExtractedRaw,
   findSelectedAccommodationLineItem,
   findStayShellLineItem,
   linkStayShellProperty,

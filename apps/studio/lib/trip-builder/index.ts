@@ -76,3 +76,11 @@ export { pasteTripLineItem } from "./rates/paste-line-item";
 export { approveTripLineItem, rejectTripLineItem } from "./rates/review-line-item";
 export { searchTripRates } from "./rates/search-rates";
 export { selectAccommodationRate } from "./rates/select-accommodation-rate";
+export {
+  recheckChosenRate,
+  recheckLiveGdsOnSelect,
+  type PriceRecheckCostUpdate,
+  type PriceRecheckResult,
+  type PriceRecheckStatus,
+  type RecheckChosenRateInput,
+} from "./rates/recheck-chosen-rate";

@@ -76,18 +76,41 @@ function travellerLabel(person: TripDetail["travellers"][number]): string {
   return "Adult";
 }
 
-function partyLabel(stay: TripStaySnapshot): string | null {
+function guestsLabel(stay: TripStaySnapshot): string | null {
   const parts: string[] = [];
-  if (stay.adults != null) {
+  if (stay.adults != null && stay.adults > 0) {
     parts.push(stay.adults === 1 ? "1 adult" : `${stay.adults} adults`);
   }
   if (stay.children != null && stay.children > 0) {
     parts.push(stay.children === 1 ? "1 child" : `${stay.children} children`);
   }
-  if (stay.rooms != null) {
-    parts.push(stay.rooms === 1 ? "1 room" : `${stay.rooms} rooms`);
-  }
   return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+function roomsLabel(stay: TripStaySnapshot): string | null {
+  if (stay.rooms == null || stay.rooms < 1) return null;
+  return stay.rooms === 1 ? "1 room" : `${stay.rooms} rooms`;
+}
+
+function tripPartySummary(detail: TripDetail): string | null {
+  const adults = detail.travellers.filter((row) => row.party_role === "adult").length;
+  const children = detail.travellers.filter(
+    (row) => row.party_role === "child" || row.party_role === "infant",
+  ).length;
+  if (adults < 1 && children < 1) return null;
+  const parts: string[] = [];
+  if (adults > 0) parts.push(adults === 1 ? "1 adult" : `${adults} adults`);
+  if (children > 0) parts.push(children === 1 ? "1 child" : `${children} children`);
+  const stayRooms = detail.stays
+    .map((stay) => stay.rooms)
+    .filter((n): n is number => n != null && n >= 1);
+  if (stayRooms.length === 1) {
+    parts.push(stayRooms[0] === 1 ? "1 room" : `${stayRooms[0]} rooms`);
+  } else if (stayRooms.length > 1) {
+    const total = stayRooms.reduce((sum, n) => sum + n, 0);
+    parts.push(`${total} rooms across stays`);
+  }
+  return parts.join(" · ");
 }
 
 function selectedRate(detail: TripDetail, legId: string): TripRateSnapshot | null {
@@ -165,6 +188,7 @@ export function TripBuilderSummaryPanel({
   const stays = detail ? tripStays(detail) : [];
   const gaps = stayGapNotes(stays);
   const nights = tripNightCount(stays);
+  const partySummary = detail ? tripPartySummary(detail) : null;
   const savedOptions = detail
     ? detail.rates.candidates.filter((row) => !row.selected).length
     : 0;
@@ -263,6 +287,7 @@ export function TripBuilderSummaryPanel({
                   <p className="text-[12px] text-ink-muted">No travellers yet.</p>
                 ) : (
                   <div className="rounded-[10px] border border-border bg-surface-raised px-3 py-1.5">
+                    {partySummary ? <Kv label="Party" value={partySummary} /> : null}
                     {detail.travellers.map((person) => (
                       <Kv
                         key={person.client_id}
@@ -549,7 +574,8 @@ function StayCard({
   onSelect: () => void;
 }) {
   const dates = datesWithNights(stay.check_in, stay.check_out);
-  const party = partyLabel(stay);
+  const guests = guestsLabel(stay);
+  const rooms = roomsLabel(stay);
   const hotel =
     stay.property_name?.trim() || (optionsPending ? "Options pending" : null);
   const city = stayHeading(stay, stays);
@@ -578,7 +604,8 @@ function StayCard({
       <span className="mt-1.5 block space-y-0.5">
         <CardLine label="Hotel" value={hotel} />
         <CardLine label="Dates" value={dates} wrap />
-        <CardLine label="Guests" value={party} />
+        <CardLine label="Guests" value={guests} />
+        <CardLine label="Rooms" value={rooms} />
         <CardLine label="Rate" value={rateName} wrap />
       </span>
     </button>

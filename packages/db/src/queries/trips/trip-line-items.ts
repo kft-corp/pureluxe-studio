@@ -247,6 +247,38 @@ export async function deleteUnselectedStayOptions(
   if (error) throw dbQueryError(error);
 }
 
+/** Merge keys into extracted_json.raw (GDS BookingKey / rate key refresh). */
+export async function patchTripLineItemExtractedRaw(
+  lineItemId: string,
+  rawPatch: Record<string, unknown>,
+): Promise<TripLineItem | null> {
+  const existing = await findTripLineItemById(lineItemId);
+  if (!existing) return null;
+  const extracted =
+    existing.extracted_json && typeof existing.extracted_json === "object"
+      ? { ...(existing.extracted_json as Record<string, unknown>) }
+      : {};
+  const prevRaw =
+    extracted.raw && typeof extracted.raw === "object"
+      ? { ...(extracted.raw as Record<string, unknown>) }
+      : {};
+  const next = {
+    ...extracted,
+    raw: { ...prevRaw, ...rawPatch },
+  };
+  const supabase = getServiceClient();
+  const { data, error } = await runSupabaseQuery(() =>
+    supabase
+      .from("trip_line_items")
+      .update({ extracted_json: next })
+      .eq("id", lineItemId)
+      .select("*")
+      .maybeSingle(),
+  );
+  if (error) throw dbQueryError(error);
+  return data as TripLineItem | null;
+}
+
 /** Client-facing edits on a room saved for the options quote. */
 export async function updateStayOption(
   lineItemId: string,
@@ -433,7 +465,8 @@ export type UpsertStayShellInput = {
   created_by_id?: string | null;
   adults?: number;
   children?: number;
-  rooms?: number;
+  /** Null clears / leaves unset so summary shows Rooms: Not set until rates confirm. */
+  rooms?: number | null;
 };
 
 /**

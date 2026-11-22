@@ -78,6 +78,7 @@ export type {
 export { KB_HOTEL_GUIDE_SCORE_FACTOR_KEYS } from "./atlas-kb";
 export type {
   KbActivityDetails,
+  KbAirport,
   KbCity,
   KbContractStatus,
   KbCountry,
@@ -108,6 +109,7 @@ export type {
   KbScrapeJob,
   KbScrapeRun,
   KbScrapeRunStatus,
+  KbSearchUom,
   KbSelectionStatus,
   KbSource,
   KbSourceType,

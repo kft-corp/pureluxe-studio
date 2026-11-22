@@ -1,6 +1,9 @@
 import { getCurrencyName } from "@pureluxe/shared";
 
+import { normRoomKey } from "@/lib/rates/room-match";
+
 import { boardClientLabel, toClientLine } from "./client-wording";
+import { clientOptionChips } from "./option-chips";
 import type { TripDetail, TripRateSnapshot, TripStaySnapshot } from "../trip/trip-detail";
 
 const MONTHS = [
@@ -42,10 +45,28 @@ export type OptionsQuoteHotel = {
   rooms: OptionsQuoteRoom[];
 };
 
+/** One physical room inside a dual-shop combo (client PDF). */
+export type OptionsQuoteRoomSegment = {
+  /** e.g. "Twin (2 adults)" — room type + who sleeps there. */
+  label: string;
+  roomName: string;
+  /** Meal plan for this room only. */
+  board: string | null;
+  /** Compact chips: Occupancy · Non-refund · Deposit. */
+  chips: string | null;
+  cancellation: string | null;
+  payment: string | null;
+};
+
 export type OptionsQuoteRoom = {
   /** Saved option row. Line edits use this id. */
   id: string;
   name: string;
+  /**
+   * Client chips under the room name (same idea as chat rate table),
+   * e.g. "Occupancy 3 · Non-refund · Deposit".
+   */
+  chips: string | null;
   /** Meal plan for the Meal plan column (Half Board, Bed and Breakfast, …). */
   detail: string | null;
   /** Amount only. The PDF paints the currency symbol beside it. */
@@ -55,6 +76,11 @@ export type OptionsQuoteRoom = {
   sleeps: string | null;
   /** Units · guests (or villa · bedrooms) for this option, e.g. "2 rooms · 4 adults". */
   party: string | null;
+  /**
+   * Dual-shop combo rooms (Room A / Room B). Null for single-room options.
+   * PDF nests these under the combo title so the client sees each room clearly.
+   */
+  segments: OptionsQuoteRoomSegment[] | null;
   inclusions: string[];
   /** Cancel rule for these dates only. Null when the stored text is for other seasons. */
   cancellation: string | null;
@@ -118,17 +144,25 @@ export function optionsQuoteFromTrip(
     .map((stay) => stayBlock(stay, quoted.filter((row) => row.leg_id === stay.leg_id)))
     .filter((stay) => stay.hotels.length > 0);
   const guests = guestLine(detail);
+  const preparedFor = detail.client?.display_name?.trim() || guests;
   return {
     title: title?.trim() || detail.trip.title?.trim() || "Hotel options",
     subtitle: stays.map((stay) => stay.city.trim()).filter(Boolean).join(" | ") || "Your stay",
-    preparedFor: detail.client?.display_name?.trim() || guests,
+    preparedFor,
     dates: tripDateLine(detail, stays),
-    guests,
+    // Empty when same as Prepared for — PDF omits the Guests row.
+    guests: sameClientText(preparedFor, guests) ? "" : guests,
     basis: basisLine(blocks),
     notice: OPTIONS_QUOTE_NOTICE,
     stays: blocks,
     notes,
   };
+}
+
+function sameClientText(left: string, right: string): boolean {
+  const a = left.trim().toLowerCase().replace(/\s+/g, " ");
+  const b = right.trim().toLowerCase().replace(/\s+/g, " ");
+  return Boolean(a) && a === b;
 }
 
 function stayBlock(stay: TripStaySnapshot, rows: TripRateSnapshot[]): OptionsQuoteStay {
@@ -142,18 +176,22 @@ function stayBlock(stay: TripStaySnapshot, rows: TripRateSnapshot[]): OptionsQuo
   const checkIn = stay.check_in;
   const checkOut = stay.check_out;
   const occupancy = stayPartyLabel(stay);
-  const hotels = [...byHotel.entries()].map(([name, rooms]) => ({
+  const hotels = [...byHotel.entries()].map(([name, hotelRows]) => ({
     name,
     city: stay.city.trim(),
-    propertyId: rooms.find((row) => row.property_id)?.property_id ?? stay.property_id,
+    propertyId: hotelRows.find((row) => row.property_id)?.property_id ?? stay.property_id,
     arrival: [] as string[],
     transfers: [] as string[],
     shared: [] as string[],
-    rooms: rooms.map((row) => roomLine(row, stay)),
+    rooms: disambiguateDuplicateRoomNames(
+      hotelRows.map((row) => roomLine(row, stay)),
+      hotelRows,
+    ),
   }));
   const hotelLabel = hotels.length === 1 ? "one hotel" : `${hotels.length} hotels`;
-  const roomCount = hotels.reduce((sum, hotel) => sum + hotel.rooms.length, 0);
-  const roomLabel = roomCount === 1 ? "one room" : `${roomCount} rooms`;
+  // Quote rows are rate options, not physical room units (units live under Occupancy).
+  const optionCount = hotels.reduce((sum, hotel) => sum + hotel.rooms.length, 0);
+  const optionLabel = optionCount === 1 ? "one option" : `${optionCount} options`;
   const when = [formatDate(checkIn), formatDate(checkOut)].filter(Boolean).join(" - ");
   return {
     city: stay.city.trim() || "Stay",
@@ -161,7 +199,7 @@ function stayBlock(stay: TripStaySnapshot, rows: TripRateSnapshot[]): OptionsQuo
     checkOut,
     checkInLabel: formatDate(checkIn) || "not set",
     checkOutLabel: formatDate(checkOut) || "not set",
-    when: [when, nightCount(checkIn, checkOut), `${hotelLabel}, ${roomLabel}`]
+    when: [when, nightCount(checkIn, checkOut), `${hotelLabel}, ${optionLabel}`]
       .filter(Boolean)
       .join(" | "),
     occupancy: occupancy || "Not set",
@@ -173,31 +211,202 @@ function expandBoardLabel(part: string): string {
   return boardClientLabel(part, true) ?? part.trim();
 }
 
+/** Subtitle segments that are cancel tags, not meal plan. */
+function isCancelTagPart(part: string): boolean {
+  return /^(non[\s-]?refund|free cancel|refundable)\b/i.test(part.trim());
+}
+
+function guestsPhrase(adults: number, children: number): string {
+  const parts: string[] = [];
+  if (adults > 0) parts.push(adults === 1 ? "1 adult" : `${adults} adults`);
+  if (children > 0) {
+    parts.push(children === 1 ? "1 child" : `${children} children`);
+  }
+  return parts.length > 0 ? parts.join(", ") : "guests";
+}
+
+function asSegmentString(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const text = value.trim();
+  return text || null;
+}
+
+function asSegmentGuests(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? Math.floor(value)
+    : fallback;
+}
+
+/**
+ * Dual-shop merge metadata → client PDF segments (room type + who sleeps there).
+ */
+function comboSegmentsForQuote(
+  raw: Record<string, unknown> | null | undefined,
+  season: string | null,
+): OptionsQuoteRoomSegment[] | null {
+  if (raw?.sabre_multi_occupancy !== true) return null;
+  const rows = raw.sabre_occupancy_segments;
+  if (!Array.isArray(rows) || rows.length < 2) return null;
+
+  const segments: OptionsQuoteRoomSegment[] = [];
+  for (let i = 0; i < rows.length; i += 1) {
+    const row = rows[i];
+    if (!row || typeof row !== "object") continue;
+    const rec = row as Record<string, unknown>;
+    const roomName = asSegmentString(rec.room_name) || `Room ${i + 1}`;
+    const adults = asSegmentGuests(rec.adults, 1);
+    const children = asSegmentGuests(rec.children, 0);
+    const guests = guestsPhrase(adults, children);
+    const label =
+      guests === "guests" ? roomName : `${roomName} (${guests})`;
+    const boardRaw = asSegmentString(rec.board);
+    const board = boardRaw
+      ? expandBoardLabel(boardRaw) || boardRaw
+      : "Room only";
+    const cancelRaw = asSegmentString(rec.cancellation_summary);
+    const payRaw = asSegmentString(rec.payment_summary);
+    const maxOcc =
+      typeof rec.max_occupancy === "number" && Number.isFinite(rec.max_occupancy)
+        ? Math.floor(rec.max_occupancy)
+        : adults + children;
+    const chips = clientOptionChips({
+      roomName,
+      cancellation: cancelRaw,
+      payment: payRaw,
+      maxAdults: maxOcc,
+      raw: {
+        max_occupancy: maxOcc,
+        bed_type: asSegmentString(rec.bed_type),
+        payment_timing: asSegmentString(rec.payment_timing),
+      },
+    });
+    segments.push({
+      label,
+      roomName,
+      board,
+      chips,
+      cancellation: clientRule(cancelRaw, season),
+      payment: clientRule(payRaw, season) ?? (payRaw ? payRaw : null),
+    });
+  }
+  return segments.length >= 2 ? segments : null;
+}
+
+function comboMealDetail(segments: OptionsQuoteRoomSegment[]): string | null {
+  const boards = [
+    ...new Set(segments.map((row) => row.board?.trim()).filter(Boolean) as string[]),
+  ];
+  if (boards.length === 0) return null;
+  if (boards.length === 1) return boards[0]!;
+  return boards.join(" / ");
+}
+
 function roomLine(row: TripRateSnapshot, stay: TripStaySnapshot): OptionsQuoteRoom {
   const currency = row.currency?.trim() || null;
   const raw = row.subtitle?.trim() || row.title.trim();
-  const [name, ...rest] = raw.split(/\s*·\s*/);
+  const parts = raw.split(/\s*·\s*/).map((part) => part.trim()).filter(Boolean);
+  const roomName = parts[0] || "Room";
+  const rest = parts.slice(1);
+  const boardParts = rest
+    .filter((part) => !isCancelTagPart(part))
+    .map((part) => expandBoardLabel(part))
+    .filter(Boolean);
+  const season = row.season_code?.trim() || null;
+  const segments = comboSegmentsForQuote(row.extracted_raw, season);
+  // Joined cancel/payment on a combo is misleading when rooms differ — segments own it.
+  const cancellation = segments
+    ? null
+    : clientRule(row.cancellation_policy, season);
+  const payment = segments ? null : clientRule(row.payment_policy, season);
+  const comboCancelAgree =
+    segments != null &&
+    new Set(
+      segments.map((segment) => (segment.cancellation ?? "").trim().toLowerCase()),
+    ).size === 1;
+  const comboPayAgree =
+    segments != null &&
+    new Set(segments.map((segment) => (segment.payment ?? "").trim().toLowerCase()))
+      .size === 1;
+  // Combo: occupancy (+ shared cancel/pay only when every room matches).
+  const chips = clientOptionChips({
+    roomName,
+    cancellation: segments
+      ? comboCancelAgree
+        ? segments[0]?.cancellation
+        : null
+      : row.cancellation_policy,
+    payment: segments
+      ? comboPayAgree
+        ? segments[0]?.payment
+        : null
+      : row.payment_policy,
+    maxAdults: row.max_adults,
+    raw: segments
+      ? {
+          ...row.extracted_raw,
+          // Avoid first-room-only payment_timing when rooms disagree.
+          payment_timing: comboPayAgree
+            ? row.extracted_raw?.payment_timing
+            : null,
+        }
+      : row.extracted_raw,
+  });
   return {
     id: row.id,
-    name: name?.trim() || "Room",
-    detail:
-      rest
-        .map((part) => expandBoardLabel(part))
-        .filter(Boolean)
-        .join(", ") || null,
+    name: roomName,
+    chips,
+    detail: segments ? comboMealDetail(segments) : boardParts.length > 0 ? boardParts.join(", ") : null,
     price: row.sell_amount == null ? "To be confirmed" : formatAmount(row.sell_amount),
     currency,
-    sleeps: sleepsLabel(row.max_adults, row.max_children),
+    sleeps: segments ? null : sleepsLabel(row.max_adults, row.max_children),
     party: optionPartyLabel(row, stay),
+    segments,
     inclusions: clientInclusions(row.inclusions),
-    cancellation: clientRule(row.cancellation_policy, row.season_code),
-    payment: clientRule(row.payment_policy, row.season_code),
+    cancellation,
+    payment,
     terms: null,
     note: clientNote(row.rate_note),
     contractId: row.contract_id,
-    season: row.season_code?.trim() || null,
+    season,
     extras: [],
   };
+}
+
+function mealDisplaySuffix(row: TripRateSnapshot | undefined, detail: string | null): string | null {
+  const fromDetail = detail?.trim();
+  if (fromDetail) return fromDetail.length <= 28 ? fromDetail : `${fromDetail.slice(0, 27).trimEnd()}…`;
+  const raw = row?.subtitle?.trim() || "";
+  const parts = raw.split(/\s*·\s*/).map((part) => part.trim()).filter(Boolean);
+  const meal = parts.slice(1).find((part) => !isCancelTagPart(part));
+  return meal?.trim() || null;
+}
+
+function appendNameSuffix(name: string, suffix: string): string {
+  const already = new RegExp(`\\b${escapeRegExp(suffix)}\\b`, "i");
+  if (already.test(name)) return name;
+  return `${name} – ${suffix}`;
+}
+
+/**
+ * When two options at one hotel share a room type (two "Twin"), append meal
+ * so the PDF can tell them apart. Never put free-cancel / non-refundable on the
+ * main title — chips and nested room lines already show that.
+ */
+function disambiguateDuplicateRoomNames(
+  rooms: OptionsQuoteRoom[],
+  sourceRows: TripRateSnapshot[],
+): OptionsQuoteRoom[] {
+  const rowById = new Map(sourceRows.map((row) => [row.id, row]));
+
+  return rooms.map((room) => {
+    const dupes = rooms.filter((other) => normRoomKey(other.name) === normRoomKey(room.name));
+    if (dupes.length < 2) return room;
+    // Combo meal lives in the Meal plan column + nested lines — skip title clutter.
+    if (room.segments && room.segments.length >= 2) return room;
+    const row = rowById.get(room.id);
+    const meal = mealDisplaySuffix(row, room.detail);
+    return meal ? { ...room, name: appendNameSuffix(room.name, meal) } : room;
+  });
 }
 
 /** Client label for room capacity. Null when the rate has no max occupancy. */

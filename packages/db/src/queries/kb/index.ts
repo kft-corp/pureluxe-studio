@@ -24,6 +24,8 @@
  */
 export {
   countActiveKbEntitiesByTypeForCity,
+  findActiveKbAirportById,
+  findActiveKbCitiesByName,
   findActiveKbCityByCountryAndName,
   findActiveKbCityById,
   findActiveKbCountryByCode,

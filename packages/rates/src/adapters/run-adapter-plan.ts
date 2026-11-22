@@ -1,12 +1,14 @@
 import type { AdapterPlan } from "../resolve";
 import type { RawRateInput } from "../results";
+import {
+  searchHotelbeds,
+  searchSabre,
+  searchWholesale,
+} from "../suppliers";
 import type { RateSourceCode } from "../types";
-import { searchHotelbeds } from "./hotelbeds";
 import { searchOfflineContracted } from "./offline-contracted";
 import { searchOfflineManual } from "./offline-manual";
-import { searchSabre } from "./sabre";
 import type { AdapterContext, AdapterResult } from "./types";
-import { searchWholesale } from "./wholesale";
 
 export type RunAdapterPlanResult = {
   quotes: RawRateInput[];

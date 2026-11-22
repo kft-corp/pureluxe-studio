@@ -15,6 +15,7 @@ type FoundHotelHit = {
   destination?: string | null;
   contracted?: boolean;
   source?: string;
+  sabre_hotel_code?: string | null;
 };
 
 function hotelFindPayload(result: unknown): {
@@ -51,6 +52,13 @@ function tripDestination(trip: TripFacts | null, hotelDestination?: string | nul
   return fromList || null;
 }
 
+function isShoppableFindHit(hotel: FoundHotelHit): boolean {
+  if (hotel.contracted === true) return true;
+  // Stage 6 — open-GDS rows with a Sabre code are shoppable by code.
+  if (hotel.source === "open_gds" && hotel.sabre_hotel_code?.trim()) return true;
+  return false;
+}
+
 /** Rates · hotel (or Did you mean) when trip has dates + party. Skip coverage / Preferred-only. */
 function hotelFindChoices(result: unknown, trip: TripFacts | null): AgentChoice[] {
   const tripParty = partyFromTrip(trip);
@@ -58,12 +66,17 @@ function hotelFindChoices(result: unknown, trip: TripFacts | null): AgentChoice[
   const { hotels, did_you_mean: didYouMean, coverage_check } = hotelFindPayload(result);
   if (coverage_check) return [];
   const rooms = Math.max(1, Math.ceil(tripParty.adults / 2));
-  // Rates chips only for shoppable hotels (Rate Layer or Atlas with property_id).
+  // Rates chips: contracted PureLuxe + open_gds with sabre_hotel_code (Stage 6).
+  const shoppable =
+    didYouMean.length > 0
+      ? []
+      : hotels.filter(
+          (hotel) => isShoppableFindHit(hotel) && Boolean(hotel.name?.trim()),
+        );
   const names =
     didYouMean.length > 0
       ? didYouMean
-      : hotels
-          .filter((hotel) => hotel.contracted === true)
+      : shoppable
           .map((hotel) => hotel.name?.trim())
           .filter((name): name is string => Boolean(name));
   if (names.length === 0) return [];
@@ -75,15 +88,32 @@ function hotelFindChoices(result: unknown, trip: TripFacts | null): AgentChoice[
   const tripDates = datesFromTrip(trip, destination);
   if (!tripDates) return [];
 
-  const ratesArgs = (hotelNames: string[]) => ({
-    destination,
-    hotels: hotelNames.slice(0, 5),
-    check_in: tripDates.checkIn,
-    check_out: tripDates.checkOut,
-    rooms,
-    adults: tripParty.adults,
-    children: tripParty.children,
-  });
+  const codesFor = (hotelNames: string[]): Record<string, string> | undefined => {
+    const codes: Record<string, string> = {};
+    for (const name of hotelNames) {
+      const hit = shoppable.find(
+        (hotel) => hotel.name?.trim().toLowerCase() === name.trim().toLowerCase(),
+      );
+      const code = hit?.sabre_hotel_code?.trim();
+      if (code) codes[name] = code;
+    }
+    return Object.keys(codes).length > 0 ? codes : undefined;
+  };
+
+  const ratesArgs = (hotelNames: string[]) => {
+    const sliced = hotelNames.slice(0, 5);
+    const hotel_codes = codesFor(sliced);
+    return {
+      destination,
+      hotels: sliced,
+      check_in: tripDates.checkIn,
+      check_out: tripDates.checkOut,
+      rooms,
+      adults: tripParty.adults,
+      children: tripParty.children,
+      ...(hotel_codes ? { hotel_codes } : {}),
+    };
+  };
 
   const buttons: AgentChoice[] = [];
   if (didYouMean.length === 0 && names.length > 1) {
@@ -137,14 +167,14 @@ export const hotelFindTool = defineDeskTool({
   name: "hotel_find",
   description: [
     "Find hotels by name (fuzzy), destination, proposed tier (Tier 1 / Tier 2 / Tier 3), similar to another hotel, or a similar price band.",
-    "Results: Rate Layer (shoppable, contracted true) first; Atlas preferred/guide hotels fill when Rate Layer is thin or empty (source atlas, contracted false unless linked).",
+    "Results: Rate Layer (shoppable, contracted true) first; Atlas preferred/guide hotels fill when Rate Layer is thin or empty (source atlas, contracted false unless linked); on explicit suggest when preferred is still thin, open_gds fill may add live names (min Sabre rating 4; sabre_hotel_code set; live discover uses a standard 2-adult / 1-room probe for names only — real party and rooms are confirmed on rates_search). coverage_check skips open_gds.",
     "Use when the advisor names a hotel, asks for suggestions, wants others in the same tier, or says \"similar to X\". A saved stay is not required.",
-    "Coverage check (founder #16): after dates/stays are set, before asking hotel-in-mind / suggest — pass destination + coverage_check true (limit 1). Silent in the UI. If hotels empty: say none loaded and ask for names or a paste quote — never offer to suggest. If any hotel returned (Rate Layer or Atlas): do NOT list hotel names; only ask in plain text whether they have a hotel in mind or want suggestions. List hotels only when they explicitly ask to suggest/find hotels (coverage_check false).",
+    "Coverage check (founder #16): after dates/stays are set, before asking hotel-in-mind / suggest — pass destination + coverage_check true (limit 1). Silent in the UI; preferred/contracted only (no live open-GDS fill). If hotels empty: follow the tool note — no preferred list yet; offer live suggestions OR a hotel name OR a paste quote (do not say no hotels exist at all; do not list names). If any hotel returned: do NOT list hotel names; only ask in plain text whether they have a hotel in mind or want suggestions. List hotels only on explicit suggest/find (coverage_check false) — that path may add live options when preferred is thin.",
     "For \"similar\" / \"same tier\" / \"same price range\", pass similar_to or tier so results stay in that band — do not list cheaper out-of-tier hotels from general knowledge.",
     "Do not use for hotel rules or charges (hotel_get), place notes (place_get_notes), or room prices (rates tools).",
-    "Returns hotels ranked behind the scenes with guide_rating (show in chat as Rating only — never \"Guide\") plus guide_score_factors fit — weighted by trip party, advisor ask, and client pref hints when Studio passes them. Also returns tier, style tags, contracted, source, badge (rates logic only — never stamp Contracted/Preferred in chat), area, partner, why, choose_if, and experiences. When the name is unclear, did_you_mean lists close matches instead of guessing.",
-    "Suggest / find hotels alone: call this tool only (no coverage_check) — do not call rates_search. Default limit 3. Reply shape (see trip/home prompt): talkable intro; each hotel as `1. **Name** — Rating X.X` then 1–2 spoken sentences weaving area/why/choose_if — not a nested Area/Why/Best-for form; optional Programme line from partner when useful. Experiences: on a plain suggest-hotels ask do NOT list ### Nearby for the stay; in **Pick** cite at most one grounded nearby cue from experiences when it helps choose the hotel. Add ### Nearby (max 2–3) only when the ask mentions food / restaurants / things to do / activities / kids experiences or prefs clearly need it. **Pick** also uses area plus up to 1–2 plain-language strengths — never rating alone. Banned in chat: Guide, Partner, Choose if, score/scores, matrix, tool, Rate Layer, Atlas. Never dump factor keys or say \"family score\" / \"access score\" — translate to talkable English. Why A vs B / why rating high (only when asked): short 3–5 plain-strength compare from guide_score_factors only. Never invent names or ratings. Never say tap Rates (founder #19). Empty result: ask for names or paste quote. Never say \"no hotels\" when this tool returned names.",
-    "Only when the same message also asks for prices, rates, cheapest, or \"suggest and get rates\" AND check-in, check-out, rooms, and adults are known: call rates_search next for the top 1–2 Contracted picks (or the hotels they named). Do not rates_search Preferred (contracted false) — offer paste quote instead. If dates/party missing, ask once; do not invent.",
+    "Returns hotels ranked behind the scenes with guide_rating and guide_score_factors (internal only — never show Rating, scores, or numbers in chat). Weighted by trip party, advisor ask, and client pref hints when Studio passes them. Also returns tier, style tags, contracted, source, badge (rates logic only — never stamp Contracted/Preferred in chat), area, partner, why, choose_if, and experiences. When the name is unclear, did_you_mean lists close matches instead of guessing.",
+    "Suggest / find hotels alone: call this tool only (no coverage_check) — do not call rates_search. Default limit 3. Reply shape (see trip/home prompt): talkable intro; each hotel as `1. **Name**` only (never Rating / guide_rating), then 1–2 spoken sentences weaving area/why/choose_if — not a nested Area/Why/Best-for form; same shape for Rate Layer, Atlas, and open_gds rows (open_gds also fills area/why/choose_if from live hotel facts — weave those; never say you lack detail when they are set; never stamp Open/GDS in chat); optional Programme line from partner when useful. Experiences: on a plain suggest-hotels ask do NOT list ### Nearby for the stay; in **Pick** cite at most one grounded nearby cue from experiences when it helps choose the hotel. Add ### Nearby (max 2–3) only when the ask mentions food / restaurants / things to do / activities / kids experiences or prefs clearly need it. **Pick** also uses area plus up to 1–2 plain-language strengths — never a rating number. Banned in chat: Guide, Partner, Choose if, score/scores, Rating, matrix, tool, Rate Layer, Atlas, Open, GDS. Never dump factor keys or say \"family score\" / \"access score\" — translate to talkable English. Why A vs B / why one fits (only when asked): short 3–5 plain-strength compare from guide_score_factors only — never numbers. Never invent names or ratings. Never say tap Rates (founder #19). Empty after explicit suggest (nothing strong enough live): name a hotel or paste quote. Never say \"no hotels\" when this tool returned names. List preferred/contracted first; live open_gds after.",
+    "Only when the same message also asks for prices, rates, cheapest, or \"suggest and get rates\" AND check-in, check-out, rooms, and adults are known: call rates_search next for the top 1–2 shoppable picks (Contracted, or Open with sabre_hotel_code — pass hotel_codes from those rows). Do not rates_search Preferred/guide-only (atlas, no sabre_hotel_code) — offer paste quote instead. If dates/party/rooms missing, ask once; do not invent rooms.",
   ].join(" "),
   schema: z
     .object({
@@ -182,7 +212,7 @@ export const hotelFindTool = defineDeskTool({
         .boolean()
         .optional()
         .describe(
-          "True = silent coverage probe only (founder #16). Do not list hotels in the reply; no Rates choices; no Finding hotels progress.",
+          "True = silent preferred coverage only (founder #16; no live open-GDS). Do not list hotels; no Rates choices; no Finding hotels progress.",
         ),
     })
     .strict(),
@@ -221,6 +251,7 @@ export const hotelFindTool = defineDeskTool({
       priceBandLike: input.price_band_like,
       limit: coverage ? 1 : input.limit,
       includeExperiences: !coverage,
+      skipOpenGds: coverage,
       ask: askBits || undefined,
     });
     if (coverage && result && typeof result === "object") {

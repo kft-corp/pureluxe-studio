@@ -862,6 +862,13 @@ export function ServiceDetailsForm({
   const [specialRequests, setSpecialRequests] = useState(
     textFromUnknown(details.special_requests),
   );
+  const existingGdsRooms = Array.isArray(details.gds_room_segments)
+    ? (details.gds_room_segments as Array<Record<string, unknown>>)
+    : [];
+  const [gdsRoomConfirmations, setGdsRoomConfirmations] = useState<string[]>(
+    () =>
+      existingGdsRooms.map((row) => textFromUnknown(row.confirmation_ref)),
+  );
   const [ticketNumber, setTicketNumber] = useState(
     textFromUnknown(details.ticket_number),
   );
@@ -941,6 +948,7 @@ export function ServiceDetailsForm({
           code: boardCode,
           customLabel: boardCustomLabel,
         });
+        // GDS offline-book keys stay on the booking via merge (not in this patch).
         nextDetails = {
           check_in_time: emptyToNull(normalizeTimeOfDay(checkInTime)),
           check_out_time: emptyToNull(normalizeTimeOfDay(checkOutTime)),
@@ -950,6 +958,14 @@ export function ServiceDetailsForm({
           rate_plan: emptyToNull(ratePlan),
           special_requests: emptyToNull(specialRequests),
         };
+        if (existingGdsRooms.length >= 2) {
+          nextDetails.gds_room_segments = existingGdsRooms.map((row, index) => ({
+            ...row,
+            confirmation_ref: emptyToNull(
+              gdsRoomConfirmations[index] ?? textFromUnknown(row.confirmation_ref),
+            ),
+          }));
+        }
       } else if (booking.service_type === "flight") {
         const depart = normalizeTimeOfDay(departTime);
         const arrive = normalizeTimeOfDay(arriveTime);
@@ -1085,6 +1101,92 @@ export function ServiceDetailsForm({
     >
       {booking.service_type === "hotel" ? (
         <>
+          {textFromUnknown(details.gds_hotel_code) ? (
+            <div className="rounded-lg border border-border bg-surface-subtle px-3 py-2.5 text-sm text-ink">
+              <p className="text-xs font-semibold tracking-wide text-ink-muted uppercase">
+                Offline book (GDS)
+              </p>
+              <p className="mt-1 font-mono text-sm font-semibold text-ink">
+                {textFromUnknown(details.gds_hotel_code)}
+              </p>
+              <p className="mt-1 text-xs text-ink-muted">
+                {[
+                  textFromUnknown(details.gds_hotel_name),
+                  textFromUnknown(details.gds_rate_source),
+                  textFromUnknown(details.payment_summary),
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+              {existingGdsRooms.length >= 2 ? (
+                <p className="mt-2 text-xs text-ink-muted">
+                  Dual-shop combo — book each room separately and store a
+                  confirmation per room below.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+          {existingGdsRooms.length >= 2 ? (
+            <div className="space-y-3">
+              <p className="text-xs font-semibold tracking-wide text-ink-muted uppercase">
+                Rooms to book offline
+              </p>
+              {existingGdsRooms.map((row, index) => {
+                const label =
+                  textFromUnknown(row.label) ||
+                  textFromUnknown(row.room_name) ||
+                  `Room ${index + 1}`;
+                return (
+                  <div
+                    key={`gds-room-${index}`}
+                    className="rounded-lg border border-border px-3 py-2.5 text-sm"
+                  >
+                    <p className="font-medium text-ink">
+                      Room {index + 1} · {label}
+                    </p>
+                    <p className="mt-1 text-xs text-ink-muted">
+                      {[
+                        textFromUnknown(row.board)
+                          ? `Meal: ${textFromUnknown(row.board)}`
+                          : null,
+                        textFromUnknown(row.cancellation_summary)
+                          ? `Cancel: ${textFromUnknown(row.cancellation_summary)}`
+                          : null,
+                        textFromUnknown(row.payment_summary)
+                          ? `Pay: ${textFromUnknown(row.payment_summary)}`
+                          : null,
+                        textFromUnknown(row.rate_key)
+                          ? `Key: ${textFromUnknown(row.rate_key)}`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                    <Field
+                      label="Confirmation / PNR"
+                      htmlFor={`edit-gds-room-conf-${index}`}
+                      hint="Store after this room is booked offline."
+                    >
+                      <input
+                        id={`edit-gds-room-conf-${index}`}
+                        value={gdsRoomConfirmations[index] ?? ""}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          setGdsRoomConfirmations((prev) => {
+                            const next = [...prev];
+                            next[index] = value;
+                            return next;
+                          });
+                        }}
+                        className={cn(modalFieldClassName)}
+                        placeholder="Confirmation for this room"
+                      />
+                    </Field>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
           <div className="grid gap-4 sm:grid-cols-2">
             <Field
               label="Check-in time"

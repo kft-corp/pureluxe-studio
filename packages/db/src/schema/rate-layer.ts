@@ -345,6 +345,11 @@ export type PropertyContractedRate = {
   base_children: number;
   max_adults: number | null;
   max_children: number | null;
+  /**
+   * Max total guests in the room (adults + children). Infants excluded.
+   * Null = no total cap beyond max_adults / max_children.
+   */
+  max_occupancy?: number | null;
   board: string | null;
   includes_breakfast: boolean;
   includes_lunch: boolean;

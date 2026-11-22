@@ -78,6 +78,49 @@ export async function listActiveSupplierCodesForProperty(
   return (data ?? []) as PropertySupplierCode[];
 }
 
+/**
+ * Active Sabre hotel codes for many properties (open-GDS dedupe vs mapped).
+ * One query — never invents codes.
+ */
+export async function listActiveSabreCodesForPropertyIds(
+  propertyIds: string[],
+): Promise<Map<string, string>> {
+  const ids = [
+    ...new Set(
+      propertyIds.map((id) => id.trim()).filter((id) => id.length > 0),
+    ),
+  ];
+  const byProperty = new Map<string, string>();
+  if (ids.length === 0) return byProperty;
+
+  const supabase = getServiceClient();
+  const { data, error } = await runSupabaseQuery(() =>
+    supabase
+      .from("property_supplier_codes")
+      .select("property_id, supplier_property_code")
+      .in("property_id", ids)
+      .eq("supplier_key", "sabre")
+      .eq("active", true),
+  );
+
+  if (error) {
+    throw dbQueryError(error);
+  }
+
+  for (const row of data ?? []) {
+    const propertyId =
+      typeof row.property_id === "string" ? row.property_id.trim() : "";
+    const code =
+      typeof row.supplier_property_code === "string"
+        ? row.supplier_property_code.trim()
+        : "";
+    if (!propertyId || !code || byProperty.has(propertyId)) continue;
+    byProperty.set(propertyId, code);
+  }
+
+  return byProperty;
+}
+
 export type FindContractedRateInput = {
   property_id: string;
   check_in: string;

@@ -338,6 +338,8 @@ function createSeedDeskHandlers(seed: ScenarioSeed, today: string): Omit<DeskAge
           contracted: true,
           source: "rate_layer" as const,
           badge: "Contracted" as const,
+          property_id: hotel.propertyId ?? null,
+          sabre_hotel_code: null,
           guide_score_factors: {},
           area: null,
           partner: null,
@@ -432,6 +434,10 @@ export function createSeedHandlers(
             markup_percent: markupPercent,
             recommended: index === 0 && hotelIndex === 0,
             markup_buttons: [markupPercent, 30],
+            detail: null as string | null,
+            payment: null as string | null,
+            segments: null as null,
+            terms_differ: false,
           };
         });
         const primaryRoom = rooms[0]?.room_name ?? null;
@@ -452,8 +458,13 @@ export function createSeedHandlers(
           rooms,
           notes: {
             cancellation: "Cancel within 30 days",
+            payment: null,
             markup: `Commission rate ${markupPercent}% — client per-night and total use this`,
             inclusions: ["Breakfast"],
+            highlights: [],
+            rate_terms: [],
+            in_stay: null,
+            extras: null,
           },
           suggest_to_client: suggestToClient,
           note: hit ? null : `No PureLuxe hotel matched "${name}".`,
@@ -507,6 +518,26 @@ export function createSeedHandlers(
       };
     },
 
+    async priceCheckRate(input) {
+      const hotel = input.hotel?.trim() || trip.quoteOptions[0]?.hotel || "Hotel";
+      const room = input.room?.trim() || trip.quoteOptions[0]?.room || "Room";
+      return {
+        status: "skipped" as const,
+        note: `**Price check · ${room}** · ${hotel}\n\nThis is a **contracted** rate — no live GDS recheck is needed. Cost stays as on file.`,
+        rate_source_code: "offline_contracted",
+        rate_source_label: "Contracted",
+        hotel,
+        room,
+        cost_on_file: null,
+        currency_on_file: "USD",
+        cost_today: null,
+        currency_today: null,
+        update: null,
+        needs_live_check: false,
+        requires_reshop: false,
+      };
+    },
+
     async addQuoteOptions(input) {
       const stayNights = quoteStayNights(trip);
       const roomCount = Math.max(1, trip.rooms);
@@ -533,6 +564,7 @@ export function createSeedHandlers(
           clientPrice = Math.round(teamCost * (1 + option.markupPercent / 100) * 100) / 100;
         }
         const next = {
+          id: prev?.id ?? crypto.randomUUID(),
           hotel: option.hotel,
           room: option.room,
           markupPercent,
@@ -706,6 +738,7 @@ export function createSeedHandlers(
 
     async usePastedQuote(input) {
       trip.quoteOptions.push({
+        id: crypto.randomUUID(),
         hotel: input.hotel,
         room: input.room,
         markupPercent: null,
@@ -726,11 +759,13 @@ export function createSeedHandlers(
     },
 
     async selectFinal(input) {
-      const row = trip.quoteOptions.find(
-        (option) =>
-          option.hotel.toLowerCase().includes(input.hotel.toLowerCase()) &&
-          option.room.toLowerCase().includes(input.room.toLowerCase()),
-      );
+      const row =
+        trip.quoteOptions.find((option) => option.id === input.optionId) ??
+        trip.quoteOptions.find(
+          (option) =>
+            option.hotel.toLowerCase().includes(input.hotel.toLowerCase()) &&
+            option.room.toLowerCase().includes(input.room.toLowerCase()),
+        );
       if (!row) {
         throw advisorError(
           `No room matching ${input.room} at ${input.hotel} is on the options quote.`,
@@ -748,11 +783,13 @@ export function createSeedHandlers(
 
     async acceptAndSelect(input) {
       trip.quoteStatus = "accepted";
-      const row = trip.quoteOptions.find(
-        (option) =>
-          option.hotel.toLowerCase().includes(input.hotel.toLowerCase()) &&
-          option.room.toLowerCase().includes(input.room.toLowerCase()),
-      );
+      const row =
+        trip.quoteOptions.find((option) => option.id === input.optionId) ??
+        trip.quoteOptions.find(
+          (option) =>
+            option.hotel.toLowerCase().includes(input.hotel.toLowerCase()) &&
+            option.room.toLowerCase().includes(input.room.toLowerCase()),
+        );
       if (!row) {
         throw advisorError(
           `No room matching ${input.room} at ${input.hotel} is on the options quote.`,

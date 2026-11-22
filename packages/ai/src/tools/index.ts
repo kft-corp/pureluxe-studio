@@ -37,6 +37,7 @@ export type {
   RateCompareHotelNotes,
   RateCompareHotelStatus,
   RateCompareRoom,
+  RateCompareRoomSegment,
 } from "./rate-compare";
 export type { LegSplitCard, LegSplitStay } from "./leg-split";
 export {

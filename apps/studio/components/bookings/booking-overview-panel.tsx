@@ -69,7 +69,7 @@ function serviceDetailsSectionTitle(serviceType: string): string {
 function serviceDetailsSectionDescription(serviceType: string): string {
   switch (serviceType) {
     case "hotel":
-      return "Check-in and check-out times, room, and board — stored on this reservation.";
+      return "GDS hotel code, room, meals, payment, and times — enough to book offline even when the hotel is not in PureLuxe.";
     case "flight":
       return "Segments, departure and arrival times, and ticketing details.";
     case "transfer":
@@ -124,6 +124,17 @@ export function BookingOverviewPanel({
     booking.service_type,
     booking.service_details,
   );
+  const parsedHotel = isHotel
+    ? parseBookingServiceDetails("hotel", booking.service_details ?? {})
+    : null;
+  const gdsHotelCode =
+    parsedHotel?.serviceType === "hotel"
+      ? parsedHotel.details.gds_hotel_code?.trim() || null
+      : null;
+  const gdsRateSource =
+    parsedHotel?.serviceType === "hotel"
+      ? parsedHotel.details.gds_rate_source?.trim() || null
+      : null;
   const hasMoreDetails = detailFields.length > SERVICE_DETAIL_PREVIEW_COUNT;
   const visibleDetails = showAllDetails
     ? detailFields
@@ -238,6 +249,15 @@ export function BookingOverviewPanel({
                 className="sm:border-b sm:border-border/70"
               />
             )}
+            {gdsHotelCode ? (
+              <DetailField
+                icon={icons.property}
+                label="GDS hotel code"
+                value={gdsHotelCode}
+                badge={gdsRateSource}
+                className="sm:border-b sm:border-border/70"
+              />
+            ) : null}
             {!isFlight ? (
               <DetailField
                 icon={icons.location}

@@ -1,4 +1,8 @@
-import type { DestinationWholesaler, PropertyContractedRate } from "@pureluxe/db";
+import type {
+  DestinationWholesaler,
+  NegotiatedRateCode,
+  PropertyContractedRate,
+} from "@pureluxe/db";
 
 import type { RawRateInput } from "../results";
 import type { RateSourceCode, SearchRatesRequest } from "../types";
@@ -9,6 +13,8 @@ export type AdapterContext = {
   /** Layer 1 covering rates from resolve (skips a second DB read). */
   contracted_rates?: PropertyContractedRate[];
   wholesalers?: DestinationWholesaler[];
+  /** Prefetched active negotiated / consortia codes (Stage 3 Sabre). */
+  negotiated_rate_codes?: NegotiatedRateCode[];
 };
 
 export type AdapterResultStatus = "ok" | "empty" | "stub" | "needs_paste";

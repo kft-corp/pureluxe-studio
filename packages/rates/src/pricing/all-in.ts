@@ -19,7 +19,9 @@ import {
   type AppliedOffer,
 } from "./offers";
 import {
+  occupancyLimitsUnknown,
   partyFitsRate,
+  partyRoomsFromOccupancies,
   splitPartyAcrossRooms,
   type PartyRoom,
 } from "./party";
@@ -52,6 +54,9 @@ export type ContractedAllInPrice = {
   seasons: string[];
   child_ages_assumed: boolean;
   needs_child_ages: boolean;
+  /** max_adults and max_children both null — confirm occupancy with hotel. */
+  occupancy_limits_unknown: boolean;
+  infants: number;
   contract_id: string | null;
 };
 
@@ -66,8 +71,16 @@ export type PriceContractedRoomInput = {
   check_out: string;
   adults: number;
   children: number;
+  infants?: number;
   rooms: number;
   child_ages?: number[] | null;
+  /** Advisor-confirmed guests per room; when set, used instead of even auto-split. */
+  room_occupancies?: Array<{
+    adults: number;
+    children?: number;
+    child_ages?: number[] | null;
+    infants?: number;
+  }> | null;
   client_market_codes?: string[] | null;
   book_as_of?: string;
 };
@@ -97,17 +110,48 @@ export function priceContractedRoom(
   const roomsRequested = Math.max(1, Math.floor(input.rooms) || 1);
   const adults = Math.max(1, Math.floor(input.adults) || 1);
   const children = Math.max(0, Math.floor(input.children) || 0);
+  const infants = Math.max(0, Math.floor(input.infants ?? 0));
 
-  const { rooms: partyRooms, child_ages_assumed } = splitPartyAcrossRooms({
-    adults,
-    children,
-    rooms: roomsRequested,
-    child_ages: input.child_ages,
-  });
+  const explicit = (input.room_occupancies ?? []).filter(
+    (row) => Math.max(0, Math.floor(row.adults || 0)) >= 1,
+  );
+  let { rooms: partyRooms, child_ages_assumed } =
+    explicit.length === roomsRequested
+      ? partyRoomsFromOccupancies(explicit)
+      : splitPartyAcrossRooms({
+          adults,
+          children,
+          rooms: roomsRequested,
+          child_ages: input.child_ages,
+          infants,
+        });
 
-  if (!partyFitsRate(input.rate, partyRooms)) {
+  // Explicit room_occupancies may omit infants — spread them evenly across rooms.
+  if (infants > 0 && explicit.length === roomsRequested) {
+    const already = partyRooms.reduce((sum, row) => sum + (row.infants ?? 0), 0);
+    if (already < infants) {
+      const add = infants - already;
+      partyRooms = partyRooms.map((row, index) => {
+        const extra = Math.floor(add / roomsRequested) + (index < add % roomsRequested ? 1 : 0);
+        const next = (row.infants ?? 0) + extra;
+        return next > 0 ? { ...row, infants: next } : row;
+      });
+    }
+  }
+
+  const limits = {
+    max_adults: input.rate.max_adults,
+    max_children: input.rate.max_children,
+    max_occupancy: input.rate.max_occupancy ?? null,
+    base_adults: input.rate.base_adults,
+    base_children: input.rate.base_children,
+  };
+
+  if (!partyFitsRate(limits, partyRooms)) {
     return { status: "hidden", reason: "occupancy" };
   }
+
+  const occupancy_limits_unknown = occupancyLimitsUnknown(limits);
 
   const needs_child_ages =
     children > 0 &&
@@ -226,6 +270,8 @@ export function priceContractedRoom(
       seasons: [...seasons],
       child_ages_assumed,
       needs_child_ages,
+      occupancy_limits_unknown,
+      infants,
       contract_id: input.rate.contract_id,
     },
   };

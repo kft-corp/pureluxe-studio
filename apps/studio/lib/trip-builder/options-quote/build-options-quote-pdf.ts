@@ -1,9 +1,11 @@
 /**
  * Options quote PDF.
  * Letterhead, trip facts, advisor note (above hotels), then per hotel: room table
- * (Room | Meal plan | Occupancy when capacity differs | Total with currency symbol),
- * shared inclusions, room differences, getting there, good to know, then highlighted
- * Cancellation and Payment. Drawn with PDFKit. Reads OptionsQuoteDocument only.
+ * (Room/option + chips | Meal plan | Total; Occupancy column only if no chips),
+ * dual-shop combos nest each room type under the title, shared inclusions,
+ * room differences, getting there, good to know, then highlighted Cancellation
+ * and Payment (per room type when terms differ). Drawn with PDFKit. Reads
+ * OptionsQuoteDocument only — source-agnostic (Sabre, contracted, paste).
  */
 
 import { existsSync } from "node:fs";
@@ -17,6 +19,7 @@ import type {
   OptionsQuoteRoom,
   OptionsQuoteStay,
 } from "./options-quote-document";
+import { optionPolicyLabel } from "./option-chips";
 
 /** CSS pixels in the HTML sample, converted to PDF points (96px = 72pt). */
 const PT = 72 / 96;
@@ -217,8 +220,10 @@ function facts(doc: PDFKit.PDFDocument, quote: OptionsQuoteDocument, y: number):
   const rows: Array<[string, string]> = [
     ["Prepared for", quote.preparedFor],
     ["Travel dates", quote.dates],
-    ["Guests", quote.guests],
   ];
+  if (quote.guests.trim()) {
+    rows.push(["Guests", quote.guests]);
+  }
   const labelWidth = px(126);
   for (const [name, value] of rows) {
     doc.font(FONT.bold).fontSize(TYPE.body).fillColor(INK).text(name, LEFT, y, {
@@ -347,6 +352,30 @@ function fitLine(doc: PDFKit.PDFDocument, value: string, font: string, size: num
   return `${cut.trim()}...`;
 }
 
+/** Prefer rate chips (Occupancy · Non-refund · Deposit); fall back to party line. */
+function roomSubline(room: OptionsQuoteRoom): string | null {
+  return room.chips?.trim() || room.party?.trim() || null;
+}
+
+/** Nested dual-shop lines under the combo title (Twin · 2 adults · …). */
+function segmentLines(room: OptionsQuoteRoom): string[] {
+  const segments = room.segments;
+  if (!segments || segments.length < 2) return [];
+  return segments.map((segment) => {
+    const bits = [segment.label];
+    if (segment.board?.trim()) bits.push(segment.board.trim());
+    if (segment.chips?.trim()) {
+      // Drop occupancy chip already implied by "(2 adults)" in the label when present.
+      const chipParts = segment.chips
+        .split(/\s*·\s*/)
+        .map((part) => part.trim())
+        .filter((part) => part && !/^occupancy\b/i.test(part));
+      bits.push(...chipParts);
+    }
+    return bits.join(" · ");
+  });
+}
+
 function paintRoom(
   doc: PDFKit.PDFDocument,
   room: OptionsQuoteRoom,
@@ -365,17 +394,36 @@ function paintRoom(
     width: cols.roomW,
     height: nameH,
   });
-  const party = room.party?.trim();
-  let mealY = top;
-  if (party) {
+  const subline = roomSubline(room);
+  let cursorY = top + nameH;
+  if (subline) {
     doc.font(FONT.regular).fontSize(TYPE.roomMeta);
-    const partyH = doc.heightOfString(party, { width: cols.roomW });
-    doc.font(FONT.regular).fontSize(TYPE.roomMeta).fillColor(MUTED).text(party, cols.roomX, top + nameH + 2, {
-      width: cols.roomW,
-      height: partyH,
-    });
-    mealY = top;
+    const subH = doc.heightOfString(subline, { width: cols.roomW });
+    doc
+      .font(FONT.regular)
+      .fontSize(TYPE.roomMeta)
+      .fillColor(MUTED)
+      .text(subline, cols.roomX, cursorY + 2, {
+        width: cols.roomW,
+        height: subH,
+      });
+    cursorY += 2 + subH;
   }
+  const nested = segmentLines(room);
+  for (const line of nested) {
+    doc.font(FONT.regular).fontSize(TYPE.roomMeta);
+    const lineH = doc.heightOfString(line, { width: cols.roomW });
+    doc
+      .font(FONT.regular)
+      .fontSize(TYPE.roomMeta)
+      .fillColor(MUTED)
+      .text(line, cols.roomX, cursorY + 2, {
+        width: cols.roomW,
+        height: lineH,
+      });
+    cursorY += 2 + lineH;
+  }
+  const mealY = top;
   doc.font(FONT.regular).fontSize(TYPE.roomMeta);
   const mealH = doc.heightOfString(room.detail?.trim() || "—", { width: cols.mealW });
   doc.font(FONT.regular).fontSize(TYPE.roomMeta).fillColor(MUTED).text(room.detail?.trim() || "—", cols.mealX, mealY, {
@@ -495,9 +543,20 @@ function paintBandList(
   return y + 8;
 }
 
+/** Prefix so cancel/payment lines map to the right table option. */
+function optionPrefix(hotel: OptionsQuoteHotel, index: number): string | null {
+  if (hotel.rooms.length <= 1) return null;
+  return `Option ${index + 1}`;
+}
+
+function withOptionPrefix(prefix: string | null, label: string): string {
+  return prefix ? `${prefix} · ${label}` : label;
+}
+
 /**
  * Split cancel and payment for the client. A full terms rewrite on a room
  * is shown under Cancellation so payment is not duplicated.
+ * Dual-shop combos list each room type; multi-option hotels use Option N.
  */
 function hotelPolicySections(hotel: OptionsQuoteHotel): {
   cancellation: string[];
@@ -505,35 +564,97 @@ function hotelPolicySections(hotel: OptionsQuoteHotel): {
 } {
   const cancelRows: Array<{ name: string; text: string }> = [];
   const paymentRows: Array<{ name: string; text: string }> = [];
+  const multiOption = hotel.rooms.length > 1;
 
-  for (const room of hotel.rooms) {
+  hotel.rooms.forEach((room, index) => {
+    const prefix = optionPrefix(hotel, index);
     const override = room.terms?.trim() || null;
     if (override) {
-      cancelRows.push({ name: room.name, text: override });
-      continue;
+      cancelRows.push({
+        name: withOptionPrefix(prefix, optionPolicyLabel(room.name, room.chips)),
+        text: override,
+      });
+      return;
     }
+
+    const segments = room.segments;
+    if (segments && segments.length >= 2) {
+      const cancelSegs = segments
+        .map((segment) => ({
+          name: segment.label,
+          text: segment.cancellation?.trim() || "",
+        }))
+        .filter((row) => row.text);
+      const paySegs = segments
+        .map((segment) => ({
+          name: segment.label,
+          text: segment.payment?.trim() || "",
+        }))
+        .filter((row) => row.text);
+
+      if (cancelSegs.length > 0) {
+        const sameCancel = cancelSegs.every((row) => row.text === cancelSegs[0]!.text);
+        if (sameCancel) {
+          cancelRows.push({
+            name: withOptionPrefix(prefix, "Both rooms"),
+            text: cancelSegs[0]!.text,
+          });
+        } else {
+          for (const row of cancelSegs) {
+            cancelRows.push({
+              name: withOptionPrefix(prefix, row.name),
+              text: row.text,
+            });
+          }
+        }
+      }
+
+      if (paySegs.length > 0) {
+        const samePay = paySegs.every((row) => row.text === paySegs[0]!.text);
+        if (samePay) {
+          paymentRows.push({
+            name: withOptionPrefix(prefix, "Both rooms"),
+            text: paySegs[0]!.text,
+          });
+        } else {
+          for (const row of paySegs) {
+            paymentRows.push({
+              name: withOptionPrefix(prefix, row.name),
+              text: row.text,
+            });
+          }
+        }
+      }
+      return;
+    }
+
+    const label = withOptionPrefix(prefix, optionPolicyLabel(room.name, room.chips));
     if (room.cancellation?.trim()) {
-      cancelRows.push({ name: room.name, text: room.cancellation.trim() });
+      cancelRows.push({ name: label, text: room.cancellation.trim() });
     }
     if (room.payment?.trim()) {
-      paymentRows.push({ name: room.name, text: room.payment.trim() });
+      paymentRows.push({ name: label, text: room.payment.trim() });
     }
-  }
+  });
 
   return {
-    cancellation: policyLines(cancelRows, hotel.rooms.length),
-    payment: policyLines(paymentRows, hotel.rooms.length),
+    cancellation: policyLines(cancelRows, multiOption),
+    payment: policyLines(paymentRows, multiOption),
   };
 }
 
 function policyLines(
   rows: Array<{ name: string; text: string }>,
-  roomCount: number,
+  forceLabels: boolean,
 ): string[] {
   if (rows.length === 0) return [];
   const same = rows.every((row) => row.text === rows[0]!.text);
-  if (same) return [rows[0]!.text];
-  if (roomCount <= 1) return rows.map((row) => row.text);
+  if (same && !forceLabels) return [rows[0]!.text];
+  if (same && forceLabels && rows.length > 1) {
+    // Same text across options — one line is enough.
+    return [rows[0]!.text];
+  }
+  if (!forceLabels && rows.length <= 1) return rows.map((row) => row.text);
   return rows.map((row) => `${row.name}: ${row.text}`);
 }
 
@@ -541,14 +662,17 @@ function roomHeight(doc: PDFKit.PDFDocument, room: OptionsQuoteRoom, cols: Table
   doc.font(FONT.bold).fontSize(TYPE.room);
   const name = doc.heightOfString(room.name, { width: cols.roomW });
   doc.font(FONT.regular).fontSize(TYPE.roomMeta);
-  const party = room.party?.trim()
-    ? doc.heightOfString(room.party.trim(), { width: cols.roomW }) + 2
-    : 0;
+  const subline = roomSubline(room);
+  const sub = subline ? doc.heightOfString(subline, { width: cols.roomW }) + 2 : 0;
+  const nested = segmentLines(room).reduce(
+    (sum, line) => sum + doc.heightOfString(line, { width: cols.roomW }) + 2,
+    0,
+  );
   const meal = doc.heightOfString(room.detail?.trim() || "—", { width: cols.mealW });
   const sleeps = cols.showSleeps
     ? doc.heightOfString(room.sleeps?.trim() || "—", { width: cols.sleepsW })
     : 0;
-  return Math.max(28, Math.max(name + party, meal, sleeps) + 14);
+  return Math.max(28, Math.max(name + sub + nested, meal, sleeps) + 14);
 }
 
 function bulletHeight(doc: PDFKit.PDFDocument, items: string[]): number {
@@ -611,7 +735,11 @@ type TableColumns = {
   priceW: number;
 };
 
-/** Room | Meal plan | Total, plus Occupancy only when room capacity differs. */
+/**
+ * Room | Meal plan | Total.
+ * Occupancy lives in room chips (and the stay strip) — no separate Occupancy
+ * column when chips are present (avoids Occupancy twice).
+ */
 function tableColumns(rooms: OptionsQuoteRoom[]): TableColumns {
   const pad = px(14);
   const gap = px(8);
@@ -627,9 +755,13 @@ function tableColumns(rooms: OptionsQuoteRoom[]): TableColumns {
   return { showSleeps, roomX, roomW, mealX, mealW, sleepsX, sleepsW, priceX, priceW };
 }
 
-/** Occupancy column only when two or more rooms list different capacity. */
+/**
+ * Occupancy column only when capacity differs AND no room chips already
+ * carry Occupancy (chips match the chat rate-table subline).
+ */
 function showSleepsColumn(rooms: OptionsQuoteRoom[]): boolean {
   if (rooms.length < 2) return false;
+  if (rooms.some((room) => /\boccupancy\b/i.test(room.chips ?? ""))) return false;
   return new Set(rooms.map((room) => room.sleeps?.trim() || "")).size > 1;
 }
 
@@ -655,13 +787,15 @@ function sharedInclusions(rooms: OptionsQuoteRoom[]): string[] {
 function roomDifferenceLines(hotel: OptionsQuoteHotel, shared: string[]): string[] {
   const sharedSet = new Set(shared);
   const lines: string[] = [];
+  const multi = hotel.rooms.length > 1;
   for (const room of hotel.rooms) {
     const only = distinctLines([
       ...room.inclusions.filter((item) => !sharedSet.has(item)),
       ...room.extras,
-    ]);
+    ]).filter((item) => !/\bextra adult\b/i.test(item));
     if (only.length === 0) continue;
-    lines.push(`${room.name}: ${only.join("; ")}`);
+    const label = optionPolicyLabel(room.name, room.chips);
+    lines.push(multi ? `${label}: ${only.join("; ")}` : only.join("; "));
   }
   return lines;
 }

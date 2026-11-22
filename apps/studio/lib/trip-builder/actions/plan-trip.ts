@@ -131,7 +131,8 @@ export function planStays(input: {
     hotel: stay.hotel ? cleanPlaceName(stay.hotel, "hotel") : stay.hotel,
   }));
   const matched = matchStays(input.current, requested);
-  let roomsAssumed = false;
+  // Rooms stay null when unset — never invent. Confirmed before rates_search.
+  const roomsAssumed = false;
 
   const stays: TripShapeStay[] = requested.map((stay, index) => {
     const existing = matched[index];
@@ -143,7 +144,6 @@ export function planStays(input: {
       ? { start, end }
       : resolveTripDates({ start: stay.checkIn!, end: stay.checkOut!, today: start });
     const hotel = stay.hotel === undefined ? existing?.hotel ?? null : stay.hotel;
-    if (hotel && stay.rooms == null && existing?.rooms == null) roomsAssumed = true;
     return {
       leg_id: existing?.leg_id ?? null,
       city: stay.city,

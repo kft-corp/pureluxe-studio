@@ -125,31 +125,6 @@ export function useTripBuilder(options: UseTripBuilderOptions) {
   }));
   const pendingApproval = replyCards?.approval ?? null;
 
-  function addRateOption(option: {
-    hotel: string;
-    room: string;
-    markupPercent: number;
-    rateRef: string;
-  }) {
-    if (!detail || !canWrite) return;
-    const label = `Add · ${option.markupPercent}% · ${option.room}`;
-    beginTap(`add-rate-${option.rateRef}`);
-    void sendTripAction({
-      action: "quote_add_options",
-      label,
-      args: {
-        options: [
-          {
-            hotel: option.hotel,
-            room: option.room,
-            markup_percent: option.markupPercent,
-            rate_ref: option.rateRef,
-          },
-        ],
-      },
-    });
-  }
-
   return {
     trips,
     detail,
@@ -180,7 +155,6 @@ export function useTripBuilder(options: UseTripBuilderOptions) {
     openOptionsQuote,
     regenerateOptionsQuote,
     offerChooseSaved,
-    addRateOption,
     continueIncomplete,
   };
 }

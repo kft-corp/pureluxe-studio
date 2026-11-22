@@ -29,7 +29,11 @@ import {
   quoteSetWordingTool,
   ratesUsePastedQuoteTool,
 } from "./quote";
-import { ratesGetSnapshotTool, ratesSearchTool } from "./rates";
+import {
+  ratesGetSnapshotTool,
+  ratesPriceCheckTool,
+  ratesSearchTool,
+} from "./rates";
 import {
   tripGetTool,
   tripProposeSplitTool,
@@ -68,6 +72,7 @@ export const TRIP_AGENT_TOOLS: readonly AgentToolSpec<ToolSchema, TripAgentHandl
   ...DESK_TOOLS,
   ratesSearchTool,
   ratesGetSnapshotTool,
+  ratesPriceCheckTool,
   quoteAddOptionsTool,
   quoteSetClientPriceTool,
   quoteRemoveOptionTool,

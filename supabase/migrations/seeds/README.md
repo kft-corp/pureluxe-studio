@@ -25,6 +25,9 @@ local / staging / live. Supabase only auto-applies `*.sql` files directly under
 | [`016_atlas_kb.sql`](./016_atlas_kb.sql) | `016` + `021` + **`024`–`029`** (Wave 0–3) | Full Atlas hotel master (~2.2k hotels) with `external_key` / `aliases` / `luxury_band`; links via `kb_entities.property_id` only |
 | [`017_trip_builder_smoke.sql`](./017_trip_builder_smoke.sql) | After `016` (+ Wave tables) | **TB smoke extras:** place facts/visa, aliases, stay_info, perks, contacts, commission %, Waldorf Nov–Dec 2026 demo rates, POIs |
 | [`015_trip_builder_flow.sql`](./015_trip_builder_flow.sql) | `015_trip_builder_flow.sql` | Starter `pdf_branding` company setting |
+| [`019_japan_rate_layer_priority.sql`](./019_japan_rate_layer_priority.sql) | After `011` + Atlas/Japan KB | Japan preferred `properties` + KB `property_id` link (no Sabre codes) |
+| [`020_kb_city_geo_airports.sql`](./020_kb_city_geo_airports.sql) | After migration `039` + Atlas cities | City lat/long + airports for Sabre open-GDS discover |
+| [`021_sabre_cert_japan_hotels.sql`](./021_sabre_cert_japan_hotels.sql) | After `011` + JP cities in KB | CERT-verified Japan hotels → `properties` + `property_supplier_codes` (Sabre) + `kb_entities` / details |
 
 ## Trip Builder recommended local order
 

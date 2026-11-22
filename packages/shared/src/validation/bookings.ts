@@ -539,6 +539,44 @@ const optionalText = z.preprocess((value) => {
   return trimmed || undefined;
 }, z.string().min(1).max(200).optional());
 
+/** Longer free text for GDS payment / rate key on pending bookings. */
+const optionalLongText = z.preprocess((value) => {
+  if (value == null || value === "") return undefined;
+  const trimmed = String(value).trim();
+  return trimmed || undefined;
+}, z.string().min(1).max(2000).optional());
+
+/** One physical room inside a dual-shop GDS combo (offline book handoff). */
+export const hotelGdsRoomSegmentSchema = z
+  .object({
+    label: optionalText,
+    room_name: optionalText,
+    adults: z.preprocess((value) => {
+      if (value == null || value === "") return undefined;
+      const n = typeof value === "number" ? value : Number(value);
+      return Number.isFinite(n) ? Math.floor(n) : undefined;
+    }, z.number().int().min(0).max(20).optional()),
+    children: z.preprocess((value) => {
+      if (value == null || value === "") return undefined;
+      const n = typeof value === "number" ? value : Number(value);
+      return Number.isFinite(n) ? Math.floor(n) : undefined;
+    }, z.number().int().min(0).max(20).optional()),
+    board: optionalText,
+    cancellation_summary: optionalLongText,
+    payment_summary: optionalLongText,
+    payment_timing: optionalText,
+    rate_key: optionalLongText,
+    rate_plan_code: optionalText,
+    cost_internal: z.preprocess((value) => {
+      if (value == null || value === "") return undefined;
+      const n = typeof value === "number" ? value : Number(value);
+      return Number.isFinite(n) ? n : undefined;
+    }, z.number().optional()),
+    /** Per-room confirmation / PNR after offline book. */
+    confirmation_ref: optionalText,
+  })
+  .passthrough();
+
 /** Hotel / accommodation payload in bookings.service_details. */
 export const hotelServiceDetailsSchema = z
   .object({
@@ -549,6 +587,19 @@ export const hotelServiceDetailsSchema = z
     board_basis_label: optionalText,
     rate_plan: optionalText,
     special_requests: optionalText,
+    /** Live GDS identity for offline book (Open or mapped). */
+    gds_hotel_code: optionalText,
+    gds_hotel_name: optionalText,
+    gds_rate_source: optionalText,
+    gds_rate_key: optionalLongText,
+    /** From Sabre Price Check — kept for Phase 2 live book. */
+    gds_booking_key: optionalLongText,
+    payment_summary: optionalLongText,
+    /**
+     * Dual-shop combo: one entry per physical room (rate key, cancel, deposit,
+     * confirmation). Prefer this over a single gds_rate_key when present.
+     */
+    gds_room_segments: z.array(hotelGdsRoomSegmentSchema).optional(),
   })
   .passthrough();
 
@@ -606,6 +657,7 @@ export const activityServiceDetailsSchema = z
   .passthrough();
 
 export type HotelServiceDetails = z.infer<typeof hotelServiceDetailsSchema>;
+export type HotelGdsRoomSegment = z.infer<typeof hotelGdsRoomSegmentSchema>;
 export type FlightSegment = z.infer<typeof flightSegmentSchema>;
 export type FlightServiceDetails = z.infer<typeof flightServiceDetailsSchema>;
 export type TransferServiceDetails = z.infer<

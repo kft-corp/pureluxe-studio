@@ -61,6 +61,30 @@ export const searchRatesBodySchema = z
 
 export type SearchRatesBody = z.infer<typeof searchRatesBodySchema>;
 
+/** POST /api/trip-builder/rates/price-check */
+export const priceCheckBodySchema = z
+  .object({
+    trip_id: z.string().uuid({ message: "Choose a trip." }),
+    line_item_id: optionalUuid,
+    hotel: z
+      .string()
+      .trim()
+      .max(120)
+      .optional()
+      .nullable()
+      .transform((value) => value || null),
+    room: z
+      .string()
+      .trim()
+      .max(120)
+      .optional()
+      .nullable()
+      .transform((value) => value || null),
+  })
+  .strict();
+
+export type PriceCheckBody = z.infer<typeof priceCheckBodySchema>;
+
 /** POST /api/trip-builder/line-items/paste */
 export const pasteLineItemBodySchema = z
   .object({

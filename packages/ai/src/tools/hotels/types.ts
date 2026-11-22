@@ -47,13 +47,17 @@ export type HotelFindHit = {
   score: number;
   /**
    * True when Rate Layer can shop rates (properties / linked).
-   * False = Atlas preferred/guide only — name OK to suggest; rates need paste/GDS/link.
+   * False = Atlas preferred/guide, or open-GDS (shop via sabre_hotel_code on rates_search).
    */
   contracted: boolean;
-  /** rate_layer = shoppable inventory; atlas = destination-guide preferred list. */
-  source: "rate_layer" | "atlas";
-  /** Advisor badge: Contracted = can price; Preferred = guide list only. */
-  badge: "Contracted" | "Preferred";
+  /** rate_layer = shoppable; atlas = guide preferred; open_gds = live discover fill. */
+  source: "rate_layer" | "atlas" | "open_gds";
+  /** Advisor badge: Contracted = can price; Preferred = guide; Open = GDS browse/shop. */
+  badge: "Contracted" | "Preferred" | "Open";
+  /** PureLuxe properties.id when known; null for open_gds browse. */
+  property_id: string | null;
+  /** Sabre hotel code for open_gds rows (Stage 5 discover / Stage 6 shop); null otherwise. */
+  sabre_hotel_code: string | null;
   /** Neighbourhood / guide area when known. */
   area: string | null;
   /** Partner / consortia label when known. */
@@ -64,7 +68,7 @@ export type HotelFindHit = {
   choose_if: string | null;
   /**
    * Destination-guide internal score (typically ~1–5) when known.
-   * Advisor-facing only — never invent; omit in chat when null.
+   * Ranking only — never invent; never show in chat (including to advisors).
    */
   guide_rating: number | null;
   /**
@@ -114,6 +118,8 @@ export type HotelToolHandlers = {
     limit?: number;
     /** False skips the experience bank (silent coverage probes). Default true. */
     includeExperiences?: boolean;
+    /** True = coverage probe only (no open-GDS discover fill). */
+    skipOpenGds?: boolean;
     /** Trip adults — Studio injects for matrix ranking. */
     adults?: number;
     /** Trip children + infants — Studio injects for matrix ranking. */
@@ -122,5 +128,9 @@ export type HotelToolHandlers = {
     ask?: string;
     /** Client preference / diet labels from the lead profile. */
     prefHints?: string[];
+    /** Trip stay check-in — Studio injects for open-GDS discover inventory. */
+    checkIn?: string | null;
+    /** Trip stay check-out — Studio injects for open-GDS discover inventory. */
+    checkOut?: string | null;
   }) => Promise<HotelFindResult>;
 };

@@ -10,13 +10,22 @@ import {
   type RateSearchResult,
   type StoredRateSearch,
 } from "@pureluxe/db";
-import { searchRatesForLeg, type NormalizedRateOption, type SearchRatesResult } from "@pureluxe/rates";
+import {
+  buildMatchingRoomOccupancies,
+  needsRoomOccupancySplit,
+  searchRatesForLeg,
+  validateRoomOccupancies,
+  type NormalizedRateOption,
+  type SearchRatesResult,
+} from "@pureluxe/rates";
+import { AppError, rateMessages } from "@pureluxe/shared";
 
 import { matchPropertyByName } from "@/lib/rates/match-property";
 import { saveMultiHotelRateSearch } from "@/lib/rates/rate-search-store";
 
 import { requireEditableTrip } from "../access/require-assigned-trip";
 import { loadHotelStayFacts } from "../stays/hotel-contract-facts";
+import { persistStayPartyFromRatesSearch } from "../stays/persist-stay-party";
 
 import { buildRateCompare } from "./build-rate-compare";
 import { loadPartyPricingContext } from "./party-pricing-context";
@@ -52,7 +61,8 @@ async function loadRatePreference(tripId: string): Promise<string | null> {
   return `${name} ${verb} ${pick.label}.`;
 }
 
-const SEARCH_TIMEOUT_MS = 25_000;
+/** Live GDS may run public + negotiated Avail/Details sequentially. */
+const SEARCH_TIMEOUT_MS = 60_000;
 
 export type HotelRateSearchStatus =
   | "ok"
@@ -83,8 +93,24 @@ export type SearchRatesForHotelsInput = {
   rooms: number;
   adults: number;
   children: number;
+  /** Under-2 guests — contracted occupancy excludes from max_children / max_occupancy. */
+  infants?: number;
   /** Stated child ages; preferred over passport DOBs when set. */
   childAges?: number[];
+  /**
+   * Guests per room when rooms > 1 and children > 0.
+   * Required — Trip Builder must not invent a family split.
+   */
+  roomOccupancies?: Array<{
+    adults: number;
+    children?: number;
+    childAges?: number[];
+  }>;
+  /**
+   * Stage 6 — Sabre hotel codes keyed by hotel name (open-GDS / unmapped).
+   * When present, shops by code with `property_id` null (no properties write).
+   */
+  hotelCodes?: Record<string, string>;
 };
 
 export type SearchRatesForHotelsResult = {
@@ -240,9 +266,54 @@ async function alternativesInDestination(
   return hotels.map((row) => row.name).slice(0, 3);
 }
 
+function stampGdsSupplier(option: NormalizedRateOption): NormalizedRateOption {
+  const raw = { ...(option.raw ?? {}) };
+  // Keep GDS identity stable on the compare/snapshot path (Stage 4 / 6).
+  if (
+    (option.rate_source_code === "gds_public" ||
+      option.rate_source_code === "gds_negotiated") &&
+    raw.supplier == null
+  ) {
+    raw.supplier = "sabre";
+  }
+  return { ...option, raw };
+}
+
+/** Advisor note when live shop returns empty — hint occupancy for crowded 1-room parties. */
+function noRatesNote(input: {
+  hotel: string;
+  rooms: number;
+  adults: number;
+  children: number;
+  alternatives?: string[];
+  adapterNote?: string | null;
+}): string {
+  const adapter = input.adapterNote?.trim();
+  // Prefer contracted / supplier occupancy notes when present.
+  if (
+    adapter &&
+    (/does not fit|no contracted room fits|occupancy/i.test(adapter) ||
+      adapter === rateMessages.error.contractedOccupancyNoFit ||
+      adapter === rateMessages.error.contractedOccupancyNoFitCrowded)
+  ) {
+    return adapter;
+  }
+  const guests = Math.max(0, input.adults) + Math.max(0, input.children);
+  // Prefer occupancy hint over generic "no rates for these dates" for 1 room + 4+ guests.
+  if (input.rooms === 1 && guests >= 4) {
+    return rateMessages.error.sabreNoAvailabilityCrowded;
+  }
+  if (adapter) return adapter;
+  if (input.alternatives && input.alternatives.length > 0) {
+    return `No rates for these dates at ${input.hotel}. Try ${input.alternatives.join(", ")}, or paste a supplier quote.`;
+  }
+  return `No rates for these dates at ${input.hotel}. Try different dates or paste a supplier quote.`;
+}
+
 async function outcomeFromSearch(
   property: Property,
   result: SearchRatesResult,
+  party: { rooms: number; adults: number; children: number },
 ): Promise<HotelRateSearchOutcome> {
   const facts = await loadHotelStayFacts({
     propertyId: property.id,
@@ -278,20 +349,28 @@ async function outcomeFromSearch(
       options: [],
       result_ids: [],
       min_markup_percent: minMarkup,
-      note: alternatives.length
-        ? `No rates for these dates at ${property.name}. Try ${alternatives.join(", ")}, or paste a supplier quote.`
-        : `No rates for these dates at ${property.name}. Paste a supplier quote.`,
+      note: noRatesNote({
+        hotel: property.name,
+        rooms: party.rooms,
+        adults: party.adults,
+        children: party.children,
+        alternatives,
+        adapterNote: result.message,
+      }),
       alternatives,
     };
   }
 
-  const options = result.options.map((option) => ({
-    ...option,
-    payment_summary:
-      option.payment_summary ??
-      facts?.paymentLines.map((line) => line.trim()).filter(Boolean).join(" ") ??
-      null,
-  }));
+  const options = result.options.map((option) => {
+    const stamped = stampGdsSupplier(option);
+    return {
+      ...stamped,
+      payment_summary:
+        stamped.payment_summary ??
+        facts?.paymentLines.map((line) => line.trim()).filter(Boolean).join(" ") ??
+        null,
+    };
+  });
 
   return {
     hotel: property.name,
@@ -300,9 +379,96 @@ async function outcomeFromSearch(
     options,
     result_ids: [],
     min_markup_percent: minMarkup,
-    note: null,
+    // Stage 7: surface adapter heads-ups (e.g. GDS child pricing).
+    note: result.message?.trim() || null,
     alternatives: [],
   };
+}
+
+/** Stage 6 — open-GDS / unmapped shop outcome (no PureLuxe property row). */
+function outcomeFromOpenCode(
+  hotelName: string,
+  hotelCode: string,
+  result: SearchRatesResult,
+  party: { rooms: number; adults: number; children: number },
+): HotelRateSearchOutcome {
+  if (result.status === "consultant_required") {
+    return {
+      hotel: hotelName,
+      status: "offline",
+      property_id: null,
+      options: [],
+      result_ids: [],
+      min_markup_percent: null,
+      note: "This hotel is offline for rates. Paste a supplier quote.",
+      alternatives: [],
+    };
+  }
+
+  if (result.options.length === 0 || result.status === "empty" || result.status === "stub") {
+    return {
+      hotel: hotelName,
+      status: "no_rates",
+      property_id: null,
+      options: [],
+      result_ids: [],
+      min_markup_percent: null,
+      note: noRatesNote({
+        hotel: hotelName,
+        rooms: party.rooms,
+        adults: party.adults,
+        children: party.children,
+        adapterNote: result.message,
+      }),
+      alternatives: [],
+    };
+  }
+
+  const options = result.options.map((option) => {
+    const stamped = stampGdsSupplier(option);
+    const raw = {
+      ...stamped.raw,
+      sabre_hotel_code:
+        typeof stamped.raw?.sabre_hotel_code === "string" && stamped.raw.sabre_hotel_code.trim()
+          ? stamped.raw.sabre_hotel_code
+          : hotelCode,
+      sabre_hotel_name:
+        typeof stamped.raw?.sabre_hotel_name === "string" && stamped.raw.sabre_hotel_name.trim()
+          ? stamped.raw.sabre_hotel_name
+          : hotelName,
+    };
+    return {
+      ...stamped,
+      property_id: null,
+      property_name: stamped.property_name?.trim() || hotelName,
+      raw,
+    };
+  });
+
+  return {
+    hotel: hotelName,
+    status: "ok",
+    property_id: null,
+    options,
+    result_ids: [],
+    min_markup_percent: null,
+    note: result.message?.trim() || null,
+    alternatives: [],
+  };
+}
+
+function lookupHotelCode(
+  hotelName: string,
+  hotelCodes: Record<string, string> | undefined,
+): string | null {
+  if (!hotelCodes) return null;
+  const direct = hotelCodes[hotelName]?.trim();
+  if (direct) return direct;
+  const needle = hotelName.trim().toLowerCase();
+  for (const [name, code] of Object.entries(hotelCodes)) {
+    if (name.trim().toLowerCase() === needle && code.trim()) return code.trim();
+  }
+  return null;
 }
 
 async function searchOneHotel(input: {
@@ -314,10 +480,73 @@ async function searchOneHotel(input: {
   rooms: number;
   adults: number;
   children: number;
+  infants?: number;
   childAges: number[];
+  roomOccupancies?: Array<{
+    adults: number;
+    children?: number;
+    childAges?: number[];
+  }>;
   marketCodes: string[];
   memberId: string;
+  hotelCode?: string | null;
 }): Promise<HotelRateSearchOutcome> {
+  const infants = Math.max(0, input.infants ?? 0);
+  const roomOccupanciesPayload = (input.roomOccupancies ?? []).map((row) => ({
+    adults: row.adults,
+    children: row.children,
+    child_ages: row.childAges,
+  }));
+  const openCode = input.hotelCode?.trim() || null;
+
+  // Stage 6: code from shortlist → shop by code (no properties write / no fuzzy remap).
+  if (openCode) {
+    try {
+      const result = await withTimeout(
+        searchRatesForLeg({
+          trip_id: input.tripId,
+          destination_text: input.destination,
+          property_id: null,
+          supplier_hotel_code: openCode,
+          supplier_hotel_name: input.hotel,
+          check_in: input.checkIn,
+          check_out: input.checkOut,
+          adults: input.adults,
+          children: input.children,
+          infants,
+          rooms: input.rooms,
+          child_ages: input.childAges,
+          ...(roomOccupanciesPayload.length > 0
+            ? { room_occupancies: roomOccupanciesPayload }
+            : {}),
+          client_market_codes: input.marketCodes,
+          channel: "studio",
+          requested_by_id: input.memberId,
+        }),
+        SEARCH_TIMEOUT_MS,
+      );
+      return outcomeFromOpenCode(input.hotel, openCode, result, {
+        rooms: input.rooms,
+        adults: input.adults,
+        children: input.children,
+      });
+    } catch (cause) {
+      if (cause instanceof Error && cause.message === "timeout") {
+        return {
+          hotel: input.hotel,
+          status: "timeout",
+          property_id: null,
+          options: [],
+          result_ids: [],
+          min_markup_percent: null,
+          note: rateMessages.error.sabreTimeout,
+          alternatives: [],
+        };
+      }
+      throw cause;
+    }
+  }
+
   const match = await matchPropertyByName(input.hotel);
   if (match.status === "several") {
     return {
@@ -358,15 +587,23 @@ async function searchOneHotel(input: {
         check_out: input.checkOut,
         adults: input.adults,
         children: input.children,
+        infants,
         rooms: input.rooms,
         child_ages: input.childAges,
+        ...(roomOccupanciesPayload.length > 0
+          ? { room_occupancies: roomOccupanciesPayload }
+          : {}),
         client_market_codes: input.marketCodes,
         channel: "studio",
         requested_by_id: input.memberId,
       }),
       SEARCH_TIMEOUT_MS,
     );
-    return await outcomeFromSearch(property, result);
+    return await outcomeFromSearch(property, result, {
+      rooms: input.rooms,
+      adults: input.adults,
+      children: input.children,
+    });
   } catch (cause) {
     if (cause instanceof Error && cause.message === "timeout") {
       const alternatives = await alternativesInDestination(input.destination, property.id);
@@ -377,7 +614,7 @@ async function searchOneHotel(input: {
         options: [],
         result_ids: [],
         min_markup_percent: property.min_markup_percent,
-        note: "Rates for this hotel are delayed. Try again, or paste a supplier quote.",
+        note: rateMessages.error.sabreTimeout,
         alternatives,
       };
     }
@@ -397,6 +634,67 @@ export async function searchRatesForHotels(
 ): Promise<SearchRatesForHotelsResult> {
   await requireEditableTrip(input.tripId, actor.memberId);
   const hotels = [...new Set(input.hotels.map((name) => name.trim()).filter(Boolean))].slice(0, 5);
+
+  if (input.rooms > 1 && input.adults < input.rooms) {
+    throw new AppError({
+      userMessage: rateMessages.error.roomAdultsPerRoom,
+      code: "rates.room_adults_per_room",
+      status: 400,
+    });
+  }
+
+  // Per-room layouts: even multi-room+kids → auto matching split; advisor-stated
+  // uneven layouts (kids or adults-only) pass through — Sabre dual-shops + merges.
+  let resolvedOccupancies = input.roomOccupancies;
+  if (needsRoomOccupancySplit(input.rooms, input.children) && !resolvedOccupancies?.length) {
+    const matching = buildMatchingRoomOccupancies({
+      rooms: input.rooms,
+      adults: input.adults,
+      children: input.children,
+      childAges: input.childAges,
+    });
+    if (matching) {
+      resolvedOccupancies = matching;
+    } else {
+      throw new AppError({
+        userMessage: rateMessages.error.roomOccupancyNotDivisible,
+        code: "rates.room_occupancy_not_divisible",
+        status: 400,
+      });
+    }
+  }
+
+  const adultsOnlyUneven =
+    input.rooms > 1 &&
+    input.children <= 0 &&
+    input.adults % input.rooms !== 0;
+  if (adultsOnlyUneven && !resolvedOccupancies?.length) {
+    throw new AppError({
+      userMessage: rateMessages.error.roomOccupancyNotDivisible,
+      code: "rates.room_occupancy_not_divisible",
+      status: 400,
+    });
+  }
+
+  if (resolvedOccupancies?.length) {
+    const checked = validateRoomOccupancies({
+      rooms: input.rooms,
+      adults: input.adults,
+      children: input.children,
+      childAges: input.childAges,
+      roomOccupancies: resolvedOccupancies,
+      // Mixed layouts OK — Sabre adapter groups and dual-shops.
+      requireUniformPax: false,
+    });
+    if (!checked.ok) {
+      throw new AppError({
+        userMessage: `${rateMessages.error.roomOccupancyInvalid} ${checked.reason}`,
+        code: "rates.room_occupancy_invalid",
+        status: 400,
+      });
+    }
+    resolvedOccupancies = checked.rooms;
+  }
 
   const [party, preference, previousSearch] = await Promise.all([
     loadPartyPricingContext({
@@ -452,9 +750,12 @@ export async function searchRatesForHotels(
               rooms: input.rooms,
               adults: input.adults,
               children: input.children,
+              infants: input.infants,
               childAges: party.child_ages,
+              roomOccupancies: resolvedOccupancies,
               marketCodes: party.client_market_codes,
               memberId: actor.memberId,
+              hotelCode: lookupHotelCode(hotel, input.hotelCodes),
             }),
           ),
         );
@@ -469,6 +770,15 @@ export async function searchRatesForHotels(
     children: input.children,
     rooms: input.rooms,
     hotels: outcomes,
+  });
+
+  await persistStayPartyFromRatesSearch({
+    tripId: input.tripId,
+    destination: input.destination,
+    rooms: input.rooms,
+    adults: input.adults,
+    children: input.children,
+    memberId: actor.memberId,
   });
 
   const withIds = outcomes.map((outcome, index) => ({

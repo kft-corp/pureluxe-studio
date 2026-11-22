@@ -4,7 +4,7 @@ import { bookingMessages } from "./bookings";
 import { clientMessages } from "./clients";
 import { commonMessages } from "./common";
 import { dbMessages } from "./db";
-import { rateMessages } from "./rates";
+import { rateMessages, rateSourceLabel, roomCountAskForParty } from "./rates";
 import { teamMessages } from "./team";
 import { tripMessages } from "./trips";
 
@@ -19,7 +19,10 @@ export const messages = {
     ...teamMessages.success,
     ...tripMessages.success,
   },
-  warn: authMessages.warn,
+  warn: {
+    ...authMessages.warn,
+    ...rateMessages.warn,
+  },
   error: {
     ...authMessages.error,
     ...bookingMessages.error,
@@ -40,6 +43,8 @@ export {
   commonMessages,
   dbMessages,
   rateMessages,
+  rateSourceLabel,
+  roomCountAskForParty,
   teamMessages,
   tripMessages,
 };

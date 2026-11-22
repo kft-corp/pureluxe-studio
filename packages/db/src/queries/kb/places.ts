@@ -7,6 +7,7 @@
 import { getServiceClient, runSupabaseQuery } from "../../client";
 import { dbQueryError } from "../../errors";
 import type {
+  KbAirport,
   KbCity,
   KbCountry,
   KbCountryFacts,
@@ -204,6 +205,60 @@ export async function listActiveKbCitiesForCountry(
   }
 
   return (data ?? []) as KbCity[];
+}
+
+/**
+ * Active cities by exact name (case-insensitive) for open-GDS geo resolve.
+ * Excludes Unspecified. Prefer rows with lat/long or preferred_airport_id.
+ */
+export async function findActiveKbCitiesByName(
+  name: string,
+  limit = 8,
+): Promise<KbCity[]> {
+  const trimmed = name.trim();
+  if (trimmed.length < 2) return [];
+
+  const supabase = getServiceClient();
+  const { data, error } = await runSupabaseQuery(() =>
+    supabase
+      .from("kb_cities")
+      .select("*")
+      .eq("active", true)
+      .ilike("name", trimmed)
+      .neq("name", "Unspecified")
+      .order("name", { ascending: true })
+      .limit(Math.min(Math.max(limit, 1), 16)),
+  );
+
+  if (error) {
+    throw dbQueryError(error);
+  }
+
+  return (data ?? []) as KbCity[];
+}
+
+/** Active airport by id (IATA + optional city link). */
+export async function findActiveKbAirportById(
+  airportId: string,
+): Promise<KbAirport | null> {
+  const trimmed = airportId.trim();
+  if (!trimmed) return null;
+
+  const supabase = getServiceClient();
+  const { data, error } = await runSupabaseQuery(() =>
+    supabase
+      .from("kb_airports")
+      .select("*")
+      .eq("id", trimmed)
+      .eq("active", true)
+      .maybeSingle(),
+  );
+
+  if (error) {
+    throw dbQueryError(error);
+  }
+
+  return data as KbAirport | null;
 }
 
 /** Country facts sheet (1:1). Null if none yet. */

@@ -18,10 +18,12 @@ const geistMono = Geist_Mono({
  * Virtuoso-like stack — Cormorant Garamond (display) + Nunito Sans (Avenir-like UI).
  * Puriva wordmark stays Dancing Script.
  */
+// Single weight string — Turbopack breaks on multi-weight next/font/google queries
+// ("queries have exactly one entry" / missing @vercel/turbopack-next font URL).
 const cormorant = Cormorant_Garamond({
   variable: "--font-cormorant",
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
+  weight: "600",
   display: "swap",
 });
 
