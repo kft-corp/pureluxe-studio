@@ -155,7 +155,12 @@ function disambiguateRecheckRows(
 
 function matchRoomQuote(
   roomName: string,
-  quotes: Array<{ room_name: string | null; cost_internal: number; currency: string; raw?: Record<string, unknown> | null }>,
+  quotes: Array<{
+    room_name?: string | null;
+    cost_internal: number;
+    currency: string;
+    raw?: Record<string, unknown> | null;
+  }>,
 ) {
   const want = norm(roomName);
   if (!want) return null;

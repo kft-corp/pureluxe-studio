@@ -254,7 +254,7 @@ export function BookingOverviewPanel({
                 icon={icons.property}
                 label="GDS hotel code"
                 value={gdsHotelCode}
-                badge={gdsRateSource}
+                badge={gdsRateSource ?? undefined}
                 className="sm:border-b sm:border-border/70"
               />
             ) : null}

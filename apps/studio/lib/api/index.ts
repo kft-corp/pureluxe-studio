@@ -80,4 +80,5 @@ export {
   streamPreTripChat,
   streamTripChat,
   updateTripBuilderQuote,
+  type TripBuilderPriceCheckResult,
 } from "./trip-builder";
