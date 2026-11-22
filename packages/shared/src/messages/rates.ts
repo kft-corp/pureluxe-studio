@@ -101,7 +101,10 @@ export const rateMessages = {
   /** Short UI / chat cues after a rates table. */
   hint: {
     askRoomOrFullInfo:
-      "Ask for any room, or the full cancel / payment detail, if you need more than the table.",
+      "Ask about any room — cancellation policy, deposit or guarantee amounts, amenities, meal plan, or other rate detail — if you need more than the table.",
+    /** When footer Payment lists only a few labeled rooms. */
+    paymentVariesAskRoom:
+      "Other rooms vary — ask for that room's payment detail.",
     /** Contracted nightly table: Cost / night is sheet, not stay÷nights. */
     contractedPricingSheet:
       "Cost / night is the contracted sheet for this search (villa × rooms). Stay cost is all-in, including required extras below when listed.",

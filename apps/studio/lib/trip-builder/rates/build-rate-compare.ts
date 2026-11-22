@@ -20,6 +20,8 @@ const MAX_ROOMS_PER_HOTEL = 12;
 const MAX_ROOM_DETAIL_CHIPS = 3;
 /** Hotel notes “Included” — short list under the table, not in rows. */
 const MAX_NOTE_INCLUSIONS = 4;
+/** Footer Payment: labeled deposit lines before “other rooms vary”. */
+const MAX_PAYMENT_FOOTER_LINES = 3;
 
 const SOURCE_PRIORITY: Record<string, number> = {
   offline_contracted: 0,
@@ -1107,9 +1109,55 @@ function filterPaymentBySeason(
   return kept.length > 0 ? kept.join(" ") : payment;
 }
 
+/** Twin · Non-refund · Breakfast — disambiguate same room name in the payment footer. */
+function roomPaymentFooterLabel(
+  room: RateCompareRoom,
+  peers: RateCompareRoom[],
+): string {
+  const name = room.room_name.trim() || "Room";
+  const cancel = cancelFamilyLabel(cancelFamily(room.cancel), room.cancel);
+  const nameKey = name.toLowerCase();
+  const sameName = peers.filter(
+    (peer) => peer.room_name.trim().toLowerCase() === nameKey,
+  );
+  const boardKeys = new Set(
+    sameName.map((peer) => (peer.board ?? "").trim().toLowerCase()).filter(Boolean),
+  );
+  const needBoard = sameName.length > 1 && boardKeys.size > 1;
+  const boardBit =
+    needBoard && room.board?.trim()
+      ? shortLine(room.board.trim(), 22) ?? room.board.trim()
+      : null;
+  return [name, cancel, boardBit].filter(Boolean).join(" · ");
+}
+
+function formatLabeledPaymentFooter(
+  labeled: Array<{ label: string; pay: string }>,
+): string | null {
+  if (labeled.length === 0) return null;
+  const amounts = labeled.some((row) => paymentHasAmount(row.pay));
+  if (!amounts) return null;
+  const uniquePays = new Set(labeled.map((row) => row.pay.toLowerCase()));
+  if (uniquePays.size === 1) return labeled[0]!.pay;
+
+  const byPay = new Map<string, { label: string; pay: string }>();
+  for (const row of labeled) {
+    const key = row.pay.toLowerCase();
+    if (!byPay.has(key)) byPay.set(key, row);
+  }
+  const distinct = [...byPay.values()];
+  const shown = distinct.slice(0, MAX_PAYMENT_FOOTER_LINES);
+  const body = shown.map((row) => `${row.label}: ${row.pay}`).join(" · ");
+  if (distinct.length > MAX_PAYMENT_FOOTER_LINES) {
+    return `${body}. ${rateMessages.hint.paymentVariesAskRoom}`;
+  }
+  return body;
+}
+
 /**
  * Footer payment: room-wise deposit amounts when useful; hide timing-only
  * duplicates already on the table; never truncate amounts mid-string.
+ * Differing amounts are labeled (Twin · Non-refund: …) and capped.
  */
 function paymentNoteFromOptions(
   rooms: RateCompareRoom[],
@@ -1138,40 +1186,61 @@ function paymentNoteFromOptions(
     if (labeled.length === 0) return null;
     const amounts = labeled.some((row) => paymentHasAmount(row.pay));
     if (!amounts && tableShowsPaymentTiming(rooms)) return null;
-    const uniquePays = new Set(labeled.map((row) => row.pay.toLowerCase()));
-    if (uniquePays.size === 1 && !amounts) return null;
-    if (uniquePays.size === 1 && amounts) {
-      return labeled[0]!.pay;
-    }
-    return labeled.map((row) => `${row.label}: ${row.pay}`).join(" · ");
+    return formatLabeledPaymentFooter(labeled);
   }
 
+  // Prefer compare rooms (collapsed + sorted) so labels match the table.
+  const fromRooms = rooms
+    .map((room) => {
+      const rawPay = room.payment?.trim();
+      if (!rawPay) return null;
+      const pay = filterPaymentBySeason(rawPay, seasons);
+      if (!pay) return null;
+      return {
+        label: roomPaymentFooterLabel(room, rooms),
+        pay,
+        recommended: room.recommended,
+        team_cost: room.team_cost,
+      };
+    })
+    .filter(
+      (row): row is {
+        label: string;
+        pay: string;
+        recommended: boolean;
+        team_cost: number;
+      } => row != null,
+    )
+    .sort((a, b) => {
+      if (a.recommended !== b.recommended) return a.recommended ? -1 : 1;
+      return a.team_cost - b.team_cost;
+    });
+
+  if (fromRooms.length > 0) {
+    const amounts = fromRooms.some((row) => paymentHasAmount(row.pay));
+    if (!amounts && tableShowsPaymentTiming(rooms)) return null;
+    return formatLabeledPaymentFooter(
+      fromRooms.map((row) => ({ label: row.label, pay: row.pay })),
+    );
+  }
+
+  // Fallback when rooms lack payment but options still have summaries.
   const lines = options
     .map((option) => option.payment_summary?.trim() || null)
-    .filter((line): line is string => Boolean(line));
-  if (lines.length === 0) {
-    const fromRooms = rooms
-      .map((room) => room.payment?.trim() || null)
-      .filter((line): line is string => Boolean(line));
-    if (fromRooms.length === 0) return null;
-    lines.push(...fromRooms);
-  }
-
-  const unique = [
-    ...new Set(lines.map((line) => filterPaymentBySeason(line, seasons))),
-  ];
+    .filter((line): line is string => Boolean(line))
+    .map((line) => filterPaymentBySeason(line, seasons));
+  if (lines.length === 0) return null;
+  const unique = [...new Set(lines)];
   const amounts = unique.some((line) => paymentHasAmount(line));
   if (!amounts && tableShowsPaymentTiming(rooms)) return null;
-
-  const payTimings = new Set(
-    rooms
-      .map((room) => paymentTimingFromRoom(room))
-      .filter((timing): timing is Exclude<PaymentTiming, "unknown"> => timing !== "unknown"),
+  if (unique.length === 1) return unique[0] ?? null;
+  // Unlabeled multi-pay from options only — avoid the old dump.
+  return formatLabeledPaymentFooter(
+    unique.map((pay, index) => ({
+      label: `Rate ${index + 1}`,
+      pay,
+    })),
   );
-  if (payTimings.size > 1 && unique.length > 1) {
-    return unique.join(" · ");
-  }
-  return unique[0] ?? null;
 }
 
 /** Festive / green tax (and similar) already inside stay cost — footer only. */
