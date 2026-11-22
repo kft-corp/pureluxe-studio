@@ -9,6 +9,7 @@ import {
   priceCheckSabreRate,
   searchHotelDetailsByCode,
   type RateSourceCode,
+  type RawRateInput,
 } from "@pureluxe/rates";
 import { AppError, rateMessages, rateSourceLabel } from "@pureluxe/shared";
 
@@ -155,13 +156,8 @@ function disambiguateRecheckRows(
 
 function matchRoomQuote(
   roomName: string,
-  quotes: Array<{
-    room_name?: string | null;
-    cost_internal: number;
-    currency: string;
-    raw?: Record<string, unknown> | null;
-  }>,
-) {
+  quotes: RawRateInput[],
+): RawRateInput | null {
   const want = norm(roomName);
   if (!want) return null;
   return (
@@ -397,7 +393,13 @@ async function fallbackReshop(
       hotelCode,
     });
     const matched = matchRoomQuote(room, quotes);
-    if (!matched) {
+    const todayCost =
+      matched &&
+      typeof matched.cost_internal === "number" &&
+      Number.isFinite(matched.cost_internal)
+        ? matched.cost_internal
+        : null;
+    if (!matched || todayCost == null) {
       return {
         status: "unavailable",
         note: `${header}\n\n${rateMessages.error.sabrePriceCheckRateGone}`,
@@ -432,7 +434,7 @@ async function fallbackReshop(
       label,
       hotel,
       room,
-      matched.cost_internal,
+      todayCost,
       matched.currency?.trim().toUpperCase() || "USD",
       true,
     );
