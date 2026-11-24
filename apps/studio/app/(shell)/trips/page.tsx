@@ -1,13 +1,22 @@
-import { hasPermission, listJourneysQuerySchema } from "@pureluxe/shared";
+import { Suspense } from "react";
+import { hasPermission } from "@pureluxe/shared";
 
 import { TripsPageContent } from "@/components/trips";
 import { ShellModulePage } from "@/components/shell";
 import { pageCopy } from "@/config/page-copy";
 import type { JourneyDirectoryData } from "@/lib/api/trips";
 import { requireActiveStudioSession } from "@/lib/auth/session-with-permissions";
-import { JOURNEY_DIRECTORY_PAGE_SIZE, listJourneyDirectory } from "@/lib/trips";
 import { listRelationshipOwnerOptions } from "@/lib/clients";
-import type { TripOwnerFilterOption } from "@/lib/trips";
+import { toURLSearchParams } from "@/lib/directory";
+import {
+  JOURNEY_DIRECTORY_PAGE_SIZE,
+  listJourneyDirectory,
+  type TripOwnerFilterOption,
+} from "@/lib/trips";
+import {
+  parseTripDirectoryUrlState,
+  tripDirectoryUrlStateToListQuery,
+} from "@/lib/trips/trip-directory-query";
 
 const EMPTY_DIRECTORY: JourneyDirectoryData = {
   journeys: [],
@@ -16,12 +25,16 @@ const EMPTY_DIRECTORY: JourneyDirectoryData = {
   offset: 0,
 };
 
-export default async function TripsPage() {
+type TripsPageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function TripsPage({ searchParams }: TripsPageProps) {
   const session = await requireActiveStudioSession();
   const canStartTrip = hasPermission(session.permissions, "trip_builder.write");
-  const directoryQuery = listJourneysQuerySchema.parse({
-    limit: JOURNEY_DIRECTORY_PAGE_SIZE,
-  });
+  const params = await searchParams;
+  const directoryState = parseTripDirectoryUrlState(toURLSearchParams(params));
+  const directoryQuery = tripDirectoryUrlStateToListQuery(directoryState);
 
   let initialDirectory = EMPTY_DIRECTORY;
   let ownerOptions: TripOwnerFilterOption[] = [];
@@ -41,11 +54,13 @@ export default async function TripsPage() {
 
   return (
     <ShellModulePage module="trips" {...pageCopy.trips}>
-      <TripsPageContent
-        initialDirectory={initialDirectory}
-        ownerOptions={ownerOptions}
-        canStartTrip={canStartTrip}
-      />
+      <Suspense fallback={null}>
+        <TripsPageContent
+          initialDirectory={initialDirectory}
+          ownerOptions={ownerOptions}
+          canStartTrip={canStartTrip}
+        />
+      </Suspense>
     </ShellModulePage>
   );
 }

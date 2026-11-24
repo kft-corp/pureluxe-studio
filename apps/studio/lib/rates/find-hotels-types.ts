@@ -27,9 +27,15 @@ export type FindHotelsInput = {
   ask?: string | null;
   /** Client preference / diet labels from the lead profile. */
   prefHints?: string[] | null;
-  /** Trip stay check-in when known — preferred for open-GDS discover inventory. */
+  /**
+   * @deprecated Ignored by open-GDS Hotel Search fill (no stay dates).
+   * Kept for call-site compatibility.
+   */
   checkIn?: string | null;
-  /** Trip stay check-out when known — preferred for open-GDS discover inventory. */
+  /**
+   * @deprecated Ignored by open-GDS Hotel Search fill (no stay dates).
+   * Kept for call-site compatibility.
+   */
   checkOut?: string | null;
 };
 

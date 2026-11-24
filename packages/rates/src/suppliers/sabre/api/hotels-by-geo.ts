@@ -1,11 +1,8 @@
 import { requestJson } from "../client";
 import type { SabreConfig } from "../config";
-import {
-  buildHotelDiscoverBody,
-  type SearchHotelRatesStay,
-} from "../helpers";
+import { buildHotelSearchBody } from "../helpers";
 
-export type SearchHotelsByGeoInput = SearchHotelRatesStay & {
+export type SearchHotelsByGeoInput = {
   latitude: number;
   longitude: number;
   /** Search radius; default 20. */
@@ -14,30 +11,39 @@ export type SearchHotelsByGeoInput = SearchHotelRatesStay & {
   uom?: "MI" | "KM";
   /** SabreRating Min (default 4). */
   minSabreRating?: string;
-  /** Cap PageSize at 5 for open-GDS discover. */
-  pageSize?: number;
+  /** Cap MaxResults at 5 for open-GDS suggest. */
+  maxResults?: number;
+  /** Optional name fragment under HotelPref.HotelName. */
+  hotelName?: string | null;
   config?: SabreConfig;
 };
 
 /**
- * Discover hotels near a lat/long (open-GDS path).
- * Sabre: POST /v5/get/hotelavail with GeoSearch.GeoCode — no HotelRefs.
+ * Discover hotels near a lat/long (open-GDS suggest).
+ * Sabre: POST /v2.0.0/hotel/search with GeoSearch.GeoCode — no stay dates.
  * Never writes properties; caller maps codes + names only.
  */
 export async function searchHotelsByGeo(
   input: SearchHotelsByGeoInput,
 ): Promise<unknown> {
-  const { body, config } = buildHotelDiscoverBody({
-    ...input,
+  const { body, config } = buildHotelSearchBody({
     geo: {
       kind: "geo",
       latitude: input.latitude,
       longitude: input.longitude,
     },
+    radius: input.radius,
+    uom: input.uom,
+    minSabreRating: input.minSabreRating,
+    maxResults: input.maxResults,
+    hotelName: input.hotelName,
+    sortBy: "SabreRating",
+    sortOrder: "DESC",
+    config: input.config,
   });
 
   return requestJson({
-    path: "/v5/get/hotelavail",
+    path: "/v2.0.0/hotel/search",
     body,
     config,
   });

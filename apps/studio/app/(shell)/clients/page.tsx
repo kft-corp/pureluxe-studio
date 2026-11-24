@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { hasPermission } from "@pureluxe/shared";
 
 import { ClientsPageContent } from "@/components/clients";
@@ -11,6 +12,11 @@ import {
   getClientDirectoryFilters,
   listClientDirectory,
 } from "@/lib/clients";
+import {
+  clientDirectoryUrlStateToListQuery,
+  parseClientDirectoryUrlState,
+} from "@/lib/clients/client-directory-query";
+import { toURLSearchParams } from "@/lib/directory";
 
 const EMPTY_DIRECTORY: ClientDirectoryData = {
   clients: [],
@@ -19,9 +25,16 @@ const EMPTY_DIRECTORY: ClientDirectoryData = {
   offset: 0,
 };
 
-export default async function ClientsPage() {
+type ClientsPageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function ClientsPage({ searchParams }: ClientsPageProps) {
   const session = await requireActiveStudioSession();
   const canWrite = hasPermission(session.permissions, "clients.write");
+  const params = await searchParams;
+  const directoryState = parseClientDirectoryUrlState(toURLSearchParams(params));
+  const directoryQuery = clientDirectoryUrlStateToListQuery(directoryState);
 
   let initialDirectory = EMPTY_DIRECTORY;
   let filterOptions = EMPTY_CLIENT_DIRECTORY_FILTERS;
@@ -29,20 +42,7 @@ export default async function ClientsPage() {
   try {
     const [directory, filters] = await Promise.all([
       listClientDirectory({
-        q: "",
-        filters: [],
-        tier: "any",
-        review_status: "any",
-        has_family: false,
-        missing_contact: false,
-        owner: "any",
-        sources: [],
-        completeness: "any",
-        created_from: "",
-        created_to: "",
-        sort: "name_asc",
-        limit: CLIENT_DIRECTORY_PAGE_SIZE,
-        offset: 0,
+        ...directoryQuery,
         actorMemberId: session.memberId,
       }),
       getClientDirectoryFilters({
@@ -58,11 +58,13 @@ export default async function ClientsPage() {
 
   return (
     <ShellModulePage module="clients" {...pageCopy.clients}>
-      <ClientsPageContent
-        initialDirectory={initialDirectory}
-        canWrite={canWrite}
-        filterOptions={filterOptions}
-      />
+      <Suspense fallback={null}>
+        <ClientsPageContent
+          initialDirectory={initialDirectory}
+          canWrite={canWrite}
+          filterOptions={filterOptions}
+        />
+      </Suspense>
     </ShellModulePage>
   );
 }

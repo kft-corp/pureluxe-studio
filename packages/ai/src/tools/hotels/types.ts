@@ -128,9 +128,9 @@ export type HotelToolHandlers = {
     ask?: string;
     /** Client preference / diet labels from the lead profile. */
     prefHints?: string[];
-    /** Trip stay check-in — Studio injects for open-GDS discover inventory. */
+    /** @deprecated Ignored — open-GDS Hotel Search needs no stay dates. */
     checkIn?: string | null;
-    /** Trip stay check-out — Studio injects for open-GDS discover inventory. */
+    /** @deprecated Ignored — open-GDS Hotel Search needs no stay dates. */
     checkOut?: string | null;
   }) => Promise<HotelFindResult>;
 };

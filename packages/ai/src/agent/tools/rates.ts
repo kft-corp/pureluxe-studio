@@ -5,6 +5,7 @@ import type { TripFacts } from "../../types";
 
 import { defineAgentTool } from "./define-tool";
 import { resolveRateSearchInput } from "./rate-search-gate";
+import { uniqueLabels } from "./unique-labels";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD.");
 
@@ -191,15 +192,17 @@ export const ratesSearchTool = defineAgentTool({
       children: compare.children,
     });
     // Missed hotels only — room Adds are via chat (quote_add_options), not chips on the rate table.
-    for (const hotel of compare.hotels) {
-      if (hotel.status === "ok") continue;
-      for (const alt of hotel.alternatives.slice(0, 3)) {
-        buttons.push({
-          label: `Rates · ${alt}`,
-          action: "rates_search",
-          args: ratesArgs([alt]),
-        });
-      }
+    const altNames = uniqueLabels(
+      compare.hotels.flatMap((hotel) =>
+        hotel.status === "ok" ? [] : hotel.alternatives.slice(0, 3),
+      ),
+    );
+    for (const alt of altNames) {
+      buttons.push({
+        label: `Rates · ${alt}`,
+        action: "rates_search",
+        args: ratesArgs([alt]),
+      });
     }
     return buttons.slice(0, 8);
   },

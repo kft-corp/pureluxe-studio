@@ -1,8 +1,7 @@
 /**
  * Stage 5 — open-GDS discover fill for hotel_find.
- * Thin DB coverage → Sabre geo-first (airport only if no coords) Avail →
- * code+name only (no properties write). Trip stay dates when known.
- * Occupancy probe is always 2 adults / 1 room (suggestion names only).
+ * Thin DB coverage → Sabre Hotel Search (geo-first; airport only if no coords) →
+ * code+name only (no properties write; no stay dates).
  */
 import {
   findActiveKbAirportById,
@@ -13,7 +12,6 @@ import {
   type KbCity,
 } from "@pureluxe/db";
 import {
-  defaultDiscoverStayDates,
   isSabreOpenGdsBrowseEnabled,
   mapHotelDiscoverToCandidates,
   openGdsMinSabreRating,
@@ -286,69 +284,39 @@ function mapDiscoverResponse(
   });
 }
 
-function resolveDiscoverStay(input: {
-  checkIn?: string | null;
-  checkOut?: string | null;
-}): { checkIn: string; checkOut: string; source: "trip" | "probe" } {
-  const checkIn = input.checkIn?.trim() ?? "";
-  const checkOut = input.checkOut?.trim() ?? "";
-  if (
-    /^\d{4}-\d{2}-\d{2}$/.test(checkIn) &&
-    /^\d{4}-\d{2}-\d{2}$/.test(checkOut) &&
-    checkOut > checkIn
-  ) {
-    return { checkIn, checkOut, source: "trip" };
-  }
-  const probe = defaultDiscoverStayDates();
-  return { ...probe, source: "probe" };
-}
-
 /**
- * Discover is for hotel names only — always probe with a standard twin occupancy.
- * Real party / rooms / child splits belong on rates_search, not suggest.
+ * Hotel Search content discover — names + codes only (no stay / occupancy).
+ * Real party / rooms / dates belong on rates_search.
  */
-const DISCOVER_PROBE = { adults: 2, children: 0, rooms: 1 } as const;
-
 async function callDiscover(
   place: DiscoverPlace,
-  stayDates?: { checkIn?: string | null; checkOut?: string | null },
+  options?: { hotelName?: string | null },
 ): Promise<SabreDiscoverHotel[]> {
-  const stay = resolveDiscoverStay(stayDates ?? {});
   const radius = place.city.default_search_radius ?? 20;
   const uom = place.city.default_search_uom === "KM" ? "KM" : "MI";
   const minRating = openGdsMinSabreRating();
   const minRatingNum = Number.parseFloat(minRating);
+  const hotelName = options?.hotelName?.trim() || null;
 
   const shared = {
-    checkIn: stay.checkIn,
-    checkOut: stay.checkOut,
-    adults: DISCOVER_PROBE.adults,
-    children: DISCOVER_PROBE.children,
-    rooms: DISCOVER_PROBE.rooms,
-    pageSize: OPEN_GDS_MAX,
+    maxResults: OPEN_GDS_MAX,
     minSabreRating: minRating,
     radius,
     uom: uom as "MI" | "KM",
-    bestOnly: "1",
+    hotelName,
   };
 
-  discoverLog("info", "sabre call starting", {
+  discoverLog("info", "sabre Hotel Search starting", {
     city: place.city.name,
     path: place.airport ? "airport" : "geo",
     airport: place.airport?.iata_code ?? null,
     latitude: place.city.latitude,
     longitude: place.city.longitude,
-    checkIn: stay.checkIn,
-    checkOut: stay.checkOut,
-    staySource: stay.source,
-    adults: DISCOVER_PROBE.adults,
-    children: DISCOVER_PROBE.children,
-    rooms: DISCOVER_PROBE.rooms,
-    occupancyProbe: "standard_twin",
+    hotelName,
     radius,
     uom,
     minRating,
-    pageSize: OPEN_GDS_MAX,
+    maxResults: OPEN_GDS_MAX,
   });
 
   // Airport only when city has no lat/long (geo-first resolve).
@@ -435,20 +403,23 @@ function skip(
 
 /**
  * When PureLuxe shortlist is thin (&lt; 3) and open-GDS browse is on,
- * append up to 5 Sabre discover hotels (preferred first, then open).
- * Sabre occupancy is a fixed 2 adults / 1 room probe (names only).
+ * append up to 5 Sabre Hotel Search hotels (preferred first, then open).
+ * Content-only discover — no stay dates / occupancy.
  * Never inserts properties / supplier codes.
  */
 export async function fillOpenGdsIfThin(input: {
   hotels: FoundHotel[];
   place: string | null;
-  /** @deprecated Ignored — discover always uses 2 adults / 0 children / 1 room. */
+  /** @deprecated Ignored — Hotel Search has no occupancy. */
   adults?: number | null;
-  /** @deprecated Ignored — discover always uses 2 adults / 0 children / 1 room. */
+  /** @deprecated Ignored — Hotel Search has no occupancy. */
   children?: number | null;
-  /** Trip stay dates when known — preferred over +30d inventory probe. */
+  /** @deprecated Ignored — Hotel Search needs no stay dates. */
   checkIn?: string | null;
+  /** @deprecated Ignored — Hotel Search needs no stay dates. */
   checkOut?: string | null;
+  /** Optional name fragment for HotelPref.HotelName. */
+  hotelName?: string | null;
 }): Promise<FillOpenGdsResult> {
   const hotels = input.hotels;
   if (hotels.length >= OPEN_GDS_THIN_THRESHOLD) {
@@ -472,8 +443,7 @@ export async function fillOpenGdsIfThin(input: {
     }
 
     const discovered = await callDiscover(resolved, {
-      checkIn: input.checkIn,
-      checkOut: input.checkOut,
+      hotelName: input.hotelName,
     });
     if (discovered.length === 0) {
       return skip(hotels, "sabre_empty", {

@@ -40,9 +40,9 @@ export const quoteAddOptionsTool = defineAgentTool({
   description: [
     "Add or update any number of rooms from any number of hotels on the options quote in one call, each with a markup percent or a client price.",
     "Use when the advisor names rooms and prices or markups together, e.g. \"Beach Villa at 30% and Water Villa at 25%, for all 3 hotels\", \"add the first two suggested rooms\", or \"make the Kihavah water villa 10% instead\".",
-    "Pass absolute client prices exactly as stated — never multiply by the trip's room count or by nights, and never treat a figure as per-room unless the advisor said so. Pass percentage markups as markup_percent. Every option needs markup_percent or client_price — ask if neither is given.",
-    "When adding two rooms with the same name (e.g. Twin non-refundable and Twin free cancel), pass each room's rate_ref from the rates_search table so both stay on the quote; without rate_ref, include cancel wording in room (\"Twin non-refundable\" / \"Twin free cancel\").",
-    "Call once with every room in this message; do not call again for the same ask.",
+    "Pass absolute client prices exactly as stated — never multiply by the trip's room count or by nights, and never treat a figure as per-room unless the advisor said so. Pass percentage markups as markup_percent (0 is valid — sell equals cost). Every option needs markup_percent or client_price — ask if neither is given.",
+    "When adding two rooms with the same name (e.g. Twin non-refundable and Twin free cancel), or when adding many / all rooms from a search, pass each room's rate_ref from the rates_search table so each maps to the right offer; without rate_ref, include cancel wording in room (\"Twin non-refundable\" / \"Twin free cancel\").",
+    "Call once with every room in this message; do not call again for the same ask. If the tool says it couldn't find stored rates: call rates_search once for those hotels, then quote_add_options once with rate_ref + markup — never retry the same failed add two or three times.",
     "Markup or sell-only changes: use this tool (or quote_set_client_price) alone — never rates_search; the rate table must not reappear.",
     "Does NOT set the stay hotel — the hotel stays blank / options pending until the client accepts a room (quote_accept_and_select).",
     "PDF is rebuilt silently; call quote_preview only when the advisor asks to open it.",

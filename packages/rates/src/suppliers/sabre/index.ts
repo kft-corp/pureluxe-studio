@@ -34,6 +34,7 @@ export {
 } from "./api";
 
 export {
+  buildHotelSearchBody,
   buildRateInfoRef,
   defaultDiscoverStayDates,
   buildMatchingRoomOccupancies,
@@ -45,6 +46,8 @@ export {
   needsRoomOccupancySplit,
   sabreLog,
   validateRoomOccupancies,
+  type BuildHotelSearchBodyInput,
+  type HotelSearchGeoRef,
   type RoomOccupancy,
   type RoomOccupancyValidation,
   type SabreOccupancyShopGroup,

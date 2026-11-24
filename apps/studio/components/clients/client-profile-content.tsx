@@ -6,6 +6,7 @@ import { LuArrowLeft, LuCheck, LuEllipsis, LuPencil } from "react-icons/lu";
 
 import {
   ConfirmDialog,
+  DirectoryBackLink,
   PageStack,
   PageToolbar,
   StatusBadge,
@@ -153,13 +154,13 @@ export function ClientProfileContent({
     <>
       <PageStack>
         <div>
-          <Link
+          <DirectoryBackLink
             href={pageRoutes.clients}
             className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-muted transition hover:text-ink"
           >
             <LuArrowLeft className="h-4 w-4" aria-hidden />
             All clients
-          </Link>
+          </DirectoryBackLink>
         </div>
 
         <PageToolbar>

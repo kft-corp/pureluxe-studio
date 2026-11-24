@@ -1,4 +1,5 @@
-import { hasPermission, listBookingsQuerySchema } from "@pureluxe/shared";
+import { Suspense } from "react";
+import { hasPermission } from "@pureluxe/shared";
 
 import { BookingsPageContent } from "@/components/bookings";
 import { ShellModulePage } from "@/components/shell";
@@ -10,7 +11,12 @@ import {
   listBookingDirectory,
   type BookingOwnerFilterOption,
 } from "@/lib/bookings";
+import {
+  bookingDirectoryUrlStateToListQuery,
+  parseBookingDirectoryUrlState,
+} from "@/lib/bookings/booking-directory-query";
 import { listRelationshipOwnerOptions } from "@/lib/clients";
+import { toURLSearchParams } from "@/lib/directory";
 
 const EMPTY_DIRECTORY: BookingDirectoryData = {
   bookings: [],
@@ -19,16 +25,19 @@ const EMPTY_DIRECTORY: BookingDirectoryData = {
   offset: 0,
 };
 
-export default async function BookingsPage() {
+type BookingsPageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function BookingsPage({ searchParams }: BookingsPageProps) {
   const session = await requireActiveStudioSession();
   const canWrite = hasPermission(session.permissions, "bookings.write");
+  const params = await searchParams;
+  const directoryState = parseBookingDirectoryUrlState(toURLSearchParams(params));
+  const directoryQuery = bookingDirectoryUrlStateToListQuery(directoryState);
 
   let initialDirectory = EMPTY_DIRECTORY;
   let ownerOptions: BookingOwnerFilterOption[] = [];
-
-  const directoryQuery = listBookingsQuerySchema.parse({
-    limit: BOOKING_DIRECTORY_PAGE_SIZE,
-  });
 
   const [directoryResult, ownersResult] = await Promise.allSettled([
     listBookingDirectory({
@@ -50,11 +59,13 @@ export default async function BookingsPage() {
 
   return (
     <ShellModulePage module="bookings" {...pageCopy.bookings}>
-      <BookingsPageContent
-        initialDirectory={initialDirectory}
-        ownerOptions={ownerOptions}
-        canWrite={canWrite}
-      />
+      <Suspense fallback={null}>
+        <BookingsPageContent
+          initialDirectory={initialDirectory}
+          ownerOptions={ownerOptions}
+          canWrite={canWrite}
+        />
+      </Suspense>
     </ShellModulePage>
   );
 }

@@ -95,7 +95,7 @@ export type KbCity = {
   country_id: string;
   name: string;
   destination_profile_id: string | null;
-  /** City-center lat for Sabre GetHotelAvail GeoSearch (039). */
+  /** City-center lat for Sabre Hotel Search GeoSearch (039). */
   latitude: number | null;
   longitude: number | null;
   /** Default Sabre geo radius; null → app default. */

@@ -5,6 +5,7 @@ import type { TripFacts } from "../../types";
 
 import { defineDeskTool } from "./define-tool";
 import { datesFromTrip, partyFromTrip } from "./rate-search-gate";
+import { uniqueLabels } from "./unique-labels";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD.");
 const priceTier = z.enum(["Tier 1", "Tier 2", "Tier 3"]);
@@ -73,12 +74,13 @@ function hotelFindChoices(result: unknown, trip: TripFacts | null): AgentChoice[
       : hotels.filter(
           (hotel) => isShoppableFindHit(hotel) && Boolean(hotel.name?.trim()),
         );
-  const names =
+  const names = uniqueLabels(
     didYouMean.length > 0
       ? didYouMean
       : shoppable
-          .map((hotel) => hotel.name?.trim())
-          .filter((name): name is string => Boolean(name));
+          .map((hotel) => hotel.name ?? "")
+          .filter(Boolean),
+  );
   if (names.length === 0) return [];
 
   const destination =
@@ -167,7 +169,7 @@ export const hotelFindTool = defineDeskTool({
   name: "hotel_find",
   description: [
     "Find hotels by name (fuzzy), destination, proposed tier (Tier 1 / Tier 2 / Tier 3), similar to another hotel, or a similar price band.",
-    "Results: Rate Layer (shoppable, contracted true) first; Atlas preferred/guide hotels fill when Rate Layer is thin or empty (source atlas, contracted false unless linked); on explicit suggest when preferred is still thin, open_gds fill may add live names (min Sabre rating 4; sabre_hotel_code set; live discover uses a standard 2-adult / 1-room probe for names only — real party and rooms are confirmed on rates_search). coverage_check skips open_gds.",
+    "Results: Rate Layer (shoppable, contracted true) first; Atlas preferred/guide hotels fill when Rate Layer is thin or empty (source atlas, contracted false unless linked); on explicit suggest when preferred is still thin, open_gds fill may add live names via Sabre Hotel Search (min Sabre rating 4; sabre_hotel_code set; content-only — no stay dates; real party, rooms, and dates are confirmed on rates_search). coverage_check skips open_gds.",
     "Use when the advisor names a hotel, asks for suggestions, wants others in the same tier, or says \"similar to X\". A saved stay is not required.",
     "Coverage check (founder #16): after dates/stays are set, before asking hotel-in-mind / suggest — pass destination + coverage_check true (limit 1). Silent in the UI; preferred/contracted only (no live open-GDS fill). If hotels empty: follow the tool note — no preferred list yet; offer live suggestions OR a hotel name OR a paste quote (do not say no hotels exist at all; do not list names). If any hotel returned: do NOT list hotel names; only ask in plain text whether they have a hotel in mind or want suggestions. List hotels only on explicit suggest/find (coverage_check false) — that path may add live options when preferred is thin.",
     "For \"similar\" / \"same tier\" / \"same price range\", pass similar_to or tier so results stay in that band — do not list cheaper out-of-tier hotels from general knowledge.",

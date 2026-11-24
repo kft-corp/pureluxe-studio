@@ -15,6 +15,14 @@ export {
   CLIENT_DIRECTORY_PAGE_SIZE,
 } from "./client-directory";
 export {
+  clientDirectoryUrlStateToListQuery,
+  DEFAULT_CLIENT_DIRECTORY_URL_STATE,
+  isDefaultClientDirectoryUrlState,
+  parseClientDirectoryUrlState,
+  serializeClientDirectoryUrlState,
+  type ClientDirectoryUrlState,
+} from "./client-directory-query";
+export {
   getClientDirectoryFilters,
   listRelationshipOwnerOptions,
   EMPTY_CLIENT_DIRECTORY_FILTERS,

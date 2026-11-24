@@ -493,7 +493,7 @@ export function addQuoteOptions(
       return {
         summary:
           missing.length > 0
-            ? `Couldn't find rates for: ${missing.join("; ")}. Search rates first.`
+            ? `Couldn't find stored rates for: ${missing.join("; ")}. Call rates_search once for those hotels, then quote_add_options once with rate_ref + markup_percent (0% allowed). Do not retry the same add.`
             : "No rooms were added.",
         undoable: false,
         after: null,

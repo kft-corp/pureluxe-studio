@@ -324,6 +324,7 @@ export {
   type InsertAgentTurnInput,
   expireRateSearches,
   findLatestRateSearch,
+  findRecentRateSearchesForTrip,
   findRateSearchByEventId,
   findRateSearchResultById,
   insertRateSearch,

@@ -125,7 +125,7 @@ export const rateMessages = {
     openGdsFilled:
       "Preferred hotels first; live options fill when coverage is thin (listed after preferred). Open picks can be priced with rates_search when a hotel code is on the shortlist.",
     openGdsEmpty:
-      "Nothing strong enough live for this place/dates — name a hotel or paste a quote.",
+      "Nothing strong enough live for this place — name a hotel or paste a quote.",
     /** Silent coverage_check: preferred empty — invite live suggest without saying none exist at all. */
     coverageNoPreferred:
       "No preferred hotels loaded yet for this place. Live options may still be available — ask if they want live suggestions, a hotel name, or a paste quote. Do not list hotel names on this turn.",

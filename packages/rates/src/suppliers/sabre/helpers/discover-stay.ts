@@ -1,4 +1,7 @@
-/** Default inventory window for open-GDS discover (hotel_find often has no dates). */
+/**
+ * @deprecated Open-GDS suggest now uses Hotel Search (no stay dates).
+ * Kept for any legacy CERT probes that still call GetHotelAvail by stay.
+ */
 const DISCOVER_OFFSET_DAYS = 30;
 const DISCOVER_NIGHTS = 2;
 
@@ -10,11 +13,8 @@ function toIsoDate(d: Date): string {
 }
 
 /**
- * Near-future stay for Sabre GetHotelAvail discover when trip dates are unknown.
- * +30 days, 2 nights (UTC date parts).
- *
- * This is an **inventory probe window** so Sabre returns hotel codes/names —
- * not the advisor’s guest stay. Stage 6 shop should use real trip dates.
+ * @deprecated Legacy GetHotelAvail probe window (+30 days, 2 nights UTC).
+ * Open-GDS suggest uses Hotel Search and does not need this.
  */
 export function defaultDiscoverStayDates(
   from: Date = new Date(),

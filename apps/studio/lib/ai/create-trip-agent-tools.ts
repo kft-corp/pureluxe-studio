@@ -71,7 +71,10 @@ function isIsoDate(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
-/** Stay dates for open-GDS discover — destination-matched stay, else first stay, else trip window. */
+/**
+ * Stay dates from the open trip (destination-matched stay, else first stay, else trip window).
+ * Still injected into findHotels for call-site compatibility; open-GDS Hotel Search ignores them.
+ */
 function stayDatesForPlace(
   detail: TripDetail | null,
   place: string | null | undefined,

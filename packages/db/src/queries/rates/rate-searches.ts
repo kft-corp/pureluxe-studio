@@ -124,6 +124,25 @@ export async function insertRateSearch(input: {
   return { event: saved, results: (results as unknown as RateSearchResult[]) ?? [] };
 }
 
+async function loadResultsForEvent(
+  event: RateSearchEvent,
+): Promise<StoredRateSearch> {
+  const supabase = getServiceClient();
+  const { data: results, error: resultsError } = await runSupabaseQuery(() =>
+    supabase
+      .from("rate_search_results")
+      .select(RESULT_COLUMNS)
+      .eq("search_event_id", event.id)
+      .order("rank", { ascending: true }),
+  );
+
+  if (resultsError) {
+    throw dbQueryError(resultsError);
+  }
+
+  return { event, results: (results as unknown as RateSearchResult[]) ?? [] };
+}
+
 /** Latest trip search that is still open for follow-up questions. Null when none. */
 export async function findLatestRateSearch(tripId: string): Promise<StoredRateSearch | null> {
   const supabase = getServiceClient();
@@ -144,20 +163,43 @@ export async function findLatestRateSearch(tripId: string): Promise<StoredRateSe
   }
   if (!event) return null;
 
-  const saved = event as unknown as RateSearchEvent;
-  const { data: results, error: resultsError } = await runSupabaseQuery(() =>
+  return loadResultsForEvent(event as unknown as RateSearchEvent);
+}
+
+/**
+ * Recent rate searches for a trip (newest first), including expired ones.
+ * Used by quote_add_options so rooms from an earlier hotel search still resolve
+ * after a later search for a different hotel (follow-up TTL may have closed the first).
+ */
+export async function findRecentRateSearchesForTrip(
+  tripId: string,
+  options?: { withinHours?: number; limit?: number },
+): Promise<StoredRateSearch[]> {
+  const withinHours = options?.withinHours ?? 12;
+  const limit = Math.min(Math.max(options?.limit ?? 8, 1), 20);
+  const since = new Date(Date.now() - withinHours * 60 * 60 * 1000).toISOString();
+  const supabase = getServiceClient();
+
+  const { data: events, error: eventError } = await runSupabaseQuery(() =>
     supabase
-      .from("rate_search_results")
-      .select(RESULT_COLUMNS)
-      .eq("search_event_id", saved.id)
-      .order("rank", { ascending: true }),
+      .from("rate_search_events")
+      .select(EVENT_COLUMNS)
+      .eq("trip_id", tripId)
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(limit),
   );
 
-  if (resultsError) {
-    throw dbQueryError(resultsError);
+  if (eventError) {
+    throw dbQueryError(eventError);
   }
 
-  return { event: saved, results: (results as unknown as RateSearchResult[]) ?? [] };
+  const rows = (events as unknown as RateSearchEvent[]) ?? [];
+  const out: StoredRateSearch[] = [];
+  for (const event of rows) {
+    out.push(await loadResultsForEvent(event));
+  }
+  return out;
 }
 
 /** One stored room offer by id. */

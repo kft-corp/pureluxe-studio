@@ -33,7 +33,7 @@ export function isConfigured(): boolean {
 }
 
 /**
- * Open-GDS discover behind hotel_find (Stage 5).
+ * Open-GDS Hotel Search discover behind hotel_find (Stage 5).
  * Requires Sabre configured. Default ON; set SABRE_OPEN_GDS_BROWSE=0 to disable.
  */
 export function isOpenGdsBrowseEnabled(): boolean {

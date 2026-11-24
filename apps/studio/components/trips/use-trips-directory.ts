@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import {
   listJourneyCards,
@@ -12,11 +13,15 @@ import {
   countTripAdvancedFilters,
   directoryStage,
   EMPTY_TRIP_ADVANCED_FILTERS,
+  parseTripDirectoryUrlState,
+  serializeTripDirectoryUrlState,
   stageDetailForChips,
   syncTripQuickFilters,
   type JourneyQuickFilter,
   type TripAdvancedFilters,
+  type TripDirectoryUrlState,
 } from "@/lib/trips";
+import { useDirectoryQuerySync } from "@/lib/directory";
 import { showApiError } from "@/lib/feedback/toast";
 
 type UseTripsDirectoryOptions = {
@@ -25,27 +30,65 @@ type UseTripsDirectoryOptions = {
 
 /** Directory list state — search, quick chips, pagination. */
 export function useTripsDirectory({ initialDirectory }: UseTripsDirectoryOptions) {
+  const searchParams = useSearchParams();
+  const initialUrlState = useMemo(
+    () => parseTripDirectoryUrlState(searchParams),
+    // Intentionally once — URL sync owns later updates.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
   const [journeys, setJourneys] = useState<JourneyCardItem[]>(
     initialDirectory.journeys,
   );
   const [total, setTotal] = useState(initialDirectory.total);
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [quickFilters, setQuickFiltersState] = useState<JourneyQuickFilter[]>([
-    "mine",
-  ]);
-  const [advancedFilters, setAdvancedFiltersState] = useState<TripAdvancedFilters>(
-    EMPTY_TRIP_ADVANCED_FILTERS,
+  const [search, setSearch] = useState(initialUrlState.search);
+  const [debouncedSearch, setDebouncedSearch] = useState(
+    initialUrlState.search.trim(),
   );
-  const [page, setPage] = useState(1);
+  const [quickFilters, setQuickFiltersState] = useState<JourneyQuickFilter[]>(
+    initialUrlState.quickFilters,
+  );
+  const [advancedFilters, setAdvancedFiltersState] = useState<TripAdvancedFilters>(
+    initialUrlState.advancedFilters,
+  );
+  const [page, setPage] = useState(initialUrlState.page);
   const [loading, setLoading] = useState(false);
   const [filtersDialogOpen, setFiltersDialogOpen] = useState(false);
+  // Server page already loaded rows for the current URL filters.
   const skipFirstFetch = useRef(true);
   const requestIdRef = useRef(0);
 
+  const urlState: TripDirectoryUrlState = {
+    search: debouncedSearch,
+    quickFilters,
+    advancedFilters,
+    page,
+  };
+
+  const applyUrlState = useCallback((next: TripDirectoryUrlState) => {
+    setSearch(next.search);
+    setDebouncedSearch(next.search.trim());
+    setQuickFiltersState(next.quickFilters);
+    setAdvancedFiltersState(next.advancedFilters);
+    setPage(next.page);
+  }, []);
+
+  useDirectoryQuerySync({
+    state: urlState,
+    serialize: serializeTripDirectoryUrlState,
+    parse: parseTripDirectoryUrlState,
+    onExternalUrl: applyUrlState,
+  });
+
+  const debouncedSearchRef = useRef(debouncedSearch);
+  debouncedSearchRef.current = debouncedSearch;
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      setDebouncedSearch(search.trim());
+      const next = search.trim();
+      if (next === debouncedSearchRef.current) return;
+      setDebouncedSearch(next);
       setPage(1);
     }, 250);
     return () => window.clearTimeout(timer);

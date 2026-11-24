@@ -7,6 +7,14 @@ export {
   listJourneyDirectory,
 } from "./list-journeys";
 export {
+  DEFAULT_TRIP_DIRECTORY_URL_STATE,
+  isDefaultTripDirectoryUrlState,
+  parseTripDirectoryUrlState,
+  serializeTripDirectoryUrlState,
+  tripDirectoryUrlStateToListQuery,
+  type TripDirectoryUrlState,
+} from "./trip-directory-query";
+export {
   formatJourneyParty,
   formatJourneyPhase,
   formatJourneyRoute,

@@ -4,10 +4,10 @@ export {
   type SabreApplicationResult,
 } from "./application-results";
 export {
-  buildHotelDiscoverBody,
-  type BuildHotelDiscoverBodyInput,
-  type HotelDiscoverGeoRef,
-} from "./build-hotel-discover-body";
+  buildHotelSearchBody,
+  type BuildHotelSearchBodyInput,
+  type HotelSearchGeoRef,
+} from "./build-hotel-search-body";
 export {
   buildRateInfoRef,
   type SearchHotelRatesStay,

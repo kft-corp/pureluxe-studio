@@ -12,19 +12,22 @@ export type SabreDiscoverHotel = {
 };
 
 /**
- * Map GetHotelAvailRS (geo/airport discover) → shortlist candidates.
+ * Map HotelSearchRS (geo/airport discover) → shortlist candidates.
  * Caps caller-side; extracts HotelCode + HotelName + compact advisor facts.
+ * Also accepts legacy GetHotelAvailRS shapes if present.
  */
 export function mapHotelDiscoverToCandidates(
   response: unknown,
   options?: { max?: number; minSabreRating?: number },
 ): SabreDiscoverHotel[] {
   const root = asRecord(response);
-  const rs = asRecord(root?.GetHotelAvailRS) ?? root;
-  if (!rs) return [];
+  if (!root) return [];
 
-  const availInfos = asRecord(rs.HotelAvailInfos);
-  const hotels = asArray(availInfos?.HotelAvailInfo ?? rs.HotelAvailInfo);
+  const searchRs = asRecord(root.HotelSearchRS) ?? null;
+  const availRs = asRecord(root.GetHotelAvailRS) ?? null;
+  const rs = searchRs ?? availRs ?? root;
+
+  const hotels = collectHotelRows(rs, Boolean(searchRs));
   const max = Math.min(Math.max(options?.max ?? 5, 1), 5);
   const minRating = options?.minSabreRating ?? 4;
 
@@ -36,7 +39,7 @@ export function mapHotelDiscoverToCandidates(
     const hotel = asRecord(hotelRow);
     if (!hotel) continue;
 
-    const hotelInfo = asRecord(hotel.HotelInfo) ?? {};
+    const hotelInfo = asRecord(hotel.HotelInfo) ?? hotel;
     const hotelCode = asString(hotelInfo.HotelCode);
     const hotelName = asString(hotelInfo.HotelName);
     if (!hotelCode || !hotelName) continue;
@@ -67,4 +70,24 @@ export function mapHotelDiscoverToCandidates(
   }
 
   return out;
+}
+
+function collectHotelRows(
+  rs: Record<string, unknown>,
+  preferSearch: boolean,
+): unknown[] {
+  if (preferSearch) {
+    const infos = asRecord(rs.HotelSearchInfos);
+    const fromSearch = asArray(
+      infos?.HotelSearchInfo ?? rs.HotelSearchInfo,
+    );
+    if (fromSearch.length > 0) return fromSearch;
+  }
+
+  const availInfos = asRecord(rs.HotelAvailInfos);
+  const fromAvail = asArray(availInfos?.HotelAvailInfo ?? rs.HotelAvailInfo);
+  if (fromAvail.length > 0) return fromAvail;
+
+  const infos = asRecord(rs.HotelSearchInfos);
+  return asArray(infos?.HotelSearchInfo ?? rs.HotelSearchInfo);
 }

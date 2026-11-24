@@ -110,6 +110,7 @@ export {
   findActivePropertyById,
   findActivePropertyWithSupplierCodes,
   findLatestRateSearch,
+  findRecentRateSearchesForTrip,
   findRateSearchByEventId,
   findRateSearchResultById,
   insertRateSearch,

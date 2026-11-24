@@ -1,4 +1,4 @@
-export {
+﻿export {
   getKnowledgeBaseSetting,
   getRateSourcesSetting,
   isRateSourceEnabled,
@@ -60,6 +60,7 @@ export {
 export {
   expireRateSearches,
   findLatestRateSearch,
+  findRecentRateSearchesForTrip,
   findRateSearchByEventId,
   findRateSearchResultById,
   insertRateSearch,

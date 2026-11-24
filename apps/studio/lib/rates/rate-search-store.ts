@@ -2,6 +2,7 @@ import { errorCodeOf, type RateSnapshot } from "@pureluxe/ai";
 import {
   expireRateSearches,
   findLatestRateSearch,
+  findRecentRateSearchesForTrip,
   findRateSearchByEventId,
   findRateSearchResultById,
   insertRateSearch,
@@ -298,31 +299,23 @@ export async function loadStoredRateOption(
   };
 }
 
-/**
- * Match a hotel+room against the latest open search.
- * Pass excludeResultIds when adding several same-named rooms in one batch so
- * each Twin maps to a different stored rate.
- */
-export async function findStoredRateByHotelRoom(
-  tripId: string,
+function matchRoomInSearch(
+  search: StoredRateSearch,
   hotel: string,
   room: string,
-  options?: { excludeResultIds?: string[] },
-): Promise<{
+  excluded: Set<string>,
+): {
   option: NormalizedRateOption;
   resultId: string;
   legId: string | null;
   destinationText: string | null;
-} | null> {
-  const search = await findLatestRateSearch(tripId);
-  if (!search) return null;
+} | null {
   const atHotel = search.results.filter((row) =>
     hotelNameMatch(row.property_name ?? "", hotel),
   );
-  const excluded = new Set(options?.excludeResultIds ?? []);
-  const pool = (atHotel.length > 0 ? atHotel : search.results).filter(
-    (row) => !excluded.has(row.id),
-  );
+  // Prefer the named hotel's rows only — never fall back to another hotel's pool.
+  if (atHotel.length === 0) return null;
+  const pool = atHotel.filter((row) => !excluded.has(row.id));
   if (pool.length === 0) return null;
 
   const hit = bestRoomMatch(
@@ -373,6 +366,42 @@ export async function findStoredRateByHotelRoom(
     legId: search.event.leg_id ?? null,
     destinationText: search.event.destination_text ?? null,
   };
+}
+
+/**
+ * Match a hotel+room against recent searches for this trip.
+ * Tries the latest open search first, then other searches from the last 12 hours
+ * (so "add Hilton + Westin" still works after a later one-hotel re-search).
+ * Pass excludeResultIds when adding several same-named rooms in one batch so
+ * each Twin maps to a different stored rate.
+ */
+export async function findStoredRateByHotelRoom(
+  tripId: string,
+  hotel: string,
+  room: string,
+  options?: { excludeResultIds?: string[] },
+): Promise<{
+  option: NormalizedRateOption;
+  resultId: string;
+  legId: string | null;
+  destinationText: string | null;
+} | null> {
+  const excluded = new Set(options?.excludeResultIds ?? []);
+  // Open search first, then other recent searches (incl. expired) for multi-hotel adds.
+  const latest = await findLatestRateSearch(tripId);
+  const recent = await findRecentRateSearchesForTrip(tripId, {
+    withinHours: 12,
+    limit: 8,
+  });
+  const searches = latest
+    ? [latest, ...recent.filter((row) => row.event.id !== latest.event.id)]
+    : recent;
+
+  for (const search of searches) {
+    const matched = matchRoomInSearch(search, hotel, room, excluded);
+    if (matched) return matched;
+  }
+  return null;
 }
 
 /**

@@ -21,6 +21,7 @@ import { JourneyPhasePill } from "@/components/trips/journey-phase-pill";
 import {
   ContentSection,
   DetailField,
+  DirectoryBackLink,
   PageStack,
   PageToolbar,
   SnapshotCard,
@@ -59,13 +60,13 @@ export function JourneyPage({
   return (
     <PageStack className="min-w-0">
       <div>
-        <Link
+        <DirectoryBackLink
           href={pageRoutes.trips}
           className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-muted transition hover:text-ink"
         >
           <LuArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
           All trips
-        </Link>
+        </DirectoryBackLink>
       </div>
 
       <PageToolbar className="min-w-0 overflow-hidden">

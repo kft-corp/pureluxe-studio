@@ -3,6 +3,7 @@ export {
   PageStack,
   PageToolbar,
 } from "./content-section";
+export { DirectoryBackLink } from "./directory-back-link";
 export { ActionButton } from "./action-button";
 export { DETAIL_EMPTY_VALUE, DetailField } from "./detail-field";
 export { Modal, ModalButton, modalFieldClassName } from "./modal";
