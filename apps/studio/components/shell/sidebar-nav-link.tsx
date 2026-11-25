@@ -40,7 +40,7 @@ export function SidebarNavLink({
       aria-label={compact ? item.label : undefined}
       title={compact ? item.label : undefined}
       className={cn(
-        "group relative flex min-h-9 items-center gap-2.5 rounded-md px-2.5 tracking-[0.01em] transition-colors duration-150",
+        "group relative flex min-h-10 items-center gap-3 rounded-md px-2.5 tracking-[0.01em] transition-colors duration-150",
         quiet ? "text-[13px]" : "text-sm",
         studioFocusRing,
         active
@@ -48,17 +48,17 @@ export function SidebarNavLink({
           : "font-medium text-nav-ink hover:text-nav-ink-strong",
         !active && !compact && "hover:bg-transparent",
         !active && compact && "hover:bg-nav-hover/70",
-        compact && "h-9 w-9 justify-center gap-0 px-0 before:hidden",
+        compact && "h-10 w-10 justify-center gap-0 px-0 before:hidden",
         compact && active && "bg-nav-hover",
         quiet && !active && "text-nav-ink/85",
       )}
     >
       <Icon
         className={cn(
-          "h-3 w-3 shrink-0 transition-colors duration-150",
+          "h-4 w-4 shrink-0 transition-colors duration-150",
           active
             ? "text-accent-strong"
-            : "text-nav-icon/70 group-hover:text-nav-ink-strong",
+            : "text-nav-icon group-hover:text-nav-ink-strong",
         )}
         strokeWidth={1.5}
         aria-hidden

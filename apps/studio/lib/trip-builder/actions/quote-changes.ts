@@ -24,10 +24,7 @@ import {
   updateStayOption,
   updateTrip,
 } from "@pureluxe/db";
-import { AppError, tripMessages } from "@pureluxe/shared";
-
-/** Quote send refuses rates older than this (B2B freshness). */
-const RATES_STALE_MS = 2 * 60 * 60 * 1000;
+import { AppError, RATE_SHOP_FRESH_MS, rateMessages, tripMessages } from "@pureluxe/shared";
 
 import {
   findStoredRateByHotelRoom,
@@ -1181,10 +1178,9 @@ export function sendQuote(context: TripChangeContext): Promise<TripChange> {
     const search = await findLatestRateSearch(context.tripId);
     if (search?.event.created_at) {
       const ageMs = Date.now() - new Date(search.event.created_at).getTime();
-      if (Number.isFinite(ageMs) && ageMs > RATES_STALE_MS) {
+      if (Number.isFinite(ageMs) && ageMs > RATE_SHOP_FRESH_MS) {
         throw new AppError({
-          userMessage:
-            "These rates are more than 2 hours old. Search rates again before sending the quote.",
+          userMessage: rateMessages.error.shopTooOldToSend,
           code: "trips.rates_stale",
           status: 409,
         });

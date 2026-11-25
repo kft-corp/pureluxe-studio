@@ -1,3 +1,5 @@
+import { RATE_SHOP_MATCH_WITHIN_HOURS } from "@pureluxe/shared";
+
 import { getServiceClient, runSupabaseQuery } from "../../client";
 import { dbQueryError } from "../../errors";
 import type {
@@ -175,7 +177,7 @@ export async function findRecentRateSearchesForTrip(
   tripId: string,
   options?: { withinHours?: number; limit?: number },
 ): Promise<StoredRateSearch[]> {
-  const withinHours = options?.withinHours ?? 12;
+  const withinHours = options?.withinHours ?? RATE_SHOP_MATCH_WITHIN_HOURS;
   const limit = Math.min(Math.max(options?.limit ?? 8, 1), 20);
   const since = new Date(Date.now() - withinHours * 60 * 60 * 1000).toISOString();
   const supabase = getServiceClient();

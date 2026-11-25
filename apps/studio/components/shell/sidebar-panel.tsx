@@ -69,7 +69,7 @@ function NavGroup({
           {title}
         </p>
       ) : null}
-      <ul className="space-y-1">
+      <ul className="space-y-1.5">
         {items.map((item) => (
           <li key={item.id}>
             <SidebarNavLink
@@ -145,7 +145,7 @@ export function SidebarPanel({
             <button
               type="button"
               onClick={onToggleUnfoldable}
-              className={cn(ICON_BUTTON, "mt-0.5 hidden h-7 w-7 md:inline-flex", studioFocusRing)}
+              className={cn(ICON_BUTTON, "mt-0.5 hidden h-8 w-8 md:inline-flex", studioFocusRing)}
               aria-label={railLabel}
               aria-keyshortcuts="Control+B Meta+B"
               title={railLabel}
@@ -177,10 +177,10 @@ export function SidebarPanel({
             className={cn(
               "inline-flex items-center justify-center gap-2 rounded-md border border-accent-line bg-accent-soft text-sm font-semibold text-accent-ink transition hover:border-accent hover:bg-accent/25",
               studioFocusRing,
-              compact ? "h-9 w-9" : "h-9 w-full px-3",
+              compact ? "h-10 w-10" : "h-10 w-full px-3",
             )}
           >
-            <LuPlus className="h-4 w-4 shrink-0" strokeWidth={1.6} aria-hidden />
+            <LuPlus className="h-4 w-4 shrink-0" strokeWidth={1.5} aria-hidden />
             {!compact ? (
               <span className="studio-nav-reveal truncate">{sidebarCopy.newTrip}</span>
             ) : null}
@@ -197,14 +197,14 @@ export function SidebarPanel({
             "flex items-center text-[13px] text-nav-muted transition-colors duration-150 hover:text-nav-ink-strong",
             studioFocusRing,
             compact
-              ? "h-8 w-8 justify-center rounded-md hover:bg-nav-hover"
-              : "w-full gap-2 rounded-md px-2.5 py-1.5",
+              ? "h-10 w-10 justify-center rounded-md hover:bg-nav-hover"
+              : "min-h-10 w-full gap-3 rounded-md px-2.5 py-1.5",
           )}
         >
-          <LuSearch className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} aria-hidden />
+          <LuSearch className="h-4 w-4 shrink-0 text-nav-icon" strokeWidth={1.5} aria-hidden />
           {!compact ? (
             <>
-              <span className="studio-nav-reveal flex-1 truncate text-left font-medium">
+              <span className="studio-nav-reveal flex-1 truncate text-left text-sm font-medium">
                 Search
               </span>
               <kbd className="studio-nav-reveal font-sans text-[11px] tracking-wide text-nav-muted/90">

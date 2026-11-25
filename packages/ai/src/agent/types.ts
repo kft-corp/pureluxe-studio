@@ -21,6 +21,13 @@ export type PlaceNotes = {
 export type RateSnapshot =
   | { status: "none" }
   | {
+      /** Shop closed (TTL or stay change) — advisor should refresh before quoting facts. */
+      status: "expired";
+      searched_at: string | null;
+      /** Soft prompt: refresh rates rather than inventing from memory. */
+      message: string;
+    }
+  | {
       status: "found";
       searched_at: string;
       /** Primary hotel name, or null when several hotels were searched. */

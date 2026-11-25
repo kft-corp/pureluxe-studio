@@ -290,10 +290,17 @@ function cancelFamily(
 
 function cancelFamilyLabel(
   family: ReturnType<typeof cancelFamily>,
-  _summary: string | null,
+  summary: string | null,
 ): string | null {
   if (family === "non_refundable") return "Non-refund";
-  if (family === "refundable") return "Free cancel";
+  if (family === "refundable") {
+    // Prefer Sabre "Free cancel until 17 Dec 2026" over bare "Free cancel".
+    const until = summary?.match(
+      /\buntil\s+(\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4}|\d{4}-\d{2}-\d{2})\b/i,
+    );
+    if (until?.[1]) return `Free until ${until[1]}`;
+    return "Free cancel";
+  }
   return null;
 }
 
@@ -614,6 +621,9 @@ function roomDetailChipsFromRaw(
       if (maxOcc != null) parts.push(`Occupancy ${maxOcc}`);
     }
   }
+  if (raw?.limited_availability === true) {
+    parts.push("Limited");
+  }
   for (const line of inclusions) {
     const chip = shortenInclusionChip(line);
     if (chip && /^min\s+\d+\s+nights$/i.test(chip)) {
@@ -836,7 +846,8 @@ function hotelHighlightsFromOptions(
   if (quality) out.push(shortLine(quality, 20) ?? quality);
   const city = asStringRaw(raw.hotel_city);
   if (city) out.push(city);
-  return out.slice(0, 4);
+  if (raw.tax_inclusive === true) out.push("Tax incl.");
+  return out.slice(0, 5);
 }
 
 function toRoom(
@@ -849,11 +860,11 @@ function toRoom(
 ): RateCompareRoom {
   const teamCost = option.cost_internal;
   const nightCount = nights != null && nights > 0 ? nights : 1;
-  const cancel = shortLine(option.cancellation_summary, 110);
   const cancelByAbsolute = parseCancelByDate(
     option.cancellation_summary,
     option.raw,
   );
+  const cancel = shortLine(option.cancellation_summary, 140);
   const cancelDaysFromText = parseCancelDays(option.cancellation_summary);
   const cancelBy =
     cancelByAbsolute ??
@@ -903,10 +914,14 @@ function toRoom(
     rateBasis === "package" ? packageLabel(packageNights, nights) : null;
 
   const family = cancelFamily(option.cancellation_summary);
-  const cancelBit =
-    family === "non_refundable" || family === "refundable"
-      ? cancelFamilyLabel(family, option.cancellation_summary)
-      : null;
+  let cancelBit: string | null = null;
+  if (family === "non_refundable") {
+    cancelBit = cancelFamilyLabel(family, option.cancellation_summary);
+  } else if (family === "refundable") {
+    cancelBit = cancelByAbsolute
+      ? `Free until ${formatDisplayDate(cancelByAbsolute)}`
+      : cancelFamilyLabel(family, option.cancellation_summary);
+  }
   const payTiming = paymentTimingFromOption(option);
   const payBit = paymentTimingLabel(payTiming);
   const isContracted = option.rate_source_code === "offline_contracted";
@@ -1395,17 +1410,36 @@ function inStayLineFromOptions(options: NormalizedRateOption[]): string | null {
       if (!raw) return false;
       return (
         typeof raw.tax_amount === "number" ||
-        asStringListRaw(raw.fee_lines).length > 0
+        asStringListRaw(raw.fee_lines).length > 0 ||
+        raw.tax_inclusive === true ||
+        raw.fees_inclusive === true ||
+        raw.commissionable === true ||
+        raw.commissionable === false
       );
     }) ?? null;
   if (!option?.raw) return null;
   const bits: string[] = [];
+  if (option.raw.tax_inclusive === true) bits.push("tax incl.");
+  if (option.raw.fees_inclusive === true) bits.push("fees incl.");
+  if (option.raw.commissionable === true) bits.push("commissionable");
+  if (option.raw.commissionable === false) bits.push("non-commissionable");
   const tax =
     typeof option.raw.tax_amount === "number" && Number.isFinite(option.raw.tax_amount)
       ? option.raw.tax_amount
       : null;
   if (tax != null && tax > 0) {
     bits.push(`tax ${formatRoomMoney(tax, option.currency)}`);
+  }
+  const supplierCurrency = asStringRaw(option.raw.supplier_currency);
+  const supplierAmount =
+    typeof option.raw.supplier_amount_after_tax === "number" &&
+    Number.isFinite(option.raw.supplier_amount_after_tax)
+      ? option.raw.supplier_amount_after_tax
+      : null;
+  if (supplierCurrency && supplierAmount != null && supplierCurrency !== option.currency) {
+    bits.push(
+      `hotel currency ${formatRoomMoney(supplierAmount, supplierCurrency)}`,
+    );
   }
   for (const fee of asStringListRaw(option.raw.fee_lines).slice(0, 2)) {
     bits.push(shortLine(fee, 40) ?? fee);

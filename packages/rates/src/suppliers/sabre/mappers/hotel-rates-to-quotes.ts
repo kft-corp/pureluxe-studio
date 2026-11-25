@@ -1,11 +1,35 @@
 import type { RawRateInput } from "../../../results";
 import type { RateSourceCode } from "../../../types";
-import { asArray, asRecord, asString } from "../helpers";
+import { asArray, asNumber, asRecord, asString } from "../helpers";
 import {
   extractHotelAdvisorFacts,
   extractPricedRateRows,
   mapRateInfosToQuotes,
 } from "./rate-fields";
+
+/** Hotel-level RateRanges often hold supplier currency (e.g. JPY) when room rows are converted USD. */
+function rateRangeSupplierCurrency(
+  hotelRateInfo: Record<string, unknown> | null,
+): { currency: string; amount: number | null } | null {
+  if (!hotelRateInfo) return null;
+  const ranges = asRecord(hotelRateInfo.RateRanges);
+  for (const row of asArray(ranges?.RateRange ?? hotelRateInfo.RateRange)) {
+    const range = asRecord(row);
+    if (!range) continue;
+    const currency = asString(range.CurrencyCode);
+    const converted = asString(range.ConvertedCurrencyCode);
+    if (!currency) continue;
+    if (converted && converted.toUpperCase() === currency.toUpperCase()) {
+      continue;
+    }
+    const amount =
+      asNumber(range.MinRate) ??
+      asNumber(range.MaxRate) ??
+      null;
+    return { currency, amount };
+  }
+  return null;
+}
 
 export type MapHotelRatesToQuotesInput = {
   response: unknown;
@@ -38,6 +62,19 @@ export function mapHotelRatesToQuotes(
     const hotelInfo = asRecord(hotel.HotelInfo) ?? {};
     const hotelCode = asString(hotelInfo.HotelCode);
     const hotelName = asString(hotelInfo.HotelName);
+    const hotelRateInfo = asRecord(hotel.HotelRateInfo);
+    const supplierFromRange = rateRangeSupplierCurrency(hotelRateInfo);
+    const rates = extractPricedRateRows(hotel).map((row) => {
+      if (!supplierFromRange) return row;
+      if (asString(asRecord(row)?.SupplierCurrencyCode)) return row;
+      return {
+        ...row,
+        SupplierCurrencyCode: supplierFromRange.currency,
+        SupplierAmountAfterTax:
+          asNumber(asRecord(row)?.SupplierAmountAfterTax) ??
+          supplierFromRange.amount,
+      };
+    });
 
     quotes.push(
       ...mapRateInfosToQuotes({
@@ -48,7 +85,7 @@ export function mapHotelRatesToQuotes(
         currency: input.currency,
         hotelCode,
         hotelName,
-        rates: extractPricedRateRows(hotel),
+        rates,
         shopStep: "avail",
         hotelFacts: extractHotelAdvisorFacts(hotelInfo),
       }),

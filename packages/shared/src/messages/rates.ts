@@ -1,3 +1,13 @@
+/**
+ * Working-session window for live rate shops: follow-up Q&A + quote send share this.
+ * Change RATE_SHOP_FRESH_HOURS only — MS and advisor copy stay in sync below.
+ */
+export const RATE_SHOP_FRESH_HOURS = 2;
+export const RATE_SHOP_FRESH_MS = RATE_SHOP_FRESH_HOURS * 60 * 60 * 1000;
+
+/** How far back quote_add can resolve hotel+room from earlier shops (lookup only). */
+export const RATE_SHOP_MATCH_WITHIN_HOURS = 12;
+
 /** Rate Layer / Trip Builder rates API copy. */
 export const rateMessages = {
   success: {
@@ -97,6 +107,13 @@ export const rateMessages = {
       "No contracted room fits this party for the rooms requested. Try more rooms, a larger room type, different dates, or paste a quote.",
     contractedOccupancyNoFitCrowded:
       "No contracted room fits this party in one room. Try two rooms, a larger category, or paste a quote.",
+    /** rates_get_snapshot when the open shop aged out past RATE_SHOP_FRESH_MS. */
+    shopExpired: `Last rates are more than ${RATE_SHOP_FRESH_HOURS} hours old. Want me to refresh rates for those hotels?`,
+    /** rates_get_snapshot when the shop was closed early (stay/party/hotel change). */
+    shopCleared:
+      "Prior rates were cleared after a trip change. Want me to search rates again?",
+    /** Quote send when latest shop is older than RATE_SHOP_FRESH_MS. */
+    shopTooOldToSend: `These rates are more than ${RATE_SHOP_FRESH_HOURS} hours old. Search rates again before sending the quote.`,
   },
   /** Short UI / chat cues after a rates table. */
   hint: {

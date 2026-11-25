@@ -11,7 +11,12 @@ import {
   type StoredRateSearch,
 } from "@pureluxe/db";
 import type { NormalizedRateOption, SearchRatesResult } from "@pureluxe/rates";
-import type { SearchRatesBody } from "@pureluxe/shared";
+import {
+  RATE_SHOP_FRESH_MS,
+  RATE_SHOP_MATCH_WITHIN_HOURS,
+  rateMessages,
+  type SearchRatesBody,
+} from "@pureluxe/shared";
 
 import { buildRateSearchNotes } from "./rate-search-pack";
 import {
@@ -21,9 +26,6 @@ import {
   roomTitleScore,
 } from "./room-match";
 import type { HotelRateSearchOutcome } from "@/lib/trip-builder/rates/search-rates-for-hotels";
-
-/** How long the last hotel search stays open for follow-up questions. */
-const FOLLOW_UP_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 type SearchMeta = {
   hotel_brief: string | null;
@@ -102,7 +104,7 @@ export async function saveTripRateSearch(input: {
       adults: search.adults,
       children: search.children,
       rooms: search.rooms,
-      expires_at: new Date(Date.now() + FOLLOW_UP_TTL_MS).toISOString(),
+      expires_at: new Date(Date.now() + RATE_SHOP_FRESH_MS).toISOString(),
     },
     results: input.options.map((option, rank) => ({
       rank,
@@ -221,7 +223,7 @@ export async function saveMultiHotelRateSearch(input: {
         adults: input.adults,
         children: input.children,
         rooms: input.rooms,
-        expires_at: new Date(Date.now() + FOLLOW_UP_TTL_MS).toISOString(),
+        expires_at: new Date(Date.now() + RATE_SHOP_FRESH_MS).toISOString(),
       },
       results: results.map((item) => item.row),
     });
@@ -238,10 +240,32 @@ export async function saveMultiHotelRateSearch(input: {
   }
 }
 
+/**
+ * Soft prompt when a recent shop exists but is closed (TTL aged out or stay change).
+ * status none only when there was nothing to remember.
+ */
+async function readExpiredRateSnapshot(tripId: string): Promise<RateSnapshot> {
+  const recent = await findRecentRateSearchesForTrip(tripId, {
+    withinHours: RATE_SHOP_MATCH_WITHIN_HOURS,
+    limit: 1,
+  });
+  const last = recent[0];
+  if (!last) return { status: "none" };
+  const ageMs = Date.now() - new Date(last.event.created_at).getTime();
+  const agedOut = Number.isFinite(ageMs) && ageMs > RATE_SHOP_FRESH_MS;
+  return {
+    status: "expired",
+    searched_at: last.event.created_at,
+    message: agedOut ? rateMessages.error.shopExpired : rateMessages.error.shopCleared,
+  };
+}
+
 /** The last open search as the agent's rates_get_snapshot result. */
 export async function readRateSnapshot(tripId: string): Promise<RateSnapshot> {
   const search = await findLatestRateSearch(tripId);
-  if (!search) return { status: "none" };
+  if (!search) {
+    return readExpiredRateSnapshot(tripId);
+  }
   const meta = readMeta(search.event.meta);
   const hotels =
     meta.hotels && meta.hotels.length > 0
@@ -390,7 +414,7 @@ export async function findStoredRateByHotelRoom(
   // Open search first, then other recent searches (incl. expired) for multi-hotel adds.
   const latest = await findLatestRateSearch(tripId);
   const recent = await findRecentRateSearchesForTrip(tripId, {
-    withinHours: 12,
+    withinHours: RATE_SHOP_MATCH_WITHIN_HOURS,
     limit: 8,
   });
   const searches = latest

@@ -21,7 +21,7 @@ export function questionUsesRatePack(message: string): boolean {
   ) {
     return true;
   }
-  return /\b(?:rates?|prices?|costs?|rooms?|villas?|hotels?|stay|inclusions?|included|includes|cancel(?:lation)?|payment|offers?|markup|transfers?|seaplane|check-?in|check-?out|kids?|children|child|adults?|guests?|occupancy|honeymoons?|anniversar(?:y|ies)|groups?|stop sale|board|breakfast|lunch|dinner|tax|fees?|charges?|amenit\w*|pool|wifi|parking|supplement|extras?|rollaway|crib|benefits?|policy|policies|package|nights?|booking code|complimentary|combinable)\b/i.test(
+  return /\b(?:rates?|prices?|costs?|rooms?|villas?|hotels?|stay|inclusions?|included|includes|cancel(?:lation)?|payment|guarantee|commission(?:able)?|offers?|markup|transfers?|seaplane|check-?in|check-?out|kids?|children|child|adults?|guests?|occupancy|honeymoons?|anniversar(?:y|ies)|groups?|stop sale|board|breakfast|lunch|dinner|tax|fees?|charges?|amenit\w*|pool|wifi|parking|supplement|extras?|rollaway|crib|benefits?|policy|policies|package|nights?|nightly|booking code|complimentary|combinable|limited)\b/i.test(
     text,
   );
 }
@@ -152,6 +152,92 @@ function hotelAmenityNotes(
   return `hotel ${parts.join("; ")}`;
 }
 
+const POST_DEADLINE_FEE_UNKNOWN =
+  "post-deadline fee not returned by GDS — confirm with hotel before promising the client";
+
+function commissionFlag(raw: Record<string, unknown>): string | null {
+  if (raw.commissionable === true) return "commissionable";
+  if (raw.commissionable === false) return "non-commissionable";
+  return null;
+}
+
+function rateTypeNote(raw: Record<string, unknown>): string | null {
+  const planType = rawText(raw, "rate_plan_type_description");
+  if (planType) return `rate type ${planType}`;
+  const product = rawText(raw, "product_code");
+  return product ? `product ${product}` : null;
+}
+
+function nightlyRatesNote(
+  raw: Record<string, unknown>,
+  currency: string,
+): string | null {
+  if (!Array.isArray(raw.nightly_rates) || raw.nightly_rates.length === 0) {
+    return null;
+  }
+  const parts = raw.nightly_rates
+    .slice(0, 5)
+    .map((row) => {
+      if (!row || typeof row !== "object") return null;
+      const night = row as Record<string, unknown>;
+      const start = typeof night.start === "string" ? night.start : "";
+      const amount = typeof night.amount === "number" ? night.amount : null;
+      const cur = typeof night.currency === "string" ? night.currency : currency;
+      if (!start || amount == null) return null;
+      return `${start} ${formatRoomMoney(amount, cur)}`;
+    })
+    .filter(Boolean);
+  return parts.length > 0 ? `nightly rates ${parts.join("; ")}` : null;
+}
+
+/** Cancel line for rates_get_snapshot — includes until-date / fee caveat when needed. */
+function cancellationNote(option: NormalizedRateOption): string {
+  const summary = option.cancellation_summary?.trim() ?? "";
+  const deadline =
+    typeof option.raw.cancel_deadline === "string" && option.raw.cancel_deadline
+      ? option.raw.cancel_deadline
+      : null;
+  const penaltyNights =
+    typeof option.raw.cancel_penalty_nights === "number" &&
+    option.raw.cancel_penalty_nights > 0
+      ? option.raw.cancel_penalty_nights
+      : null;
+
+  if (!summary) {
+    if (!deadline) return "cancellation not available yet";
+    return `cancellation free cancel until ${deadline}; ${POST_DEADLINE_FEE_UNKNOWN}`;
+  }
+
+  const extras: string[] = [];
+  if (deadline && !/until/i.test(summary)) {
+    extras.push(` (cancel by ${deadline})`);
+  }
+  if (penaltyNights != null && !/then \d+ night/i.test(summary)) {
+    extras.push(`; then ${penaltyNights} night charge after cut-off`);
+  } else if (
+    /until/i.test(summary) &&
+    penaltyNights == null &&
+    !/post-deadline fee not returned/i.test(summary)
+  ) {
+    extras.push(`; ${POST_DEADLINE_FEE_UNKNOWN}`);
+  }
+  return `cancellation ${summary}${extras.join("")}`;
+}
+
+function paymentNote(option: NormalizedRateOption): string {
+  const summary = option.payment_summary?.trim() ?? "";
+  if (!summary) return "payment not available yet";
+  const cards = Array.isArray(option.raw.accepted_payment_cards)
+    ? option.raw.accepted_payment_cards.filter(
+        (code): code is string => typeof code === "string" && Boolean(code.trim()),
+      )
+    : [];
+  if (cards.length === 0 || /\([A-Z]{2}/.test(summary)) {
+    return `payment ${summary}`;
+  }
+  return `payment ${summary} (cards ${cards.slice(0, 8).join(", ")})`;
+}
+
 function roomLine(option: NormalizedRateOption, index: number): string {
   const room = option.room_name?.trim() || option.property_name?.trim() || "Room";
   const feeLines = stringList(option.raw, "fee_lines");
@@ -161,6 +247,10 @@ function roomLine(option: NormalizedRateOption, index: number): string {
   const roomAmenities = stringList(option.raw, "room_amenities");
   const hotelAmenities = stringList(option.raw, "hotel_amenities");
   const taxAmount = rawNumber(option.raw, "tax_amount");
+  const avgNightly = rawNumber(option.raw, "average_nightly_rate");
+  const highNightly = rawNumber(option.raw, "highest_nightly_rate");
+  const supplierAmount = rawNumber(option.raw, "supplier_amount_after_tax");
+  const supplierCurrency = rawText(option.raw, "supplier_currency");
   const bits = [
     `${index}. ${room}`,
     option.board ? `board ${option.board}` : null,
@@ -184,6 +274,21 @@ function roomLine(option: NormalizedRateOption, index: number): string {
     taxAmount != null
       ? `tax ${formatRoomMoney(taxAmount, option.currency)}`
       : null,
+    option.raw.tax_inclusive === true ? "tax inclusive" : null,
+    option.raw.fees_inclusive === true ? "fees inclusive in stay cost" : null,
+    commissionFlag(option.raw),
+    option.raw.limited_availability === true ? "limited availability" : null,
+    rateTypeNote(option.raw),
+    avgNightly != null
+      ? `avg nightly ${formatRoomMoney(avgNightly, option.currency)}`
+      : null,
+    highNightly != null
+      ? `highest nightly ${formatRoomMoney(highNightly, option.currency)}`
+      : null,
+    nightlyRatesNote(option.raw, option.currency),
+    supplierCurrency && supplierAmount != null
+      ? `hotel currency ${formatRoomMoney(supplierAmount, supplierCurrency)}`
+      : null,
     feeLines.length > 0 ? `fees (chargeable, in stay cost) ${feeLines.join("; ")}` : null,
     extraLines.length > 0
       ? `room extras (priced add-ons) ${extraLines.join("; ")}`
@@ -197,20 +302,8 @@ function roomLine(option: NormalizedRateOption, index: number): string {
     option.inclusions.length > 0
       ? `Included: ${option.inclusions.join(", ")}`
       : "Included: not listed on this rate",
-    option.cancellation_summary?.trim()
-      ? `cancellation ${option.cancellation_summary.trim()}${
-          typeof option.raw.cancel_deadline === "string" &&
-          option.raw.cancel_deadline &&
-          !/until/i.test(option.cancellation_summary)
-            ? ` (cancel by ${option.raw.cancel_deadline})`
-            : ""
-        }`
-      : typeof option.raw.cancel_deadline === "string" && option.raw.cancel_deadline
-        ? `cancellation free cancel until ${option.raw.cancel_deadline}`
-        : "cancellation not available yet",
-    option.payment_summary?.trim()
-      ? `payment ${option.payment_summary.trim()}`
-      : "payment not available yet",
+    cancellationNote(option),
+    paymentNote(option),
   ].filter(Boolean);
   return bits.join(". ") + ".";
 }

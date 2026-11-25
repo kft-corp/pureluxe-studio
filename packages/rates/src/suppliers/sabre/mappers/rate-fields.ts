@@ -188,6 +188,16 @@ function isFalsyFlag(value: unknown): boolean {
   return value === false || value === "false" || value === "False" || value === 0;
 }
 
+/** Sabre boolish fields (true/"true"/"1"/"Y") → boolean | null when absent. */
+function asSabreBool(value: unknown): boolean | null {
+  if (value === true || value === "true" || value === "True" || value === "1") {
+    return true;
+  }
+  if (typeof value === "string" && /^(y|yes)$/i.test(value.trim())) return true;
+  if (isFalsyFlag(value)) return false;
+  return null;
+}
+
 /** YYYY-MM-DD from Sabre AbsoluteDeadline (keeps calendar date, drops time/offset). */
 export function formatSabreAbsoluteDeadline(
   value: string | null | undefined,
@@ -209,15 +219,64 @@ function formatCancelUntilLabel(isoDate: string): string {
   return `Free cancel until ${label}`;
 }
 
+/** Subtract whole days from YYYY-MM-DD (UTC noon) → YYYY-MM-DD. */
+function subtractDaysFromIsoDate(
+  isoDate: string,
+  days: number,
+): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate) || !Number.isFinite(days) || days < 0) {
+    return null;
+  }
+  const ms = Date.parse(`${isoDate}T12:00:00Z`);
+  if (!Number.isFinite(ms)) return null;
+  return new Date(ms - days * 86_400_000).toISOString().slice(0, 10);
+}
+
+/**
+ * Resolve Sabre Deadline AbsoluteDeadline, or offset BeforeArrival vs check-in.
+ * Example: OffsetUnitMultiplier 1 + Day + BeforeArrival + check-in 2026-12-18 → 2026-12-17.
+ */
 function absoluteDeadlineFromPenalty(
   penalty: Record<string, unknown>,
+  checkIn?: string | null,
 ): string | null {
   const deadline = asRecord(penalty.Deadline) ?? asRecord(penalty.Deadlines);
   const absolute =
     asString(deadline?.AbsoluteDeadline) ??
     asString(deadline?.absoluteDeadline) ??
     asString(penalty.AbsoluteDeadline);
-  return formatSabreAbsoluteDeadline(absolute);
+  const fromAbsolute = formatSabreAbsoluteDeadline(absolute);
+  if (fromAbsolute) return fromAbsolute;
+
+  const checkInIso = checkIn?.trim() ?? "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(checkInIso) || !deadline) return null;
+
+  const drop =
+    (asString(deadline.OffsetDropTime) ?? asString(deadline.offsetDropTime) ?? "")
+      .trim()
+      .toLowerCase();
+  // Only convert arrival-relative offsets (booking-relative needs book time we don't have).
+  if (drop && drop !== "beforearrival") return null;
+
+  const unitRaw =
+    asString(deadline.OffsetTimeUnit) ?? asString(deadline.offsetTimeUnit) ?? "";
+  const unit = unitRaw.trim().toLowerCase();
+  const multiplier =
+    asNumber(deadline.OffsetUnitMultiplier) ??
+    asNumber(deadline.offsetUnitMultiplier);
+  if (multiplier == null || multiplier < 0) return null;
+
+  let days: number | null = null;
+  if (unit === "day" || unit === "days") {
+    days = multiplier;
+  } else if (unit === "week" || unit === "weeks") {
+    days = multiplier * 7;
+  } else if (unit === "hour" || unit === "hours") {
+    days = Math.ceil(multiplier / 24);
+  }
+  if (days == null) return null;
+
+  return subtractDaysFromIsoDate(checkInIso, days);
 }
 
 function penaltyNightsFromPenalty(
@@ -234,10 +293,12 @@ function penaltyNightsFromPenalty(
 }
 
 /**
- * First AbsoluteDeadline on a rate (for cancel_by / raw.cancel_deadline).
+ * First cancel-by date on a rate (AbsoluteDeadline or offset BeforeArrival).
+ * Pass checkIn so Day/Hour offsets resolve to YYYY-MM-DD.
  */
 export function pickCancelDeadline(
   rate: Record<string, unknown>,
+  checkIn?: string | null,
 ): string | null {
   const penaltiesBlock =
     asRecord(rate.CancelPenalties) ?? asRecord(rate.CancellationPenalties);
@@ -250,13 +311,13 @@ export function pickCancelDeadline(
     const penalty = asRecord(row);
     if (!penalty) continue;
     if (isFalsyFlag(penalty.Refundable)) continue;
-    const deadline = absoluteDeadlineFromPenalty(penalty);
+    const deadline = absoluteDeadlineFromPenalty(penalty, checkIn);
     if (deadline) return deadline;
   }
   for (const row of penaltyRows) {
     const penalty = asRecord(row);
     if (!penalty) continue;
-    const deadline = absoluteDeadlineFromPenalty(penalty);
+    const deadline = absoluteDeadlineFromPenalty(penalty, checkIn);
     if (deadline) return deadline;
   }
   return null;
@@ -282,9 +343,12 @@ export function pickCancelPenaltyNights(
 
 /**
  * Flatten Sabre CancelPenalties into advisor text.
- * Reads AbsoluteDeadline + NmbrOfNights (not only Refundable true/false).
+ * Reads AbsoluteDeadline or BeforeArrival offset (+ checkIn) + NmbrOfNights.
  */
-export function pickCancellation(rate: Record<string, unknown>): string | null {
+export function pickCancellation(
+  rate: Record<string, unknown>,
+  checkIn?: string | null,
+): string | null {
   const direct =
     asString(rate.CancelPenaltyDescription) ??
     asString(rate.CancellationPolicy) ??
@@ -313,7 +377,7 @@ export function pickCancellation(rate: Record<string, unknown>): string | null {
       continue;
     }
 
-    const deadline = absoluteDeadlineFromPenalty(penalty);
+    const deadline = absoluteDeadlineFromPenalty(penalty, checkIn);
     const nights = penaltyNightsFromPenalty(penalty);
     const description =
       asString(penalty.Description) ?? asString(penalty.PolicyCode);
@@ -338,6 +402,8 @@ export function pickCancellation(rate: Record<string, unknown>): string | null {
             ? "then 1 night charge"
             : `then ${nights} nights charge`,
         );
+      } else if (deadline) {
+        parts.push("post-deadline fee not returned by GDS");
       }
       if (description && !/refundable|free cancel/i.test(description)) {
         parts.push(description);
@@ -448,11 +514,118 @@ export function pickPaymentTiming(
   return null;
 }
 
+/** Accepted guarantee payment card codes (AX, VI, MC, …). */
+export function pickAcceptedPaymentCards(
+  rate: Record<string, unknown>,
+): string[] {
+  const guaranteeBlock =
+    asRecord(rate.Guarantee) ??
+    asRecord(rate.Guarantees) ??
+    asRecord(rate.GuaranteeInfo);
+  if (!guaranteeBlock) return [];
+
+  const accepted = asArray(
+    asRecord(guaranteeBlock.GuaranteesAccepted)?.GuaranteeAccepted ??
+      guaranteeBlock.GuaranteeAccepted,
+  );
+  const codes: string[] = [];
+  const seen = new Set<string>();
+  for (const row of accepted) {
+    const item = asRecord(row);
+    if (!item) continue;
+    const cards = asArray(
+      asRecord(item.PaymentCards)?.PaymentCard ?? item.PaymentCard,
+    );
+    for (const cardRow of cards) {
+      const card = asRecord(cardRow);
+      const code =
+        asString(card?.CardCode)?.trim().toUpperCase() ??
+        asString(cardRow)?.trim().toUpperCase() ??
+        null;
+      if (!code || seen.has(code)) continue;
+      seen.add(code);
+      codes.push(code);
+    }
+  }
+  return codes;
+}
+
+/** Commissionable / non-commissionable from Sabre Commission block or text. */
+export function pickCommissionable(
+  rate: Record<string, unknown>,
+): boolean | null {
+  const commission =
+    asRecord(rate.Commission) ?? asRecord(rate.Commissions);
+  if (commission) {
+    const type = (asString(commission.Type) ?? "").trim().toLowerCase();
+    if (type === "none" || type === "noncommissionable" || type === "non") {
+      return false;
+    }
+    const texts = textList(
+      asRecord(commission.CommissionDescription)?.Text ??
+        commission.Description,
+    );
+    const blob = `${type} ${texts.join(" ")}`.toLowerCase();
+    if (/non[\s-]?commission/.test(blob)) return false;
+    if (/commissionable/.test(blob) || type === "percentage" || type === "variable" || type === "amount") {
+      return true;
+    }
+  }
+  const direct = asString(rate.CommissionDescription) ?? "";
+  if (/non[\s-]?commission/i.test(direct)) return false;
+  if (/commissionable/i.test(direct)) return true;
+  return null;
+}
+
+export function pickLimitedAvailability(
+  rate: Record<string, unknown>,
+): boolean {
+  return (
+    asSabreBool(
+      rate.LimitedAvailability ??
+        rate.limitedAvailability ??
+        asRecord(rate.RatePlan)?.LimitedAvailability,
+    ) === true
+  );
+}
+
+/** Per-night amounts from ConvertedRateInfo.Rates.Rate[]. */
+export function pickNightlyRates(
+  rate: Record<string, unknown>,
+): Array<{ start: string; end: string; amount: number; currency: string }> {
+  const ratesBlock = asRecord(rate.Rates);
+  const rows = asArray(ratesBlock?.Rate ?? rate.Rate);
+  const out: Array<{
+    start: string;
+    end: string;
+    amount: number;
+    currency: string;
+  }> = [];
+  for (const row of rows) {
+    const night = asRecord(row);
+    if (!night) continue;
+    const start = asString(night.StartDate);
+    const end = asString(night.EndDate);
+    const amount =
+      asNumber(night.AmountBeforeTax) ??
+      asNumber(night.AmountAfterTax) ??
+      asNumber(night.Amount);
+    const currency =
+      asString(night.CurrencyCode) ?? asString(rate.CurrencyCode) ?? "USD";
+    if (!start || !end || amount == null || amount < 0) continue;
+    out.push({ start, end, amount, currency });
+  }
+  return out;
+}
+
 /** Flatten nested Sabre guarantee / deposit shapes. */
 export function pickPayment(rate: Record<string, unknown>): string | null {
   const timing = pickPaymentTiming(rate);
   const direct =
     asString(rate.GuaranteeDescription) ?? asString(rate.DepositPolicy);
+  const cards = pickAcceptedPaymentCards(rate);
+  const cardsSuffix =
+    cards.length > 0 ? ` (${cards.slice(0, 8).join(", ")})` : "";
 
   const guaranteeBlock =
     asRecord(rate.Guarantee) ??
@@ -487,14 +660,18 @@ export function pickPayment(rate: Record<string, unknown>): string | null {
       return depositLabel ?? "Deposit required";
     }
     if (gType === "GUAR" || gType === "GTG" || gType === "GUARANTEE") {
-      return "Guarantee required";
+      return `Guarantee required${cardsSuffix}`.trim();
     }
 
     const fromBlock =
       asString(guaranteeBlock.Description) ??
       (gType ? gType : null) ??
       textFromUnknown(guaranteeBlock);
-    if (fromBlock) return fromBlock;
+    if (fromBlock) {
+      return cardsSuffix && !/\([A-Z]{2}/.test(fromBlock)
+        ? `${fromBlock}${cardsSuffix}`
+        : fromBlock;
+    }
   }
 
   const deposit = asRecord(rate.Deposit) ?? asRecord(rate.Deposits);
@@ -510,7 +687,9 @@ export function pickPayment(rate: Record<string, unknown>): string | null {
   if (legacyType) {
     const upper = legacyType.toUpperCase();
     if (upper === "DEP" || upper === "DEPOSIT") return "Deposit required";
-    if (upper === "GUAR" || upper === "GTG") return "Guarantee required";
+    if (upper === "GUAR" || upper === "GTG") {
+      return `Guarantee required${cardsSuffix}`.trim();
+    }
     return legacyType;
   }
 
@@ -684,6 +863,19 @@ export function rateInfosFromHotelRateInfo(
   );
 }
 
+/** Hotel-level Commission from RateInfos (often missing on per-room ConvertedRateInfo). */
+function hotelLevelCommission(
+  hotelRateInfo: Record<string, unknown>,
+): Record<string, unknown> | null {
+  for (const row of rateInfosFromHotelRateInfo(hotelRateInfo)) {
+    const rate = asRecord(row);
+    const commission =
+      asRecord(rate?.Commission) ?? asRecord(rate?.Commissions);
+    if (commission) return commission;
+  }
+  return asRecord(hotelRateInfo.Commission) ?? asRecord(hotelRateInfo.Commissions);
+}
+
 /**
  * Prefer Rooms.Room → RatePlans.RatePlan (+ nested ConvertedRateInfo).
  * Falls back to thin RateInfos.ConvertedRateInfo when Rooms is absent.
@@ -695,7 +887,15 @@ export function extractPricedRateRows(
   const block =
     asRecord(hotelOrDetails.HotelRateInfo) ?? hotelOrDetails;
   const fromRooms = extractRatesFromRooms(block);
-  if (fromRooms.length > 0) return fromRooms;
+  if (fromRooms.length > 0) {
+    const hotelCommission = hotelLevelCommission(block);
+    if (!hotelCommission) return fromRooms;
+    return fromRooms.map((row) =>
+      asRecord(row)?.Commission || asRecord(row)?.Commissions
+        ? row
+        : { ...row, Commission: hotelCommission },
+    );
+  }
 
   return rateInfosFromHotelRateInfo(hotelOrDetails)
     .map((row) => asRecord(row))
@@ -944,6 +1144,15 @@ function extractRatesFromRooms(
         MaxOccupancy: maxOccupancy,
         AdvancePurchase: isAdvancePurchase(plan, ratePlanName),
         PrepaidIndicator: plan.PrepaidIndicator,
+        LimitedAvailability:
+          plan.LimitedAvailability ?? money.LimitedAvailability ?? null,
+        ProductCode: asString(plan.ProductCode) ?? asString(money.ProductCode),
+        RatePlanType:
+          asString(plan.RatePlanType) ?? asString(money.RatePlanType),
+        RatePlanTypeDescription:
+          asString(plan.RatePlanTypeDescription) ??
+          asString(money.RatePlanTypeDescription),
+        Commission: money.Commission ?? plan.Commission ?? null,
         RoomDescription: roomDesc,
         RoomDescriptionTexts: roomDescTexts,
         RatePlanDescriptionTexts: textList(ratePlanDescription?.Text),
@@ -955,6 +1164,15 @@ function extractRatesFromRooms(
         Taxes: money.Taxes ?? plan.Taxes ?? null,
         Fees: money.Fees ?? plan.Fees ?? null,
         RoomExtras: money.RoomExtras ?? plan.RoomExtras ?? null,
+        Rates: money.Rates ?? plan.Rates ?? null,
+        HighestNightlyRate:
+          asNumber(money.HighestNightlyRate) ??
+          asNumber(plan.HighestNightlyRate),
+        TaxInclusive: money.TaxInclusive ?? plan.TaxInclusive ?? null,
+        AdditionalFeesInclusive:
+          money.AdditionalFeesInclusive ??
+          plan.AdditionalFeesInclusive ??
+          null,
         MealPlanDescription:
           asString(money.MealPlanDescription) ??
           asString(plan.MealPlanDescription),
@@ -1135,6 +1353,28 @@ export function mapRateInfosToQuotes(
     const feeLines = pickFeeLines(rate);
     const extraLines = pickRoomExtraLines(rate);
     const roomAmenityFlags = pickRoomAmenityFlags(rate);
+    const cancelSummary = pickCancellation(rate, input.checkIn);
+    const cancelDeadline = pickCancelDeadline(rate, input.checkIn);
+    const cancelPenaltyNights = pickCancelPenaltyNights(rate);
+    const commissionable = pickCommissionable(rate);
+    const acceptedCards = pickAcceptedPaymentCards(rate);
+    const limitedAvailability = pickLimitedAvailability(rate);
+    const nightlyRates = pickNightlyRates(rate);
+    const taxInclusive = asSabreBool(rate.TaxInclusive);
+    const feesInclusive = asSabreBool(rate.AdditionalFeesInclusive);
+    // Supplier (hotel) currency when Sabre also converted (e.g. JPY → USD).
+    const supplierCurrency =
+      asString(rate.SupplierCurrencyCode) ??
+      asString(rate.OriginalCurrencyCode) ??
+      (currency &&
+      asString(rate.ConvertedCurrencyCode) &&
+      currency !== asString(rate.ConvertedCurrencyCode)
+        ? currency
+        : null);
+    const supplierAmount =
+      asNumber(rate.SupplierAmountAfterTax) ??
+      asNumber(rate.OriginalAmountAfterTax) ??
+      null;
 
     quotes.push({
       property_id: input.propertyId ?? null,
@@ -1147,7 +1387,7 @@ export function mapRateInfosToQuotes(
       cost_internal: amount,
       rate_source_code: input.source,
       inclusions: pickInclusions(rate),
-      cancellation_summary: pickCancellation(rate),
+      cancellation_summary: cancelSummary,
       payment_summary: pickPayment(rate),
       availability_status: "available",
       raw: {
@@ -1156,18 +1396,30 @@ export function mapRateInfosToQuotes(
         rate_key: rateKey,
         rate_plan_code: asString(rate.RatePlanCode),
         rate_plan_name: asString(rate.RatePlanName),
+        product_code: asString(rate.ProductCode),
+        rate_plan_type: asString(rate.RatePlanType),
+        rate_plan_type_description: asString(rate.RatePlanTypeDescription),
         room_type: asString(rate.RoomType),
         bed_type: asString(rate.BedType),
         max_occupancy: asNumber(rate.MaxOccupancy),
         advance_purchase: rate.AdvancePurchase === true,
         payment_timing: pickPaymentTiming(rate),
-        cancel_deadline: pickCancelDeadline(rate),
-        cancel_penalty_nights: pickCancelPenaltyNights(rate),
+        accepted_payment_cards: acceptedCards,
+        commissionable,
+        limited_availability: limitedAvailability,
+        cancel_deadline: cancelDeadline,
+        cancel_penalty_nights: cancelPenaltyNights,
         average_nightly_rate: averageNightly,
+        highest_nightly_rate: asNumber(rate.HighestNightlyRate),
+        nightly_rates: nightlyRates,
         amount_after_tax: asNumber(rate.AmountAfterTax),
         amount_before_tax: asNumber(rate.AmountBeforeTax),
         tax_amount: tax.amount,
         tax_currency: tax.currency,
+        tax_inclusive: taxInclusive,
+        fees_inclusive: feesInclusive,
+        supplier_currency: supplierCurrency,
+        supplier_amount_after_tax: supplierAmount,
         fee_lines: feeLines,
         room_extra_lines: extraLines,
         room_amenities: roomAmenityFlags.map((row) => row.label),
@@ -1307,13 +1559,29 @@ function shortAdvisorBlurb(text: string | null): string | null {
   return `${first.slice(0, 109).trimEnd()}…`;
 }
 
+/** True when cancel text is bare "Free cancel" with no until-date / deadline. */
+function cancelSummaryNeedsDeadline(summary: string | null | undefined): boolean {
+  const text = summary?.trim() ?? "";
+  if (!text) return true;
+  if (/until\s+\d/i.test(text) || /\d{4}-\d{2}-\d{2}/.test(text)) return false;
+  return /^free cancel\b/i.test(text) && !/until/i.test(text);
+}
+
 /** True when Avail quotes need Details (missing RateKey and/or policies). */
 export function availNeedsDetailsEnrichment(quotes: RawRateInput[]): boolean {
   if (quotes.length === 0) return false;
   return quotes.some((quote) => {
     const rateKey = quote.raw?.rate_key;
     const hasKey = typeof rateKey === "string" && Boolean(rateKey.trim());
-    return !hasKey || !quote.cancellation_summary || !quote.payment_summary;
+    const hasDeadline =
+      typeof quote.raw?.cancel_deadline === "string" &&
+      Boolean(quote.raw.cancel_deadline.trim());
+    return (
+      !hasKey ||
+      !quote.cancellation_summary ||
+      !quote.payment_summary ||
+      (cancelSummaryNeedsDeadline(quote.cancellation_summary) && !hasDeadline)
+    );
   });
 }
 
